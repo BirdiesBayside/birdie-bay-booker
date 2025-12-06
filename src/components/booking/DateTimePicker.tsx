@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { format } from "date-fns";
+import { useState, useEffect } from "react";
+import { format, isToday } from "date-fns";
 import { CalendarIcon, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -28,12 +28,15 @@ interface DateTimePickerProps {
   onPlayersChange: (players: number) => void;
 }
 
-// Generate time slots from 8am to 10pm in 30-min increments
+const OPENING_HOUR = 5;  // 5am
+const CLOSING_HOUR = 23; // 11pm
+
+// Generate time slots from 5am to 11pm in 30-min increments
 const generateTimeSlots = () => {
   const slots: string[] = [];
-  for (let hour = 8; hour <= 22; hour++) {
+  for (let hour = OPENING_HOUR; hour <= CLOSING_HOUR; hour++) {
     slots.push(`${hour.toString().padStart(2, "0")}:00`);
-    if (hour < 22) {
+    if (hour < CLOSING_HOUR) {
       slots.push(`${hour.toString().padStart(2, "0")}:30`);
     }
   }
@@ -43,6 +46,33 @@ const generateTimeSlots = () => {
 const TIME_SLOTS = generateTimeSlots();
 const DURATIONS = [1, 2, 3, 4];
 const PLAYERS = [1, 2, 3, 4];
+
+// Get the next available time slot (rounded up to nearest 30 min)
+const getNextAvailableTimeSlot = (): string => {
+  const now = new Date();
+  let hour = now.getHours();
+  let minute = now.getMinutes();
+
+  // Round up to next 30-min slot
+  if (minute > 30) {
+    hour += 1;
+    minute = 0;
+  } else if (minute > 0) {
+    minute = 30;
+  }
+
+  // If before opening, return opening time
+  if (hour < OPENING_HOUR) {
+    return `${OPENING_HOUR.toString().padStart(2, "0")}:00`;
+  }
+
+  // If past closing, return opening time (for next day logic)
+  if (hour >= CLOSING_HOUR) {
+    return `${OPENING_HOUR.toString().padStart(2, "0")}:00`;
+  }
+
+  return `${hour.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}`;
+};
 
 export function DateTimePicker({
   selectedDate,
@@ -56,19 +86,45 @@ export function DateTimePicker({
 }: DateTimePickerProps) {
   const [calendarOpen, setCalendarOpen] = useState(false);
 
+  // Set default time when date changes
+  useEffect(() => {
+    if (selectedDate) {
+      if (isToday(selectedDate)) {
+        const nextSlot = getNextAvailableTimeSlot();
+        onTimeChange(nextSlot);
+      } else {
+        // Future date - default to opening time
+        onTimeChange(`${OPENING_HOUR.toString().padStart(2, "0")}:00`);
+      }
+    }
+  }, [selectedDate]);
+
   const handleDateSelect = (date: Date | undefined) => {
     onDateChange(date);
     setCalendarOpen(false);
   };
-  // Filter out time slots that would extend past closing (10pm)
+  // Filter out time slots that would extend past closing or are in the past for today
   const getAvailableTimeSlots = () => {
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
+
     return TIME_SLOTS.filter((time) => {
       const hour = parseInt(time.split(":")[0]);
       const minute = parseInt(time.split(":")[1]);
       const endHour = hour + selectedDuration;
-      const endMinutes = minute;
-      // End time cannot exceed 22:00 (10pm)
-      return endHour < 22 || (endHour === 22 && endMinutes === 0);
+
+      // End time cannot exceed closing time
+      if (endHour > CLOSING_HOUR) return false;
+
+      // If today, filter out past times
+      if (selectedDate && isToday(selectedDate)) {
+        const slotMinutes = hour * 60 + minute;
+        const nowMinutes = currentHour * 60 + currentMinute;
+        if (slotMinutes <= nowMinutes) return false;
+      }
+
+      return true;
     });
   };
 
