@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Crown, CreditCard, Lock, User, Mail, Phone, Plus, Loader2, Trash2 } from "lucide-react";
+import { ArrowLeft, Crown, CreditCard, Lock, User, Mail, Phone, Plus, Loader2, Trash2, Pencil, Check, X } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -46,6 +46,13 @@ const MyAccount = () => {
   const [isLoadingPaymentMethods, setIsLoadingPaymentMethods] = useState(true);
   const [isAddingPaymentMethod, setIsAddingPaymentMethod] = useState(false);
   const [deletingPaymentMethodId, setDeletingPaymentMethodId] = useState<string | null>(null);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [editForm, setEditForm] = useState({
+    first_name: "",
+    last_name: "",
+    phone: "",
+  });
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -143,6 +150,51 @@ const MyAccount = () => {
       toast.error("Failed to remove payment method");
     } finally {
       setDeletingPaymentMethodId(null);
+    }
+  };
+
+  const handleStartEditProfile = () => {
+    setEditForm({
+      first_name: profile?.first_name || "",
+      last_name: profile?.last_name || "",
+      phone: profile?.phone || "",
+    });
+    setIsEditingProfile(true);
+  };
+
+  const handleCancelEditProfile = () => {
+    setIsEditingProfile(false);
+    setEditForm({
+      first_name: "",
+      last_name: "",
+      phone: "",
+    });
+  };
+
+  const handleSaveProfile = async () => {
+    if (!user) return;
+
+    setIsSavingProfile(true);
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          first_name: editForm.first_name.trim(),
+          last_name: editForm.last_name.trim(),
+          phone: editForm.phone.trim() || null,
+        })
+        .eq("user_id", user.id);
+
+      if (error) throw error;
+
+      toast.success("Profile updated successfully");
+      setIsEditingProfile(false);
+      fetchProfile();
+    } catch (error) {
+      console.error("Error updating profile:", error);
+      toast.error("Failed to update profile");
+    } finally {
+      setIsSavingProfile(false);
     }
   };
 
@@ -249,14 +301,26 @@ const MyAccount = () => {
           {/* Profile Information */}
           <Card>
             <CardHeader>
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-accent/10 flex items-center justify-center">
-                  <User className="h-5 w-5 text-accent" />
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-lg bg-accent/10 flex items-center justify-center">
+                    <User className="h-5 w-5 text-accent" />
+                  </div>
+                  <div>
+                    <CardTitle>Profile Information</CardTitle>
+                    <CardDescription>Your personal details</CardDescription>
+                  </div>
                 </div>
-                <div>
-                  <CardTitle>Profile Information</CardTitle>
-                  <CardDescription>Your personal details</CardDescription>
-                </div>
+                {!isEditingProfile && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleStartEditProfile}
+                  >
+                    <Pencil className="h-4 w-4 mr-1" />
+                    Edit
+                  </Button>
+                )}
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -265,18 +329,20 @@ const MyAccount = () => {
                   <Label htmlFor="firstName">First Name</Label>
                   <Input
                     id="firstName"
-                    value={profile?.first_name || ""}
-                    disabled
-                    className="bg-muted"
+                    value={isEditingProfile ? editForm.first_name : (profile?.first_name || "")}
+                    onChange={(e) => setEditForm({ ...editForm, first_name: e.target.value })}
+                    disabled={!isEditingProfile}
+                    className={!isEditingProfile ? "bg-muted" : ""}
                   />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="lastName">Last Name</Label>
                   <Input
                     id="lastName"
-                    value={profile?.last_name || ""}
-                    disabled
-                    className="bg-muted"
+                    value={isEditingProfile ? editForm.last_name : (profile?.last_name || "")}
+                    onChange={(e) => setEditForm({ ...editForm, last_name: e.target.value })}
+                    disabled={!isEditingProfile}
+                    className={!isEditingProfile ? "bg-muted" : ""}
                   />
                 </div>
               </div>
@@ -291,6 +357,7 @@ const MyAccount = () => {
                   disabled
                   className="bg-muted"
                 />
+                <p className="text-xs text-muted-foreground">Email cannot be changed</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="phone" className="flex items-center gap-2">
@@ -299,11 +366,42 @@ const MyAccount = () => {
                 <Input
                   id="phone"
                   type="tel"
-                  value={profile?.phone || "Not provided"}
-                  disabled
-                  className="bg-muted"
+                  placeholder="Enter phone number"
+                  value={isEditingProfile ? editForm.phone : (profile?.phone || "")}
+                  onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                  disabled={!isEditingProfile}
+                  className={!isEditingProfile ? "bg-muted" : ""}
                 />
               </div>
+              {isEditingProfile && (
+                <div className="flex gap-2 pt-2">
+                  <Button
+                    onClick={handleSaveProfile}
+                    disabled={isSavingProfile}
+                    className="bg-accent text-accent-foreground hover:bg-accent/90"
+                  >
+                    {isSavingProfile ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Check className="h-4 w-4 mr-2" />
+                        Save Changes
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={handleCancelEditProfile}
+                    disabled={isSavingProfile}
+                  >
+                    <X className="h-4 w-4 mr-2" />
+                    Cancel
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
 
