@@ -2,7 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
-import { LogOut, Calendar, User } from "lucide-react";
+import { LogOut, Calendar, Crown, Settings, ClipboardList } from "lucide-react";
 
 const Dashboard = () => {
   const { user, isAuthenticated, isLoading, signOut } = useAuth();
@@ -85,15 +85,45 @@ const Dashboard = () => {
             <div className="bg-card rounded-lg p-6 shadow-md border border-border">
               <div className="flex items-center gap-3 mb-4">
                 <div className="h-10 w-10 rounded-lg bg-accent/10 flex items-center justify-center">
-                  <User className="h-5 w-5 text-accent" />
+                  <ClipboardList className="h-5 w-5 text-accent" />
                 </div>
-                <h2 className="font-semibold text-lg">My Profile</h2>
+                <h2 className="font-semibold text-lg">My Bookings</h2>
               </div>
               <p className="text-muted-foreground mb-4">
-                View and update your account details and membership status.
+                View, edit, or cancel your upcoming bay reservations.
               </p>
               <Button variant="outline" className="w-full">
-                View Profile
+                View Bookings
+              </Button>
+            </div>
+
+            <div className="bg-card rounded-lg p-6 shadow-md border border-border">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="h-10 w-10 rounded-lg bg-accent/10 flex items-center justify-center">
+                  <Crown className="h-5 w-5 text-accent" />
+                </div>
+                <h2 className="font-semibold text-lg">My Membership</h2>
+              </div>
+              <p className="text-muted-foreground mb-4">
+                View your current membership tier and benefits.
+              </p>
+              <Button variant="outline" className="w-full">
+                View Membership
+              </Button>
+            </div>
+
+            <div className="bg-card rounded-lg p-6 shadow-md border border-border">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="h-10 w-10 rounded-lg bg-accent/10 flex items-center justify-center">
+                  <Settings className="h-5 w-5 text-accent" />
+                </div>
+                <h2 className="font-semibold text-lg">My Account</h2>
+              </div>
+              <p className="text-muted-foreground mb-4">
+                Manage payment methods, passwords, and account settings.
+              </p>
+              <Button variant="outline" className="w-full">
+                Account Settings
               </Button>
             </div>
           </div>
