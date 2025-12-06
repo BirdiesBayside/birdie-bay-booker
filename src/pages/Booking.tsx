@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DateTimePicker } from "@/components/booking/DateTimePicker";
 import { BayAvailabilityGrid } from "@/components/booking/BayAvailabilityGrid";
 import { toast } from "@/hooks/use-toast";
+import birdiesLogo from "@/assets/birdies-logo.png";
 
 const MEMBERSHIP_DISPLAY: Record<string, string> = {
   visitor: "Visitor",
@@ -114,18 +115,24 @@ export default function Booking() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
       <header className="bg-primary text-primary-foreground py-4 px-4">
-        <div className="max-w-4xl mx-auto flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-primary-foreground hover:bg-primary/80"
-            onClick={() => navigate("/dashboard")}
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <h1 className="font-display text-2xl tracking-wide">BOOK A BAY</h1>
+        <div className="max-w-4xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-primary-foreground hover:bg-primary/80"
+              onClick={() => navigate("/dashboard")}
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <h1 className="font-display text-2xl tracking-wide">BOOK A BAY</h1>
+          </div>
+          <img 
+            src={birdiesLogo} 
+            alt="Birdies" 
+            className="h-10 w-auto"
+          />
         </div>
       </header>
 

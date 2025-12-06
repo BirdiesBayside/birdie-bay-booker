@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeft, Calendar, Clock, MapPin, X } from "lucide-react";
 import { format, parseISO, isPast, isToday } from "date-fns";
 import { toast } from "sonner";
+import birdiesLogo from "@/assets/birdies-logo.png";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -148,18 +149,25 @@ const MyBookings = () => {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       {/* Header */}
-      <header className="bg-primary py-4 px-6 flex items-center gap-4">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => navigate("/dashboard")}
-          className="text-primary-foreground hover:bg-primary-foreground/10"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <span className="font-display text-2xl tracking-wide text-primary-foreground">
-          MY BOOKINGS
-        </span>
+      <header className="bg-primary py-4 px-6 flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate("/dashboard")}
+            className="text-primary-foreground hover:bg-primary-foreground/10"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <span className="font-display text-2xl tracking-wide text-primary-foreground">
+            MY BOOKINGS
+          </span>
+        </div>
+        <img 
+          src={birdiesLogo} 
+          alt="Birdies" 
+          className="h-10 w-auto"
+        />
       </header>
 
       {/* Main content */}

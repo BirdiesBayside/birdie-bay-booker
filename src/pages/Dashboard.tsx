@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { LogOut, Calendar, Settings, ClipboardList } from "lucide-react";
+import birdiesLogo from "@/assets/birdies-logo.png";
 
 const Dashboard = () => {
   const { user, isAuthenticated, isLoading, signOut } = useAuth();
@@ -37,9 +38,11 @@ const Dashboard = () => {
     <div className="min-h-screen flex flex-col">
       {/* Header */}
       <header className="bg-primary py-4 px-6 flex items-center justify-between">
-        <span className="font-display text-2xl tracking-wide text-primary-foreground">
-          BIRDIES
-        </span>
+        <img 
+          src={birdiesLogo} 
+          alt="Birdies" 
+          className="h-10 w-auto"
+        />
         <div className="flex items-center gap-4">
           <span className="text-primary-foreground/80 text-sm hidden sm:block">
             Welcome, {firstName}
