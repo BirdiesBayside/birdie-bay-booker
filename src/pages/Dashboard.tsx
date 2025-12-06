@@ -111,7 +111,11 @@ const Dashboard = () => {
               <p className="text-muted-foreground mb-4">
                 Manage membership, payment methods, and account settings.
               </p>
-              <Button variant="outline" className="w-full">
+              <Button 
+                variant="outline" 
+                className="w-full"
+                onClick={() => navigate("/my-account")}
+              >
                 Account Settings
               </Button>
             </div>
