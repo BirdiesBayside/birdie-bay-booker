@@ -96,8 +96,7 @@ const Dashboard = () => {
                 View, edit, or cancel your upcoming bay reservations.
               </p>
               <Button 
-                variant="outline" 
-                className="w-full"
+                className="w-full bg-accent text-accent-foreground hover:bg-accent/90"
                 onClick={() => navigate("/my-bookings")}
               >
                 View Bookings
@@ -115,8 +114,7 @@ const Dashboard = () => {
                 Manage membership, payment methods, and account settings.
               </p>
               <Button 
-                variant="outline" 
-                className="w-full"
+                className="w-full bg-accent text-accent-foreground hover:bg-accent/90"
                 onClick={() => navigate("/my-account")}
               >
                 Account Settings
