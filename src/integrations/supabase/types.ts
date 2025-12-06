@@ -14,6 +14,44 @@ export type Database = {
   }
   public: {
     Tables: {
+      bay_devices: {
+        Row: {
+          app_version: string | null
+          bay_id: string
+          created_at: string
+          id: string
+          is_online: boolean
+          last_seen: string | null
+          updated_at: string
+        }
+        Insert: {
+          app_version?: string | null
+          bay_id: string
+          created_at?: string
+          id?: string
+          is_online?: boolean
+          last_seen?: string | null
+          updated_at?: string
+        }
+        Update: {
+          app_version?: string | null
+          bay_id?: string
+          created_at?: string
+          id?: string
+          is_online?: boolean
+          last_seen?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bay_devices_bay_id_fkey"
+            columns: ["bay_id"]
+            isOneToOne: true
+            referencedRelation: "bays"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bays: {
         Row: {
           bay_number: number
