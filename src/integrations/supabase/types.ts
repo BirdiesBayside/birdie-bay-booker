@@ -47,6 +47,7 @@ export type Database = {
           end_time: string
           hourly_rate: number
           id: string
+          player_count: number
           start_time: string
           status: string
           total_price: number
@@ -61,6 +62,7 @@ export type Database = {
           end_time: string
           hourly_rate: number
           id?: string
+          player_count?: number
           start_time: string
           status?: string
           total_price: number
@@ -75,6 +77,7 @@ export type Database = {
           end_time?: string
           hourly_rate?: number
           id?: string
+          player_count?: number
           start_time?: string
           status?: string
           total_price?: number

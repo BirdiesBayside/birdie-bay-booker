@@ -118,7 +118,8 @@ export function useBooking() {
     bayId: string,
     date: Date,
     startTime: string,
-    durationHours: number
+    durationHours: number,
+    playerCount: number = 1
   ) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
@@ -142,6 +143,7 @@ export function useBooking() {
         duration_hours: durationHours,
         hourly_rate: hourlyRate,
         total_price: totalPrice,
+        player_count: playerCount,
       })
       .select()
       .single();

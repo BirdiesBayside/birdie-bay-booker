@@ -83,7 +83,7 @@ export default function Booking() {
 
     setIsSubmitting(true);
     try {
-      await createBooking(selectedBayId, selectedDate, selectedTime, selectedDuration);
+      await createBooking(selectedBayId, selectedDate, selectedTime, selectedDuration, selectedPlayers);
       toast({
         title: "Booking confirmed!",
         description: `Your bay is booked for ${format(selectedDate, "PPP")} at ${selectedTime}.`,
