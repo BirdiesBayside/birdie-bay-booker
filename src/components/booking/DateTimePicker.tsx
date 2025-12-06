@@ -108,20 +108,21 @@ export function DateTimePicker({
     const now = new Date();
     const currentHour = now.getHours();
     const currentMinute = now.getMinutes();
+    const closingMinutes = CLOSING_HOUR * 60; // 11pm = 1380 minutes
 
     return TIME_SLOTS.filter((time) => {
       const hour = parseInt(time.split(":")[0]);
       const minute = parseInt(time.split(":")[1]);
-      const endHour = hour + selectedDuration;
+      const startMinutes = hour * 60 + minute;
+      const endMinutes = startMinutes + (selectedDuration * 60);
 
-      // End time cannot exceed closing time
-      if (endHour > CLOSING_HOUR) return false;
+      // End time cannot exceed closing time (accounting for minutes)
+      if (endMinutes > closingMinutes) return false;
 
       // If today, filter out past times
       if (selectedDate && isToday(selectedDate)) {
-        const slotMinutes = hour * 60 + minute;
         const nowMinutes = currentHour * 60 + currentMinute;
-        if (slotMinutes <= nowMinutes) return false;
+        if (startMinutes <= nowMinutes) return false;
       }
 
       return true;
