@@ -14,6 +14,83 @@ export type Database = {
   }
   public: {
     Tables: {
+      bays: {
+        Row: {
+          bay_number: number
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+        }
+        Insert: {
+          bay_number: number
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+        }
+        Update: {
+          bay_number?: number
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+        }
+        Relationships: []
+      }
+      bookings: {
+        Row: {
+          bay_id: string
+          booking_date: string
+          created_at: string
+          duration_hours: number
+          end_time: string
+          hourly_rate: number
+          id: string
+          start_time: string
+          status: string
+          total_price: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          bay_id: string
+          booking_date: string
+          created_at?: string
+          duration_hours: number
+          end_time: string
+          hourly_rate: number
+          id?: string
+          start_time: string
+          status?: string
+          total_price: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          bay_id?: string
+          booking_date?: string
+          created_at?: string
+          duration_hours?: number
+          end_time?: string
+          hourly_rate?: number
+          id?: string
+          start_time?: string
+          status?: string
+          total_price?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookings_bay_id_fkey"
+            columns: ["bay_id"]
+            isOneToOne: false
+            referencedRelation: "bays"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -21,6 +98,7 @@ export type Database = {
           first_name: string
           id: string
           last_name: string
+          membership_tier: Database["public"]["Enums"]["membership_tier"]
           phone: string | null
           updated_at: string
           user_id: string
@@ -31,6 +109,7 @@ export type Database = {
           first_name: string
           id?: string
           last_name: string
+          membership_tier?: Database["public"]["Enums"]["membership_tier"]
           phone?: string | null
           updated_at?: string
           user_id: string
@@ -41,6 +120,7 @@ export type Database = {
           first_name?: string
           id?: string
           last_name?: string
+          membership_tier?: Database["public"]["Enums"]["membership_tier"]
           phone?: string | null
           updated_at?: string
           user_id?: string
@@ -55,7 +135,7 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      membership_tier: "visitor" | "par" | "birdie" | "eagle" | "albatross"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -182,6 +262,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      membership_tier: ["visitor", "par", "birdie", "eagle", "albatross"],
+    },
   },
 } as const
