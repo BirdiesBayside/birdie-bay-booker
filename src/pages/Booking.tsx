@@ -32,7 +32,7 @@ export default function Booking() {
     createBooking,
   } = useBooking();
 
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>();
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [selectedTime, setSelectedTime] = useState<string | undefined>();
   const [selectedDuration, setSelectedDuration] = useState<number>(1);
   const [selectedPlayers, setSelectedPlayers] = useState<number>(1);
