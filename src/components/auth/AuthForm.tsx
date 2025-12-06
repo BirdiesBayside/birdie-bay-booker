@@ -3,6 +3,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
@@ -23,6 +26,7 @@ const signInSchema = z.object({
 export function AuthForm() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -49,6 +53,12 @@ export function AuthForm() {
 
     try {
       if (isSignUp) {
+        if (!acceptedTerms) {
+          setErrors({ terms: "You must accept the terms and conditions" });
+          setIsLoading(false);
+          return;
+        }
+
         const validation = signUpSchema.safeParse(formData);
         if (!validation.success) {
           const fieldErrors: Record<string, string> = {};
@@ -231,6 +241,155 @@ export function AuthForm() {
             )}
           </div>
 
+          {isSignUp && (
+            <div className="space-y-2">
+              <div className="flex items-start space-x-2">
+                <Checkbox
+                  id="terms"
+                  checked={acceptedTerms}
+                  onCheckedChange={(checked) => {
+                    setAcceptedTerms(checked === true);
+                    if (errors.terms) {
+                      setErrors((prev) => ({ ...prev, terms: "" }));
+                    }
+                  }}
+                  className={errors.terms ? "border-destructive" : ""}
+                />
+                <div className="grid gap-1.5 leading-none">
+                  <label
+                    htmlFor="terms"
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                  >
+                    I accept the{" "}
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <button type="button" className="text-accent hover:underline font-semibold">
+                          Terms and Conditions
+                        </button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-2xl max-h-[80vh]">
+                        <DialogHeader>
+                          <DialogTitle className="font-display text-xl text-primary">
+                            Terms and Conditions
+                          </DialogTitle>
+                        </DialogHeader>
+                        <ScrollArea className="h-[60vh] pr-4">
+                          <div className="space-y-4 text-sm text-muted-foreground">
+                            <p className="font-semibold text-foreground">
+                              Birdies Indoor Golf Centre — Terms and Conditions
+                            </p>
+                            <p>
+                              These Terms and Conditions ("Terms") govern the use of all facilities, equipment, and services provided by Birdies Indoor Golf Centre ("Birdies", "we", "us", or "our"). By signing up for a membership, booking a session, or otherwise accessing the premises, you ("Customer", "you", or "your") agree to be bound by these Terms.
+                            </p>
+
+                            <div>
+                              <h3 className="font-semibold text-foreground">1. General Use of Facilities</h3>
+                              <p>1.1. Birdies provides indoor golf simulation services in a safe, clean, and welcoming environment.</p>
+                              <p>1.2. All customers must follow the instructions provided on signage, in-app messages, and/or by staff to ensure safe and appropriate use of the facility.</p>
+                              <p>1.3. Customers must not interfere with or modify any equipment or software systems.</p>
+                            </div>
+
+                            <div>
+                              <h3 className="font-semibold text-foreground">2. Health and Safety</h3>
+                              <p>2.1. Customers are fully responsible for their own health and safety while on the premises.</p>
+                              <p>2.2. The use of real golf clubs and balls indoors is inherently dangerous.</p>
+                              <p>2.3. Birdies takes all reasonable steps to provide a safe playing environment, but it is your responsibility to maintain a safe distance from other players and equipment, particularly when beginners are present.</p>
+                              <p>2.4. All use of the facilities is at your own risk.</p>
+                            </div>
+
+                            <div>
+                              <h3 className="font-semibold text-foreground">3. Damage and Liability</h3>
+                              <p>3.1. You are liable for any damage you or your guests cause to any equipment, furniture, or fittings within the Birdies premises.</p>
+                              <p>3.2. Intentional or reckless damage may result in repair or replacement costs being invoiced to you.</p>
+                              <p>3.3. We reserve the right to recover all associated costs and pursue legal action if necessary.</p>
+                            </div>
+
+                            <div>
+                              <h3 className="font-semibold text-foreground">4. Alcohol Policy</h3>
+                              <p>4.1. Responsible alcohol consumption is mandatory.</p>
+                              <p>4.2. Anyone seen abusing alcohol or appearing intoxicated will be removed from the premises immediately and banned permanently.</p>
+                              <p>4.3. Alcohol service is only available to those with a valid Gold Bay booking during staffed hours (Fridays to Sundays, 2:00pm – 10:00pm).</p>
+                              <p>4.4. The bar is not open to the public, and cannot be accessed without a valid, active booking.</p>
+                              <p>4.5. BYO alcohol is strictly prohibited. Any individual caught bringing alcohol onto the premises will face an immediate and permanent ban.</p>
+                              <p>4.6. Alcohol may not be consumed or accessed outside of designated staffed hours.</p>
+                            </div>
+
+                            <div>
+                              <h3 className="font-semibold text-foreground">5. Booking, Access, and Session Rules</h3>
+                              <p>5.1. Your door access code will only be valid 10 minutes before your scheduled session.</p>
+                              <p>5.2. Early access is not permitted to ensure parking availability and operational flow.</p>
+                              <p>5.3. You and your entire group must vacate the premises promptly once your booking ends.</p>
+                              <p>5.4. Customers staying beyond their booked time may be issued a warning or banned.</p>
+                            </div>
+
+                            <div>
+                              <h3 className="font-semibold text-foreground">6. Guest Policy</h3>
+                              <p>6.1. Each bay booking allows a maximum of 3 people total (1 member + 2 guests).</p>
+                              <p>6.2. This operates on a trust system. Exceeding this limit will result in a warning and may lead to a ban.</p>
+                              <p>6.3. Memberships may not be shared. Sharing your membership or access code with another person is strictly prohibited and will result in disciplinary action including bans.</p>
+                            </div>
+
+                            <div>
+                              <h3 className="font-semibold text-foreground">7. Premises Access Hours</h3>
+                              <p>7.1. The facility is only accessible between 5:00am and 11:00pm daily.</p>
+                              <p>7.2. Remaining on the premises outside these hours may trigger a security alert and police may be contacted.</p>
+                            </div>
+
+                            <div>
+                              <h3 className="font-semibold text-foreground">8. Use of Equipment</h3>
+                              <p>8.1. Free golf club hire is available on a first-come, first-served basis.</p>
+                              <p>8.2. You agree to take care of hired equipment, return it after use, and keep it clean.</p>
+                              <p>8.3. Only clean, undamaged golf balls and clubs are to be used.</p>
+                              <p>8.4. Any customer using nicked, scuffed, or dirty balls/clubs that cause screen damage will be liable for replacement costs and may be banned.</p>
+                              <p>8.5. PCs and simulation equipment may only be used for their intended purpose — golf simulation. Any unauthorized use will result in an immediate and permanent ban.</p>
+                            </div>
+
+                            <div>
+                              <h3 className="font-semibold text-foreground">9. Children and Supervision</h3>
+                              <p>9.1. All minors must be supervised by an adult at all times.</p>
+                              <p>9.2. The supervising adult is fully responsible for the safety and conduct of the minor(s).</p>
+                            </div>
+
+                            <div>
+                              <h3 className="font-semibold text-foreground">10. Behaviour and Conduct</h3>
+                              <p>10.1. Birdies maintains a zero-tolerance policy for abusive, aggressive, or inappropriate behaviour.</p>
+                              <p>10.2. We reserve the right to refuse service, terminate memberships, or ban individuals who violate these Terms.</p>
+                            </div>
+
+                            <div>
+                              <h3 className="font-semibold text-foreground">11. Cancellations and Refunds</h3>
+                              <p>11.1. All bookings are non-refundable unless otherwise stated.</p>
+                              <p>11.2. Reschedules may be allowed if requested at least 24 hours prior to your booking, subject to availability.</p>
+                            </div>
+
+                            <div>
+                              <h3 className="font-semibold text-foreground">12. Privacy Policy</h3>
+                              <p>12.1. By using Birdies, you agree to our collection and use of personal data as outlined in our Privacy Policy.</p>
+                              <p>12.2. Security cameras are in use throughout the facility for safety and monitoring purposes.</p>
+                            </div>
+
+                            <div>
+                              <h3 className="font-semibold text-foreground">13. Amendments to Terms</h3>
+                              <p>13.1. Birdies reserves the right to amend these Terms at any time.</p>
+                              <p>13.2. Updated terms will be posted on our website and it is the customer's responsibility to review them periodically.</p>
+                            </div>
+
+                            <p className="font-semibold text-foreground pt-4">
+                              By signing up to Birdies, you acknowledge that you have read, understood, and agreed to abide by these Terms and Conditions. Failure to comply may result in the suspension or termination of your access to the facility.
+                            </p>
+                          </div>
+                        </ScrollArea>
+                      </DialogContent>
+                    </Dialog>
+                  </label>
+                </div>
+              </div>
+              {errors.terms && (
+                <p className="text-destructive text-sm">{errors.terms}</p>
+              )}
+            </div>
+          )}
+
           <Button
             type="submit"
             className="w-full bg-accent text-accent-foreground hover:bg-accent/90"
@@ -246,6 +405,7 @@ export function AuthForm() {
             onClick={() => {
               setIsSignUp(!isSignUp);
               setErrors({});
+              setAcceptedTerms(false);
             }}
             className="text-sm text-muted-foreground hover:text-primary transition-colors"
           >
