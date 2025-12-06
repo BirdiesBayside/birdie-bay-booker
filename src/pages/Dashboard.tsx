@@ -74,7 +74,10 @@ const Dashboard = () => {
               <p className="text-muted-foreground mb-4">
                 Reserve your spot at one of our 6 premium golf simulator bays.
               </p>
-              <Button className="w-full bg-accent text-accent-foreground hover:bg-accent/90">
+              <Button 
+                className="w-full bg-accent text-accent-foreground hover:bg-accent/90"
+                onClick={() => navigate("/booking")}
+              >
                 Book Now
               </Button>
             </div>
