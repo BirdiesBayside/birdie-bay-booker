@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { format } from "date-fns";
 import { CalendarIcon, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -53,6 +54,12 @@ export function DateTimePicker({
   onDurationChange,
   onPlayersChange,
 }: DateTimePickerProps) {
+  const [calendarOpen, setCalendarOpen] = useState(false);
+
+  const handleDateSelect = (date: Date | undefined) => {
+    onDateChange(date);
+    setCalendarOpen(false);
+  };
   // Filter out time slots that would extend past closing (10pm)
   const getAvailableTimeSlots = () => {
     return TIME_SLOTS.filter((time) => {
@@ -78,7 +85,7 @@ export function DateTimePicker({
       {/* Date Picker */}
       <div className="space-y-2">
         <label className="text-sm font-medium text-foreground">Select Date</label>
-        <Popover>
+        <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
           <PopoverTrigger asChild>
             <Button
               variant="outline"
@@ -95,7 +102,7 @@ export function DateTimePicker({
             <Calendar
               mode="single"
               selected={selectedDate}
-              onSelect={onDateChange}
+              onSelect={handleDateSelect}
               disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
               initialFocus
               className={cn("p-3 pointer-events-auto")}
