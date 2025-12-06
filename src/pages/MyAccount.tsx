@@ -9,6 +9,7 @@ import { ArrowLeft, Crown, CreditCard, Lock, User, Mail, Phone } from "lucide-re
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import birdiesLogo from "@/assets/birdies-logo.png";
 
 const MEMBERSHIP_DETAILS: Record<string, { name: string; color: string; rate: number }> = {
   visitor: { name: "Visitor", color: "bg-muted text-muted-foreground", rate: 30 },
@@ -104,18 +105,25 @@ const MyAccount = () => {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       {/* Header */}
-      <header className="bg-primary py-4 px-6 flex items-center gap-4">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => navigate("/dashboard")}
-          className="text-primary-foreground hover:bg-primary-foreground/10"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <span className="font-display text-2xl tracking-wide text-primary-foreground">
-          MY ACCOUNT
-        </span>
+      <header className="bg-primary py-4 px-6 flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate("/dashboard")}
+            className="text-primary-foreground hover:bg-primary-foreground/10"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <span className="font-display text-2xl tracking-wide text-primary-foreground">
+            MY ACCOUNT
+          </span>
+        </div>
+        <img 
+          src={birdiesLogo} 
+          alt="Birdies" 
+          className="h-10 w-auto"
+        />
       </header>
 
       {/* Main content */}
