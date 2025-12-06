@@ -149,6 +149,20 @@ export function useBooking() {
       .single();
 
     if (error) throw error;
+
+    // Send booking confirmation notification
+    try {
+      await supabase.functions.invoke("send-booking-notification", {
+        body: {
+          booking_id: data.id,
+          notification_type: "confirmation",
+        },
+      });
+    } catch (notificationError) {
+      console.error("Failed to send booking notification:", notificationError);
+      // Don't throw - booking was successful, notification is secondary
+    }
+
     return data;
   };
 
