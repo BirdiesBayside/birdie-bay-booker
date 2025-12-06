@@ -20,9 +20,11 @@ interface DateTimePickerProps {
   selectedDate: Date | undefined;
   selectedTime: string | undefined;
   selectedDuration: number;
+  selectedPlayers: number;
   onDateChange: (date: Date | undefined) => void;
   onTimeChange: (time: string) => void;
   onDurationChange: (duration: number) => void;
+  onPlayersChange: (players: number) => void;
 }
 
 // Generate time slots from 8am to 10pm in 30-min increments
@@ -39,14 +41,17 @@ const generateTimeSlots = () => {
 
 const TIME_SLOTS = generateTimeSlots();
 const DURATIONS = [1, 2, 3, 4];
+const PLAYERS = [1, 2, 3, 4];
 
 export function DateTimePicker({
   selectedDate,
   selectedTime,
   selectedDuration,
+  selectedPlayers,
   onDateChange,
   onTimeChange,
   onDurationChange,
+  onPlayersChange,
 }: DateTimePickerProps) {
   // Filter out time slots that would extend past closing (10pm)
   const getAvailableTimeSlots = () => {
@@ -131,6 +136,26 @@ export function DateTimePicker({
             {getAvailableTimeSlots().map((time) => (
               <SelectItem key={time} value={time}>
                 {formatTimeDisplay(time)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Players Selector */}
+      <div className="space-y-2">
+        <label className="text-sm font-medium text-foreground">Number of Players</label>
+        <Select
+          value={selectedPlayers.toString()}
+          onValueChange={(value) => onPlayersChange(parseInt(value))}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Select players" />
+          </SelectTrigger>
+          <SelectContent className="bg-popover">
+            {PLAYERS.map((count) => (
+              <SelectItem key={count} value={count.toString()}>
+                {count} {count === 1 ? "player" : "players"}
               </SelectItem>
             ))}
           </SelectContent>
