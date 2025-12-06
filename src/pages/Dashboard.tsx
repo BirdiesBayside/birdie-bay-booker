@@ -92,7 +92,11 @@ const Dashboard = () => {
               <p className="text-muted-foreground mb-4">
                 View, edit, or cancel your upcoming bay reservations.
               </p>
-              <Button variant="outline" className="w-full">
+              <Button 
+                variant="outline" 
+                className="w-full"
+                onClick={() => navigate("/my-bookings")}
+              >
                 View Bookings
               </Button>
             </div>
