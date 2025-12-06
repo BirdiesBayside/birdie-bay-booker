@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.delete-payment-method]
 verify_jwt = false
+
+[functions.send-booking-notification]
+verify_jwt = false
