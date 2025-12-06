@@ -1,11 +1,11 @@
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Crown, CreditCard, Lock, User, Mail, Phone } from "lucide-react";
+import { ArrowLeft, Crown, CreditCard, Lock, User, Mail, Phone, Plus, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -27,12 +27,24 @@ interface Profile {
   membership_tier: string;
 }
 
+interface PaymentMethod {
+  id: string;
+  brand: string;
+  last4: string;
+  expMonth: number;
+  expYear: number;
+}
+
 const MyAccount = () => {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
+  const [isLoadingPaymentMethods, setIsLoadingPaymentMethods] = useState(true);
+  const [isAddingPaymentMethod, setIsAddingPaymentMethod] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -43,8 +55,23 @@ const MyAccount = () => {
   useEffect(() => {
     if (user) {
       fetchProfile();
+      fetchPaymentMethods();
     }
   }, [user]);
+
+  // Handle success/cancel from Stripe checkout
+  useEffect(() => {
+    const setup = searchParams.get("setup");
+    if (setup === "success") {
+      toast.success("Payment method added successfully!");
+      fetchPaymentMethods();
+      // Clean up URL
+      navigate("/my-account", { replace: true });
+    } else if (setup === "cancelled") {
+      toast.info("Payment method setup was cancelled.");
+      navigate("/my-account", { replace: true });
+    }
+  }, [searchParams, navigate]);
 
   const fetchProfile = async () => {
     if (!user) return;
@@ -67,6 +94,37 @@ const MyAccount = () => {
     }
   };
 
+  const fetchPaymentMethods = async () => {
+    setIsLoadingPaymentMethods(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("get-payment-methods");
+      
+      if (error) throw error;
+      setPaymentMethods(data.paymentMethods || []);
+    } catch (error) {
+      console.error("Error fetching payment methods:", error);
+    } finally {
+      setIsLoadingPaymentMethods(false);
+    }
+  };
+
+  const handleAddPaymentMethod = async () => {
+    setIsAddingPaymentMethod(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("create-checkout-setup");
+      
+      if (error) throw error;
+      
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    } catch (error) {
+      console.error("Error creating checkout session:", error);
+      toast.error("Failed to start payment setup");
+      setIsAddingPaymentMethod(false);
+    }
+  };
+
   const handlePasswordReset = async () => {
     if (!user?.email) return;
 
@@ -84,6 +142,14 @@ const MyAccount = () => {
     } finally {
       setIsResettingPassword(false);
     }
+  };
+
+  const getCardBrandIcon = (brand: string) => {
+    const brandLower = brand.toLowerCase();
+    if (brandLower === "visa") return "💳 Visa";
+    if (brandLower === "mastercard") return "💳 Mastercard";
+    if (brandLower === "amex") return "💳 Amex";
+    return `💳 ${brand.charAt(0).toUpperCase() + brand.slice(1)}`;
   };
 
   const membershipInfo = profile?.membership_tier 
@@ -234,12 +300,71 @@ const MyAccount = () => {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="text-center py-6">
-                <p className="text-muted-foreground mb-4">No payment methods saved</p>
-                <Button variant="outline" disabled>
-                  Add Payment Method
-                </Button>
-              </div>
+              {isLoadingPaymentMethods ? (
+                <div className="flex justify-center py-6">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : paymentMethods.length === 0 ? (
+                <div className="text-center py-6">
+                  <p className="text-muted-foreground mb-4">No payment methods saved</p>
+                  <Button 
+                    variant="outline" 
+                    onClick={handleAddPaymentMethod}
+                    disabled={isAddingPaymentMethod}
+                  >
+                    {isAddingPaymentMethod ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Setting up...
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Payment Method
+                      </>
+                    )}
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {paymentMethods.map((method) => (
+                    <div
+                      key={method.id}
+                      className="flex items-center justify-between p-3 bg-muted rounded-lg"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-lg">{getCardBrandIcon(method.brand)}</span>
+                        <div>
+                          <p className="font-medium">•••• {method.last4}</p>
+                          <p className="text-sm text-muted-foreground">
+                            Expires {method.expMonth}/{method.expYear}
+                          </p>
+                        </div>
+                      </div>
+                      <Badge variant="secondary">Default</Badge>
+                    </div>
+                  ))}
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={handleAddPaymentMethod}
+                    disabled={isAddingPaymentMethod}
+                    className="mt-2"
+                  >
+                    {isAddingPaymentMethod ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Setting up...
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Another Card
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
 

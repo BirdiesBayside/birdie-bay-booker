@@ -1,1 +1,10 @@
 project_id = "hltrcuypuxhetcjyvedl"
+
+[functions.create-setup-intent]
+verify_jwt = false
+
+[functions.get-payment-methods]
+verify_jwt = false
+
+[functions.create-checkout-setup]
+verify_jwt = false
