@@ -34,6 +34,7 @@ export default function Booking() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
   const [selectedTime, setSelectedTime] = useState<string | undefined>();
   const [selectedDuration, setSelectedDuration] = useState<number>(1);
+  const [selectedPlayers, setSelectedPlayers] = useState<number>(1);
   const [selectedBayId, setSelectedBayId] = useState<string | undefined>();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -63,6 +64,10 @@ export default function Booking() {
   const handleDurationChange = (duration: number) => {
     setSelectedDuration(duration);
     setSelectedBayId(undefined);
+  };
+
+  const handlePlayersChange = (players: number) => {
+    setSelectedPlayers(players);
   };
 
   const handleConfirmBooking = async () => {
@@ -147,9 +152,11 @@ export default function Booking() {
               selectedDate={selectedDate}
               selectedTime={selectedTime}
               selectedDuration={selectedDuration}
+              selectedPlayers={selectedPlayers}
               onDateChange={handleDateChange}
               onTimeChange={handleTimeChange}
               onDurationChange={handleDurationChange}
+              onPlayersChange={handlePlayersChange}
             />
           </CardContent>
         </Card>

@@ -25,7 +25,7 @@ export interface MembershipPricing {
 }
 
 const MEMBERSHIP_PRICING: Record<string, number> = {
-  visitor: 15,
+  visitor: 30,
   par: 12,
   birdie: 10,
   eagle: 9,
