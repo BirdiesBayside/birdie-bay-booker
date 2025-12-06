@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Crown, CreditCard, Lock, User, Mail, Phone, Plus, Loader2 } from "lucide-react";
+import { ArrowLeft, Crown, CreditCard, Lock, User, Mail, Phone, Plus, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -45,6 +45,7 @@ const MyAccount = () => {
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [isLoadingPaymentMethods, setIsLoadingPaymentMethods] = useState(true);
   const [isAddingPaymentMethod, setIsAddingPaymentMethod] = useState(false);
+  const [deletingPaymentMethodId, setDeletingPaymentMethodId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -122,6 +123,26 @@ const MyAccount = () => {
       console.error("Error creating checkout session:", error);
       toast.error("Failed to start payment setup");
       setIsAddingPaymentMethod(false);
+    }
+  };
+
+  const handleDeletePaymentMethod = async (paymentMethodId: string) => {
+    setDeletingPaymentMethodId(paymentMethodId);
+    try {
+      const { data, error } = await supabase.functions.invoke("delete-payment-method", {
+        body: { paymentMethodId },
+      });
+      
+      if (error) throw error;
+      if (data.error) throw new Error(data.error);
+      
+      toast.success("Payment method removed successfully");
+      fetchPaymentMethods();
+    } catch (error) {
+      console.error("Error deleting payment method:", error);
+      toast.error("Failed to remove payment method");
+    } finally {
+      setDeletingPaymentMethodId(null);
     }
   };
 
@@ -327,7 +348,7 @@ const MyAccount = () => {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {paymentMethods.map((method) => (
+                  {paymentMethods.map((method, index) => (
                     <div
                       key={method.id}
                       className="flex items-center justify-between p-3 bg-muted rounded-lg"
@@ -341,7 +362,22 @@ const MyAccount = () => {
                           </p>
                         </div>
                       </div>
-                      <Badge variant="secondary">Default</Badge>
+                      <div className="flex items-center gap-2">
+                        {index === 0 && <Badge variant="secondary">Default</Badge>}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDeletePaymentMethod(method.id)}
+                          disabled={deletingPaymentMethodId === method.id}
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                        >
+                          {deletingPaymentMethodId === method.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
                     </div>
                   ))}
                   <Button 

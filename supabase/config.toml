@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.create-checkout-setup]
 verify_jwt = false
+
+[functions.delete-payment-method]
+verify_jwt = false
