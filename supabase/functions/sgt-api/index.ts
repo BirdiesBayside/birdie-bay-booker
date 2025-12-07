@@ -67,29 +67,6 @@ async function getSgtApiKey(adminClient: any): Promise<string> {
   throw new Error("No valid SGT API key available. Please set SGT_API_KEY secret.");
 }
 
-async function createApiKey(clubUrl: string, username: string, password: string): Promise<{ key: string; expires: number }> {
-  const response = await fetch(`${SGT_BASE_URL}/${clubUrl}/apikey/create`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: `username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`,
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    console.error("[SGT-API] Create API key failed:", response.status, text);
-    throw new Error(`Failed to create SGT API key: ${response.status}`);
-  }
-
-  const data = await response.json();
-  if (!data.success || !data.key) {
-    throw new Error("SGT API key creation failed: " + JSON.stringify(data));
-  }
-
-  return { key: data.key, expires: data.expires || 86400 };
-}
-
 async function refreshApiKey(clubUrl: string, apiKey: string): Promise<{ key: string; expires: number } | null> {
   const response = await fetch(`${SGT_BASE_URL}/${clubUrl}/apikey/refresh`, {
     method: "POST",
@@ -133,7 +110,7 @@ async function ensureBaseDataSynced(adminClient: any, apiKey: string, clubUrl: s
   if (!memberCount || memberCount === 0) {
     console.log("[SGT-API] No members cached, syncing from API...");
     try {
-      const sgtData = await sgtApiRequest(apiKey, clubUrl, "members") as { members?: Array<Record<string, unknown>> };
+      const sgtData = await sgtApiRequest(apiKey, clubUrl, "members/list") as { members?: Array<Record<string, unknown>> };
       if (sgtData.members) {
         for (const member of sgtData.members) {
           await adminClient
@@ -162,7 +139,7 @@ async function ensureBaseDataSynced(adminClient: any, apiKey: string, clubUrl: s
   if (!tourCount || tourCount === 0) {
     console.log("[SGT-API] No tours cached, syncing from API...");
     try {
-      const sgtData = await sgtApiRequest(apiKey, clubUrl, "tours") as Array<Record<string, unknown>>;
+      const sgtData = await sgtApiRequest(apiKey, clubUrl, "tours/list") as Array<Record<string, unknown>>;
       for (const tour of sgtData) {
         await adminClient
           .from("sgt_tours")
@@ -182,7 +159,7 @@ async function ensureBaseDataSynced(adminClient: any, apiKey: string, clubUrl: s
       for (const tour of activeTours) {
         try {
           // Sync tour members
-          const tourMembers = await sgtApiRequest(apiKey, clubUrl, `tour/${tour.tourId}/members`) as Array<Record<string, unknown>>;
+          const tourMembers = await sgtApiRequest(apiKey, clubUrl, "tours/members", { tourId: String(tour.tourId) }) as Array<Record<string, unknown>>;
           for (const member of tourMembers) {
             await adminClient
               .from("sgt_tour_members")
@@ -197,7 +174,7 @@ async function ensureBaseDataSynced(adminClient: any, apiKey: string, clubUrl: s
           console.log(`[SGT-API] Synced ${tourMembers.length} tour members for tour ${tour.tourId}`);
 
           // Sync tour standings
-          const standings = await sgtApiRequest(apiKey, clubUrl, `tour/${tour.tourId}/standings`, { grossOrNet: "gross" }) as Array<Record<string, unknown>>;
+          const standings = await sgtApiRequest(apiKey, clubUrl, "tours/standings", { tourId: String(tour.tourId), grossOrNet: "gross" }) as Array<Record<string, unknown>>;
           for (const standing of standings) {
             await adminClient
               .from("sgt_tour_standings")
@@ -228,21 +205,34 @@ async function ensureBaseDataSynced(adminClient: any, apiKey: string, clubUrl: s
 }
 
 // Make authenticated request to SGT API
+// API key is passed as query parameter per SGT API documentation
 async function sgtApiRequest(apiKey: string, clubUrl: string, endpoint: string, params: Record<string, string> = {}): Promise<unknown> {
   const url = new URL(`${SGT_BASE_URL}/${clubUrl}/${endpoint}`);
+  // Add API key as query parameter (per SGT API docs)
+  url.searchParams.set("api-key", apiKey);
+  // Add other params
   Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+
+  console.log(`[SGT-API] Fetching: ${url.toString().replace(apiKey, "***")}`);
 
   const response = await fetch(url.toString(), {
     method: "GET",
     headers: {
-      "x-api-key": apiKey,
+      "Accept": "application/json",
     },
   });
 
   if (!response.ok) {
     const text = await response.text();
-    console.error(`[SGT-API] Request to ${endpoint} failed:`, response.status, text);
+    console.error(`[SGT-API] Request to ${endpoint} failed:`, response.status, text.substring(0, 200));
     throw new Error(`SGT API request failed: ${response.status}`);
+  }
+
+  const contentType = response.headers.get("content-type") || "";
+  if (!contentType.includes("application/json")) {
+    const text = await response.text();
+    console.error(`[SGT-API] Non-JSON response for ${endpoint}:`, text.substring(0, 200));
+    throw new Error(`SGT API returned non-JSON response`);
   }
 
   return response.json();
@@ -319,9 +309,9 @@ serve(async (req) => {
 
     switch (action) {
       case "members": {
-        // First try to get from SGT API and sync to database
+        // Endpoint: /{clubUrl}/members/list
         try {
-          const sgtData = await sgtApiRequest(apiKey, clubUrl, "members") as { members?: Array<Record<string, unknown>> };
+          const sgtData = await sgtApiRequest(apiKey, clubUrl, "members/list") as { members?: Array<Record<string, unknown>> };
           if (sgtData.members) {
             // Sync members to database
             for (const member of sgtData.members) {
@@ -330,6 +320,7 @@ serve(async (req) => {
                 .upsert({
                   user_id: member.user_id,
                   user_name: member.user_name,
+                  user_email: member.user_email || null,
                   user_country_code: member.user_country_code || null,
                   user_has_avatar: member.user_has_avatar || null,
                   user_active: member.user_active ?? 1,
@@ -350,8 +341,9 @@ serve(async (req) => {
       }
 
       case "tours": {
+        // Endpoint: /{clubUrl}/tours/list
         try {
-          const sgtData = await sgtApiRequest(apiKey, clubUrl, "tours") as Array<Record<string, unknown>>;
+          const sgtData = await sgtApiRequest(apiKey, clubUrl, "tours/list") as Array<Record<string, unknown>>;
           // Sync tours to database
           for (const tour of sgtData) {
             await adminClient
@@ -385,11 +377,12 @@ serve(async (req) => {
       }
 
       case "tour-standings": {
+        // Endpoint: /{clubUrl}/tours/standings?tourId=X&grossOrNet=Y
         if (!params.tourId) throw new Error("tourId required");
         const grossOrNet = params.grossOrNet || "gross";
 
         try {
-          const sgtData = await sgtApiRequest(apiKey, clubUrl, `tour/${params.tourId}/standings`, { grossOrNet }) as Array<Record<string, unknown>>;
+          const sgtData = await sgtApiRequest(apiKey, clubUrl, "tours/standings", { tourId: params.tourId, grossOrNet }) as Array<Record<string, unknown>>;
           // Sync standings to database
           for (const standing of sgtData) {
             await adminClient
@@ -435,10 +428,11 @@ serve(async (req) => {
       }
 
       case "tour-members": {
+        // Endpoint: /{clubUrl}/tours/members?tourId=X
         if (!params.tourId) throw new Error("tourId required");
 
         try {
-          const sgtData = await sgtApiRequest(apiKey, clubUrl, `tour/${params.tourId}/members`) as Array<Record<string, unknown>>;
+          const sgtData = await sgtApiRequest(apiKey, clubUrl, "tours/members", { tourId: params.tourId }) as Array<Record<string, unknown>>;
           // Sync tour members to database
           for (const member of sgtData) {
             await adminClient
@@ -469,10 +463,11 @@ serve(async (req) => {
       }
 
       case "tournaments": {
+        // Endpoint: /{clubUrl}/tournaments/list?tourId=X
         if (!params.tourId) throw new Error("tourId required");
 
         try {
-          const sgtData = await sgtApiRequest(apiKey, clubUrl, `tour/${params.tourId}/tournaments`) as { results?: Array<Record<string, unknown>> };
+          const sgtData = await sgtApiRequest(apiKey, clubUrl, "tournaments/list", { tourId: params.tourId }) as { results?: Array<Record<string, unknown>> };
           if (sgtData.results) {
             for (const tournament of sgtData.results) {
               await adminClient
@@ -512,11 +507,21 @@ serve(async (req) => {
       }
 
       case "scorecards": {
+        // Endpoint: /{clubUrl}/tournaments/scorecards?tournamentId=X
         if (!params.tournamentId) throw new Error("tournamentId required");
 
         try {
-          const sgtData = await sgtApiRequest(apiKey, clubUrl, `tournament/${params.tournamentId}/scorecards`) as Array<Record<string, unknown>>;
+          const sgtData = await sgtApiRequest(apiKey, clubUrl, "tournaments/scorecards", { tournamentId: params.tournamentId }) as Array<Record<string, unknown>>;
           for (const sc of sgtData) {
+            // Build hole data object from flat properties
+            const holeData: Record<string, number | string> = {};
+            for (let i = 1; i <= 18; i++) {
+              if (sc[`hole${i}_gross`] !== undefined) holeData[`hole${i}_gross`] = sc[`hole${i}_gross`] as number;
+              if (sc[`hole${i}_net`] !== undefined) holeData[`hole${i}_net`] = sc[`hole${i}_net`] as number;
+              if (sc[`h${i}_Par`] !== undefined) holeData[`h${i}_Par`] = sc[`h${i}_Par`] as number;
+              if (sc[`h${i}_index`] !== undefined) holeData[`h${i}_index`] = sc[`h${i}_index`] as number;
+            }
+
             await adminClient
               .from("sgt_scorecards")
               .upsert({
@@ -537,7 +542,7 @@ serve(async (req) => {
                 out_gross: sc.out_gross ?? null,
                 in_net: sc.in_net ?? null,
                 out_net: sc.out_net ?? null,
-                hole_data: sc.holeData ?? null,
+                hole_data: Object.keys(holeData).length > 0 ? holeData : null,
               }, { onConflict: "tournament_id,player_id,round" });
           }
           data = sgtData;
