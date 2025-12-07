@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { Resend } from "https://esm.sh/resend@2.0.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -20,6 +21,13 @@ const PRICE_TO_TIER: Record<string, string> = {
   "price_1RXVhQAzMTsMp66QpAGoLHYn": "albatross",
 };
 
+const TIER_NAMES: Record<string, string> = {
+  "par": "Par",
+  "birdie": "Birdie",
+  "eagle": "Eagle",
+  "albatross": "Albatross",
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -30,12 +38,14 @@ serve(async (req) => {
 
     const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
     const webhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET");
+    const resendApiKey = Deno.env.get("RESEND_API_KEY");
     
     if (!stripeKey || !webhookSecret) {
       throw new Error("Missing Stripe configuration");
     }
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
+    const resend = resendApiKey ? new Resend(resendApiKey) : null;
     
     const signature = req.headers.get("stripe-signature");
     if (!signature) {
@@ -143,6 +153,84 @@ serve(async (req) => {
         }
 
         logStep("Membership tier reset to visitor");
+      }
+    }
+
+    // Handle failed payment for subscriptions
+    if (event.type === "invoice.payment_failed") {
+      const invoice = event.data.object as Stripe.Invoice;
+      const customerId = invoice.customer as string;
+      const subscriptionId = invoice.subscription as string;
+
+      logStep("Payment failed", { invoiceId: invoice.id, subscriptionId });
+
+      // Only process if this is a subscription invoice
+      if (subscriptionId) {
+        const customer = await stripe.customers.retrieve(customerId);
+        if (customer.deleted) {
+          logStep("Customer deleted, skipping");
+          return new Response(JSON.stringify({ received: true }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        const email = customer.email;
+        const customerName = customer.name || "Valued Customer";
+
+        if (email) {
+          // Get the current profile to find their tier
+          const { data: profile } = await supabaseAdmin
+            .from("profiles")
+            .select("first_name, membership_tier")
+            .eq("email", email)
+            .maybeSingle();
+
+          const firstName = profile?.first_name || customerName.split(" ")[0];
+          const previousTier = profile?.membership_tier ? TIER_NAMES[profile.membership_tier] || profile.membership_tier : "Member";
+
+          logStep("Resetting membership to visitor due to failed payment", { email, previousTier });
+
+          // Reset to visitor tier
+          const { error } = await supabaseAdmin
+            .from("profiles")
+            .update({ membership_tier: "visitor" })
+            .eq("email", email);
+
+          if (error) {
+            logStep("Error resetting profile", { error: error.message });
+          }
+
+          // Send payment failed notification email
+          if (resend) {
+            try {
+              await resend.emails.send({
+                from: "Birdies <info@birdiesbayside.com.au>",
+                to: [email],
+                subject: "Payment Failed - Membership Update",
+                html: `
+                  <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                    <h2 style="color: #1f4c25;">Hi ${firstName},</h2>
+                    
+                    <p>We were unable to process your weekly membership payment.</p>
+                    
+                    <p>Unfortunately, this means your <strong>${previousTier}</strong> membership has been reverted to <strong>Visitor</strong> status.</p>
+                    
+                    <p>To continue enjoying member rates, please update your payment method and resubscribe to your preferred membership tier.</p>
+                    
+                    <p>If you believe this is an error or need assistance, please contact us at info@birdiesbayside.com.au</p>
+                    
+                    <p>Thank you for being a valued customer.</p>
+                    
+                    <p>Best regards,<br>The Birdies Team</p>
+                  </div>
+                `,
+              });
+              logStep("Payment failed notification email sent", { email });
+            } catch (emailError) {
+              logStep("Failed to send payment failed email", { error: emailError });
+            }
+          }
+        }
       }
     }
 

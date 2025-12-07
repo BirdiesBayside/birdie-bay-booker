@@ -4,9 +4,11 @@ import { AdminLayout } from "@/components/admin/AdminLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/hooks/use-toast";
 import {
   Table,
   TableBody,
@@ -38,7 +40,8 @@ import {
   User, 
   Calendar,
   Columns,
-  Download
+  Download,
+  UserPlus
 } from "lucide-react";
 import { format } from "date-fns";
 import { useSearchParams } from "react-router-dom";
@@ -51,6 +54,7 @@ interface Customer {
   email: string;
   phone: string | null;
   membership_tier: string;
+  custom_hourly_rate: number | null;
   created_at: string;
 }
 
@@ -66,12 +70,14 @@ const DEFAULT_COLUMNS: ColumnConfig[] = [
   { key: "email", label: "Email", visible: true },
   { key: "phone", label: "Phone", visible: true },
   { key: "membership_tier", label: "Membership", visible: true },
+  { key: "custom_hourly_rate", label: "Custom Rate", visible: false },
   { key: "created_at", label: "Joined", visible: false },
 ];
 
 export default function AdminCustomers() {
   const { isAdmin, isLoading: authLoading } = useAdminAuth();
   const [searchParams] = useSearchParams();
+  const { toast } = useToast();
   
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -80,6 +86,14 @@ export default function AdminCustomers() {
   const [columns, setColumns] = useState<ColumnConfig[]>(DEFAULT_COLUMNS);
   const [tierFilter, setTierFilter] = useState<string | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+
+  // Add customer dialog state
+  const [showAddCustomerDialog, setShowAddCustomerDialog] = useState(false);
+  const [newFirstName, setNewFirstName] = useState("");
+  const [newLastName, setNewLastName] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [newPhone, setNewPhone] = useState("");
+  const [isCreatingCustomer, setIsCreatingCustomer] = useState(false);
 
   // Check for user query param to auto-select customer
   const highlightedUserId = searchParams.get("user");
@@ -170,6 +184,71 @@ export default function AdminCustomers() {
     }
   };
 
+  const resetAddCustomerForm = () => {
+    setNewFirstName("");
+    setNewLastName("");
+    setNewEmail("");
+    setNewPhone("");
+  };
+
+  const createNewCustomer = async () => {
+    if (!newFirstName || !newLastName || !newEmail) {
+      toast({
+        title: "Missing information",
+        description: "Please fill in first name, last name, and email.",
+        variant: "destructive",
+        duration: 4000,
+      });
+      return;
+    }
+
+    setIsCreatingCustomer(true);
+
+    try {
+      // Create auth user with a temporary password (admin-created accounts)
+      const tempPassword = `Temp${Math.random().toString(36).slice(2)}!`;
+      
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: newEmail,
+        password: tempPassword,
+        options: {
+          data: {
+            first_name: newFirstName,
+            last_name: newLastName,
+            phone: newPhone,
+          },
+        },
+      });
+
+      if (authError) throw authError;
+
+      if (authData.user) {
+        toast({
+          title: "Customer created",
+          description: `${newFirstName} ${newLastName} has been added successfully.`,
+          duration: 4000,
+        });
+        
+        setShowAddCustomerDialog(false);
+        resetAddCustomerForm();
+        
+        // Wait a moment for the profile trigger to create the profile
+        setTimeout(() => {
+          fetchCustomers();
+        }, 1000);
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error creating customer",
+        description: error.message || "Failed to create customer.",
+        variant: "destructive",
+        duration: 4000,
+      });
+    }
+
+    setIsCreatingCustomer(false);
+  };
+
   const visibleColumns = columns.filter(c => c.visible);
 
   if (authLoading) {
@@ -201,22 +280,29 @@ export default function AdminCustomers() {
             </p>
           </div>
 
-          {/* Bulk Actions */}
-          {selectedCustomers.size > 0 && (
-            <div className="flex items-center gap-2 bg-primary/5 px-4 py-2 rounded-lg">
-              <span className="text-sm font-medium">
-                {selectedCustomers.size} selected
-              </span>
-              <Button variant="outline" size="sm">
-                <Mail className="h-4 w-4 mr-1" />
-                Email
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => setSelectedCustomers(new Set())}>
-                Clear
-              </Button>
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+            <Button onClick={() => setShowAddCustomerDialog(true)}>
+              <UserPlus className="h-4 w-4 mr-2" />
+              Add Customer
+            </Button>
+          </div>
         </div>
+
+        {/* Bulk Actions */}
+        {selectedCustomers.size > 0 && (
+          <div className="flex items-center gap-2 bg-primary/5 px-4 py-2 rounded-lg">
+            <span className="text-sm font-medium">
+              {selectedCustomers.size} selected
+            </span>
+            <Button variant="outline" size="sm">
+              <Mail className="h-4 w-4 mr-1" />
+              Email
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setSelectedCustomers(new Set())}>
+              Clear
+            </Button>
+          </div>
+        )}
 
         {/* Filters and Search */}
         <div className="flex flex-wrap items-center gap-3">
@@ -343,6 +429,8 @@ export default function AdminCustomers() {
                             format(new Date(customer.created_at), "MMM d, yyyy")
                           ) : col.key === "phone" ? (
                             customer.phone || "-"
+                          ) : col.key === "custom_hourly_rate" ? (
+                            customer.custom_hourly_rate ? `$${customer.custom_hourly_rate}/hr` : "-"
                           ) : (
                             customer[col.key as keyof Customer]
                           )}
@@ -450,6 +538,84 @@ export default function AdminCustomers() {
                 </div>
               </div>
             )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Add Customer Dialog */}
+        <Dialog open={showAddCustomerDialog} onOpenChange={setShowAddCustomerDialog}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="font-display text-xl uppercase tracking-wide">
+                Add Customer
+              </DialogTitle>
+            </DialogHeader>
+            
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>First Name *</Label>
+                  <Input
+                    value={newFirstName}
+                    onChange={(e) => setNewFirstName(e.target.value)}
+                    placeholder="First name"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Last Name *</Label>
+                  <Input
+                    value={newLastName}
+                    onChange={(e) => setNewLastName(e.target.value)}
+                    placeholder="Last name"
+                  />
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Email *</Label>
+                <Input
+                  type="email"
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                  placeholder="email@example.com"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Phone</Label>
+                <Input
+                  type="tel"
+                  value={newPhone}
+                  onChange={(e) => setNewPhone(e.target.value)}
+                  placeholder="Phone number"
+                />
+              </div>
+              
+              <p className="text-xs text-muted-foreground">
+                Customer will be created with visitor tier. They will receive an email to set their password.
+              </p>
+              
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => {
+                    setShowAddCustomerDialog(false);
+                    resetAddCustomerForm();
+                  }}
+                  disabled={isCreatingCustomer}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1"
+                  onClick={createNewCustomer}
+                  disabled={isCreatingCustomer}
+                >
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  {isCreatingCustomer ? "Creating..." : "Add Customer"}
+                </Button>
+              </div>
+            </div>
           </DialogContent>
         </Dialog>
       </div>
