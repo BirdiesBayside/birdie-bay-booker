@@ -69,6 +69,12 @@ export default {
           "orange-light": "hsl(var(--birdies-orange-light))",
           cream: "hsl(var(--birdies-cream))",
         },
+        // League Hub premium colors
+        league: {
+          primary: "hsl(var(--league-primary))",
+          "primary-dark": "hsl(var(--league-primary-dark))",
+          foreground: "hsl(var(--league-foreground))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
