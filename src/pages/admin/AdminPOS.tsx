@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { 
   ShoppingCart, 
   Trash2, 
@@ -82,6 +83,7 @@ interface BookingDataFromNav {
 export default function AdminPOS() {
   const { isAdmin, isLoading } = useAdminAuth();
   const location = useLocation();
+  const isMobile = useIsMobile();
   const [products, setProducts] = useState<POSProduct[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [unpaidBookings, setUnpaidBookings] = useState<UnpaidBooking[]>([]);
@@ -419,188 +421,277 @@ export default function AdminPOS() {
   // Define all category names (including empty ones for navigation)
   const ALL_FAMILIES = ['Golf', 'Drinks & Snacks', 'Merch & Other'];
 
+  // Cart Panel Component (reused for both layouts)
+  const CartPanel = ({ className = "" }: { className?: string }) => (
+    <div className={`bg-card flex flex-col ${className}`}>
+      <div className="p-4 border-b flex items-center justify-between">
+        <h2 className="font-display text-xl uppercase">Cart</h2>
+        {cart.length > 0 && (
+          <Button variant="ghost" size="sm" onClick={clearCart}>
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        )}
+      </div>
+
+      {/* Customer Selection */}
+      <div className="p-4 border-b">
+        <Select value={selectedCustomer} onValueChange={setSelectedCustomer}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select customer (optional)">
+              {selectedCustomer && customers.find(c => c.user_id === selectedCustomer) && (
+                <span className="flex items-center gap-2">
+                  <User className="h-4 w-4" />
+                  {customers.find(c => c.user_id === selectedCustomer)?.first_name}{' '}
+                  {customers.find(c => c.user_id === selectedCustomer)?.last_name}
+                </span>
+              )}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {customers.map(customer => (
+              <SelectItem key={customer.user_id} value={customer.user_id}>
+                {customer.first_name} {customer.last_name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Cart Items */}
+      <div className={`flex-1 overflow-y-auto p-4 space-y-3 ${isMobile ? 'max-h-40' : ''}`}>
+        {cart.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+            <ShoppingCart className="h-12 w-12 mb-2 opacity-50" />
+            <p>Cart is empty</p>
+          </div>
+        ) : (
+          cart.map(item => (
+            <Card key={item.id} className="p-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm truncate">{item.name}</p>
+                  <p className="text-primary font-bold">${(item.price * item.quantity).toFixed(2)}</p>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={() => updateQuantity(item.id, -1)}
+                  >
+                    <Minus className="h-3 w-3" />
+                  </Button>
+                  <span className="w-6 text-center text-sm">{item.quantity}</span>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={() => updateQuantity(item.id, 1)}
+                  >
+                    <Plus className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-destructive"
+                    onClick={() => removeFromCart(item.id)}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          ))
+        )}
+      </div>
+
+      {/* Totals & Pay */}
+      <div className="p-4 border-t space-y-4">
+        <div className="flex justify-between text-lg font-bold">
+          <span>Total</span>
+          <span className="text-primary">${total.toFixed(2)}</span>
+        </div>
+
+        <Button
+          className="w-full h-14 text-lg font-display uppercase"
+          disabled={cart.length === 0}
+          onClick={() => setShowPaymentDialog(true)}
+        >
+          <CreditCard className="h-5 w-5 mr-2" />
+          Pay ${total.toFixed(2)}
+        </Button>
+      </div>
+    </div>
+  );
+
   return (
     <AdminLayout>
-      <div className="flex h-[calc(100vh-64px)]">
-        {/* Products Grid */}
-        <div className="flex-1 p-4 overflow-hidden flex flex-col">
-          {/* Header with back button and unpaid bookings */}
-          <div className="flex items-center justify-between mb-4">
-            {selectedFamily !== 'categories' && (
+      {isMobile ? (
+        /* Mobile Layout: Products on top, Cart below */
+        <div className="flex flex-col h-[calc(100vh-64px)]">
+          {/* Products Section */}
+          <div className="flex-1 p-4 overflow-hidden flex flex-col min-h-0">
+            {/* Header with back button and unpaid bookings */}
+            <div className="flex items-center justify-between mb-4">
+              {selectedFamily !== 'categories' && (
+                <Button
+                  variant="ghost"
+                  onClick={() => setSelectedFamily('categories')}
+                  className="gap-2"
+                  size="sm"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Back
+                </Button>
+              )}
+              {selectedFamily === 'categories' && <div />}
               <Button
-                variant="ghost"
-                onClick={() => setSelectedFamily('categories')}
-                className="gap-2"
+                variant="outline"
+                onClick={() => setShowBookingsDialog(true)}
+                className="shrink-0"
+                size="sm"
               >
-                <ChevronLeft className="h-4 w-4" />
-                Back to Categories
+                <Calendar className="h-4 w-4 mr-2" />
+                Unpaid ({unpaidBookings.length})
               </Button>
-            )}
-            {selectedFamily === 'categories' && <div />}
-            <Button
-              variant="outline"
-              onClick={() => setShowBookingsDialog(true)}
-              className="shrink-0"
-            >
-              <Calendar className="h-4 w-4 mr-2" />
-              Unpaid Bookings ({unpaidBookings.length})
-            </Button>
-          </div>
-
-          {/* Main Content */}
-          <div className="flex-1 overflow-y-auto">
-            {loadingProducts ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                {[...Array(6)].map((_, i) => (
-                  <Skeleton key={i} className="aspect-square" />
-                ))}
-              </div>
-            ) : selectedFamily === 'categories' ? (
-              /* Category Selection View */
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                {ALL_FAMILIES.map(family => {
-                  const productCount = products.filter(p => p.family === family).length;
-                  return (
-                    <button
-                      key={family}
-                      onClick={() => setSelectedFamily(family)}
-                      className="aspect-square bg-card border-2 rounded-xl p-6 flex flex-col items-center justify-center text-center hover:bg-accent hover:border-primary transition-colors"
-                    >
-                      <span className="font-display text-xl uppercase tracking-wide">{family}</span>
-                      <span className="text-muted-foreground text-sm mt-2">
-                        {productCount} {productCount === 1 ? 'product' : 'products'}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            ) : filteredProducts.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-                <ShoppingCart className="h-16 w-16 mb-4 opacity-50" />
-                <p className="text-lg">No products in {selectedFamily}</p>
-                <p className="text-sm">Add products in Settings to get started</p>
-              </div>
-            ) : (
-              /* Products Grid */
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
-                {filteredProducts.map(product => (
-                  <button
-                    key={product.id}
-                    onClick={() => addToCart(product)}
-                    className="aspect-square bg-card border rounded-lg p-3 flex flex-col items-center justify-center text-center hover:bg-accent hover:border-primary transition-colors"
-                  >
-                    <span className="font-medium text-sm line-clamp-2">{product.name}</span>
-                    <span className="text-primary font-bold mt-2">${product.price.toFixed(2)}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Cart Panel */}
-        <div className="w-80 lg:w-96 bg-card border-l flex flex-col">
-          <div className="p-4 border-b flex items-center justify-between">
-            <h2 className="font-display text-xl uppercase">Cart</h2>
-            {cart.length > 0 && (
-              <Button variant="ghost" size="sm" onClick={clearCart}>
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            )}
-          </div>
-
-          {/* Customer Selection */}
-          <div className="p-4 border-b">
-            <Select value={selectedCustomer} onValueChange={setSelectedCustomer}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select customer (optional)">
-                  {selectedCustomer && customers.find(c => c.user_id === selectedCustomer) && (
-                    <span className="flex items-center gap-2">
-                      <User className="h-4 w-4" />
-                      {customers.find(c => c.user_id === selectedCustomer)?.first_name}{' '}
-                      {customers.find(c => c.user_id === selectedCustomer)?.last_name}
-                    </span>
-                  )}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {customers.map(customer => (
-                  <SelectItem key={customer.user_id} value={customer.user_id}>
-                    {customer.first_name} {customer.last_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Cart Items */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3">
-            {cart.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-                <ShoppingCart className="h-12 w-12 mb-2 opacity-50" />
-                <p>Cart is empty</p>
-              </div>
-            ) : (
-              cart.map(item => (
-                <Card key={item.id} className="p-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">{item.name}</p>
-                      <p className="text-primary font-bold">${(item.price * item.quantity).toFixed(2)}</p>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-7 w-7"
-                        onClick={() => updateQuantity(item.id, -1)}
-                      >
-                        <Minus className="h-3 w-3" />
-                      </Button>
-                      <span className="w-6 text-center text-sm">{item.quantity}</span>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-7 w-7"
-                        onClick={() => updateQuantity(item.id, 1)}
-                      >
-                        <Plus className="h-3 w-3" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-destructive"
-                        onClick={() => removeFromCart(item.id)}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </div>
-                </Card>
-              ))
-            )}
-          </div>
-
-          {/* Totals & Pay */}
-          <div className="p-4 border-t space-y-4">
-            <div className="space-y-2">
-              <div className="flex justify-between text-lg font-bold">
-                <span>Total</span>
-                <span className="text-primary">${total.toFixed(2)}</span>
-              </div>
             </div>
 
-            <Button
-              className="w-full h-14 text-lg font-display uppercase"
-              disabled={cart.length === 0}
-              onClick={() => setShowPaymentDialog(true)}
-            >
-              <CreditCard className="h-5 w-5 mr-2" />
-              Pay ${total.toFixed(2)}
-            </Button>
+            {/* Main Content */}
+            <div className="flex-1 overflow-y-auto">
+              {loadingProducts ? (
+                <div className="grid grid-cols-2 gap-3">
+                  {[...Array(4)].map((_, i) => (
+                    <Skeleton key={i} className="aspect-square" />
+                  ))}
+                </div>
+              ) : selectedFamily === 'categories' ? (
+                /* Category Selection View */
+                <div className="grid grid-cols-2 gap-3">
+                  {ALL_FAMILIES.map(family => {
+                    const productCount = products.filter(p => p.family === family).length;
+                    return (
+                      <button
+                        key={family}
+                        onClick={() => setSelectedFamily(family)}
+                        className="aspect-square bg-card border-2 rounded-xl p-4 flex flex-col items-center justify-center text-center hover:bg-accent hover:border-primary transition-colors"
+                      >
+                        <span className="font-display text-lg uppercase tracking-wide">{family}</span>
+                        <span className="text-muted-foreground text-sm mt-2">
+                          {productCount} {productCount === 1 ? 'product' : 'products'}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : filteredProducts.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                  <ShoppingCart className="h-12 w-12 mb-4 opacity-50" />
+                  <p className="text-base">No products in {selectedFamily}</p>
+                </div>
+              ) : (
+                /* Products Grid */
+                <div className="grid grid-cols-3 gap-2">
+                  {filteredProducts.map(product => (
+                    <button
+                      key={product.id}
+                      onClick={() => addToCart(product)}
+                      className="aspect-square bg-card border rounded-lg p-2 flex flex-col items-center justify-center text-center hover:bg-accent hover:border-primary transition-colors"
+                    >
+                      <span className="font-medium text-xs line-clamp-2">{product.name}</span>
+                      <span className="text-primary font-bold text-sm mt-1">${product.price.toFixed(2)}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
+
+          {/* Cart Section - Fixed at bottom on mobile */}
+          <CartPanel className="border-t shrink-0" />
         </div>
-      </div>
+      ) : (
+        /* Desktop Layout: Side by side */
+        <div className="flex h-[calc(100vh-64px)]">
+          {/* Products Grid */}
+          <div className="flex-1 p-4 overflow-hidden flex flex-col">
+            {/* Header with back button and unpaid bookings */}
+            <div className="flex items-center justify-between mb-4">
+              {selectedFamily !== 'categories' && (
+                <Button
+                  variant="ghost"
+                  onClick={() => setSelectedFamily('categories')}
+                  className="gap-2"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Back to Categories
+                </Button>
+              )}
+              {selectedFamily === 'categories' && <div />}
+              <Button
+                variant="outline"
+                onClick={() => setShowBookingsDialog(true)}
+                className="shrink-0"
+              >
+                <Calendar className="h-4 w-4 mr-2" />
+                Unpaid Bookings ({unpaidBookings.length})
+              </Button>
+            </div>
+
+            {/* Main Content */}
+            <div className="flex-1 overflow-y-auto">
+              {loadingProducts ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                  {[...Array(6)].map((_, i) => (
+                    <Skeleton key={i} className="aspect-square" />
+                  ))}
+                </div>
+              ) : selectedFamily === 'categories' ? (
+                /* Category Selection View */
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                  {ALL_FAMILIES.map(family => {
+                    const productCount = products.filter(p => p.family === family).length;
+                    return (
+                      <button
+                        key={family}
+                        onClick={() => setSelectedFamily(family)}
+                        className="aspect-square bg-card border-2 rounded-xl p-6 flex flex-col items-center justify-center text-center hover:bg-accent hover:border-primary transition-colors"
+                      >
+                        <span className="font-display text-xl uppercase tracking-wide">{family}</span>
+                        <span className="text-muted-foreground text-sm mt-2">
+                          {productCount} {productCount === 1 ? 'product' : 'products'}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : filteredProducts.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                  <ShoppingCart className="h-16 w-16 mb-4 opacity-50" />
+                  <p className="text-lg">No products in {selectedFamily}</p>
+                  <p className="text-sm">Add products in Settings to get started</p>
+                </div>
+              ) : (
+                /* Products Grid */
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
+                  {filteredProducts.map(product => (
+                    <button
+                      key={product.id}
+                      onClick={() => addToCart(product)}
+                      className="aspect-square bg-card border rounded-lg p-3 flex flex-col items-center justify-center text-center hover:bg-accent hover:border-primary transition-colors"
+                    >
+                      <span className="font-medium text-sm line-clamp-2">{product.name}</span>
+                      <span className="text-primary font-bold mt-2">${product.price.toFixed(2)}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Cart Panel - Side panel on desktop */}
+          <CartPanel className="w-80 lg:w-96 border-l" />
+        </div>
+      )}
 
       {/* Payment Method Dialog */}
       <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
