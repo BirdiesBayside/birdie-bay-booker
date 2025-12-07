@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Eye, EyeOff, Lock, Check } from "lucide-react";
+import { Eye, EyeOff, Lock, Check, AlertCircle, Loader2 } from "lucide-react";
 import birdieLogo from "@/assets/birdies-logo.png";
 
 export default function ResetPassword() {
@@ -16,17 +16,72 @@ export default function ResetPassword() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [isValidating, setIsValidating] = useState(true);
+  const [isValidSession, setIsValidSession] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    // Listen for password recovery event
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === "PASSWORD_RECOVERY") {
-        // User clicked the recovery link - they can now set a new password
-        console.log("Password recovery event detected");
-      }
-    });
+    const handleTokenExchange = async () => {
+      setIsValidating(true);
+      setErrorMessage(null);
 
-    return () => subscription.unsubscribe();
+      try {
+        // Check for hash fragment (Supabase recovery links use hash)
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        const accessToken = hashParams.get("access_token");
+        const refreshToken = hashParams.get("refresh_token");
+        const type = hashParams.get("type");
+
+        // Also check query params as fallback
+        const queryParams = new URLSearchParams(window.location.search);
+        const errorParam = queryParams.get("error");
+        const errorDescription = queryParams.get("error_description");
+
+        if (errorParam) {
+          setErrorMessage(errorDescription || "Invalid or expired link");
+          setIsValidating(false);
+          return;
+        }
+
+        // If we have tokens in the hash, set the session
+        if (accessToken && refreshToken && type === "recovery") {
+          const { error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+
+          if (error) {
+            console.error("Session error:", error);
+            setErrorMessage("Invalid or expired reset link. Please request a new one.");
+            setIsValidating(false);
+            return;
+          }
+
+          setIsValidSession(true);
+          setIsValidating(false);
+          return;
+        }
+
+        // Check if there's already an active session (user might have already exchanged token)
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session) {
+          setIsValidSession(true);
+          setIsValidating(false);
+          return;
+        }
+
+        // No valid session or token found
+        setErrorMessage("Invalid or expired reset link. Please request a new password reset.");
+        setIsValidating(false);
+      } catch (error: any) {
+        console.error("Token exchange error:", error);
+        setErrorMessage("An error occurred. Please try again.");
+        setIsValidating(false);
+      }
+    };
+
+    handleTokenExchange();
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -57,12 +112,48 @@ export default function ResetPassword() {
         navigate("/dashboard");
       }, 2000);
     } catch (error: any) {
+      console.error("Update password error:", error);
       toast.error(error.message || "Failed to update password");
     } finally {
       setIsLoading(false);
     }
   };
 
+  // Loading state while validating token
+  if (isValidating) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="pt-6 text-center">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
+            <p className="text-muted-foreground">Validating your reset link...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Error state
+  if (errorMessage) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="pt-6 text-center">
+            <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center mx-auto mb-4">
+              <AlertCircle className="h-8 w-8 text-destructive" />
+            </div>
+            <h2 className="text-xl font-display uppercase tracking-wide mb-2">Link Expired</h2>
+            <p className="text-muted-foreground mb-6">{errorMessage}</p>
+            <Button onClick={() => navigate("/")} variant="outline">
+              Go to Login
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Success state
   if (isSuccess) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -79,6 +170,11 @@ export default function ResetPassword() {
         </Card>
       </div>
     );
+  }
+
+  // Password form (only shown when session is valid)
+  if (!isValidSession) {
+    return null;
   }
 
   return (
