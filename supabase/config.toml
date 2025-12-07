@@ -17,3 +17,9 @@ verify_jwt = false
 
 [functions.bay-controller-api]
 verify_jwt = false
+
+[functions.create-membership-checkout]
+verify_jwt = false
+
+[functions.customer-portal]
+verify_jwt = false

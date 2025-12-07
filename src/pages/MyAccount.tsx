@@ -291,8 +291,8 @@ const MyAccount = () => {
                     Your hourly rate: <span className="font-semibold text-foreground">${membershipInfo.rate}/hour</span>
                   </p>
                 </div>
-                <Button variant="outline" disabled>
-                  Upgrade Membership
+                <Button variant="outline" onClick={() => navigate("/membership")}>
+                  {profile?.membership_tier === "visitor" ? "Become a Member" : "Manage Membership"}
                 </Button>
               </div>
             </CardContent>
