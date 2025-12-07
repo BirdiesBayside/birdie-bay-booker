@@ -138,6 +138,75 @@ export type Database = {
           },
         ]
       }
+      pos_products: {
+        Row: {
+          created_at: string
+          family: string | null
+          id: string
+          is_active: boolean
+          name: string
+          price: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          family?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          price: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          family?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          price?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      pos_transactions: {
+        Row: {
+          booking_id: string | null
+          created_at: string
+          customer_id: string | null
+          id: string
+          items: Json
+          payment_method: string
+          status: string
+          stripe_payment_intent_id: string | null
+          subtotal: number
+          total: number
+        }
+        Insert: {
+          booking_id?: string | null
+          created_at?: string
+          customer_id?: string | null
+          id?: string
+          items: Json
+          payment_method: string
+          status?: string
+          stripe_payment_intent_id?: string | null
+          subtotal: number
+          total: number
+        }
+        Update: {
+          booking_id?: string | null
+          created_at?: string
+          customer_id?: string | null
+          id?: string
+          items?: Json
+          payment_method?: string
+          status?: string
+          stripe_payment_intent_id?: string | null
+          subtotal?: number
+          total?: number
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
