@@ -66,7 +66,7 @@ const MEMBERSHIP_TIERS: Record<string, MembershipTier> = {
   },
 };
 
-type MembershipTierKey = keyof typeof MEMBERSHIP_TIERS;
+
 
 const Membership = () => {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
@@ -107,7 +107,7 @@ const Membership = () => {
     }
   };
 
-  const handleSubscribe = async (tierKey: MembershipTierKey) => {
+  const handleSubscribe = async (tierKey: string) => {
     const tier = MEMBERSHIP_TIERS[tierKey];
     setSubscribingTier(tierKey);
 
@@ -121,29 +121,24 @@ const Membership = () => {
 
       if (error) throw error;
 
+      // If subscription was created directly (using saved card)
+      if (data.success && data.subscriptionId) {
+        toast.success(`Successfully subscribed to ${tier.name} membership!`);
+        // Refresh the page to update membership status
+        navigate(`/membership?success=true&tier=${tierKey}`, { replace: true });
+        fetchCurrentMembership();
+        return;
+      }
+
+      // If redirecting to Stripe Checkout (no saved card)
       if (data.url) {
         window.location.href = data.url;
       }
     } catch (error) {
-      console.error("Error creating checkout session:", error);
-      toast.error("Failed to start checkout. Please try again.");
+      console.error("Error creating subscription:", error);
+      toast.error("Failed to subscribe. Please ensure you have a payment method saved.");
     } finally {
       setSubscribingTier(null);
-    }
-  };
-
-  const handleManageSubscription = async () => {
-    try {
-      const { data, error } = await supabase.functions.invoke("customer-portal");
-
-      if (error) throw error;
-
-      if (data.url) {
-        window.location.href = data.url;
-      }
-    } catch (error) {
-      console.error("Error opening customer portal:", error);
-      toast.error("Failed to open subscription management. Please contact support.");
     }
   };
 
@@ -193,23 +188,18 @@ const Membership = () => {
           {hasActiveMembership && (
             <Card className="mb-8">
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Crown className="h-6 w-6 text-accent" />
-                    <div>
-                      <CardTitle>Your Current Membership</CardTitle>
-                      <CardDescription>
-                        You are currently on the{" "}
-                        <Badge className={MEMBERSHIP_TIERS[currentTier as MembershipTierKey]?.badgeColor || ""}>
-                          {MEMBERSHIP_TIERS[currentTier as MembershipTierKey]?.name || currentTier}
-                        </Badge>{" "}
-                        plan
-                      </CardDescription>
-                    </div>
+                <div className="flex items-center gap-3">
+                  <Crown className="h-6 w-6 text-accent" />
+                  <div>
+                    <CardTitle>Your Current Membership</CardTitle>
+                    <CardDescription>
+                      You are currently on the{" "}
+                      <Badge className={MEMBERSHIP_TIERS[currentTier]?.badgeColor || ""}>
+                        {MEMBERSHIP_TIERS[currentTier]?.name || currentTier}
+                      </Badge>{" "}
+                      plan at <span className="font-semibold">${MEMBERSHIP_TIERS[currentTier]?.hourlyRate || 30}/hour</span>
+                    </CardDescription>
                   </div>
-                  <Button variant="outline" onClick={handleManageSubscription}>
-                    Manage Subscription
-                  </Button>
                 </div>
               </CardHeader>
             </Card>
@@ -228,7 +218,7 @@ const Membership = () => {
 
           {/* Membership tiers grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {(Object.entries(MEMBERSHIP_TIERS) as [MembershipTierKey, typeof MEMBERSHIP_TIERS[MembershipTierKey]][]).map(
+            {Object.entries(MEMBERSHIP_TIERS).map(
               ([key, tier]) => (
                 <Card 
                   key={key} 
