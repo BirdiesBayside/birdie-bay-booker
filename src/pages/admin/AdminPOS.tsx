@@ -97,6 +97,7 @@ export default function AdminPOS() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [processedNavBooking, setProcessedNavBooking] = useState<string | null>(null);
+  const [terminalCountdown, setTerminalCountdown] = useState<number | null>(null);
 
   useEffect(() => {
     if (isAdmin) {
@@ -277,6 +278,7 @@ export default function AdminPOS() {
       });
       toast.info("Payment cancelled");
       setTerminalPaymentIntentId(null);
+      setTerminalCountdown(null);
       setIsProcessing(false);
     } catch (error: any) {
       console.error('Cancel error:', error);
@@ -337,10 +339,22 @@ export default function AdminPOS() {
         toast.info("Please complete payment on terminal...");
         const paymentIntentId = data.paymentIntentId;
         setTerminalPaymentIntentId(paymentIntentId);
+        setTerminalCountdown(60); // 1 minute countdown
+
+        // Start countdown timer
+        const countdownInterval = setInterval(() => {
+          setTerminalCountdown(prev => {
+            if (prev === null || prev <= 1) {
+              clearInterval(countdownInterval);
+              return null;
+            }
+            return prev - 1;
+          });
+        }, 1000);
 
         // Poll for payment status
         let attempts = 0;
-        const maxAttempts = 60; // 2 minutes timeout
+        const maxAttempts = 30; // 1 minute timeout (30 * 2 seconds)
 
         const checkStatus = async () => {
           const { data: statusData } = await supabase.functions.invoke('stripe-terminal', {
@@ -348,18 +362,22 @@ export default function AdminPOS() {
           });
 
           if (statusData?.paid) {
+            clearInterval(countdownInterval);
             await saveTransaction(method, paymentIntentId);
             toast.success("Payment successful!");
             setShowPaymentDialog(false);
             setTerminalPaymentIntentId(null);
+            setTerminalCountdown(null);
             clearCart();
             setIsProcessing(false);
             return;
           }
 
           if (statusData?.status === 'canceled' || statusData?.status === 'requires_payment_method') {
+            clearInterval(countdownInterval);
             toast.error("Payment was cancelled or failed");
             setTerminalPaymentIntentId(null);
+            setTerminalCountdown(null);
             setIsProcessing(false);
             return;
           }
@@ -368,13 +386,19 @@ export default function AdminPOS() {
           if (attempts < maxAttempts) {
             setTimeout(checkStatus, 2000);
           } else {
+            clearInterval(countdownInterval);
+            // Cancel the reader action on timeout
+            await supabase.functions.invoke('stripe-terminal', {
+              body: { action: 'cancel_reader_action' },
+            });
             toast.error("Payment timed out");
             setTerminalPaymentIntentId(null);
+            setTerminalCountdown(null);
             setIsProcessing(false);
           }
         };
 
-        setTimeout(checkStatus, 3000);
+        setTimeout(checkStatus, 2000);
         return; // Don't close dialog yet for POS
       } else {
         // Cash payment
@@ -758,6 +782,11 @@ export default function AdminPOS() {
           {isProcessing && (
             <div className="text-center py-4 space-y-3">
               <p className="text-muted-foreground">Processing payment...</p>
+              {terminalCountdown !== null && (
+                <div className="text-2xl font-bold text-primary">
+                  {Math.floor(terminalCountdown / 60)}:{(terminalCountdown % 60).toString().padStart(2, '0')}
+                </div>
+              )}
               {terminalPaymentIntentId && (
                 <Button
                   variant="destructive"
