@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { supabase } from "@/integrations/supabase/client";
@@ -31,6 +32,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { 
   Search, 
   Filter, 
@@ -43,10 +54,11 @@ import {
   Download,
   UserPlus,
   KeyRound,
-  DollarSign
+  DollarSign,
+  Trash2,
+  X
 } from "lucide-react";
 import { format } from "date-fns";
-import { useSearchParams } from "react-router-dom";
 
 interface Customer {
   id: string;
@@ -59,6 +71,7 @@ interface Customer {
   custom_hourly_rate: number | null;
   deposit_balance: number;
   created_at: string;
+  booking_count?: number;
 }
 
 interface ColumnConfig {
@@ -73,6 +86,7 @@ const DEFAULT_COLUMNS: ColumnConfig[] = [
   { key: "email", label: "Email", visible: true },
   { key: "phone", label: "Phone", visible: true },
   { key: "membership_tier", label: "Membership", visible: true },
+  { key: "booking_count", label: "Bookings", visible: true },
   { key: "deposit_balance", label: "Balance", visible: false },
   { key: "custom_hourly_rate", label: "Custom Rate", visible: false },
   { key: "created_at", label: "Joined", visible: false },
@@ -81,6 +95,7 @@ const DEFAULT_COLUMNS: ColumnConfig[] = [
 export default function AdminCustomers() {
   const { isAdmin, isLoading: authLoading } = useAdminAuth();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const { toast } = useToast();
   
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -113,6 +128,13 @@ export default function AdminCustomers() {
   const [depositAmount, setDepositAmount] = useState("");
   const [isAddingDeposit, setIsAddingDeposit] = useState(false);
 
+  // Bulk actions state
+  const [showBulkDepositDialog, setShowBulkDepositDialog] = useState(false);
+  const [bulkDepositAmount, setBulkDepositAmount] = useState("");
+  const [isAddingBulkDeposit, setIsAddingBulkDeposit] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   // Check for user query param to auto-select customer
   const highlightedUserId = searchParams.get("user");
 
@@ -134,15 +156,38 @@ export default function AdminCustomers() {
   const fetchCustomers = async () => {
     setIsLoading(true);
     
-    const { data, error } = await supabase
+    // Fetch profiles
+    const { data: profilesData, error: profilesError } = await supabase
       .from("profiles")
       .select("*")
       .order("last_name");
 
-    if (!error && data) {
-      setCustomers(data);
+    if (profilesError || !profilesData) {
+      setIsLoading(false);
+      return;
     }
-    
+
+    // Fetch booking counts for all users
+    const { data: bookingCounts, error: bookingError } = await supabase
+      .from("bookings")
+      .select("user_id")
+      .eq("status", "confirmed");
+
+    // Count bookings per user
+    const countMap: Record<string, number> = {};
+    if (!bookingError && bookingCounts) {
+      bookingCounts.forEach((b) => {
+        countMap[b.user_id] = (countMap[b.user_id] || 0) + 1;
+      });
+    }
+
+    // Merge counts into customers
+    const customersWithCounts = profilesData.map((p) => ({
+      ...p,
+      booking_count: countMap[p.user_id] || 0,
+    }));
+
+    setCustomers(customersWithCounts);
     setIsLoading(false);
   };
 
@@ -365,6 +410,101 @@ export default function AdminCustomers() {
     setIsAddingDeposit(false);
   };
 
+  // Bulk add credit to selected customers
+  const addBulkDeposit = async () => {
+    const amount = parseFloat(bulkDepositAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast({
+        title: "Invalid amount",
+        description: "Please enter a valid positive amount.",
+        variant: "destructive",
+        duration: 4000,
+      });
+      return;
+    }
+
+    setIsAddingBulkDeposit(true);
+    const selectedCustomersList = customers.filter(c => selectedCustomers.has(c.id));
+    let successCount = 0;
+
+    for (const customer of selectedCustomersList) {
+      try {
+        const newBalance = (customer.deposit_balance || 0) + amount;
+        
+        const { error } = await supabase
+          .from("profiles")
+          .update({ deposit_balance: newBalance })
+          .eq("id", customer.id);
+
+        if (error) throw error;
+
+        // Send notification (don't await, let it run in background)
+        supabase.functions.invoke("send-deposit-notification", {
+          body: {
+            user_id: customer.user_id,
+            amount: amount,
+            new_balance: newBalance,
+          },
+        }).catch(console.error);
+
+        successCount++;
+      } catch (error) {
+        console.error(`Failed to add deposit for ${customer.email}:`, error);
+      }
+    }
+
+    toast({
+      title: "Credit added",
+      description: `$${amount.toFixed(2)} added to ${successCount} customer${successCount !== 1 ? "s" : ""}.`,
+      duration: 4000,
+    });
+
+    setShowBulkDepositDialog(false);
+    setBulkDepositAmount("");
+    setSelectedCustomers(new Set());
+    fetchCustomers();
+    setIsAddingBulkDeposit(false);
+  };
+
+  // Delete selected customers
+  const deleteSelectedCustomers = async () => {
+    setIsDeleting(true);
+    const selectedCustomersList = customers.filter(c => selectedCustomers.has(c.id));
+    let successCount = 0;
+
+    for (const customer of selectedCustomersList) {
+      try {
+        // Delete profile (bookings will be orphaned but remain for records)
+        const { error } = await supabase
+          .from("profiles")
+          .delete()
+          .eq("id", customer.id);
+
+        if (error) throw error;
+        successCount++;
+      } catch (error) {
+        console.error(`Failed to delete ${customer.email}:`, error);
+      }
+    }
+
+    toast({
+      title: "Customers deleted",
+      description: `${successCount} customer${successCount !== 1 ? "s" : ""} deleted.`,
+      duration: 4000,
+    });
+
+    setShowDeleteConfirm(false);
+    setSelectedCustomers(new Set());
+    fetchCustomers();
+    setIsDeleting(false);
+  };
+
+  // Navigate to bulk email page
+  const goToBulkEmail = () => {
+    const selectedCustomersList = customers.filter(c => selectedCustomers.has(c.id));
+    navigate("/admin/bulk-email", { state: { customers: selectedCustomersList } });
+  };
+
   const openEditMode = (customer: Customer) => {
     setEditFirstName(customer.first_name);
     setEditLastName(customer.last_name);
@@ -486,15 +626,38 @@ export default function AdminCustomers() {
 
         {/* Bulk Actions */}
         {selectedCustomers.size > 0 && (
-          <div className="flex items-center gap-2 bg-primary/5 px-4 py-2 rounded-lg">
+          <div className="flex items-center gap-2 bg-primary/5 px-4 py-3 rounded-lg border border-primary/20">
             <span className="text-sm font-medium">
               {selectedCustomers.size} selected
             </span>
-            <Button variant="outline" size="sm">
+            <div className="h-4 w-px bg-border mx-1" />
+            <Button variant="outline" size="sm" onClick={goToBulkEmail}>
               <Mail className="h-4 w-4 mr-1" />
               Email
             </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="text-destructive hover:text-destructive"
+              onClick={() => setShowDeleteConfirm(true)}
+            >
+              <Trash2 className="h-4 w-4 mr-1" />
+              Delete
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => {
+                setBulkDepositAmount("");
+                setShowBulkDepositDialog(true);
+              }}
+            >
+              <DollarSign className="h-4 w-4 mr-1" />
+              Add Credit
+            </Button>
+            <div className="flex-1" />
             <Button variant="ghost" size="sm" onClick={() => setSelectedCustomers(new Set())}>
+              <X className="h-4 w-4 mr-1" />
               Clear
             </Button>
           </div>
@@ -629,6 +792,10 @@ export default function AdminCustomers() {
                             customer.custom_hourly_rate ? `$${customer.custom_hourly_rate}/hr` : "-"
                           ) : col.key === "deposit_balance" ? (
                             customer.deposit_balance > 0 ? `$${Number(customer.deposit_balance).toFixed(2)}` : "-"
+                          ) : col.key === "booking_count" ? (
+                            <span className={customer.booking_count === 0 ? "text-muted-foreground" : ""}>
+                              {customer.booking_count || 0}
+                            </span>
                           ) : (
                             customer[col.key as keyof Customer]
                           )}
@@ -974,6 +1141,81 @@ export default function AdminCustomers() {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Bulk Add Credit Dialog */}
+        <Dialog open={showBulkDepositDialog} onOpenChange={setShowBulkDepositDialog}>
+          <DialogContent className="max-w-xs">
+            <DialogHeader>
+              <DialogTitle className="font-display text-xl uppercase tracking-wide">
+                Add Credit
+              </DialogTitle>
+            </DialogHeader>
+            
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Adding credit to {selectedCustomers.size} customer{selectedCustomers.size !== 1 ? "s" : ""}.
+                Each will receive an email notification.
+              </p>
+              
+              <div className="space-y-2">
+                <Label>Amount ($)</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={bulkDepositAmount}
+                  onChange={(e) => setBulkDepositAmount(e.target.value)}
+                  placeholder="0.00"
+                />
+              </div>
+              
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => {
+                    setShowBulkDepositDialog(false);
+                    setBulkDepositAmount("");
+                  }}
+                  disabled={isAddingBulkDeposit}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1"
+                  onClick={addBulkDeposit}
+                  disabled={isAddingBulkDeposit || !bulkDepositAmount}
+                >
+                  <DollarSign className="h-4 w-4 mr-2" />
+                  {isAddingBulkDeposit ? "Adding..." : "Add Credit"}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete {selectedCustomers.size} customer{selectedCustomers.size !== 1 ? "s" : ""}?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This action cannot be undone. This will permanently delete the selected customers and their profile data.
+                Booking history will be preserved for records.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={deleteSelectedCustomers}
+                disabled={isDeleting}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {isDeleting ? "Deleting..." : "Delete"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </AdminLayout>
   );
