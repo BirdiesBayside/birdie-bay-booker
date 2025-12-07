@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
 import {
   Dialog,
   DialogContent,
@@ -31,7 +33,9 @@ import {
   Phone, 
   Mail,
   Users as UsersIcon,
-  Percent
+  Percent,
+  Pencil,
+  X
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
@@ -81,6 +85,7 @@ const SLOT_HEIGHT = 32; // pixels per 30-min slot
 export default function AdminTimetable() {
   const { isAdmin, isLoading: authLoading } = useAdminAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
   
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>("day");
@@ -89,6 +94,16 @@ export default function AdminTimetable() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [calendarOpen, setCalendarOpen] = useState(false);
+  
+  // Edit mode state
+  const [isEditing, setIsEditing] = useState(false);
+  const [editDate, setEditDate] = useState<Date | undefined>();
+  const [editStartTime, setEditStartTime] = useState("");
+  const [editDuration, setEditDuration] = useState("");
+  const [editBayId, setEditBayId] = useState("");
+  const [editPlayerCount, setEditPlayerCount] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [editCalendarOpen, setEditCalendarOpen] = useState(false);
 
   useEffect(() => {
     if (isAdmin) {
@@ -241,6 +256,103 @@ export default function AdminTimetable() {
       case "par": return "bg-green-500/10 text-green-600 border-green-200";
       default: return "bg-muted text-muted-foreground";
     }
+  };
+
+  // Generate time slots for the dropdown (5am to 10:30pm in 30-min increments)
+  const TIME_OPTIONS = OPERATING_SLOTS.filter(slot => {
+    // Allow start times up to 10:30pm (leaving room for at least 30min booking)
+    return slot.hour < 22 || (slot.hour === 22 && slot.minute === 0);
+  }).map(slot => {
+    const timeStr = `${slot.hour.toString().padStart(2, "0")}:${slot.minute.toString().padStart(2, "0")}`;
+    return { value: timeStr, label: formatSlotTime(slot) };
+  });
+
+  const DURATION_OPTIONS = [
+    { value: "1", label: "1 hour" },
+    { value: "2", label: "2 hours" },
+    { value: "3", label: "3 hours" },
+    { value: "4", label: "4 hours" },
+  ];
+
+  const PLAYER_OPTIONS = [
+    { value: "1", label: "1 player" },
+    { value: "2", label: "2 players" },
+    { value: "3", label: "3 players" },
+    { value: "4", label: "4 players" },
+  ];
+
+  const startEditing = () => {
+    if (!selectedBooking) return;
+    setEditDate(new Date(selectedBooking.booking_date));
+    setEditStartTime(selectedBooking.start_time.slice(0, 5)); // "HH:MM"
+    setEditDuration(selectedBooking.duration_hours.toString());
+    setEditBayId(selectedBooking.bay_id);
+    setEditPlayerCount(selectedBooking.player_count.toString());
+    setIsEditing(true);
+  };
+
+  const cancelEditing = () => {
+    setIsEditing(false);
+    setEditCalendarOpen(false);
+  };
+
+  const calculateEndTime = (startTime: string, durationHours: number): string => {
+    const [hour, min] = startTime.split(":").map(Number);
+    const endHour = hour + durationHours;
+    return `${endHour.toString().padStart(2, "0")}:${min.toString().padStart(2, "0")}`;
+  };
+
+  const saveBookingChanges = async () => {
+    if (!selectedBooking || !editDate) return;
+
+    setIsSaving(true);
+
+    const newEndTime = calculateEndTime(editStartTime, parseInt(editDuration));
+    const endHour = parseInt(newEndTime.split(":")[0]);
+    
+    // Validate end time doesn't exceed operating hours (11pm)
+    if (endHour > 23) {
+      toast({
+        title: "Invalid time",
+        description: "Booking cannot extend past 11pm.",
+        variant: "destructive",
+        duration: 4000,
+      });
+      setIsSaving(false);
+      return;
+    }
+
+    const { error } = await supabase
+      .from("bookings")
+      .update({
+        booking_date: format(editDate, "yyyy-MM-dd"),
+        start_time: editStartTime,
+        end_time: newEndTime,
+        duration_hours: parseInt(editDuration),
+        bay_id: editBayId,
+        player_count: parseInt(editPlayerCount),
+      })
+      .eq("id", selectedBooking.id);
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update booking.",
+        variant: "destructive",
+        duration: 4000,
+      });
+    } else {
+      toast({
+        title: "Booking updated",
+        description: "The booking has been updated successfully.",
+        duration: 4000,
+      });
+      setIsEditing(false);
+      setSelectedBooking(null);
+      fetchBookings();
+    }
+
+    setIsSaving(false);
   };
 
   if (authLoading) {
@@ -417,15 +529,25 @@ export default function AdminTimetable() {
         </Card>
 
         {/* Booking Details Dialog */}
-        <Dialog open={!!selectedBooking} onOpenChange={() => setSelectedBooking(null)}>
+        <Dialog open={!!selectedBooking} onOpenChange={(open) => {
+          if (!open) {
+            setSelectedBooking(null);
+            setIsEditing(false);
+          }
+        }}>
           <DialogContent className="max-w-md">
             <DialogHeader>
-              <DialogTitle className="font-display text-xl uppercase tracking-wide">
-                Booking Details
+              <DialogTitle className="font-display text-xl uppercase tracking-wide flex items-center justify-between">
+                {isEditing ? "Edit Booking" : "Booking Details"}
+                {isEditing && (
+                  <Button variant="ghost" size="icon" onClick={cancelEditing} className="h-8 w-8">
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
               </DialogTitle>
             </DialogHeader>
             
-            {selectedBooking && (
+            {selectedBooking && !isEditing && (
               <div className="space-y-4">
                 {/* Customer Info */}
                 <div className="space-y-3">
@@ -508,8 +630,146 @@ export default function AdminTimetable() {
                   >
                     View Customer
                   </Button>
-                  <Button className="flex-1 bg-primary hover:bg-primary/90">
+                  <Button 
+                    className="flex-1 bg-primary hover:bg-primary/90"
+                    onClick={startEditing}
+                  >
+                    <Pencil className="h-4 w-4 mr-2" />
                     Edit Booking
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Edit Form */}
+            {selectedBooking && isEditing && (
+              <div className="space-y-4">
+                {/* Customer Info (read-only) */}
+                <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <User className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-medium text-sm">
+                      {selectedBooking.profile?.first_name} {selectedBooking.profile?.last_name}
+                    </span>
+                  </div>
+                  <Badge className={getMembershipColor(selectedBooking.profile?.membership_tier || "")}>
+                    {selectedBooking.profile?.membership_tier || "Visitor"}
+                  </Badge>
+                </div>
+
+                {/* Edit Fields */}
+                <div className="space-y-4">
+                  {/* Date */}
+                  <div className="space-y-2">
+                    <Label>Date</Label>
+                    <Popover open={editCalendarOpen} onOpenChange={setEditCalendarOpen}>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className="w-full justify-start text-left">
+                          <CalendarIcon className="h-4 w-4 mr-2" />
+                          {editDate ? format(editDate, "EEE, MMM d, yyyy") : "Select date"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={editDate}
+                          onSelect={(date) => {
+                            setEditDate(date);
+                            setEditCalendarOpen(false);
+                          }}
+                          className="pointer-events-auto"
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+
+                  {/* Start Time */}
+                  <div className="space-y-2">
+                    <Label>Start Time</Label>
+                    <Select value={editStartTime} onValueChange={setEditStartTime}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select time" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {TIME_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Duration */}
+                  <div className="space-y-2">
+                    <Label>Duration</Label>
+                    <Select value={editDuration} onValueChange={setEditDuration}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select duration" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {DURATION_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Bay */}
+                  <div className="space-y-2">
+                    <Label>Bay</Label>
+                    <Select value={editBayId} onValueChange={setEditBayId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select bay" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {bays.map((bay) => (
+                          <SelectItem key={bay.id} value={bay.id}>
+                            {bay.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Player Count */}
+                  <div className="space-y-2">
+                    <Label>Players</Label>
+                    <Select value={editPlayerCount} onValueChange={setEditPlayerCount}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select players" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PLAYER_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <hr className="border-border" />
+
+                {/* Save/Cancel Actions */}
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    className="flex-1"
+                    onClick={cancelEditing}
+                    disabled={isSaving}
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    className="flex-1 bg-primary hover:bg-primary/90"
+                    onClick={saveBookingChanges}
+                    disabled={isSaving}
+                  >
+                    {isSaving ? "Saving..." : "Save Changes"}
                   </Button>
                 </div>
               </div>
