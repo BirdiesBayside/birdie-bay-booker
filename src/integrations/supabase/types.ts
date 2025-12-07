@@ -304,7 +304,15 @@ export type Database = {
           tournament_id?: number
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "fk_sgt_scorecards_tournament"
+            columns: ["tournament_id"]
+            isOneToOne: false
+            referencedRelation: "sgt_tournaments"
+            referencedColumns: ["tournament_id"]
+          },
+        ]
       }
       sgt_tour_members: {
         Row: {
@@ -337,7 +345,15 @@ export type Database = {
           user_id?: number
           user_name?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "fk_sgt_tour_members_tour"
+            columns: ["tour_id"]
+            isOneToOne: false
+            referencedRelation: "sgt_tours"
+            referencedColumns: ["tour_id"]
+          },
+        ]
       }
       sgt_tour_standings: {
         Row: {
@@ -391,7 +407,15 @@ export type Database = {
           user_has_avatar?: string | null
           user_name?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "fk_sgt_tour_standings_tour"
+            columns: ["tour_id"]
+            isOneToOne: false
+            referencedRelation: "sgt_tours"
+            referencedColumns: ["tour_id"]
+          },
+        ]
       }
       sgt_tournaments: {
         Row: {
@@ -430,7 +454,15 @@ export type Database = {
           tournament_id?: number
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "fk_sgt_tournaments_tour"
+            columns: ["tour_id"]
+            isOneToOne: false
+            referencedRelation: "sgt_tours"
+            referencedColumns: ["tour_id"]
+          },
+        ]
       }
       sgt_tours: {
         Row: {
