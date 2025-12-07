@@ -290,7 +290,7 @@ const Membership = () => {
 
           {/* Footer note */}
           <p className="text-center text-sm text-muted-foreground mt-8">
-            Need to cancel? Email us at support@birdiesbayside.com.au and we'll help you out.
+            Need to cancel? Email us at info@birdiesbayside.com.au and we'll help you out.
           </p>
         </div>
       </main>
