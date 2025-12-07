@@ -1,19 +1,72 @@
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar, Users, DollarSign, TrendingUp } from "lucide-react";
+import { Calendar, DollarSign, TrendingUp, Users } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { format } from "date-fns";
+
+interface DashboardStats {
+  todaysBookings: number;
+  todaysRevenue: number;
+  todaysOccupancy: number;
+}
 
 export default function AdminDashboard() {
   const { isAdmin, isLoading } = useAdminAuth();
+  const [stats, setStats] = useState<DashboardStats>({
+    todaysBookings: 0,
+    todaysRevenue: 0,
+    todaysOccupancy: 0,
+  });
+  const [loadingStats, setLoadingStats] = useState(true);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      const today = format(new Date(), 'yyyy-MM-dd');
+      
+      // Fetch today's bookings
+      const { data: bookings, error } = await supabase
+        .from('bookings')
+        .select('total_price, duration_hours, status')
+        .eq('booking_date', today)
+        .neq('status', 'cancelled');
+
+      if (error) {
+        console.error('Error fetching stats:', error);
+        setLoadingStats(false);
+        return;
+      }
+
+      const todaysBookings = bookings?.length || 0;
+      const todaysRevenue = bookings?.reduce((sum, b) => sum + Number(b.total_price), 0) || 0;
+      
+      // Calculate occupancy: 6 bays * 18 hours (5am-11pm) = 108 total hours available
+      const totalHoursAvailable = 6 * 18;
+      const bookedHours = bookings?.reduce((sum, b) => sum + b.duration_hours, 0) || 0;
+      const todaysOccupancy = Math.round((bookedHours / totalHoursAvailable) * 100);
+
+      setStats({
+        todaysBookings,
+        todaysRevenue,
+        todaysOccupancy,
+      });
+      setLoadingStats(false);
+    };
+
+    if (isAdmin) {
+      fetchStats();
+    }
+  }, [isAdmin]);
 
   if (isLoading) {
     return (
       <AdminLayout>
         <div className="p-6 space-y-6">
           <Skeleton className="h-10 w-48" />
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {[1, 2, 3, 4].map((i) => (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {[1, 2, 3].map((i) => (
               <Skeleton key={i} className="h-32" />
             ))}
           </div>
@@ -39,7 +92,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -48,55 +101,43 @@ export default function AdminDashboard() {
               <Calendar className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-display">12</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                +2 from yesterday
-              </p>
+              {loadingStats ? (
+                <Skeleton className="h-8 w-12" />
+              ) : (
+                <div className="text-2xl font-display">{stats.todaysBookings}</div>
+              )}
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
-                Total Customers
-              </CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-display">248</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                +12 this week
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Revenue Today
+                Today's Revenue
               </CardTitle>
               <DollarSign className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-display">$1,240</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                +8% from average
-              </p>
+              {loadingStats ? (
+                <Skeleton className="h-8 w-20" />
+              ) : (
+                <div className="text-2xl font-display">${stats.todaysRevenue.toFixed(0)}</div>
+              )}
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
-                Occupancy Rate
+                Today's Occupancy
               </CardTitle>
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-display">78%</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Peak: 2pm - 6pm
-              </p>
+              {loadingStats ? (
+                <Skeleton className="h-8 w-16" />
+              ) : (
+                <div className="text-2xl font-display">{stats.todaysOccupancy}%</div>
+              )}
             </CardContent>
           </Card>
         </div>
