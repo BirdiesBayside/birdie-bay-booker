@@ -36,7 +36,7 @@ export function StatCard({
         )}
       </div>
       <div className="flex items-end gap-2">
-        <span className="text-4xl font-anton text-primary">
+        <span className="text-4xl font-display text-primary">
           {value}
         </span>
         {trend && (
