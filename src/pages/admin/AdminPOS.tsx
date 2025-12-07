@@ -566,18 +566,18 @@ export default function AdminPOS() {
                 </div>
               ) : selectedFamily === 'categories' ? (
                 /* Category Selection View */
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-2">
                   {ALL_FAMILIES.map(family => {
                     const productCount = products.filter(p => p.family === family).length;
                     return (
                       <button
                         key={family}
                         onClick={() => setSelectedFamily(family)}
-                        className="aspect-square bg-card border-2 rounded-xl p-4 flex flex-col items-center justify-center text-center hover:bg-accent hover:border-primary transition-colors"
+                        className="aspect-square bg-card border rounded-lg p-2 flex flex-col items-center justify-center text-center active:bg-muted transition-colors"
                       >
-                        <span className="font-display text-lg uppercase tracking-wide">{family}</span>
-                        <span className="text-muted-foreground text-sm mt-2">
-                          {productCount} {productCount === 1 ? 'product' : 'products'}
+                        <span className="font-display text-xs uppercase tracking-wide">{family}</span>
+                        <span className="text-muted-foreground text-[10px] mt-1">
+                          {productCount} {productCount === 1 ? 'item' : 'items'}
                         </span>
                       </button>
                     );
@@ -595,7 +595,7 @@ export default function AdminPOS() {
                     <button
                       key={product.id}
                       onClick={() => addToCart(product)}
-                      className="aspect-square bg-card border rounded-lg p-2 flex flex-col items-center justify-center text-center hover:bg-accent hover:border-primary transition-colors"
+                      className="aspect-square bg-card border rounded-lg p-2 flex flex-col items-center justify-center text-center active:bg-muted transition-colors"
                     >
                       <span className="font-medium text-xs line-clamp-2">{product.name}</span>
                       <span className="text-primary font-bold text-sm mt-1">${product.price.toFixed(2)}</span>
@@ -647,18 +647,18 @@ export default function AdminPOS() {
                 </div>
               ) : selectedFamily === 'categories' ? (
                 /* Category Selection View */
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
                   {ALL_FAMILIES.map(family => {
                     const productCount = products.filter(p => p.family === family).length;
                     return (
                       <button
                         key={family}
                         onClick={() => setSelectedFamily(family)}
-                        className="aspect-square bg-card border-2 rounded-xl p-6 flex flex-col items-center justify-center text-center hover:bg-accent hover:border-primary transition-colors"
+                        className="aspect-square bg-card border rounded-lg p-3 flex flex-col items-center justify-center text-center active:bg-muted transition-colors"
                       >
-                        <span className="font-display text-xl uppercase tracking-wide">{family}</span>
-                        <span className="text-muted-foreground text-sm mt-2">
-                          {productCount} {productCount === 1 ? 'product' : 'products'}
+                        <span className="font-display text-sm uppercase tracking-wide">{family}</span>
+                        <span className="text-muted-foreground text-xs mt-1">
+                          {productCount} {productCount === 1 ? 'item' : 'items'}
                         </span>
                       </button>
                     );
@@ -677,7 +677,7 @@ export default function AdminPOS() {
                     <button
                       key={product.id}
                       onClick={() => addToCart(product)}
-                      className="aspect-square bg-card border rounded-lg p-3 flex flex-col items-center justify-center text-center hover:bg-accent hover:border-primary transition-colors"
+                      className="aspect-square bg-card border rounded-lg p-3 flex flex-col items-center justify-center text-center active:bg-muted transition-colors"
                     >
                       <span className="font-medium text-sm line-clamp-2">{product.name}</span>
                       <span className="text-primary font-bold mt-2">${product.price.toFixed(2)}</span>
