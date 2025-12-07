@@ -252,6 +252,7 @@ export type Database = {
         Row: {
           created_at: string
           custom_hourly_rate: number | null
+          deposit_balance: number
           display_name: string | null
           email: string
           first_name: string
@@ -266,6 +267,7 @@ export type Database = {
         Insert: {
           created_at?: string
           custom_hourly_rate?: number | null
+          deposit_balance?: number
           display_name?: string | null
           email: string
           first_name: string
@@ -280,6 +282,7 @@ export type Database = {
         Update: {
           created_at?: string
           custom_hourly_rate?: number | null
+          deposit_balance?: number
           display_name?: string | null
           email?: string
           first_name?: string
