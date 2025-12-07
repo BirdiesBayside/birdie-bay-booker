@@ -21,9 +21,54 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Pencil, Trash2, Settings, ShoppingCart, Bell, DollarSign, X } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Plus, Pencil, Trash2, Settings, ShoppingCart, Bell, DollarSign, X, Copy, Check } from "lucide-react";
+
+// Template types and their available placeholder tags
+const TEMPLATE_TAGS: Record<string, { tag: string; description: string }[]> = {
+  booking_confirmation: [
+    { tag: "{first_name}", description: "Customer's first name" },
+    { tag: "{last_name}", description: "Customer's last name" },
+    { tag: "{email}", description: "Customer's email address" },
+    { tag: "{booking_date}", description: "Date of the booking (e.g. Monday, 15 January 2025)" },
+    { tag: "{booking_time}", description: "Start time of the booking (e.g. 2:00 PM)" },
+    { tag: "{end_time}", description: "End time of the booking (e.g. 4:00 PM)" },
+    { tag: "{duration}", description: "Booking duration in hours (e.g. 2)" },
+    { tag: "{bay_number}", description: "Bay number (e.g. 3)" },
+    { tag: "{bay_name}", description: "Bay name (e.g. Bay 3)" },
+    { tag: "{player_count}", description: "Number of players" },
+    { tag: "{total_price}", description: "Total booking price (e.g. $60.00)" },
+    { tag: "{door_code}", description: "Door access code (7675#)" },
+  ],
+  booking_cancellation: [
+    { tag: "{first_name}", description: "Customer's first name" },
+    { tag: "{last_name}", description: "Customer's last name" },
+    { tag: "{email}", description: "Customer's email address" },
+    { tag: "{booking_date}", description: "Date of the cancelled booking" },
+    { tag: "{booking_time}", description: "Start time of the cancelled booking" },
+    { tag: "{bay_number}", description: "Bay number" },
+    { tag: "{bay_name}", description: "Bay name" },
+    { tag: "{refund_amount}", description: "Refund amount if applicable" },
+  ],
+  credit_added: [
+    { tag: "{first_name}", description: "Customer's first name" },
+    { tag: "{last_name}", description: "Customer's last name" },
+    { tag: "{email}", description: "Customer's email address" },
+    { tag: "{deposit_amount}", description: "Amount of credit added (e.g. $50.00)" },
+    { tag: "{new_balance}", description: "New total credit balance (e.g. $75.00)" },
+    { tag: "{previous_balance}", description: "Previous credit balance (e.g. $25.00)" },
+  ],
+};
+
+interface EmailTemplate {
+  id: string;
+  name: string;
+  description: string;
+  templateKey: string;
+}
 
 interface POSProduct {
   id: string;
@@ -84,6 +129,29 @@ export default function AdminSettings() {
 
   // Get unique families from products
   const families = [...new Set(products.map(p => p.family).filter(Boolean))] as string[];
+
+  // Email Templates
+  const [selectedTemplate, setSelectedTemplate] = useState<EmailTemplate | null>(null);
+  const [templateHtml, setTemplateHtml] = useState("");
+  const [copiedTag, setCopiedTag] = useState<string | null>(null);
+
+  const emailTemplates: EmailTemplate[] = [
+    { id: "1", name: "Booking Confirmation", description: "Sent when a booking is created", templateKey: "booking_confirmation" },
+    { id: "2", name: "Booking Cancellation", description: "Sent when a booking is cancelled", templateKey: "booking_cancellation" },
+    { id: "3", name: "Credit Added", description: "Sent when credit/deposit is added to account", templateKey: "credit_added" },
+  ];
+
+  const copyTag = (tag: string) => {
+    navigator.clipboard.writeText(tag);
+    setCopiedTag(tag);
+    setTimeout(() => setCopiedTag(null), 2000);
+  };
+
+  const openTemplateEditor = (template: EmailTemplate) => {
+    setSelectedTemplate(template);
+    // In future, load saved template HTML from database here
+    setTemplateHtml("");
+  };
 
   useEffect(() => {
     if (isAdmin) {
@@ -531,36 +599,24 @@ export default function AdminSettings() {
                 <CardDescription>Customize email notification templates</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="border rounded-lg p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="font-medium">Booking Confirmation</h4>
-                      <p className="text-sm text-muted-foreground">Sent when a booking is created</p>
+                {emailTemplates.map((template) => (
+                  <button
+                    key={template.id}
+                    onClick={() => openTemplateEditor(template)}
+                    className="w-full border rounded-lg p-4 text-left hover:bg-muted/50 transition-colors"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="font-medium">{template.name}</h4>
+                        <p className="text-sm text-muted-foreground">{template.description}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary">Default</Badge>
+                        <Pencil className="h-4 w-4 text-muted-foreground" />
+                      </div>
                     </div>
-                    <Badge variant="secondary">Default</Badge>
-                  </div>
-                </div>
-                <div className="border rounded-lg p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="font-medium">Booking Cancellation</h4>
-                      <p className="text-sm text-muted-foreground">Sent when a booking is cancelled</p>
-                    </div>
-                    <Badge variant="secondary">Default</Badge>
-                  </div>
-                </div>
-                <div className="border rounded-lg p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="font-medium">Credit Added</h4>
-                      <p className="text-sm text-muted-foreground">Sent when credit/deposit is added to account</p>
-                    </div>
-                    <Badge variant="secondary">Default</Badge>
-                  </div>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Template customization coming soon
-                </p>
+                  </button>
+                ))}
               </CardContent>
             </Card>
 
@@ -581,6 +637,85 @@ export default function AdminSettings() {
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Email Template Editor Dialog */}
+        <Dialog open={!!selectedTemplate} onOpenChange={(open) => !open && setSelectedTemplate(null)}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="font-display text-xl uppercase tracking-wide">
+                {selectedTemplate?.name}
+              </DialogTitle>
+              <DialogDescription>
+                {selectedTemplate?.description}
+              </DialogDescription>
+            </DialogHeader>
+            
+            {selectedTemplate && (
+              <div className="space-y-4">
+                {/* Available Tags Section */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Available Tags</Label>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Click a tag to copy it, then paste into your template HTML
+                  </p>
+                  <div className="flex flex-wrap gap-2 p-3 bg-muted/30 rounded-lg border">
+                    {TEMPLATE_TAGS[selectedTemplate.templateKey]?.map((item) => (
+                      <button
+                        key={item.tag}
+                        onClick={() => copyTag(item.tag)}
+                        className="inline-flex items-center gap-1 px-2 py-1 bg-background border rounded text-xs font-mono hover:bg-primary/10 hover:border-primary transition-colors group"
+                        title={item.description}
+                      >
+                        {item.tag}
+                        {copiedTag === item.tag ? (
+                          <Check className="h-3 w-3 text-green-500" />
+                        ) : (
+                          <Copy className="h-3 w-3 text-muted-foreground group-hover:text-primary" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Tag Descriptions */}
+                <div className="space-y-1">
+                  <Label className="text-sm font-medium">Tag Reference</Label>
+                  <div className="text-xs text-muted-foreground space-y-1 p-3 bg-muted/20 rounded-lg border max-h-32 overflow-y-auto">
+                    {TEMPLATE_TAGS[selectedTemplate.templateKey]?.map((item) => (
+                      <div key={item.tag} className="flex gap-2">
+                        <code className="font-mono text-primary">{item.tag}</code>
+                        <span>— {item.description}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* HTML Editor */}
+                <div className="space-y-2">
+                  <Label>Template HTML</Label>
+                  <Textarea
+                    value={templateHtml}
+                    onChange={(e) => setTemplateHtml(e.target.value)}
+                    placeholder={`<h1>Hi {first_name}!</h1>\n<p>Your booking has been confirmed...</p>`}
+                    className="font-mono text-sm min-h-[200px]"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Paste your custom HTML email template here. Use the tags above to personalize the message.
+                  </p>
+                </div>
+
+                <div className="flex gap-2 justify-end">
+                  <Button variant="outline" onClick={() => setSelectedTemplate(null)}>
+                    Cancel
+                  </Button>
+                  <Button disabled>
+                    Save Template (Coming Soon)
+                  </Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
 
         {/* Product Dialog */}
         <Dialog open={showProductDialog} onOpenChange={setShowProductDialog}>
