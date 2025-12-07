@@ -14,6 +14,47 @@ export type Database = {
   }
   public: {
     Tables: {
+      bay_blocks: {
+        Row: {
+          bay_id: string
+          block_date: string
+          created_at: string
+          created_by: string | null
+          end_time: string
+          id: string
+          reason: string | null
+          start_time: string
+        }
+        Insert: {
+          bay_id: string
+          block_date: string
+          created_at?: string
+          created_by?: string | null
+          end_time: string
+          id?: string
+          reason?: string | null
+          start_time: string
+        }
+        Update: {
+          bay_id?: string
+          block_date?: string
+          created_at?: string
+          created_by?: string | null
+          end_time?: string
+          id?: string
+          reason?: string | null
+          start_time?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bay_blocks_bay_id_fkey"
+            columns: ["bay_id"]
+            isOneToOne: false
+            referencedRelation: "bays"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bay_devices: {
         Row: {
           app_version: string | null

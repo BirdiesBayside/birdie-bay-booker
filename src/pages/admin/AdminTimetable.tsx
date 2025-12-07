@@ -82,7 +82,14 @@ interface Booking {
   };
 }
 
-
+interface BayBlock {
+  id: string;
+  bay_id: string;
+  block_date: string;
+  start_time: string;
+  end_time: string;
+  reason: string | null;
+}
 
 // Operating hours: 5am to 11pm in 30-min increments
 // Each slot is { hour: number, minute: 0 | 30 }
@@ -108,8 +115,10 @@ export default function AdminTimetable() {
   
   const [bays, setBays] = useState<Bay[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [blocks, setBlocks] = useState<BayBlock[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [selectedBlock, setSelectedBlock] = useState<BayBlock | null>(null);
   const [calendarOpen, setCalendarOpen] = useState(false);
   
   // Edit mode state
@@ -162,6 +171,7 @@ export default function AdminTimetable() {
     
     const dateStr = format(selectedDate, "yyyy-MM-dd");
 
+    // Fetch bookings
     const { data, error } = await supabase
       .from("bookings")
       .select("*")
@@ -183,6 +193,16 @@ export default function AdminTimetable() {
         profile: profileMap.get(booking.user_id)
       }));
       setBookings(transformedData);
+    }
+
+    // Fetch blocks
+    const { data: blocksData, error: blocksError } = await supabase
+      .from("bay_blocks")
+      .select("*")
+      .eq("block_date", dateStr);
+
+    if (!blocksError && blocksData) {
+      setBlocks(blocksData);
     }
     
     setIsLoading(false);
@@ -206,6 +226,35 @@ export default function AdminTimetable() {
       
       return slotMinutes >= startMinutes && slotMinutes < endMinutes;
     });
+  };
+
+  const getBlocksForSlot = (bayId: string, slot: TimeSlot) => {
+    const dateStr = format(selectedDate, "yyyy-MM-dd");
+    const slotMinutes = slot.hour * 60 + slot.minute;
+    
+    return blocks.filter(b => {
+      if (b.bay_id !== bayId || b.block_date !== dateStr) return false;
+      
+      const [startHour, startMin] = b.start_time.split(":").map(Number);
+      const [endHour, endMin] = b.end_time.split(":").map(Number);
+      const startMinutes = startHour * 60 + startMin;
+      const endMinutes = endHour * 60 + endMin;
+      
+      return slotMinutes >= startMinutes && slotMinutes < endMinutes;
+    });
+  };
+
+  const isBlockStart = (block: BayBlock, slot: TimeSlot) => {
+    const [startHour, startMin] = block.start_time.split(":").map(Number);
+    return startHour === slot.hour && startMin === slot.minute;
+  };
+
+  const getBlockSlotSpan = (block: BayBlock) => {
+    const [startHour, startMin] = block.start_time.split(":").map(Number);
+    const [endHour, endMin] = block.end_time.split(":").map(Number);
+    const startMinutes = startHour * 60 + startMin;
+    const endMinutes = endHour * 60 + endMin;
+    return (endMinutes - startMinutes) / 30;
   };
 
   const isSlotStart = (booking: Booking, slot: TimeSlot) => {
@@ -573,9 +622,12 @@ export default function AdminTimetable() {
                     </div>
                     {bays.map((bay) => {
                       const slotBookings = getBookingsForSlot(bay.id, slot);
+                      const slotBlocks = getBlocksForSlot(bay.id, slot);
                       const booking = slotBookings[0];
+                      const block = slotBlocks[0];
                       const showBooking = booking && isSlotStart(booking, slot);
-                      const isSlotEmpty = slotBookings.length === 0;
+                      const showBlock = block && isBlockStart(block, slot);
+                      const isSlotEmpty = slotBookings.length === 0 && slotBlocks.length === 0;
                       
                       return (
                         <div 
@@ -588,28 +640,45 @@ export default function AdminTimetable() {
                             }
                           }}
                         >
+                          {showBlock && (
+                            <div
+                              className="absolute inset-x-0.5 top-0.5 rounded-sm bg-destructive/80 border border-destructive px-1.5 py-0.5 text-left z-10 overflow-hidden"
+                              style={{
+                                height: `calc(${getBlockSlotSpan(block) * SLOT_HEIGHT}px - 4px)`,
+                              }}
+                            >
+                              <p className="text-[10px] font-medium text-destructive-foreground truncate leading-tight">
+                                BLOCKED
+                              </p>
+                              {block.reason && (
+                                <p className="text-[9px] text-destructive-foreground/70 truncate leading-tight">
+                                  {block.reason}
+                                </p>
+                              )}
+                            </div>
+                          )}
                           {showBooking && (
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setSelectedBooking(booking);
                               }}
-                              className="absolute inset-x-0.5 top-0.5 rounded-sm bg-primary/10 border border-primary/20 px-1.5 py-0.5 text-left hover:bg-primary/20 transition-colors z-10 overflow-hidden"
+                              className="absolute inset-x-0.5 top-0.5 rounded-sm bg-primary border border-primary/40 px-1.5 py-0.5 text-left hover:bg-primary/90 transition-colors z-10 overflow-hidden"
                               style={{
                                 height: `calc(${getBookingSlotSpan(booking) * SLOT_HEIGHT}px - 4px)`,
                               }}
                             >
                               {/* Payment Status Indicator */}
-                              <div className={`absolute top-1 right-1 w-2.5 h-2.5 rounded-full ${
+                              <div className={`absolute top-1 right-1 w-2.5 h-2.5 rounded-full border border-white/30 ${
                                 isBookingPaid(booking) 
-                                  ? "bg-green-500" 
-                                  : "bg-red-500"
+                                  ? "bg-green-400" 
+                                  : "bg-red-400"
                               }`} title={isBookingPaid(booking) ? "Paid" : "Unpaid"} />
                               
-                              <p className="text-[10px] font-medium text-primary truncate leading-tight pr-4">
+                              <p className="text-[10px] font-medium text-primary-foreground truncate leading-tight pr-4">
                                 {booking.profile?.first_name} {booking.profile?.last_name}
                               </p>
-                              <p className="text-[9px] text-muted-foreground truncate leading-tight">
+                              <p className="text-[9px] text-primary-foreground/70 truncate leading-tight">
                                 {formatTime(booking.start_time)} - {formatTime(booking.end_time)}
                               </p>
                             </button>

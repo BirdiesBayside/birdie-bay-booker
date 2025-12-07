@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import {
   Dialog,
@@ -20,7 +21,8 @@ import {
 } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Plus, UserPlus } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CalendarIcon, Plus, UserPlus, Ban } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 interface Bay {
@@ -95,6 +97,9 @@ export function AddBookingDialog({
 }: AddBookingDialogProps) {
   const { toast } = useToast();
   
+  // Tab state
+  const [activeTab, setActiveTab] = useState<"booking" | "block">("booking");
+  
   // Form state
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
   const [bookingDate, setBookingDate] = useState<Date | undefined>(initialDate);
@@ -104,6 +109,10 @@ export function AddBookingDialog({
   const [playerCount, setPlayerCount] = useState("1");
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  
+  // Block form state
+  const [blockReason, setBlockReason] = useState("");
+  const [blockCalendarOpen, setBlockCalendarOpen] = useState(false);
   
   // Customer search and list
   const [customers, setCustomers] = useState<Profile[]>([]);
@@ -124,6 +133,7 @@ export function AddBookingDialog({
   // Reset form when dialog opens/closes
   useEffect(() => {
     if (open) {
+      setActiveTab("booking");
       setBookingDate(initialDate || new Date());
       setStartTime(initialTime || "");
       setBayId(initialBayId || "");
@@ -132,6 +142,7 @@ export function AddBookingDialog({
       setSelectedCustomerId("");
       setCustomerSearch("");
       setIsAddingNewCustomer(false);
+      setBlockReason("");
       resetNewCustomerForm();
       fetchCustomers();
     }
@@ -342,274 +353,462 @@ export function AddBookingDialog({
     setIsSaving(false);
   };
 
+  const createBlock = async () => {
+    if (!bookingDate || !startTime || !bayId) {
+      toast({
+        title: "Missing information",
+        description: "Please select a date, time, and bay.",
+        variant: "destructive",
+        duration: 4000,
+      });
+      return;
+    }
+
+    const endTime = calculateEndTime(startTime, parseInt(duration));
+    const endHour = parseInt(endTime.split(":")[0]);
+    
+    if (endHour > 23) {
+      toast({
+        title: "Invalid time",
+        description: "Block cannot extend past 11pm.",
+        variant: "destructive",
+        duration: 4000,
+      });
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      const { error } = await supabase
+        .from("bay_blocks")
+        .insert({
+          bay_id: bayId,
+          block_date: format(bookingDate, "yyyy-MM-dd"),
+          start_time: startTime,
+          end_time: endTime,
+          reason: blockReason || null,
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: "Bay blocked",
+        description: `Bay blocked for ${duration} hour${parseInt(duration) > 1 ? "s" : ""}.`,
+        duration: 4000,
+      });
+
+      onOpenChange(false);
+      onBookingCreated();
+    } catch (error: any) {
+      toast({
+        title: "Error creating block",
+        description: error.message || "Failed to block bay.",
+        variant: "destructive",
+        duration: 4000,
+      });
+    }
+
+    setIsSaving(false);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-display text-xl uppercase tracking-wide">
-            Add Booking
+            Add to Timetable
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
-          {/* Customer Selection */}
-          {!isAddingNewCustomer ? (
-            <div className="space-y-2">
-              <Label>Customer</Label>
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "booking" | "block")}>
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="booking" className="flex items-center gap-2">
+              <Plus className="h-4 w-4" />
+              Booking
+            </TabsTrigger>
+            <TabsTrigger value="block" className="flex items-center gap-2">
+              <Ban className="h-4 w-4" />
+              Block
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="booking" className="space-y-4 mt-4">
+            {/* Customer Selection */}
+            {!isAddingNewCustomer ? (
               <div className="space-y-2">
-                <Input
-                  placeholder="Search by name or email..."
-                  value={customerSearch}
-                  onChange={(e) => handleCustomerSearch(e.target.value)}
-                />
-                
-                <div className="max-h-40 overflow-y-auto border rounded-md">
-                  {isLoadingCustomers ? (
-                    <div className="p-3 text-sm text-muted-foreground text-center">Loading...</div>
-                  ) : customers.length === 0 ? (
-                    <div className="p-3 text-sm text-muted-foreground text-center">No customers found</div>
-                  ) : (
-                    customers.map((customer) => (
-                      <button
-                        key={customer.user_id}
-                        onClick={() => setSelectedCustomerId(customer.user_id)}
-                        className={`w-full p-2 text-left text-sm hover:bg-muted/50 flex items-center justify-between border-b last:border-b-0 ${
-                          selectedCustomerId === customer.user_id ? "bg-primary/10" : ""
-                        }`}
-                      >
-                        <div>
-                          <span className="font-medium">{customer.first_name} {customer.last_name}</span>
-                          <span className="text-muted-foreground ml-2">{customer.email}</span>
-                        </div>
-                        <Badge className={`text-[10px] ${getMembershipColor(customer.membership_tier)}`}>
-                          {customer.membership_tier}
-                        </Badge>
-                      </button>
-                    ))
-                  )}
+                <Label>Customer</Label>
+                <div className="space-y-2">
+                  <Input
+                    placeholder="Search by name or email..."
+                    value={customerSearch}
+                    onChange={(e) => handleCustomerSearch(e.target.value)}
+                  />
+                  
+                  <div className="max-h-40 overflow-y-auto border rounded-md">
+                    {isLoadingCustomers ? (
+                      <div className="p-3 text-sm text-muted-foreground text-center">Loading...</div>
+                    ) : customers.length === 0 ? (
+                      <div className="p-3 text-sm text-muted-foreground text-center">No customers found</div>
+                    ) : (
+                      customers.map((customer) => (
+                        <button
+                          key={customer.user_id}
+                          onClick={() => setSelectedCustomerId(customer.user_id)}
+                          className={`w-full p-2 text-left text-sm hover:bg-muted/50 flex items-center justify-between border-b last:border-b-0 ${
+                            selectedCustomerId === customer.user_id ? "bg-primary/10" : ""
+                          }`}
+                        >
+                          <div>
+                            <span className="font-medium">{customer.first_name} {customer.last_name}</span>
+                            <span className="text-muted-foreground ml-2">{customer.email}</span>
+                          </div>
+                          <Badge className={`text-[10px] ${getMembershipColor(customer.membership_tier)}`}>
+                            {customer.membership_tier}
+                          </Badge>
+                        </button>
+                      ))
+                    )}
+                  </div>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => setIsAddingNewCustomer(true)}
+                  >
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    Add New Customer
+                  </Button>
                 </div>
 
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
-                  onClick={() => setIsAddingNewCustomer(true)}
-                >
-                  <UserPlus className="h-4 w-4 mr-2" />
-                  Add New Customer
-                </Button>
+                {selectedCustomer && (
+                  <div className="p-3 bg-muted/50 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-sm">
+                        {selectedCustomer.first_name} {selectedCustomer.last_name}
+                      </span>
+                      <Badge className={getMembershipColor(selectedCustomer.membership_tier)}>
+                        {selectedCustomer.membership_tier} - ${getHourlyRate(selectedCustomer.membership_tier)}/hr
+                      </Badge>
+                    </div>
+                  </div>
+                )}
               </div>
-
-              {selectedCustomer && (
-                <div className="p-3 bg-muted/50 rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium text-sm">
-                      {selectedCustomer.first_name} {selectedCustomer.last_name}
-                    </span>
-                    <Badge className={getMembershipColor(selectedCustomer.membership_tier)}>
-                      {selectedCustomer.membership_tier} - ${getHourlyRate(selectedCustomer.membership_tier)}/hr
-                    </Badge>
+            ) : (
+              <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
+                <div className="flex items-center justify-between">
+                  <Label className="text-base font-medium">New Customer</Label>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setIsAddingNewCustomer(false);
+                      resetNewCustomerForm();
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs">First Name *</Label>
+                    <Input
+                      value={newFirstName}
+                      onChange={(e) => setNewFirstName(e.target.value)}
+                      placeholder="First name"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Last Name *</Label>
+                    <Input
+                      value={newLastName}
+                      onChange={(e) => setNewLastName(e.target.value)}
+                      placeholder="Last name"
+                    />
                   </div>
                 </div>
-              )}
-            </div>
-          ) : (
-            <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
-              <div className="flex items-center justify-between">
-                <Label className="text-base font-medium">New Customer</Label>
+                
+                <div className="space-y-1">
+                  <Label className="text-xs">Email *</Label>
+                  <Input
+                    type="email"
+                    value={newEmail}
+                    onChange={(e) => setNewEmail(e.target.value)}
+                    placeholder="email@example.com"
+                  />
+                </div>
+                
+                <div className="space-y-1">
+                  <Label className="text-xs">Phone</Label>
+                  <Input
+                    type="tel"
+                    value={newPhone}
+                    onChange={(e) => setNewPhone(e.target.value)}
+                    placeholder="Phone number"
+                  />
+                </div>
+                
                 <Button
                   type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setIsAddingNewCustomer(false);
-                    resetNewCustomerForm();
-                  }}
+                  className="w-full"
+                  onClick={createNewCustomer}
+                  disabled={isCreatingCustomer}
                 >
-                  Cancel
+                  {isCreatingCustomer ? "Creating..." : "Create Customer"}
                 </Button>
               </div>
-              
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <Label className="text-xs">First Name *</Label>
-                  <Input
-                    value={newFirstName}
-                    onChange={(e) => setNewFirstName(e.target.value)}
-                    placeholder="First name"
+            )}
+
+            {/* Date */}
+            <div className="space-y-2">
+              <Label>Date</Label>
+              <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-start text-left">
+                    <CalendarIcon className="h-4 w-4 mr-2" />
+                    {bookingDate ? format(bookingDate, "EEE, MMM d, yyyy") : "Select date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={bookingDate}
+                    onSelect={(date) => {
+                      setBookingDate(date);
+                      setCalendarOpen(false);
+                    }}
+                    className="pointer-events-auto"
                   />
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            {/* Start Time */}
+            <div className="space-y-2">
+              <Label>Start Time</Label>
+              <Select value={startTime} onValueChange={setStartTime}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select time" />
+                </SelectTrigger>
+                <SelectContent>
+                  {TIME_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Duration */}
+            <div className="space-y-2">
+              <Label>Duration</Label>
+              <Select value={duration} onValueChange={setDuration}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select duration" />
+                </SelectTrigger>
+                <SelectContent>
+                  {DURATION_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Bay */}
+            <div className="space-y-2">
+              <Label>Bay</Label>
+              <Select value={bayId} onValueChange={setBayId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select bay" />
+                </SelectTrigger>
+                <SelectContent>
+                  {bays.map((bay) => (
+                    <SelectItem key={bay.id} value={bay.id}>
+                      {bay.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Player Count */}
+            <div className="space-y-2">
+              <Label>Players</Label>
+              <Select value={playerCount} onValueChange={setPlayerCount}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select players" />
+                </SelectTrigger>
+                <SelectContent>
+                  {PLAYER_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Price Summary */}
+            {selectedCustomer && (
+              <div className="p-3 bg-muted/50 rounded-lg">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">
+                    {duration} hour{parseInt(duration) > 1 ? "s" : ""} @ ${getHourlyRate(selectedCustomer.membership_tier)}/hr
+                  </span>
+                  <span className="font-bold text-lg">${calculateTotalPrice()}</span>
                 </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Last Name *</Label>
-                  <Input
-                    value={newLastName}
-                    onChange={(e) => setNewLastName(e.target.value)}
-                    placeholder="Last name"
-                  />
-                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Payment will be collected separately
+                </p>
               </div>
-              
-              <div className="space-y-1">
-                <Label className="text-xs">Email *</Label>
-                <Input
-                  type="email"
-                  value={newEmail}
-                  onChange={(e) => setNewEmail(e.target.value)}
-                  placeholder="email@example.com"
-                />
-              </div>
-              
-              <div className="space-y-1">
-                <Label className="text-xs">Phone</Label>
-                <Input
-                  type="tel"
-                  value={newPhone}
-                  onChange={(e) => setNewPhone(e.target.value)}
-                  placeholder="Phone number"
-                />
-              </div>
-              
+            )}
+
+            <hr className="border-border" />
+
+            {/* Actions */}
+            <div className="flex gap-2">
               <Button
-                type="button"
-                className="w-full"
-                onClick={createNewCustomer}
-                disabled={isCreatingCustomer}
+                variant="outline"
+                className="flex-1"
+                onClick={() => onOpenChange(false)}
+                disabled={isSaving}
               >
-                {isCreatingCustomer ? "Creating..." : "Create Customer"}
+                Cancel
+              </Button>
+              <Button
+                className="flex-1 bg-primary hover:bg-primary/90"
+                onClick={createBooking}
+                disabled={isSaving || !selectedCustomerId || isAddingNewCustomer}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                {isSaving ? "Creating..." : "Create Booking"}
               </Button>
             </div>
-          )}
+          </TabsContent>
 
-          {/* Date */}
-          <div className="space-y-2">
-            <Label>Date</Label>
-            <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className="w-full justify-start text-left">
-                  <CalendarIcon className="h-4 w-4 mr-2" />
-                  {bookingDate ? format(bookingDate, "EEE, MMM d, yyyy") : "Select date"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={bookingDate}
-                  onSelect={(date) => {
-                    setBookingDate(date);
-                    setCalendarOpen(false);
-                  }}
-                  className="pointer-events-auto"
-                />
-              </PopoverContent>
-            </Popover>
-          </div>
+          <TabsContent value="block" className="space-y-4 mt-4">
+            {/* Date */}
+            <div className="space-y-2">
+              <Label>Date</Label>
+              <Popover open={blockCalendarOpen} onOpenChange={setBlockCalendarOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-start text-left">
+                    <CalendarIcon className="h-4 w-4 mr-2" />
+                    {bookingDate ? format(bookingDate, "EEE, MMM d, yyyy") : "Select date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={bookingDate}
+                    onSelect={(date) => {
+                      setBookingDate(date);
+                      setBlockCalendarOpen(false);
+                    }}
+                    className="pointer-events-auto"
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
 
-          {/* Start Time */}
-          <div className="space-y-2">
-            <Label>Start Time</Label>
-            <Select value={startTime} onValueChange={setStartTime}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select time" />
-              </SelectTrigger>
-              <SelectContent>
-                {TIME_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+            {/* Start Time */}
+            <div className="space-y-2">
+              <Label>Start Time</Label>
+              <Select value={startTime} onValueChange={setStartTime}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select time" />
+                </SelectTrigger>
+                <SelectContent>
+                  {TIME_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-          {/* Duration */}
-          <div className="space-y-2">
-            <Label>Duration</Label>
-            <Select value={duration} onValueChange={setDuration}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select duration" />
-              </SelectTrigger>
-              <SelectContent>
-                {DURATION_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+            {/* Duration */}
+            <div className="space-y-2">
+              <Label>Duration</Label>
+              <Select value={duration} onValueChange={setDuration}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select duration" />
+                </SelectTrigger>
+                <SelectContent>
+                  {DURATION_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-          {/* Bay */}
-          <div className="space-y-2">
-            <Label>Bay</Label>
-            <Select value={bayId} onValueChange={setBayId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select bay" />
-              </SelectTrigger>
-              <SelectContent>
-                {bays.map((bay) => (
-                  <SelectItem key={bay.id} value={bay.id}>
-                    {bay.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+            {/* Bay */}
+            <div className="space-y-2">
+              <Label>Bay</Label>
+              <Select value={bayId} onValueChange={setBayId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select bay" />
+                </SelectTrigger>
+                <SelectContent>
+                  {bays.map((bay) => (
+                    <SelectItem key={bay.id} value={bay.id}>
+                      {bay.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-          {/* Player Count */}
-          <div className="space-y-2">
-            <Label>Players</Label>
-            <Select value={playerCount} onValueChange={setPlayerCount}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select players" />
-              </SelectTrigger>
-              <SelectContent>
-                {PLAYER_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+            {/* Reason */}
+            <div className="space-y-2">
+              <Label>Reason (optional)</Label>
+              <Textarea
+                value={blockReason}
+                onChange={(e) => setBlockReason(e.target.value)}
+                placeholder="e.g. Maintenance, Private event, etc."
+                rows={2}
+              />
+            </div>
 
-          {/* Price Summary */}
-          {selectedCustomer && (
-            <div className="p-3 bg-muted/50 rounded-lg">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">
-                  {duration} hour{parseInt(duration) > 1 ? "s" : ""} @ ${getHourlyRate(selectedCustomer.membership_tier)}/hr
-                </span>
-                <span className="font-bold text-lg">${calculateTotalPrice()}</span>
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Payment will be collected separately
+            <div className="p-3 bg-destructive/10 rounded-lg border border-destructive/20">
+              <p className="text-sm text-destructive">
+                This will block the bay and prevent any bookings during this time.
               </p>
             </div>
-          )}
 
-          <hr className="border-border" />
+            <hr className="border-border" />
 
-          {/* Actions */}
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              className="flex-1"
-              onClick={() => onOpenChange(false)}
-              disabled={isSaving}
-            >
-              Cancel
-            </Button>
-            <Button
-              className="flex-1 bg-primary hover:bg-primary/90"
-              onClick={createBooking}
-              disabled={isSaving || !selectedCustomerId || isAddingNewCustomer}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              {isSaving ? "Creating..." : "Create Booking"}
-            </Button>
-          </div>
-        </div>
+            {/* Actions */}
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => onOpenChange(false)}
+                disabled={isSaving}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="flex-1 bg-destructive hover:bg-destructive/90"
+                onClick={createBlock}
+                disabled={isSaving}
+              >
+                <Ban className="h-4 w-4 mr-2" />
+                {isSaving ? "Blocking..." : "Block Bay"}
+              </Button>
+            </div>
+          </TabsContent>
+        </Tabs>
       </DialogContent>
     </Dialog>
   );
