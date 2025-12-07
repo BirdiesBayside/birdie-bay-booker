@@ -146,25 +146,24 @@ export default function AdminTimetable() {
 
     const { data, error } = await supabase
       .from("bookings")
-      .select(`
-        *,
-        profile:profiles!bookings_user_id_fkey(
-          first_name,
-          last_name,
-          email,
-          phone,
-          membership_tier
-        )
-      `)
+      .select("*")
       .gte("booking_date", startDate)
       .lte("booking_date", endDate)
       .order("start_time");
 
     if (!error && data) {
-      // Transform to flatten profile data
+      // Fetch profiles for all bookings
+      const userIds = [...new Set(data.map(b => b.user_id))];
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("user_id, first_name, last_name, email, phone, membership_tier")
+        .in("user_id", userIds);
+
+      const profileMap = new Map(profiles?.map(p => [p.user_id, p]) || []);
+      
       const transformedData = data.map((booking: any) => ({
         ...booking,
-        profile: booking.profile?.[0] || booking.profile
+        profile: profileMap.get(booking.user_id)
       }));
       setBookings(transformedData);
     }
