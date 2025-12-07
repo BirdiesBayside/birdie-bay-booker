@@ -43,20 +43,20 @@ export function LeagueLayout({ children }: LeagueLayoutProps) {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="bg-accent sticky top-0 z-50 shadow-lg">
+      <header className="bg-primary sticky top-0 z-50 shadow-lg">
         <div className="container flex items-center justify-between h-20 px-4">
           <div className="flex items-center gap-3">
             <button
               onClick={handleBack}
-              className="flex items-center gap-2 text-accent-foreground hover:text-accent-foreground/80 transition-colors"
+              className="flex items-center gap-2 text-primary-foreground hover:text-primary-foreground/80 transition-colors"
             >
               <ArrowLeft className="h-5 w-5" />
               <span className="hidden sm:inline font-inter text-sm">Back</span>
             </button>
-            <div className="h-6 w-px bg-accent-foreground/30 hidden sm:block" />
+            <div className="h-6 w-px bg-primary-foreground/30 hidden sm:block" />
             <Link to="/league" className="flex items-center gap-3">
               <img src={birdiesBLogo} alt="Birdies" className="h-12 w-auto" />
-              <span className="font-display text-2xl text-accent-foreground tracking-wide">
+              <span className="font-display text-2xl text-primary-foreground tracking-wide">
                 BIRDIES HUB
               </span>
             </Link>
@@ -73,8 +73,8 @@ export function LeagueLayout({ children }: LeagueLayoutProps) {
                   className={cn(
                     "flex items-center gap-2 px-4 py-2 rounded-lg font-inter text-sm transition-colors",
                     isActive
-                      ? "bg-primary text-primary-foreground"
-                      : "text-accent-foreground/90 hover:bg-accent-foreground/10"
+                      ? "bg-accent text-accent-foreground"
+                      : "text-primary-foreground/80 hover:bg-primary-foreground/10"
                   )}
                 >
                   <item.icon className="h-4 w-4" />
@@ -84,7 +84,7 @@ export function LeagueLayout({ children }: LeagueLayoutProps) {
             })}
             <button
               onClick={handleLogout}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg font-inter text-sm text-accent-foreground/90 hover:bg-accent-foreground/10 transition-colors ml-2"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg font-inter text-sm text-primary-foreground/80 hover:bg-primary-foreground/10 transition-colors ml-2"
             >
               <LogOut className="h-4 w-4" />
               Sign Out
@@ -94,7 +94,7 @@ export function LeagueLayout({ children }: LeagueLayoutProps) {
           {/* Mobile Menu Button */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden text-accent-foreground p-2"
+            className="md:hidden text-primary-foreground p-2"
           >
             {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
           </button>
@@ -102,7 +102,7 @@ export function LeagueLayout({ children }: LeagueLayoutProps) {
 
         {/* Mobile Nav */}
         {mobileMenuOpen && (
-          <nav className="md:hidden bg-accent border-t border-accent-foreground/10 animate-fade-in">
+          <nav className="md:hidden bg-primary border-t border-primary-foreground/10 animate-fade-in">
             {navItems.map((item) => {
               const isActive = location.pathname === item.path;
               return (
@@ -111,10 +111,10 @@ export function LeagueLayout({ children }: LeagueLayoutProps) {
                   to={item.path}
                   onClick={() => setMobileMenuOpen(false)}
                   className={cn(
-                    "flex items-center gap-3 px-4 py-3 font-inter text-sm border-b border-accent-foreground/10",
+                    "flex items-center gap-3 px-4 py-3 font-inter text-sm border-b border-primary-foreground/10",
                     isActive
-                      ? "bg-primary text-primary-foreground"
-                      : "text-accent-foreground/90"
+                      ? "bg-accent text-accent-foreground"
+                      : "text-primary-foreground/80"
                   )}
                 >
                   <item.icon className="h-5 w-5" />
@@ -124,7 +124,7 @@ export function LeagueLayout({ children }: LeagueLayoutProps) {
             })}
             <button
               onClick={handleLogout}
-              className="flex items-center gap-3 px-4 py-3 font-inter text-sm text-accent-foreground/90 w-full"
+              className="flex items-center gap-3 px-4 py-3 font-inter text-sm text-primary-foreground/80 w-full"
             >
               <LogOut className="h-5 w-5" />
               Sign Out
