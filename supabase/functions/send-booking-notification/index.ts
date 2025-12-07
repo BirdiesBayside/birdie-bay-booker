@@ -19,6 +19,75 @@ const logStep = (step: string, details?: any) => {
   console.log(`[SEND-BOOKING-NOTIFICATION] ${step}${detailsStr}`);
 };
 
+// Format phone number for SMS Broadcast (Australian format)
+const formatPhoneForSMS = (phone: string | null): string | null => {
+  if (!phone) return null;
+  
+  // Remove all non-numeric characters
+  let cleaned = phone.replace(/\D/g, '');
+  
+  // Convert to international format without + (614xxxxxxxx)
+  if (cleaned.startsWith('0')) {
+    cleaned = '61' + cleaned.slice(1);
+  } else if (cleaned.startsWith('+61')) {
+    cleaned = cleaned.slice(1);
+  } else if (!cleaned.startsWith('61') && cleaned.length === 9) {
+    // Assume Australian mobile missing leading 0
+    cleaned = '61' + cleaned;
+  }
+  
+  // Validate length (should be 11 digits for Australian mobile)
+  if (cleaned.length !== 11 || !cleaned.startsWith('614')) {
+    logStep("Invalid phone number format", { original: phone, cleaned });
+    return null;
+  }
+  
+  return cleaned;
+};
+
+// Send SMS via SMS Broadcast API
+const sendSMS = async (phone: string, message: string): Promise<{ success: boolean; response?: string; error?: string }> => {
+  const username = Deno.env.get("SMS_BROADCAST_USERNAME");
+  const password = Deno.env.get("SMS_BROADCAST_PASSWORD");
+  
+  if (!username || !password) {
+    logStep("SMS Broadcast credentials not configured");
+    return { success: false, error: "SMS credentials not configured" };
+  }
+  
+  const formattedPhone = formatPhoneForSMS(phone);
+  if (!formattedPhone) {
+    return { success: false, error: "Invalid phone number" };
+  }
+  
+  try {
+    const params = new URLSearchParams({
+      username,
+      password,
+      to: formattedPhone,
+      from: "Birdies",
+      message: message,
+    });
+    
+    const response = await fetch(`https://api.smsbroadcast.com.au/api-adv.php?${params.toString()}`, {
+      method: "GET",
+    });
+    
+    const responseText = await response.text();
+    logStep("SMS Broadcast response", { response: responseText });
+    
+    // Parse response - format is "OK:614xxxxxxxx:reference" or "ERROR:message"
+    if (responseText.startsWith("OK:")) {
+      return { success: true, response: responseText };
+    } else {
+      return { success: false, error: responseText };
+    }
+  } catch (error: any) {
+    logStep("SMS send error", { error: error.message });
+    return { success: false, error: error.message };
+  }
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -74,6 +143,11 @@ serve(async (req) => {
       month: "long",
       day: "numeric",
     });
+    const shortDate = new Date(booking.booking_date).toLocaleDateString("en-AU", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+    });
     const startTime = booking.start_time.slice(0, 5);
     const endTime = booking.end_time.slice(0, 5);
     const bayName = booking.bays?.name || `Bay ${booking.bays?.bay_number}`;
@@ -81,9 +155,11 @@ serve(async (req) => {
     // Email content based on notification type
     let subject: string;
     let htmlContent: string;
+    let smsMessage: string;
 
     if (notification_type === "confirmation") {
       subject = "Booking Confirmed - Birdies Bayside";
+      smsMessage = `Birdies Bayside: Your booking is confirmed! ${shortDate} ${startTime}-${endTime}, ${bayName}. See you there!`;
       htmlContent = `
         <!DOCTYPE html>
         <html>
@@ -123,6 +199,7 @@ serve(async (req) => {
       `;
     } else {
       subject = "Booking Cancelled - Birdies Bayside";
+      smsMessage = `Birdies Bayside: Your booking for ${shortDate} ${startTime}-${endTime} has been cancelled. Questions? Contact us.`;
       htmlContent = `
         <!DOCTYPE html>
         <html>
@@ -167,10 +244,21 @@ serve(async (req) => {
 
     logStep("Email sent successfully", { emailResponse });
 
+    // Send SMS if phone number exists
+    let smsResult: { success: boolean; response?: string; error?: string } = { success: false, error: "No phone number" };
+    if (profile.phone) {
+      smsResult = await sendSMS(profile.phone, smsMessage);
+      logStep("SMS send result", smsResult);
+    } else {
+      logStep("No phone number, skipping SMS");
+    }
+
     return new Response(
       JSON.stringify({ 
         success: true, 
         email_sent: true,
+        sms_sent: smsResult.success,
+        sms_error: smsResult.error || null,
         message: `${notification_type} notification sent successfully` 
       }),
       {
