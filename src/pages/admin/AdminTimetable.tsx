@@ -269,8 +269,11 @@ export default function AdminTimetable() {
   };
 
   const isBookingPaid = (booking: Booking) => {
-    // A booking is paid if it has a stripe_payment_intent_id and payment_method is not 'pending'
-    return booking.stripe_payment_intent_id && booking.payment_method !== 'pending';
+    // A booking is paid if:
+    // 1. It has a stripe_payment_intent_id and payment_method is not 'pending', OR
+    // 2. It was paid via cash
+    return (booking.stripe_payment_intent_id && booking.payment_method !== 'pending') 
+      || booking.payment_method === 'cash';
   };
 
   const openAddBookingDialog = (slot: TimeSlot, bayId: string) => {
