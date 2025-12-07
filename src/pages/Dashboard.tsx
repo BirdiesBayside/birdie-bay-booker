@@ -1,19 +1,38 @@
 import { useNavigate } from "react-router-dom";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
-import { LogOut, Calendar, Settings, ClipboardList } from "lucide-react";
+import { LogOut, Calendar, Settings, ClipboardList, Trophy, Lock, ExternalLink } from "lucide-react";
 import birdiesLogo from "@/assets/birdies-logo.png";
+import { supabase } from "@/integrations/supabase/client";
+
+type MembershipTier = "visitor" | "par" | "birdie" | "eagle" | "albatross";
 
 const Dashboard = () => {
   const { user, isAuthenticated, isLoading, signOut } = useAuth();
   const navigate = useNavigate();
+  const [membershipTier, setMembershipTier] = useState<MembershipTier>("visitor");
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       navigate("/");
     }
   }, [isAuthenticated, isLoading, navigate]);
+
+  useEffect(() => {
+    const fetchMembership = async () => {
+      if (!user) return;
+      const { data } = await supabase
+        .from("profiles")
+        .select("membership_tier")
+        .eq("user_id", user.id)
+        .single();
+      if (data?.membership_tier) {
+        setMembershipTier(data.membership_tier as MembershipTier);
+      }
+    };
+    fetchMembership();
+  }, [user]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -33,6 +52,7 @@ const Dashboard = () => {
   }
 
   const firstName = user?.user_metadata?.first_name || "Member";
+  const hasLeagueAccess = ["birdie", "eagle", "albatross"].includes(membershipTier);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -66,7 +86,7 @@ const Dashboard = () => {
             WELCOME, {firstName.toUpperCase()}
           </h1>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="bg-card rounded-lg p-6 shadow-md border border-border">
               <div className="flex items-center gap-3 mb-4">
                 <div className="h-10 w-10 rounded-lg bg-accent/10 flex items-center justify-center">
@@ -101,6 +121,60 @@ const Dashboard = () => {
               >
                 View Bookings
               </Button>
+            </div>
+
+            {/* Birdies League Section */}
+            <div className={`bg-card rounded-lg p-6 shadow-md border border-border relative ${!hasLeagueAccess ? "opacity-60" : ""}`}>
+              {!hasLeagueAccess && (
+                <div className="absolute top-3 right-3">
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full">
+                    <Lock className="h-3 w-3" />
+                    <span>Members Only</span>
+                  </div>
+                </div>
+              )}
+              <div className="flex items-center gap-3 mb-4">
+                <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${hasLeagueAccess ? "bg-accent/10" : "bg-muted"}`}>
+                  <Trophy className={`h-5 w-5 ${hasLeagueAccess ? "text-accent" : "text-muted-foreground"}`} />
+                </div>
+                <h2 className="font-semibold text-lg">Birdies League</h2>
+              </div>
+              {hasLeagueAccess ? (
+                <>
+                  <p className="text-muted-foreground mb-4">
+                    Compete in weekly leagues and track your progress.
+                  </p>
+                  <div className="flex gap-2">
+                    <Button 
+                      className="flex-1 bg-accent text-accent-foreground hover:bg-accent/90"
+                      onClick={() => window.open("https://birdiesbayside.com.au/pages/birdies-league-sign-up", "_blank")}
+                    >
+                      Register
+                      <ExternalLink className="h-3 w-3 ml-1" />
+                    </Button>
+                    <Button 
+                      className="flex-1 bg-accent text-accent-foreground hover:bg-accent/90"
+                      onClick={() => window.open("https://hub.birdiesbayside.com.au", "_blank")}
+                    >
+                      League Hub
+                      <ExternalLink className="h-3 w-3 ml-1" />
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-muted-foreground mb-4">
+                    Upgrade to Birdie, Eagle, or Albatross membership to access the league.
+                  </p>
+                  <Button 
+                    className="w-full"
+                    variant="secondary"
+                    onClick={() => navigate("/membership")}
+                  >
+                    View Memberships
+                  </Button>
+                </>
+              )}
             </div>
 
             <div className="bg-card rounded-lg p-6 shadow-md border border-border">
