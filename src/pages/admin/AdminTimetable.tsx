@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { format, addDays, isSameDay } from "date-fns";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { AdminLayout } from "@/components/admin/AdminLayout";
@@ -106,6 +106,7 @@ for (let hour = 5; hour < 23; hour++) {
 }
 
 const SLOT_HEIGHT = 32; // pixels per 30-min slot
+const OPERATING_START_HOUR = 5; // 5am
 
 export default function AdminTimetable() {
   const { isAdmin, isLoading: authLoading } = useAdminAuth();
@@ -143,11 +144,36 @@ export default function AdminTimetable() {
   const [addBookingInitialTime, setAddBookingInitialTime] = useState<string>("");
   const [addBookingInitialBayId, setAddBookingInitialBayId] = useState<string>("");
 
+  // Current time indicator
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const timetableRef = useRef<HTMLDivElement>(null);
+  const currentTimeIndicatorRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     if (isAdmin) {
       fetchBays();
     }
   }, [isAdmin]);
+
+  // Update current time every minute
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Auto-scroll to current time on load (only for today)
+  useEffect(() => {
+    if (!isLoading && isSameDay(selectedDate, new Date()) && currentTimeIndicatorRef.current) {
+      setTimeout(() => {
+        currentTimeIndicatorRef.current?.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'center' 
+        });
+      }, 100);
+    }
+  }, [isLoading, selectedDate]);
 
   useEffect(() => {
     if (isAdmin && bays.length > 0) {
@@ -281,6 +307,23 @@ export default function AdminTimetable() {
     setAddBookingInitialTime(timeStr);
     setAddBookingInitialBayId(bayId);
     setShowAddBookingDialog(true);
+  };
+
+  // Calculate position of current time indicator
+  const getCurrentTimePosition = () => {
+    const now = currentTime;
+    const hours = now.getHours();
+    const minutes = now.getMinutes();
+    
+    // Only show during operating hours (5am - 11pm)
+    if (hours < OPERATING_START_HOUR || hours >= 23) return null;
+    
+    // Calculate position: each 30-min slot is SLOT_HEIGHT pixels
+    // Position from top of grid (after header)
+    const minutesSinceStart = (hours - OPERATING_START_HOUR) * 60 + minutes;
+    const position = (minutesSinceStart / 30) * SLOT_HEIGHT;
+    
+    return position;
   };
 
   const calculateOccupancy = () => {
@@ -599,7 +642,7 @@ export default function AdminTimetable() {
                 <Skeleton className="h-[500px]" />
               </div>
             ) : (
-              <div className="min-w-[800px]">
+              <div className="min-w-[800px]" ref={timetableRef}>
                 {/* Header Row */}
                 <div className="grid border-b border-border" style={{ 
                   gridTemplateColumns: `80px repeat(${bays.length}, 1fr)` 
@@ -614,84 +657,99 @@ export default function AdminTimetable() {
                   ))}
                 </div>
 
-                {/* Time Rows - 30 min increments */}
-                {OPERATING_SLOTS.map((slot, slotIndex) => (
-                  <div 
-                    key={`${slot.hour}-${slot.minute}`} 
-                    className={`grid border-b border-border/50 last:border-b-0 ${slot.minute === 0 ? "border-t border-border" : ""}`}
-                    style={{ gridTemplateColumns: `80px repeat(${bays.length}, 1fr)` }}
-                  >
-                    <div className={`text-[10px] text-muted-foreground border-r border-border flex items-center justify-center ${slot.minute === 0 ? "font-medium" : "text-muted-foreground/60"}`} style={{ height: SLOT_HEIGHT }}>
-                      {formatSlotTime(slot)}
+                {/* Time Rows Container with Current Time Indicator */}
+                <div className="relative">
+                  {/* Current Time Indicator Line */}
+                  {isSameDay(selectedDate, new Date()) && getCurrentTimePosition() !== null && (
+                    <div 
+                      ref={currentTimeIndicatorRef}
+                      className="absolute left-0 right-0 z-20 pointer-events-none flex items-center"
+                      style={{ top: getCurrentTimePosition()! }}
+                    >
+                      <div className="w-2 h-2 rounded-full bg-accent -ml-1" />
+                      <div className="flex-1 h-0.5 bg-accent" />
                     </div>
-                    {bays.map((bay) => {
-                      const slotBookings = getBookingsForSlot(bay.id, slot);
-                      const slotBlocks = getBlocksForSlot(bay.id, slot);
-                      const booking = slotBookings[0];
-                      const block = slotBlocks[0];
-                      const showBooking = booking && isSlotStart(booking, slot);
-                      const showBlock = block && isBlockStart(block, slot);
-                      const isSlotEmpty = slotBookings.length === 0 && slotBlocks.length === 0;
-                      
-                      return (
-                        <div 
-                          key={bay.id} 
-                          className={`border-r border-border last:border-r-0 relative ${isSlotEmpty ? "hover:bg-muted/50 cursor-pointer" : ""}`}
-                          style={{ height: SLOT_HEIGHT }}
-                          onClick={() => {
-                            if (isSlotEmpty) {
-                              openAddBookingDialog(slot, bay.id);
-                            }
-                          }}
-                        >
-                          {showBlock && (
-                            <div
-                              className="absolute inset-x-0.5 top-0.5 rounded-sm bg-destructive/80 border border-destructive px-1.5 py-0.5 text-left z-10 overflow-hidden"
-                              style={{
-                                height: `calc(${getBlockSlotSpan(block) * SLOT_HEIGHT}px - 4px)`,
-                              }}
-                            >
-                              <p className="text-[10px] font-medium text-destructive-foreground truncate leading-tight">
-                                BLOCKED
-                              </p>
-                              {block.reason && (
-                                <p className="text-[9px] text-destructive-foreground/70 truncate leading-tight">
-                                  {block.reason}
+                  )}
+
+                  {/* Time Rows - 30 min increments */}
+                  {OPERATING_SLOTS.map((slot, slotIndex) => (
+                    <div 
+                      key={`${slot.hour}-${slot.minute}`} 
+                      className={`grid border-b border-border/50 last:border-b-0 ${slot.minute === 0 ? "border-t border-border" : ""}`}
+                      style={{ gridTemplateColumns: `80px repeat(${bays.length}, 1fr)` }}
+                    >
+                      <div className={`text-[10px] text-muted-foreground border-r border-border flex items-center justify-center ${slot.minute === 0 ? "font-medium" : "text-muted-foreground/60"}`} style={{ height: SLOT_HEIGHT }}>
+                        {formatSlotTime(slot)}
+                      </div>
+                      {bays.map((bay) => {
+                        const slotBookings = getBookingsForSlot(bay.id, slot);
+                        const slotBlocks = getBlocksForSlot(bay.id, slot);
+                        const booking = slotBookings[0];
+                        const block = slotBlocks[0];
+                        const showBooking = booking && isSlotStart(booking, slot);
+                        const showBlock = block && isBlockStart(block, slot);
+                        const isSlotEmpty = slotBookings.length === 0 && slotBlocks.length === 0;
+                        
+                        return (
+                          <div 
+                            key={bay.id} 
+                            className={`border-r border-border last:border-r-0 relative ${isSlotEmpty ? "hover:bg-muted/50 cursor-pointer" : ""}`}
+                            style={{ height: SLOT_HEIGHT }}
+                            onClick={() => {
+                              if (isSlotEmpty) {
+                                openAddBookingDialog(slot, bay.id);
+                              }
+                            }}
+                          >
+                            {showBlock && (
+                              <div
+                                className="absolute inset-x-0.5 top-0.5 rounded-sm bg-destructive/80 border border-destructive px-1.5 py-0.5 text-left z-10 overflow-hidden"
+                                style={{
+                                  height: `calc(${getBlockSlotSpan(block) * SLOT_HEIGHT}px - 4px)`,
+                                }}
+                              >
+                                <p className="text-[10px] font-medium text-destructive-foreground truncate leading-tight">
+                                  BLOCKED
                                 </p>
-                              )}
-                            </div>
-                          )}
-                          {showBooking && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedBooking(booking);
-                              }}
-                              className="absolute inset-x-0.5 top-0.5 rounded-sm bg-primary border border-primary/40 px-1.5 py-0.5 text-left hover:bg-primary/90 transition-colors z-10 overflow-hidden"
-                              style={{
-                                height: `calc(${getBookingSlotSpan(booking) * SLOT_HEIGHT}px - 4px)`,
-                              }}
-                            >
-                              {/* Payment Status Indicator */}
-                              <div className={`absolute top-1 right-1 w-2.5 h-2.5 rounded-full border border-white/30 ${
-                                isBookingPaid(booking) 
-                                  ? "bg-green-400" 
-                                  : "bg-red-400"
-                              }`} title={isBookingPaid(booking) ? "Paid" : "Unpaid"} />
-                              
-                              <p className="text-[10px] font-medium text-primary-foreground truncate leading-tight pr-4">
-                                {booking.profile?.first_name} {booking.profile?.last_name}
-                              </p>
-                              <p className="text-[9px] text-primary-foreground/70 truncate leading-tight">
-                                {formatTime(booking.start_time)} - {formatTime(booking.end_time)}
-                              </p>
-                            </button>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                ))}
+                                {block.reason && (
+                                  <p className="text-[9px] text-destructive-foreground/70 truncate leading-tight">
+                                    {block.reason}
+                                  </p>
+                                )}
+                              </div>
+                            )}
+                            {showBooking && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedBooking(booking);
+                                }}
+                                className="absolute inset-x-0.5 top-0.5 rounded-sm bg-primary border border-primary/40 px-1.5 py-0.5 text-left hover:bg-primary/90 transition-colors z-10 overflow-hidden"
+                                style={{
+                                  height: `calc(${getBookingSlotSpan(booking) * SLOT_HEIGHT}px - 4px)`,
+                                }}
+                              >
+                                {/* Payment Status Indicator */}
+                                <div className={`absolute top-1 right-1 w-2.5 h-2.5 rounded-full border border-white/30 ${
+                                  isBookingPaid(booking) 
+                                    ? "bg-green-400" 
+                                    : "bg-red-400"
+                                }`} title={isBookingPaid(booking) ? "Paid" : "Unpaid"} />
+                                
+                                <p className="text-[10px] font-medium text-primary-foreground truncate leading-tight pr-4">
+                                  {booking.profile?.first_name} {booking.profile?.last_name}
+                                </p>
+                                <p className="text-[9px] text-primary-foreground/70 truncate leading-tight">
+                                  {formatTime(booking.start_time)} - {formatTime(booking.end_time)}
+                                </p>
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </CardContent>
