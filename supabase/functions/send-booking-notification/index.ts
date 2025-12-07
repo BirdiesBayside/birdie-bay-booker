@@ -174,17 +174,23 @@ serve(async (req) => {
     if (notification_type === "confirmation") {
       subject = "Booking Confirmed - Birdies Bayside";
       
-      // Build SMS message with conditional boom gate info
+      // Build SMS message matching SMS Broadcast template style (concise for SMS limits)
+      const formattedSmsDate = new Date(booking.booking_date).toLocaleDateString("en-AU", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      });
+      
       let smsLines = [
-        `Hi ${profile.first_name},`,
-        `Your booking on ${shortDate} at ${startTime12hr} in Bay ${bayNumber} is confirmed.`,
+        `Hi ${profile.first_name} ${profile.last_name} thank you for your booking on ${formattedSmsDate} at ${startTime12hr} for Bay ${bayNumber}`,
         ``,
-        `Your door code is 7675#`
+        `Your door code is: 7675#`
       ];
       
       if (needsBoomGate) {
         smsLines.push(``);
-        smsLines.push(`IMPORTANT: You will require Boom gate access for your booking time, download the app here: https://birdiesbayside.com.au/pages/birdies-gate-access`);
+        smsLines.push(`If your booking is after dark, please download the Noke gate access app below:`);
+        smsLines.push(`https://birdiesbayside.com.au/pages/birdies-gate-access`);
       }
       
       smsMessage = smsLines.join('\n');
