@@ -1,7 +1,7 @@
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar, DollarSign, TrendingUp, Users } from "lucide-react";
+import { Calendar, DollarSign, TrendingUp, Users, UserCheck, Repeat } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,6 +11,9 @@ interface DashboardStats {
   todaysBookings: number;
   todaysRevenue: number;
   todaysOccupancy: number;
+  memberCount: number;
+  memberRevenue: number;
+  momGrowth: number;
 }
 
 export default function AdminDashboard() {
@@ -19,18 +22,22 @@ export default function AdminDashboard() {
     todaysBookings: 0,
     todaysRevenue: 0,
     todaysOccupancy: 0,
+    memberCount: 0,
+    memberRevenue: 0,
+    momGrowth: 0,
   });
   const [loadingStats, setLoadingStats] = useState(true);
 
   useEffect(() => {
     const fetchStats = async () => {
-      const today = format(new Date(), 'yyyy-MM-dd');
+      const today = new Date();
+      const todayStr = format(today, 'yyyy-MM-dd');
       
       // Fetch today's bookings
       const { data: bookings, error } = await supabase
         .from('bookings')
         .select('total_price, duration_hours, status')
-        .eq('booking_date', today)
+        .eq('booking_date', todayStr)
         .neq('status', 'cancelled');
 
       if (error) {
@@ -47,10 +54,66 @@ export default function AdminDashboard() {
       const bookedHours = bookings?.reduce((sum, b) => sum + b.duration_hours, 0) || 0;
       const todaysOccupancy = Math.round((bookedHours / totalHoursAvailable) * 100);
 
+      // Fetch member count (non-visitor tiers)
+      const { data: members, error: membersError } = await supabase
+        .from('profiles')
+        .select('membership_tier')
+        .neq('membership_tier', 'visitor');
+      
+      const memberCount = members?.length || 0;
+
+      // Calculate member revenue (weekly subscription fees per tier)
+      const weeklyFees: Record<string, number> = {
+        par: 29,
+        birdie: 39,
+        eagle: 49,
+        albatross: 59,
+      };
+      
+      const memberRevenue = members?.reduce((sum, m) => {
+        const fee = weeklyFees[m.membership_tier as string] || 0;
+        return sum + fee;
+      }, 0) || 0;
+
+      // Calculate MoM growth (compare current month period to same period last month)
+      const currentDay = today.getDate();
+      const currentMonthStart = format(new Date(today.getFullYear(), today.getMonth(), 1), 'yyyy-MM-dd');
+      const lastMonthStart = format(new Date(today.getFullYear(), today.getMonth() - 1, 1), 'yyyy-MM-dd');
+      const lastMonthSameDay = format(new Date(today.getFullYear(), today.getMonth() - 1, currentDay), 'yyyy-MM-dd');
+
+      // Current month bookings (1st to today)
+      const { data: currentMonthBookings } = await supabase
+        .from('bookings')
+        .select('duration_hours')
+        .gte('booking_date', currentMonthStart)
+        .lte('booking_date', todayStr)
+        .neq('status', 'cancelled');
+
+      // Last month bookings (1st to same day)
+      const { data: lastMonthBookings } = await supabase
+        .from('bookings')
+        .select('duration_hours')
+        .gte('booking_date', lastMonthStart)
+        .lte('booking_date', lastMonthSameDay)
+        .neq('status', 'cancelled');
+
+      const currentMonthHours = currentMonthBookings?.reduce((sum, b) => sum + b.duration_hours, 0) || 0;
+      const lastMonthHours = lastMonthBookings?.reduce((sum, b) => sum + b.duration_hours, 0) || 0;
+      
+      let momGrowth = 0;
+      if (lastMonthHours > 0) {
+        momGrowth = Math.round(((currentMonthHours - lastMonthHours) / lastMonthHours) * 100);
+      } else if (currentMonthHours > 0) {
+        momGrowth = 100;
+      }
+
       setStats({
         todaysBookings,
         todaysRevenue,
         todaysOccupancy,
+        memberCount,
+        memberRevenue,
+        momGrowth,
       });
       setLoadingStats(false);
     };
@@ -137,6 +200,56 @@ export default function AdminDashboard() {
                 <Skeleton className="h-8 w-16" />
               ) : (
                 <div className="text-2xl font-display">{stats.todaysOccupancy}%</div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Member Count
+              </CardTitle>
+              <UserCheck className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              {loadingStats ? (
+                <Skeleton className="h-8 w-12" />
+              ) : (
+                <div className="text-2xl font-display">{stats.memberCount}</div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Member Revenue
+              </CardTitle>
+              <DollarSign className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              {loadingStats ? (
+                <Skeleton className="h-8 w-20" />
+              ) : (
+                <div className="text-2xl font-display">${stats.memberRevenue}/wk</div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                MoM Growth
+              </CardTitle>
+              <Repeat className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              {loadingStats ? (
+                <Skeleton className="h-8 w-16" />
+              ) : (
+                <div className={`text-2xl font-display ${stats.momGrowth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {stats.momGrowth >= 0 ? '+' : ''}{stats.momGrowth}%
+                </div>
               )}
             </CardContent>
           </Card>
