@@ -21,10 +21,9 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Pencil, Trash2, Settings, ShoppingCart, Bell } from "lucide-react";
+import { Plus, Pencil, Trash2, Settings, ShoppingCart, Bell, DollarSign, X } from "lucide-react";
 
 interface POSProduct {
   id: string;
@@ -32,6 +31,16 @@ interface POSProduct {
   price: number;
   family: string | null;
   is_active: boolean;
+}
+
+interface CustomerProfile {
+  id: string;
+  user_id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  membership_tier: string;
+  custom_hourly_rate: number | null;
 }
 
 export default function AdminSettings() {
@@ -51,12 +60,22 @@ export default function AdminSettings() {
   const [productFamily, setProductFamily] = useState("");
   const [isSavingProduct, setIsSavingProduct] = useState(false);
 
+  // Dynamic Pricing
+  const [customers, setCustomers] = useState<CustomerProfile[]>([]);
+  const [customersWithPricing, setCustomersWithPricing] = useState<CustomerProfile[]>([]);
+  const [isLoadingCustomers, setIsLoadingCustomers] = useState(true);
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [selectedPricingCustomer, setSelectedPricingCustomer] = useState<CustomerProfile | null>(null);
+  const [newCustomRate, setNewCustomRate] = useState("");
+  const [isSavingRate, setIsSavingRate] = useState(false);
+
   // Get unique families from products
   const families = [...new Set(products.map(p => p.family).filter(Boolean))] as string[];
 
   useEffect(() => {
     if (isAdmin) {
       fetchProducts();
+      fetchCustomers();
     }
   }, [isAdmin]);
 
@@ -73,6 +92,82 @@ export default function AdminSettings() {
     }
     setIsLoadingProducts(false);
   };
+
+  const fetchCustomers = async () => {
+    setIsLoadingCustomers(true);
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("id, user_id, first_name, last_name, email, membership_tier, custom_hourly_rate")
+      .order("last_name");
+
+    if (!error && data) {
+      setCustomers(data);
+      setCustomersWithPricing(data.filter((c: CustomerProfile) => c.custom_hourly_rate !== null));
+    }
+    setIsLoadingCustomers(false);
+  };
+
+  const saveCustomRate = async () => {
+    if (!selectedPricingCustomer) return;
+
+    setIsSavingRate(true);
+    try {
+      const rate = newCustomRate ? parseFloat(newCustomRate) : null;
+      
+      const { error } = await supabase
+        .from("profiles")
+        .update({ custom_hourly_rate: rate })
+        .eq("id", selectedPricingCustomer.id);
+
+      if (error) throw error;
+
+      toast({
+        title: rate ? "Custom rate set" : "Custom rate removed",
+        description: rate 
+          ? `${selectedPricingCustomer.first_name} ${selectedPricingCustomer.last_name} now has a custom rate of $${rate}/hr.`
+          : `${selectedPricingCustomer.first_name} ${selectedPricingCustomer.last_name} will use their tier rate.`,
+        duration: 4000,
+      });
+
+      setSelectedPricingCustomer(null);
+      setNewCustomRate("");
+      fetchCustomers();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to save custom rate.",
+        variant: "destructive",
+        duration: 4000,
+      });
+    }
+    setIsSavingRate(false);
+  };
+
+  const removeCustomRate = async (customer: CustomerProfile) => {
+    const { error } = await supabase
+      .from("profiles")
+      .update({ custom_hourly_rate: null })
+      .eq("id", customer.id);
+
+    if (!error) {
+      toast({
+        title: "Custom rate removed",
+        description: `${customer.first_name} ${customer.last_name} will use their tier rate.`,
+        duration: 4000,
+      });
+      fetchCustomers();
+    }
+  };
+
+  const filteredCustomers = customers.filter(c => {
+    if (!customerSearch) return true;
+    const search = customerSearch.toLowerCase();
+    return (
+      c.first_name?.toLowerCase().includes(search) ||
+      c.last_name?.toLowerCase().includes(search) ||
+      c.email?.toLowerCase().includes(search)
+    );
+  });
 
   const openProductDialog = (product?: POSProduct) => {
     if (product) {
@@ -199,10 +294,14 @@ export default function AdminSettings() {
         </div>
 
         <Tabs defaultValue="general" className="space-y-6">
-          <TabsList className="grid w-full max-w-md grid-cols-3">
+          <TabsList className="grid w-full max-w-lg grid-cols-4">
             <TabsTrigger value="general" className="flex items-center gap-2">
               <Settings className="h-4 w-4" />
               General
+            </TabsTrigger>
+            <TabsTrigger value="pricing" className="flex items-center gap-2">
+              <DollarSign className="h-4 w-4" />
+              Pricing
             </TabsTrigger>
             <TabsTrigger value="pos" className="flex items-center gap-2">
               <ShoppingCart className="h-4 w-4" />
@@ -249,6 +348,92 @@ export default function AdminSettings() {
                     Contact support to modify operating hours
                   </p>
                 </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Dynamic Pricing Settings */}
+          <TabsContent value="pricing" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Dynamic Pricing</CardTitle>
+                <CardDescription>Set custom hourly rates for specific customers (overrides tier pricing)</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Customers with custom pricing */}
+                {customersWithPricing.length > 0 && (
+                  <div className="space-y-2">
+                    <Label>Customers with Custom Rates</Label>
+                    <div className="space-y-2">
+                      {customersWithPricing.map((customer) => (
+                        <div key={customer.id} className="flex items-center justify-between p-3 border rounded-lg">
+                          <div>
+                            <span className="font-medium">{customer.first_name} {customer.last_name}</span>
+                            <Badge className="ml-2 text-xs" variant="secondary">{customer.membership_tier}</Badge>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-primary">${customer.custom_hourly_rate}/hr</span>
+                            <Button variant="ghost" size="icon" onClick={() => removeCustomRate(customer)}>
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Add custom pricing */}
+                <div className="space-y-2">
+                  <Label>Set Custom Rate for Customer</Label>
+                  <Input
+                    placeholder="Search customers..."
+                    value={customerSearch}
+                    onChange={(e) => setCustomerSearch(e.target.value)}
+                  />
+                  {customerSearch && (
+                    <div className="max-h-40 overflow-y-auto border rounded-md">
+                      {filteredCustomers.slice(0, 10).map((customer) => (
+                        <button
+                          key={customer.id}
+                          onClick={() => {
+                            setSelectedPricingCustomer(customer);
+                            setNewCustomRate(customer.custom_hourly_rate?.toString() || "");
+                            setCustomerSearch("");
+                          }}
+                          className="w-full p-2 text-left text-sm hover:bg-muted/50 flex items-center justify-between border-b last:border-b-0"
+                        >
+                          <span>{customer.first_name} {customer.last_name}</span>
+                          <Badge variant="outline" className="text-xs">{customer.membership_tier}</Badge>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {selectedPricingCustomer && (
+                  <div className="p-4 border rounded-lg bg-muted/30 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">{selectedPricingCustomer.first_name} {selectedPricingCustomer.last_name}</span>
+                      <Button variant="ghost" size="sm" onClick={() => setSelectedPricingCustomer(null)}>Cancel</Button>
+                    </div>
+                    <div className="flex gap-2">
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="Custom hourly rate"
+                        value={newCustomRate}
+                        onChange={(e) => setNewCustomRate(e.target.value)}
+                        className="flex-1"
+                      />
+                      <Button onClick={saveCustomRate} disabled={isSavingRate}>
+                        {isSavingRate ? "Saving..." : "Save Rate"}
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Leave empty to remove custom rate and use tier pricing</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
