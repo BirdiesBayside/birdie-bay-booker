@@ -37,6 +37,7 @@ export function useBooking() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [userMembershipTier, setUserMembershipTier] = useState<string>("visitor");
+  const [customHourlyRate, setCustomHourlyRate] = useState<number | null>(null);
 
   const fetchBays = async () => {
     const { data, error } = await supabase
@@ -54,12 +55,15 @@ export function useBooking() {
     if (user) {
       const { data } = await supabase
         .from("profiles")
-        .select("membership_tier")
+        .select("membership_tier, custom_hourly_rate")
         .eq("user_id", user.id)
         .maybeSingle();
 
       if (data?.membership_tier) {
         setUserMembershipTier(data.membership_tier);
+      }
+      if (data?.custom_hourly_rate !== undefined) {
+        setCustomHourlyRate(data.custom_hourly_rate);
       }
     }
   };
@@ -90,6 +94,10 @@ export function useBooking() {
   };
 
   const getHourlyRate = (tier: string = userMembershipTier): number => {
+    // Custom hourly rate overrides membership tier pricing
+    if (customHourlyRate !== null) {
+      return customHourlyRate;
+    }
     return MEMBERSHIP_PRICING[tier] || MEMBERSHIP_PRICING.visitor;
   };
 
