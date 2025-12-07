@@ -104,6 +104,7 @@ export default function AdminCustomers() {
   const [selectedCustomers, setSelectedCustomers] = useState<Set<string>>(new Set());
   const [columns, setColumns] = useState<ColumnConfig[]>(DEFAULT_COLUMNS);
   const [tierFilter, setTierFilter] = useState<string | null>(null);
+  const [bookingCountFilter, setBookingCountFilter] = useState<string | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
 
@@ -209,9 +210,28 @@ export default function AdminCustomers() {
         return false;
       }
 
+      // Booking count filter
+      if (bookingCountFilter) {
+        const count = customer.booking_count || 0;
+        switch (bookingCountFilter) {
+          case "0":
+            if (count !== 0) return false;
+            break;
+          case "1-5":
+            if (count < 1 || count > 5) return false;
+            break;
+          case "6-10":
+            if (count < 6 || count > 10) return false;
+            break;
+          case "10+":
+            if (count <= 10) return false;
+            break;
+        }
+      }
+
       return true;
     });
-  }, [customers, searchQuery, tierFilter]);
+  }, [customers, searchQuery, tierFilter, bookingCountFilter]);
 
   const toggleCustomerSelection = (customerId: string) => {
     const newSelection = new Set(selectedCustomers);
@@ -702,6 +722,35 @@ export default function AdminCustomers() {
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setTierFilter("visitor")}>
                 Visitor
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Booking Count Filter */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Calendar className="h-4 w-4 mr-2" />
+                {bookingCountFilter === "0" ? "0 Bookings" : 
+                 bookingCountFilter ? `${bookingCountFilter} Bookings` : "All Bookings"}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onClick={() => setBookingCountFilter(null)}>
+                All Bookings
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setBookingCountFilter("0")}>
+                0 Bookings (Never played)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setBookingCountFilter("1-5")}>
+                1-5 Bookings
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setBookingCountFilter("6-10")}>
+                6-10 Bookings
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setBookingCountFilter("10+")}>
+                10+ Bookings
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
