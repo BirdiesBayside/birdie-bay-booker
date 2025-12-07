@@ -47,8 +47,21 @@ export default function AdminSettings() {
   const { isAdmin, isLoading: authLoading } = useAdminAuth();
   const { toast } = useToast();
 
-  // General settings
-  const [timezone, setTimezone] = useState("Australia/Sydney");
+  // General settings - load from localStorage
+  const [timezone, setTimezone] = useState(() => {
+    return localStorage.getItem('birdies_timezone') || "Australia/Sydney";
+  });
+
+  // Autosave timezone when it changes
+  const handleTimezoneChange = (value: string) => {
+    setTimezone(value);
+    localStorage.setItem('birdies_timezone', value);
+    toast({
+      title: "Settings saved",
+      description: `Timezone updated to ${value}`,
+      duration: 3000,
+    });
+  };
 
   // POS Products
   const [products, setProducts] = useState<POSProduct[]>([]);
@@ -323,7 +336,7 @@ export default function AdminSettings() {
               <CardContent className="space-y-4">
                 <div className="max-w-sm space-y-2">
                   <Label htmlFor="timezone">Timezone</Label>
-                  <Select value={timezone} onValueChange={setTimezone}>
+                  <Select value={timezone} onValueChange={handleTimezoneChange}>
                     <SelectTrigger id="timezone">
                       <SelectValue placeholder="Select timezone" />
                     </SelectTrigger>
