@@ -10,6 +10,7 @@ import {
   LogOut,
   Menu,
   X,
+  ArrowLeft,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -76,6 +77,14 @@ export function LeagueLayout({ children }: LeagueLayoutProps) {
               );
             })}
             <div className="border-t border-primary-foreground/20 mt-2">
+              <Link
+                to="/dashboard"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-3 px-4 py-4 font-inter text-base text-primary-foreground/90"
+              >
+                <ArrowLeft className="h-5 w-5" />
+                Back to Booking
+              </Link>
               <button
                 onClick={handleLogout}
                 className="flex items-center gap-3 px-4 py-4 font-inter text-base text-primary-foreground/80 w-full"
