@@ -87,6 +87,14 @@ export default function AdminCustomers() {
   const [columns, setColumns] = useState<ColumnConfig[]>(DEFAULT_COLUMNS);
   const [tierFilter, setTierFilter] = useState<string | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [isEditMode, setIsEditMode] = useState(false);
+
+  // Edit customer state
+  const [editFirstName, setEditFirstName] = useState("");
+  const [editLastName, setEditLastName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [isUpdatingCustomer, setIsUpdatingCustomer] = useState(false);
 
   // Add customer dialog state
   const [showAddCustomerDialog, setShowAddCustomerDialog] = useState(false);
@@ -280,6 +288,86 @@ export default function AdminCustomers() {
     }
 
     setIsSendingReset(false);
+  };
+
+  const openEditMode = (customer: Customer) => {
+    setEditFirstName(customer.first_name);
+    setEditLastName(customer.last_name);
+    setEditEmail(customer.email);
+    setEditPhone(customer.phone || "");
+    setIsEditMode(true);
+  };
+
+  const closeEditMode = () => {
+    setIsEditMode(false);
+    setEditFirstName("");
+    setEditLastName("");
+    setEditEmail("");
+    setEditPhone("");
+  };
+
+  const updateCustomer = async () => {
+    if (!selectedCustomer) return;
+    
+    if (!editFirstName || !editLastName || !editEmail) {
+      toast({
+        title: "Missing information",
+        description: "Please fill in first name, last name, and email.",
+        variant: "destructive",
+        duration: 4000,
+      });
+      return;
+    }
+
+    setIsUpdatingCustomer(true);
+
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          first_name: editFirstName,
+          last_name: editLastName,
+          email: editEmail,
+          phone: editPhone || null,
+        })
+        .eq("id", selectedCustomer.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Customer updated",
+        description: `${editFirstName} ${editLastName} has been updated.`,
+        duration: 4000,
+      });
+
+      // Update local state
+      setCustomers(prev =>
+        prev.map(c =>
+          c.id === selectedCustomer.id
+            ? { ...c, first_name: editFirstName, last_name: editLastName, email: editEmail, phone: editPhone || null }
+            : c
+        )
+      );
+      
+      setSelectedCustomer({
+        ...selectedCustomer,
+        first_name: editFirstName,
+        last_name: editLastName,
+        email: editEmail,
+        phone: editPhone || null,
+      });
+      
+      closeEditMode();
+    } catch (error: any) {
+      toast({
+        title: "Error updating customer",
+        description: error.message || "Failed to update customer.",
+        variant: "destructive",
+        duration: 4000,
+      });
+    }
+
+    setIsUpdatingCustomer(false);
   };
 
   const visibleColumns = columns.filter(c => c.visible);
@@ -508,23 +596,31 @@ export default function AdminCustomers() {
         </div>
 
         {/* Customer Details Dialog */}
-        <Dialog open={!!selectedCustomer} onOpenChange={() => setSelectedCustomer(null)}>
-          <DialogContent className="max-w-md">
+        <Dialog 
+          open={!!selectedCustomer} 
+          onOpenChange={(open) => {
+            if (!open) {
+              setSelectedCustomer(null);
+              closeEditMode();
+            }
+          }}
+        >
+          <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="font-display text-xl uppercase tracking-wide">
-                Customer Profile
+                {isEditMode ? "Edit Customer" : "Customer Profile"}
               </DialogTitle>
             </DialogHeader>
             
-            {selectedCustomer && (
+            {selectedCustomer && !isEditMode && (
               <div className="space-y-4">
                 {/* Header */}
                 <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
+                  <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                     <User className="h-7 w-7 text-primary" />
                   </div>
-                  <div className="flex-1">
-                    <h3 className="font-medium text-lg">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-medium text-lg truncate">
                       {selectedCustomer.first_name} {selectedCustomer.last_name}
                     </h3>
                     <Badge className={getMembershipColor(selectedCustomer.membership_tier)}>
@@ -538,15 +634,15 @@ export default function AdminCustomers() {
                 {/* Contact Info */}
                 <div className="space-y-3">
                   <div className="flex items-center gap-3 text-sm">
-                    <Mail className="h-4 w-4 text-muted-foreground" />
-                    <a href={`mailto:${selectedCustomer.email}`} className="hover:text-primary">
+                    <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <a href={`mailto:${selectedCustomer.email}`} className="hover:text-primary truncate">
                       {selectedCustomer.email}
                     </a>
                   </div>
                   
                   {selectedCustomer.phone && (
                     <div className="flex items-center gap-3 text-sm">
-                      <Phone className="h-4 w-4 text-muted-foreground" />
+                      <Phone className="h-4 w-4 text-muted-foreground shrink-0" />
                       <a href={`tel:${selectedCustomer.phone}`} className="hover:text-primary">
                         {selectedCustomer.phone}
                       </a>
@@ -554,7 +650,7 @@ export default function AdminCustomers() {
                   )}
 
                   <div className="flex items-center gap-3 text-sm">
-                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                    <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
                     <span className="text-muted-foreground">
                       Joined {format(new Date(selectedCustomer.created_at), "MMMM d, yyyy")}
                     </span>
@@ -564,7 +660,7 @@ export default function AdminCustomers() {
                 <hr className="border-border" />
 
                 {/* Actions */}
-                <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row gap-2">
                   <Button 
                     variant="outline" 
                     className="flex-1"
@@ -574,8 +670,72 @@ export default function AdminCustomers() {
                     <KeyRound className="h-4 w-4 mr-2" />
                     {isSendingReset ? "Sending..." : "Reset Password"}
                   </Button>
-                  <Button className="flex-1 bg-primary hover:bg-primary/90">
+                  <Button 
+                    className="flex-1 bg-primary hover:bg-primary/90"
+                    onClick={() => openEditMode(selectedCustomer)}
+                  >
                     Edit Profile
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {selectedCustomer && isEditMode && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>First Name *</Label>
+                    <Input
+                      value={editFirstName}
+                      onChange={(e) => setEditFirstName(e.target.value)}
+                      placeholder="First name"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Last Name *</Label>
+                    <Input
+                      value={editLastName}
+                      onChange={(e) => setEditLastName(e.target.value)}
+                      placeholder="Last name"
+                    />
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label>Email *</Label>
+                  <Input
+                    type="email"
+                    value={editEmail}
+                    onChange={(e) => setEditEmail(e.target.value)}
+                    placeholder="email@example.com"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label>Phone</Label>
+                  <Input
+                    type="tel"
+                    value={editPhone}
+                    onChange={(e) => setEditPhone(e.target.value)}
+                    placeholder="Phone number"
+                  />
+                </div>
+                
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={closeEditMode}
+                    disabled={isUpdatingCustomer}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    className="flex-1"
+                    onClick={updateCustomer}
+                    disabled={isUpdatingCustomer}
+                  >
+                    {isUpdatingCustomer ? "Saving..." : "Save Changes"}
                   </Button>
                 </div>
               </div>
