@@ -16,7 +16,8 @@ import {
   Banknote,
   User,
   Calendar,
-  X
+  X,
+  ChevronLeft
 } from "lucide-react";
 import {
   Dialog,
@@ -32,6 +33,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { format } from "date-fns";
+import { useLocation } from "react-router-dom";
 
 interface POSProduct {
   id: string;
@@ -45,6 +47,7 @@ interface CartItem {
   name: string;
   price: number;
   quantity: number;
+  bookingId?: string;
 }
 
 interface UnpaidBooking {
@@ -65,12 +68,24 @@ interface Customer {
   email: string;
 }
 
+interface BookingDataFromNav {
+  bookingId: string;
+  customerId: string;
+  duration: number;
+  customerName: string;
+  totalPrice: number;
+  bayName: string;
+  bookingDate: string;
+  startTime: string;
+}
+
 export default function AdminPOS() {
   const { isAdmin, isLoading } = useAdminAuth();
+  const location = useLocation();
   const [products, setProducts] = useState<POSProduct[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [unpaidBookings, setUnpaidBookings] = useState<UnpaidBooking[]>([]);
-  const [selectedFamily, setSelectedFamily] = useState<string>("all");
+  const [selectedFamily, setSelectedFamily] = useState<string>("categories");
   const [families, setFamilies] = useState<string[]>([]);
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [showBookingsDialog, setShowBookingsDialog] = useState(false);
@@ -79,6 +94,7 @@ export default function AdminPOS() {
   const [selectedCustomer, setSelectedCustomer] = useState<string>("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [loadingProducts, setLoadingProducts] = useState(true);
+  const [processedNavBooking, setProcessedNavBooking] = useState<string | null>(null);
 
   useEffect(() => {
     if (isAdmin) {
@@ -87,6 +103,49 @@ export default function AdminPOS() {
       fetchCustomers();
     }
   }, [isAdmin]);
+
+  // Handle booking data from navigation (from timetable)
+  useEffect(() => {
+    const navState = location.state as { bookingData?: BookingDataFromNav } | null;
+    if (navState?.bookingData && products.length > 0 && processedNavBooking !== navState.bookingData.bookingId) {
+      const bookingData = navState.bookingData;
+      
+      // Find the matching hour booking product
+      const productName = `${bookingData.duration} Hour Booking`;
+      const matchingProduct = products.find(p => p.name === productName && p.family === 'Golf');
+      
+      if (matchingProduct) {
+        // Set customer
+        setSelectedCustomer(bookingData.customerId);
+        
+        // Set selected booking for tracking
+        setSelectedBooking({
+          id: bookingData.bookingId,
+          booking_date: bookingData.bookingDate,
+          start_time: bookingData.startTime,
+          end_time: '',
+          total_price: bookingData.totalPrice,
+          bay_name: bookingData.bayName,
+          customer_name: bookingData.customerName,
+          customer_id: bookingData.customerId,
+        });
+        
+        // Add to cart
+        setCart([{
+          id: matchingProduct.id,
+          name: `${matchingProduct.name}: ${bookingData.bayName} - ${format(new Date(bookingData.bookingDate), 'dd/MM')} ${bookingData.startTime.slice(0, 5)}`,
+          price: matchingProduct.price,
+          quantity: 1,
+          bookingId: bookingData.bookingId,
+        }]);
+        
+        setProcessedNavBooking(bookingData.bookingId);
+        toast.success(`Added ${bookingData.duration} hour booking to cart`);
+      } else {
+        toast.error(`Could not find ${productName} product`);
+      }
+    }
+  }, [location.state, products, processedNavBooking]);
 
   const fetchProducts = async () => {
     const { data, error } = await supabase
@@ -357,55 +416,72 @@ export default function AdminPOS() {
     return null;
   }
 
+  // Define all category names (including empty ones for navigation)
+  const ALL_FAMILIES = ['Golf', 'Drinks & Snacks', 'Merch & Other'];
+
   return (
     <AdminLayout>
       <div className="flex h-[calc(100vh-64px)]">
         {/* Products Grid */}
         <div className="flex-1 p-4 overflow-hidden flex flex-col">
-          {/* Family Filter */}
-          <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
-            <Button
-              variant={selectedFamily === 'all' ? 'default' : 'outline'}
-              onClick={() => setSelectedFamily('all')}
-              className="shrink-0"
-            >
-              All
-            </Button>
-            {families.map(family => (
+          {/* Header with back button and unpaid bookings */}
+          <div className="flex items-center justify-between mb-4">
+            {selectedFamily !== 'categories' && (
               <Button
-                key={family}
-                variant={selectedFamily === family ? 'default' : 'outline'}
-                onClick={() => setSelectedFamily(family)}
-                className="shrink-0"
+                variant="ghost"
+                onClick={() => setSelectedFamily('categories')}
+                className="gap-2"
               >
-                {family}
+                <ChevronLeft className="h-4 w-4" />
+                Back to Categories
               </Button>
-            ))}
+            )}
+            {selectedFamily === 'categories' && <div />}
             <Button
               variant="outline"
               onClick={() => setShowBookingsDialog(true)}
-              className="shrink-0 ml-auto"
+              className="shrink-0"
             >
               <Calendar className="h-4 w-4 mr-2" />
               Unpaid Bookings ({unpaidBookings.length})
             </Button>
           </div>
 
-          {/* Products */}
+          {/* Main Content */}
           <div className="flex-1 overflow-y-auto">
             {loadingProducts ? (
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
-                {[...Array(12)].map((_, i) => (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                {[...Array(6)].map((_, i) => (
                   <Skeleton key={i} className="aspect-square" />
                 ))}
               </div>
-            ) : products.length === 0 ? (
+            ) : selectedFamily === 'categories' ? (
+              /* Category Selection View */
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                {ALL_FAMILIES.map(family => {
+                  const productCount = products.filter(p => p.family === family).length;
+                  return (
+                    <button
+                      key={family}
+                      onClick={() => setSelectedFamily(family)}
+                      className="aspect-square bg-card border-2 rounded-xl p-6 flex flex-col items-center justify-center text-center hover:bg-accent hover:border-primary transition-colors"
+                    >
+                      <span className="font-display text-xl uppercase tracking-wide">{family}</span>
+                      <span className="text-muted-foreground text-sm mt-2">
+                        {productCount} {productCount === 1 ? 'product' : 'products'}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : filteredProducts.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
                 <ShoppingCart className="h-16 w-16 mb-4 opacity-50" />
-                <p className="text-lg">No products yet</p>
+                <p className="text-lg">No products in {selectedFamily}</p>
                 <p className="text-sm">Add products in Settings to get started</p>
               </div>
             ) : (
+              /* Products Grid */
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
                 {filteredProducts.map(product => (
                   <button
