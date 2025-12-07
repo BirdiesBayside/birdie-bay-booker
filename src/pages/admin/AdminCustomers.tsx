@@ -646,40 +646,41 @@ export default function AdminCustomers() {
 
         {/* Bulk Actions */}
         {selectedCustomers.size > 0 && (
-          <div className="flex items-center gap-2 bg-primary/5 px-4 py-3 rounded-lg border border-primary/20">
+          <div className="flex flex-wrap items-center gap-2 bg-primary/5 px-4 py-3 rounded-lg border border-primary/20">
             <span className="text-sm font-medium">
               {selectedCustomers.size} selected
             </span>
-            <div className="h-4 w-px bg-border mx-1" />
-            <Button variant="outline" size="sm" onClick={goToBulkEmail}>
-              <Mail className="h-4 w-4 mr-1" />
-              Email
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="text-destructive hover:text-destructive"
-              onClick={() => setShowDeleteConfirm(true)}
-            >
-              <Trash2 className="h-4 w-4 mr-1" />
-              Delete
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => {
-                setBulkDepositAmount("");
-                setShowBulkDepositDialog(true);
-              }}
-            >
-              <DollarSign className="h-4 w-4 mr-1" />
-              Add Credit
-            </Button>
-            <div className="flex-1" />
-            <Button variant="ghost" size="sm" onClick={() => setSelectedCustomers(new Set())}>
-              <X className="h-4 w-4 mr-1" />
-              Clear
-            </Button>
+            <div className="h-4 w-px bg-border mx-1 hidden sm:block" />
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto mt-2 sm:mt-0">
+              <Button variant="outline" size="sm" onClick={goToBulkEmail}>
+                <Mail className="h-4 w-4 mr-1" />
+                Email
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="text-destructive hover:text-destructive"
+                onClick={() => setShowDeleteConfirm(true)}
+              >
+                <Trash2 className="h-4 w-4 mr-1" />
+                Delete
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => {
+                  setBulkDepositAmount("");
+                  setShowBulkDepositDialog(true);
+                }}
+              >
+                <DollarSign className="h-4 w-4 mr-1" />
+                Add Credit
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setSelectedCustomers(new Set())}>
+                <X className="h-4 w-4 mr-1" />
+                Clear
+              </Button>
+            </div>
           </div>
         )}
 
