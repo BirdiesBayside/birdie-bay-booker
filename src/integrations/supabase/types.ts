@@ -170,7 +170,35 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      booking_availability: {
+        Row: {
+          bay_id: string | null
+          booking_date: string | null
+          end_time: string | null
+          start_time: string | null
+        }
+        Insert: {
+          bay_id?: string | null
+          booking_date?: string | null
+          end_time?: string | null
+          start_time?: string | null
+        }
+        Update: {
+          bay_id?: string | null
+          booking_date?: string | null
+          end_time?: string | null
+          start_time?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookings_bay_id_fkey"
+            columns: ["bay_id"]
+            isOneToOne: false
+            referencedRelation: "bays"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       [_ in never]: never
