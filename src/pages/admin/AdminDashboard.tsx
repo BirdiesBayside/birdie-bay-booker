@@ -64,10 +64,10 @@ export default function AdminDashboard() {
 
       // Calculate member revenue (weekly subscription fees per tier)
       const weeklyFees: Record<string, number> = {
-        par: 29,
-        birdie: 39,
-        eagle: 49,
-        albatross: 59,
+        par: 15,
+        birdie: 20,
+        eagle: 25,
+        albatross: 35,
       };
       
       const memberRevenue = members?.reduce((sum, m) => {
