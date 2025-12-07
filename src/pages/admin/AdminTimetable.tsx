@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { format, addDays, startOfWeek, addWeeks, subWeeks, isSameDay } from "date-fns";
+import { format, addDays, isSameDay } from "date-fns";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { supabase } from "@/integrations/supabase/client";
@@ -79,7 +79,7 @@ interface Booking {
   };
 }
 
-type ViewMode = "day" | "week";
+
 
 // Operating hours: 5am to 11pm in 30-min increments
 // Each slot is { hour: number, minute: 0 | 30 }
@@ -102,7 +102,7 @@ export default function AdminTimetable() {
   const { toast } = useToast();
   
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [viewMode, setViewMode] = useState<ViewMode>("day");
+  
   const [bays, setBays] = useState<Bay[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -135,7 +135,7 @@ export default function AdminTimetable() {
     if (isAdmin && bays.length > 0) {
       fetchBookings();
     }
-  }, [isAdmin, selectedDate, viewMode, bays]);
+  }, [isAdmin, selectedDate, bays]);
 
   const fetchBays = async () => {
     const { data, error } = await supabase
@@ -152,23 +152,12 @@ export default function AdminTimetable() {
   const fetchBookings = async () => {
     setIsLoading(true);
     
-    let startDate: string;
-    let endDate: string;
-
-    if (viewMode === "day") {
-      startDate = format(selectedDate, "yyyy-MM-dd");
-      endDate = startDate;
-    } else {
-      const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 });
-      startDate = format(weekStart, "yyyy-MM-dd");
-      endDate = format(addDays(weekStart, 6), "yyyy-MM-dd");
-    }
+    const dateStr = format(selectedDate, "yyyy-MM-dd");
 
     const { data, error } = await supabase
       .from("bookings")
       .select("*")
-      .gte("booking_date", startDate)
-      .lte("booking_date", endDate)
+      .eq("booking_date", dateStr)
       .order("start_time");
 
     if (!error && data) {
@@ -192,11 +181,7 @@ export default function AdminTimetable() {
   };
 
   const navigateDate = (direction: "prev" | "next") => {
-    if (viewMode === "day") {
-      setSelectedDate(prev => direction === "next" ? addDays(prev, 1) : addDays(prev, -1));
-    } else {
-      setSelectedDate(prev => direction === "next" ? addWeeks(prev, 1) : subWeeks(prev, 1));
-    }
+    setSelectedDate(prev => direction === "next" ? addDays(prev, 1) : addDays(prev, -1));
   };
 
   const getBookingsForSlot = (bayId: string, slot: TimeSlot, date: Date = selectedDate) => {
@@ -229,14 +214,12 @@ export default function AdminTimetable() {
     const totalSlots = bays.length * OPERATING_SLOTS.length;
     let bookedSlots = 0;
 
-    if (viewMode === "day") {
-      bays.forEach(bay => {
-        OPERATING_SLOTS.forEach(slot => {
-          const slotBookings = getBookingsForSlot(bay.id, slot);
-          if (slotBookings.length > 0) bookedSlots++;
-        });
+    bays.forEach(bay => {
+      OPERATING_SLOTS.forEach(slot => {
+        const slotBookings = getBookingsForSlot(bay.id, slot);
+        if (slotBookings.length > 0) bookedSlots++;
       });
-    }
+    });
 
     return totalSlots > 0 ? Math.round((bookedSlots / totalSlots) * 100) : 0;
   };
@@ -462,9 +445,7 @@ export default function AdminTimetable() {
     return null;
   }
 
-  const weekDays = viewMode === "week" 
-    ? Array.from({ length: 7 }, (_, i) => addDays(startOfWeek(selectedDate, { weekStartsOn: 1 }), i))
-    : [selectedDate];
+  const weekDays = [selectedDate];
 
   return (
     <AdminLayout>
@@ -487,16 +468,6 @@ export default function AdminTimetable() {
               </div>
             </div>
 
-            {/* View Mode */}
-            <Select value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)}>
-              <SelectTrigger className="w-24">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="day">Day</SelectItem>
-                <SelectItem value="week">Week</SelectItem>
-              </SelectContent>
-            </Select>
 
             {/* Date Navigation */}
             <div className="flex items-center gap-1">
@@ -508,10 +479,7 @@ export default function AdminTimetable() {
                 <PopoverTrigger asChild>
                   <Button variant="outline" className="min-w-[140px]">
                     <CalendarIcon className="h-4 w-4 mr-2" />
-                    {viewMode === "day" 
-                      ? format(selectedDate, "EEE, MMM d")
-                      : `Week of ${format(startOfWeek(selectedDate, { weekStartsOn: 1 }), "MMM d")}`
-                    }
+                    {format(selectedDate, "EEE, MMM d")}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
