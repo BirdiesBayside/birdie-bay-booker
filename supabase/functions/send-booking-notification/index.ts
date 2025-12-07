@@ -150,7 +150,21 @@ serve(async (req) => {
     });
     const startTime = booking.start_time.slice(0, 5);
     const endTime = booking.end_time.slice(0, 5);
-    const bayName = booking.bays?.name || `Bay ${booking.bays?.bay_number}`;
+    const bayNumber = booking.bays?.bay_number || "?";
+    const bayName = booking.bays?.name || `Bay ${bayNumber}`;
+    
+    // Format time for display (12-hour format)
+    const formatTime12hr = (time24: string) => {
+      const [hours, minutes] = time24.split(':').map(Number);
+      const period = hours >= 12 ? 'pm' : 'am';
+      const hours12 = hours % 12 || 12;
+      return `${hours12}:${minutes.toString().padStart(2, '0')}${period}`;
+    };
+    const startTime12hr = formatTime12hr(startTime);
+    
+    // Check if booking is after 5pm (17:00)
+    const startHour = parseInt(booking.start_time.split(':')[0], 10);
+    const isAfter5pm = startHour >= 17;
 
     // Email content based on notification type
     let subject: string;
@@ -159,7 +173,21 @@ serve(async (req) => {
 
     if (notification_type === "confirmation") {
       subject = "Booking Confirmed - Birdies Bayside";
-      smsMessage = `Birdies Bayside: Your booking is confirmed! ${shortDate} ${startTime}-${endTime}, ${bayName}. See you there!`;
+      
+      // Build SMS message with conditional boom gate info
+      let smsLines = [
+        `Hi ${profile.first_name},`,
+        `Your booking on ${shortDate} at ${startTime12hr} in Bay ${bayNumber} is confirmed.`,
+        ``,
+        `Your door code is 7675#`
+      ];
+      
+      if (isAfter5pm) {
+        smsLines.push(``);
+        smsLines.push(`If you are playing after 5pm, please get the boom gate app here: https://birdiesbayside.com.au/pages/birdies-gate-access`);
+      }
+      
+      smsMessage = smsLines.join('\n');
       htmlContent = `
         <!DOCTYPE html>
         <html>
