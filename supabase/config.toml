@@ -29,3 +29,6 @@ verify_jwt = false
 
 [functions.sgt-sync]
 verify_jwt = false
+
+[functions.refund-booking]
+verify_jwt = false

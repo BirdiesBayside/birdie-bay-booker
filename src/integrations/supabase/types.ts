@@ -85,9 +85,11 @@ export type Database = {
           end_time: string
           hourly_rate: number
           id: string
+          payment_method: string | null
           player_count: number
           start_time: string
           status: string
+          stripe_payment_intent_id: string | null
           total_price: number
           updated_at: string
           user_id: string
@@ -100,9 +102,11 @@ export type Database = {
           end_time: string
           hourly_rate: number
           id?: string
+          payment_method?: string | null
           player_count?: number
           start_time: string
           status?: string
+          stripe_payment_intent_id?: string | null
           total_price: number
           updated_at?: string
           user_id: string
@@ -115,9 +119,11 @@ export type Database = {
           end_time?: string
           hourly_rate?: number
           id?: string
+          payment_method?: string | null
           player_count?: number
           start_time?: string
           status?: string
+          stripe_payment_intent_id?: string | null
           total_price?: number
           updated_at?: string
           user_id?: string

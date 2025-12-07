@@ -35,8 +35,20 @@ import {
   Users as UsersIcon,
   Percent,
   Pencil,
-  X
+  X,
+  Trash2
 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useNavigate } from "react-router-dom";
 
 interface Bay {
@@ -56,6 +68,8 @@ interface Booking {
   player_count: number;
   total_price: number;
   user_id: string;
+  stripe_payment_intent_id?: string | null;
+  payment_method?: string | null;
   profile?: {
     first_name: string;
     last_name: string;
@@ -104,6 +118,12 @@ export default function AdminTimetable() {
   const [editPlayerCount, setEditPlayerCount] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [editCalendarOpen, setEditCalendarOpen] = useState(false);
+
+  // Cancel booking state
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [sendCancellationNotification, setSendCancellationNotification] = useState(true);
+  const [refundCustomer, setRefundCustomer] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
 
   useEffect(() => {
     if (isAdmin) {
@@ -352,6 +372,79 @@ export default function AdminTimetable() {
     }
 
     setIsSaving(false);
+  };
+
+  const openCancelDialog = () => {
+    setSendCancellationNotification(true);
+    setRefundCustomer(false);
+    setShowCancelDialog(true);
+  };
+
+  const cancelBooking = async () => {
+    if (!selectedBooking) return;
+    
+    setIsCancelling(true);
+
+    try {
+      if (refundCustomer && selectedBooking.stripe_payment_intent_id) {
+        // Call refund edge function
+        const { data, error } = await supabase.functions.invoke("refund-booking", {
+          body: {
+            booking_id: selectedBooking.id,
+            send_notification: sendCancellationNotification,
+          },
+        });
+
+        if (error) throw error;
+
+        toast({
+          title: "Booking cancelled",
+          description: data.refund 
+            ? `Booking cancelled and $${(data.refund.amount / 100).toFixed(2)} refunded.`
+            : "Booking cancelled successfully.",
+          duration: 4000,
+        });
+      } else {
+        // Just cancel without refund
+        const { error: updateError } = await supabase
+          .from("bookings")
+          .update({ status: "cancelled" })
+          .eq("id", selectedBooking.id);
+
+        if (updateError) throw updateError;
+
+        // Send notification if requested
+        if (sendCancellationNotification) {
+          await supabase.functions.invoke("send-booking-notification", {
+            body: {
+              booking_id: selectedBooking.id,
+              notification_type: "cancellation",
+            },
+          });
+        }
+
+        toast({
+          title: "Booking cancelled",
+          description: sendCancellationNotification 
+            ? "Booking cancelled and customer notified."
+            : "Booking cancelled successfully.",
+          duration: 4000,
+        });
+      }
+
+      setShowCancelDialog(false);
+      setSelectedBooking(null);
+      fetchBookings();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to cancel booking.",
+        variant: "destructive",
+        duration: 4000,
+      });
+    }
+
+    setIsCancelling(false);
   };
 
   if (authLoading) {
@@ -618,23 +711,33 @@ export default function AdminTimetable() {
                 <hr className="border-border" />
 
                 {/* Actions */}
-                <div className="flex gap-2">
+                <div className="flex flex-col gap-2">
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      className="flex-1"
+                      onClick={() => {
+                        setSelectedBooking(null);
+                        navigate(`/admin/customers?user=${selectedBooking.user_id}`);
+                      }}
+                    >
+                      View Customer
+                    </Button>
+                    <Button 
+                      className="flex-1 bg-primary hover:bg-primary/90"
+                      onClick={startEditing}
+                    >
+                      <Pencil className="h-4 w-4 mr-2" />
+                      Edit Booking
+                    </Button>
+                  </div>
                   <Button 
-                    variant="outline" 
-                    className="flex-1"
-                    onClick={() => {
-                      setSelectedBooking(null);
-                      navigate(`/admin/customers?user=${selectedBooking.user_id}`);
-                    }}
+                    variant="destructive" 
+                    className="w-full"
+                    onClick={openCancelDialog}
                   >
-                    View Customer
-                  </Button>
-                  <Button 
-                    className="flex-1 bg-primary hover:bg-primary/90"
-                    onClick={startEditing}
-                  >
-                    <Pencil className="h-4 w-4 mr-2" />
-                    Edit Booking
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Cancel Booking
                   </Button>
                 </div>
               </div>
@@ -775,6 +878,71 @@ export default function AdminTimetable() {
             )}
           </DialogContent>
         </Dialog>
+
+        {/* Cancel Booking Confirmation Dialog */}
+        <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Cancel Booking</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to cancel this booking for{" "}
+                <span className="font-medium">
+                  {selectedBooking?.profile?.first_name} {selectedBooking?.profile?.last_name}
+                </span>
+                ? This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            
+            <div className="space-y-4 py-4">
+              <div className="flex items-center space-x-3">
+                <Checkbox 
+                  id="send-notification" 
+                  checked={sendCancellationNotification}
+                  onCheckedChange={(checked) => setSendCancellationNotification(checked === true)}
+                />
+                <label 
+                  htmlFor="send-notification" 
+                  className="text-sm font-medium leading-none cursor-pointer"
+                >
+                  Send customer cancellation notification
+                </label>
+              </div>
+              
+              <div className="flex items-center space-x-3">
+                <Checkbox 
+                  id="refund-customer" 
+                  checked={refundCustomer}
+                  onCheckedChange={(checked) => setRefundCustomer(checked === true)}
+                  disabled={!selectedBooking?.stripe_payment_intent_id}
+                />
+                <label 
+                  htmlFor="refund-customer" 
+                  className={`text-sm font-medium leading-none cursor-pointer ${
+                    !selectedBooking?.stripe_payment_intent_id ? "text-muted-foreground" : ""
+                  }`}
+                >
+                  Refund customer
+                  {!selectedBooking?.stripe_payment_intent_id && (
+                    <span className="text-xs text-muted-foreground ml-2">(No payment on file)</span>
+                  )}
+                </label>
+              </div>
+            </div>
+
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isCancelling}>
+                Keep Booking
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={cancelBooking}
+                disabled={isCancelling}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {isCancelling ? "Cancelling..." : "Cancel Booking"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </AdminLayout>
   );
