@@ -63,8 +63,20 @@ interface Booking {
 
 type ViewMode = "day" | "week";
 
-// Operating hours: 5am to 11pm
-const OPERATING_HOURS = Array.from({ length: 18 }, (_, i) => i + 5);
+// Operating hours: 5am to 11pm in 30-min increments
+// Each slot is { hour: number, minute: 0 | 30 }
+interface TimeSlot {
+  hour: number;
+  minute: number;
+}
+
+const OPERATING_SLOTS: TimeSlot[] = [];
+for (let hour = 5; hour < 23; hour++) {
+  OPERATING_SLOTS.push({ hour, minute: 0 });
+  OPERATING_SLOTS.push({ hour, minute: 30 });
+}
+
+const SLOT_HEIGHT = 32; // pixels per 30-min slot
 
 export default function AdminTimetable() {
   const { isAdmin, isLoading: authLoading } = useAdminAuth();
@@ -153,28 +165,40 @@ export default function AdminTimetable() {
     }
   };
 
-  const getBookingsForSlot = (bayId: string, hour: number, date: Date = selectedDate) => {
+  const getBookingsForSlot = (bayId: string, slot: TimeSlot, date: Date = selectedDate) => {
     const dateStr = format(date, "yyyy-MM-dd");
+    const slotMinutes = slot.hour * 60 + slot.minute;
+    
     return bookings.filter(b => {
       if (b.bay_id !== bayId || b.booking_date !== dateStr || b.status === "cancelled") return false;
-      const startHour = parseInt(b.start_time.split(":")[0]);
-      const endHour = parseInt(b.end_time.split(":")[0]);
-      return hour >= startHour && hour < endHour;
+      
+      const [startHour, startMin] = b.start_time.split(":").map(Number);
+      const [endHour, endMin] = b.end_time.split(":").map(Number);
+      const startMinutes = startHour * 60 + startMin;
+      const endMinutes = endHour * 60 + endMin;
+      
+      return slotMinutes >= startMinutes && slotMinutes < endMinutes;
     });
   };
 
-  const isSlotStart = (booking: Booking, hour: number) => {
-    return parseInt(booking.start_time.split(":")[0]) === hour;
+  const isSlotStart = (booking: Booking, slot: TimeSlot) => {
+    const [startHour, startMin] = booking.start_time.split(":").map(Number);
+    return startHour === slot.hour && startMin === slot.minute;
+  };
+
+  const getBookingSlotSpan = (booking: Booking) => {
+    // duration_hours * 2 gives us the number of 30-min slots
+    return booking.duration_hours * 2;
   };
 
   const calculateOccupancy = () => {
-    const totalSlots = bays.length * OPERATING_HOURS.length;
+    const totalSlots = bays.length * OPERATING_SLOTS.length;
     let bookedSlots = 0;
 
     if (viewMode === "day") {
       bays.forEach(bay => {
-        OPERATING_HOURS.forEach(hour => {
-          const slotBookings = getBookingsForSlot(bay.id, hour);
+        OPERATING_SLOTS.forEach(slot => {
+          const slotBookings = getBookingsForSlot(bay.id, slot);
           if (slotBookings.length > 0) bookedSlots++;
         });
       });
@@ -193,11 +217,20 @@ export default function AdminTimetable() {
     return uniqueBookings.size;
   };
 
-  const formatTime = (time: string) => {
-    const hour = parseInt(time.split(":")[0]);
+  const formatSlotTime = (slot: TimeSlot) => {
+    const hour = slot.hour;
     const ampm = hour >= 12 ? "PM" : "AM";
     const displayHour = hour % 12 || 12;
-    return `${displayHour}${ampm}`;
+    const minStr = slot.minute === 0 ? "" : ":30";
+    return `${displayHour}${minStr}${ampm}`;
+  };
+
+  const formatTime = (time: string) => {
+    const [hour, min] = time.split(":").map(Number);
+    const ampm = hour >= 12 ? "PM" : "AM";
+    const displayHour = hour % 12 || 12;
+    const minStr = min === 0 ? "" : `:${min.toString().padStart(2, "0")}`;
+    return `${displayHour}${minStr}${ampm}`;
   };
 
   const getMembershipColor = (tier: string) => {
@@ -334,37 +367,39 @@ export default function AdminTimetable() {
                   ))}
                 </div>
 
-                {/* Time Rows */}
-                {OPERATING_HOURS.map((hour) => (
+                {/* Time Rows - 30 min increments */}
+                {OPERATING_SLOTS.map((slot, slotIndex) => (
                   <div 
-                    key={hour} 
-                    className="grid border-b border-border last:border-b-0"
+                    key={`${slot.hour}-${slot.minute}`} 
+                    className={`grid border-b border-border/50 last:border-b-0 ${slot.minute === 0 ? "border-t border-border" : ""}`}
                     style={{ gridTemplateColumns: `80px repeat(${bays.length}, 1fr)` }}
                   >
-                    <div className="p-2 text-xs text-muted-foreground border-r border-border flex items-start justify-center pt-3">
-                      {formatTime(`${hour}:00`)}
+                    <div className={`text-[10px] text-muted-foreground border-r border-border flex items-center justify-center ${slot.minute === 0 ? "font-medium" : "text-muted-foreground/60"}`} style={{ height: SLOT_HEIGHT }}>
+                      {formatSlotTime(slot)}
                     </div>
                     {bays.map((bay) => {
-                      const slotBookings = getBookingsForSlot(bay.id, hour);
+                      const slotBookings = getBookingsForSlot(bay.id, slot);
                       const booking = slotBookings[0];
+                      const showBooking = booking && isSlotStart(booking, slot);
                       
                       return (
                         <div 
                           key={bay.id} 
-                          className="min-h-[50px] border-r border-border last:border-r-0 relative"
+                          className="border-r border-border last:border-r-0 relative"
+                          style={{ height: SLOT_HEIGHT }}
                         >
-                          {booking && isSlotStart(booking, hour) && (
+                          {showBooking && (
                             <button
                               onClick={() => setSelectedBooking(booking)}
-                              className="absolute inset-x-1 top-1 rounded-md bg-primary/10 border border-primary/20 p-2 text-left hover:bg-primary/20 transition-colors z-10"
+                              className="absolute inset-x-0.5 top-0.5 rounded-sm bg-primary/10 border border-primary/20 px-1.5 py-0.5 text-left hover:bg-primary/20 transition-colors z-10 overflow-hidden"
                               style={{
-                                height: `calc(${booking.duration_hours * 50}px - 8px)`,
+                                height: `calc(${getBookingSlotSpan(booking) * SLOT_HEIGHT}px - 4px)`,
                               }}
                             >
-                              <p className="text-xs font-medium text-primary truncate">
+                              <p className="text-[10px] font-medium text-primary truncate leading-tight">
                                 {booking.profile?.first_name} {booking.profile?.last_name}
                               </p>
-                              <p className="text-[10px] text-muted-foreground">
+                              <p className="text-[9px] text-muted-foreground truncate leading-tight">
                                 {formatTime(booking.start_time)} - {formatTime(booking.end_time)}
                               </p>
                             </button>
