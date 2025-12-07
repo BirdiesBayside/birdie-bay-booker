@@ -105,20 +105,22 @@ export function AdminLayout({ children }: AdminLayoutProps) {
       {/* Mobile Header */}
       <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-sidebar border-b border-sidebar-border">
         <div className="flex items-center justify-between p-4">
-          <Link to="/admin" className="flex items-center gap-2">
-            <img src={birdieLogo} alt="Birdies" className="h-7" />
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="text-sidebar-foreground"
+            >
+              {sidebarOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+            </Button>
             <span className="font-display text-lg text-sidebar-foreground uppercase tracking-wide">
               Admin
             </span>
+          </div>
+          <Link to="/admin">
+            <img src={birdieLogo} alt="Birdies" className="h-7" />
           </Link>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="text-sidebar-foreground"
-          >
-            {sidebarOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-          </Button>
         </div>
 
         {/* Mobile Menu */}
