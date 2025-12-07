@@ -36,8 +36,11 @@ import {
   Percent,
   Pencil,
   X,
-  Trash2
+  Trash2,
+  CircleDollarSign,
+  AlertCircle
 } from "lucide-react";
+import { AddBookingDialog } from "@/components/admin/AddBookingDialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   AlertDialog,
@@ -125,6 +128,11 @@ export default function AdminTimetable() {
   const [refundCustomer, setRefundCustomer] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
 
+  // Add booking state
+  const [showAddBookingDialog, setShowAddBookingDialog] = useState(false);
+  const [addBookingInitialTime, setAddBookingInitialTime] = useState<string>("");
+  const [addBookingInitialBayId, setAddBookingInitialBayId] = useState<string>("");
+
   useEffect(() => {
     if (isAdmin) {
       fetchBays();
@@ -208,6 +216,18 @@ export default function AdminTimetable() {
   const getBookingSlotSpan = (booking: Booking) => {
     // duration_hours * 2 gives us the number of 30-min slots
     return booking.duration_hours * 2;
+  };
+
+  const isBookingPaid = (booking: Booking) => {
+    // A booking is paid if it has a stripe_payment_intent_id and payment_method is not 'pending'
+    return booking.stripe_payment_intent_id && booking.payment_method !== 'pending';
+  };
+
+  const openAddBookingDialog = (slot: TimeSlot, bayId: string) => {
+    const timeStr = `${slot.hour.toString().padStart(2, "0")}:${slot.minute.toString().padStart(2, "0")}`;
+    setAddBookingInitialTime(timeStr);
+    setAddBookingInitialBayId(bayId);
+    setShowAddBookingDialog(true);
   };
 
   const calculateOccupancy = () => {
@@ -555,22 +575,38 @@ export default function AdminTimetable() {
                       const slotBookings = getBookingsForSlot(bay.id, slot);
                       const booking = slotBookings[0];
                       const showBooking = booking && isSlotStart(booking, slot);
+                      const isSlotEmpty = slotBookings.length === 0;
                       
                       return (
                         <div 
                           key={bay.id} 
-                          className="border-r border-border last:border-r-0 relative"
+                          className={`border-r border-border last:border-r-0 relative ${isSlotEmpty ? "hover:bg-muted/50 cursor-pointer" : ""}`}
                           style={{ height: SLOT_HEIGHT }}
+                          onClick={() => {
+                            if (isSlotEmpty) {
+                              openAddBookingDialog(slot, bay.id);
+                            }
+                          }}
                         >
                           {showBooking && (
                             <button
-                              onClick={() => setSelectedBooking(booking)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedBooking(booking);
+                              }}
                               className="absolute inset-x-0.5 top-0.5 rounded-sm bg-primary/10 border border-primary/20 px-1.5 py-0.5 text-left hover:bg-primary/20 transition-colors z-10 overflow-hidden"
                               style={{
                                 height: `calc(${getBookingSlotSpan(booking) * SLOT_HEIGHT}px - 4px)`,
                               }}
                             >
-                              <p className="text-[10px] font-medium text-primary truncate leading-tight">
+                              {/* Payment Status Indicator */}
+                              <div className={`absolute top-1 right-1 w-2.5 h-2.5 rounded-full ${
+                                isBookingPaid(booking) 
+                                  ? "bg-green-500" 
+                                  : "bg-red-500"
+                              }`} title={isBookingPaid(booking) ? "Paid" : "Unpaid"} />
+                              
+                              <p className="text-[10px] font-medium text-primary truncate leading-tight pr-4">
                                 {booking.profile?.first_name} {booking.profile?.last_name}
                               </p>
                               <p className="text-[9px] text-muted-foreground truncate leading-tight">
@@ -673,6 +709,17 @@ export default function AdminTimetable() {
                   <div>
                     <p className="text-muted-foreground">Total</p>
                     <p className="font-medium">${selectedBooking.total_price}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Payment</p>
+                    <div className="flex items-center gap-1.5">
+                      <div className={`w-2.5 h-2.5 rounded-full ${
+                        isBookingPaid(selectedBooking) ? "bg-green-500" : "bg-red-500"
+                      }`} />
+                      <p className="font-medium">
+                        {isBookingPaid(selectedBooking) ? "Paid" : "Unpaid"}
+                      </p>
+                    </div>
                   </div>
                 </div>
 
@@ -911,6 +958,17 @@ export default function AdminTimetable() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Add Booking Dialog */}
+        <AddBookingDialog
+          open={showAddBookingDialog}
+          onOpenChange={setShowAddBookingDialog}
+          bays={bays}
+          initialDate={selectedDate}
+          initialTime={addBookingInitialTime}
+          initialBayId={addBookingInitialBayId}
+          onBookingCreated={fetchBookings}
+        />
       </div>
     </AdminLayout>
   );
