@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Crown, CreditCard, Lock, User, Mail, Phone, Plus, Loader2, Trash2, Pencil, Check, X } from "lucide-react";
+import { ArrowLeft, Crown, CreditCard, Lock, User, Mail, Phone, Plus, Loader2, Trash2, Pencil, Check, X, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +25,7 @@ interface Profile {
   email: string;
   phone: string | null;
   membership_tier: string;
+  deposit_balance: number;
 }
 
 interface PaymentMethod {
@@ -88,7 +89,7 @@ const MyAccount = () => {
     try {
       const { data, error } = await supabase
         .from("profiles")
-        .select("first_name, last_name, email, phone, membership_tier")
+        .select("first_name, last_name, email, phone, membership_tier, deposit_balance")
         .eq("user_id", user.id)
         .maybeSingle();
 
@@ -297,6 +298,35 @@ const MyAccount = () => {
               </div>
             </CardContent>
           </Card>
+
+          {/* Account Credit */}
+          {(profile?.deposit_balance || 0) > 0 && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-lg bg-accent/10 flex items-center justify-center">
+                    <Wallet className="h-5 w-5 text-accent" />
+                  </div>
+                  <div>
+                    <CardTitle>Account Credit</CardTitle>
+                    <CardDescription>Available credit balance</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-3xl font-bold text-primary">
+                      ${(profile?.deposit_balance || 0).toFixed(2)}
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      This credit will be automatically applied to your next booking
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Profile Information */}
           <Card>
