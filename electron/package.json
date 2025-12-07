@@ -1,0 +1,43 @@
+{
+  "name": "birdies-bay-controller",
+  "version": "1.0.0",
+  "description": "Bay Controller for Birdies Golf Simulators",
+  "main": "main.js",
+  "author": "Birdies",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder"
+  },
+  "build": {
+    "appId": "com.birdies.baycontroller",
+    "productName": "Birdies Bay Controller",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "icon.ico",
+      "../dist/**/*"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "runAfterFinish": true
+    }
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1"
+  },
+  "dependencies": {
+    "tapo": "^0.2.0"
+  }
+}
