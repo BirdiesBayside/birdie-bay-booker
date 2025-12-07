@@ -189,8 +189,7 @@ serve(async (req) => {
       
       if (needsBoomGate) {
         smsLines.push(``);
-        smsLines.push(`If your booking is after dark, please download the Noke gate access app below:`);
-        smsLines.push(`https://birdiesbayside.com.au/pages/birdies-gate-access`);
+        smsLines.push(`Gate app: birdiesbayside.com.au/gate`);
       }
       
       smsMessage = smsLines.join('\n');
