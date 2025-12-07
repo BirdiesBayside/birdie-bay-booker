@@ -135,6 +135,16 @@
     background: linear-gradient(135deg, hsl(var(--birdies-green)) 0%, hsl(var(--birdies-green-light)) 100%);
   }
 
+  /* Stat Card Styling */
+  .stat-card {
+    @apply bg-white rounded-2xl p-5 shadow-sm border border-border/50;
+  }
+
+  /* Hero section for profile */
+  .hero-section {
+    @apply bg-primary;
+  }
+
   /* Golf Score Colors */
   .score-eagle {
     @apply bg-amber-400 text-amber-950;
@@ -158,5 +168,25 @@
 
   .score-other {
     @apply bg-blue-800 text-white;
+  }
+
+  /* Score badge colors */
+  .badge-in-progress {
+    @apply bg-birdies-orange/15 text-birdies-orange;
+  }
+
+  .badge-completed {
+    @apply bg-primary/15 text-primary;
+  }
+}
+
+@layer components {
+  /* Birdie stat colors for progress cards */
+  .birdie-stat {
+    @apply bg-primary/10;
+  }
+  
+  .bogey-stat {
+    @apply bg-birdies-orange/10;
   }
 }

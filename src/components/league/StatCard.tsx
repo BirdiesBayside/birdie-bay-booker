@@ -25,18 +25,18 @@ export function StatCard({
       className={cn("stat-card animate-slide-up", className)}
       style={{ animationDelay: `${delay}ms` }}
     >
-      <div className="flex items-start justify-between mb-2">
-        <span className="text-sm font-inter font-medium text-muted-foreground uppercase tracking-wide">
+      <div className="flex items-start justify-between mb-3">
+        <span className="text-xs font-inter font-medium text-muted-foreground uppercase tracking-wider">
           {label}
         </span>
         {icon && (
-          <div className="text-secondary">
+          <div className="text-birdies-orange">
             {icon}
           </div>
         )}
       </div>
       <div className="flex items-end gap-2">
-        <span className="text-3xl font-anton text-foreground">
+        <span className="text-4xl font-anton text-primary">
           {value}
         </span>
         {trend && (

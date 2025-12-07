@@ -10,7 +10,6 @@ import {
   LogOut,
   Menu,
   X,
-  ArrowLeft
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -36,73 +35,27 @@ export function LeagueLayout({ children }: LeagueLayoutProps) {
     navigate("/");
   };
 
-  const handleBack = () => {
-    navigate("/dashboard");
-  };
-
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
-      <header className="bg-primary sticky top-0 z-50 shadow-lg">
-        <div className="container flex items-center justify-between h-20 px-4">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleBack}
-              className="flex items-center gap-2 text-primary-foreground hover:text-primary-foreground/80 transition-colors"
-            >
-              <ArrowLeft className="h-5 w-5" />
-              <span className="hidden sm:inline font-inter text-sm">Back</span>
-            </button>
-            <div className="h-6 w-px bg-primary-foreground/30 hidden sm:block" />
-            <Link to="/league" className="flex items-center gap-3">
-              <img src={birdiesBLogo} alt="Birdies" className="h-12 w-auto" />
-              <span className="font-display text-2xl text-primary-foreground tracking-wide">
-                BIRDIES HUB
-              </span>
-            </Link>
-          </div>
-
-          {/* Desktop Nav */}
-          <nav className="hidden md:flex items-center gap-1">
-            {navItems.map((item) => {
-              const isActive = location.pathname === item.path;
-              return (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  className={cn(
-                    "flex items-center gap-2 px-4 py-2 rounded-lg font-inter text-sm transition-colors",
-                    isActive
-                      ? "bg-accent text-accent-foreground"
-                      : "text-primary-foreground/80 hover:bg-primary-foreground/10"
-                  )}
-                >
-                  <item.icon className="h-4 w-4" />
-                  {item.label}
-                </Link>
-              );
-            })}
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg font-inter text-sm text-primary-foreground/80 hover:bg-primary-foreground/10 transition-colors ml-2"
-            >
-              <LogOut className="h-4 w-4" />
-              Sign Out
-            </button>
-          </nav>
+      <header className="bg-primary sticky top-0 z-50">
+        <div className="container flex items-center justify-between h-16 px-4">
+          <Link to="/league" className="flex items-center">
+            <img src={birdiesBLogo} alt="Birdies" className="h-10 w-auto" />
+          </Link>
 
           {/* Mobile Menu Button */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden text-primary-foreground p-2"
+            className="text-primary-foreground p-2"
           >
             {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
           </button>
         </div>
 
-        {/* Mobile Nav */}
+        {/* Mobile Nav Dropdown */}
         {mobileMenuOpen && (
-          <nav className="md:hidden bg-primary border-t border-primary-foreground/10 animate-fade-in">
+          <nav className="bg-primary animate-fade-in">
             {navItems.map((item) => {
               const isActive = location.pathname === item.path;
               return (
@@ -111,10 +64,10 @@ export function LeagueLayout({ children }: LeagueLayoutProps) {
                   to={item.path}
                   onClick={() => setMobileMenuOpen(false)}
                   className={cn(
-                    "flex items-center gap-3 px-4 py-3 font-inter text-sm border-b border-primary-foreground/10",
+                    "flex items-center gap-3 px-4 py-4 font-inter text-base",
                     isActive
-                      ? "bg-accent text-accent-foreground"
-                      : "text-primary-foreground/80"
+                      ? "bg-birdies-orange text-white rounded-lg mx-4 my-1"
+                      : "text-primary-foreground/90"
                   )}
                 >
                   <item.icon className="h-5 w-5" />
@@ -122,28 +75,23 @@ export function LeagueLayout({ children }: LeagueLayoutProps) {
                 </Link>
               );
             })}
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-3 px-4 py-3 font-inter text-sm text-primary-foreground/80 w-full"
-            >
-              <LogOut className="h-5 w-5" />
-              Sign Out
-            </button>
+            <div className="border-t border-primary-foreground/20 mt-2">
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-3 px-4 py-4 font-inter text-base text-primary-foreground/80 w-full"
+              >
+                <LogOut className="h-5 w-5" />
+                Sign Out
+              </button>
+            </div>
           </nav>
         )}
       </header>
 
       {/* Main Content */}
-      <main className="container px-4 py-8">
+      <main className="flex-1 px-4 py-6">
         {children}
       </main>
-
-      {/* Footer */}
-      <footer className="bg-primary py-4 px-6 text-center mt-auto">
-        <p className="text-primary-foreground/60 text-sm font-inter">
-          © {new Date().getFullYear()} Birdies League. All rights reserved.
-        </p>
-      </footer>
     </div>
   );
 }
