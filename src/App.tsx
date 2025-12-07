@@ -9,6 +9,10 @@ import Booking from "./pages/Booking";
 import MyBookings from "./pages/MyBookings";
 import MyAccount from "./pages/MyAccount";
 import Membership from "./pages/Membership";
+import LeagueHub from "./pages/LeagueHub";
+import LeagueRounds from "./pages/LeagueRounds";
+import LeagueLeaderboard from "./pages/LeagueLeaderboard";
+import LeagueProfile from "./pages/LeagueProfile";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -26,6 +30,10 @@ const App = () => (
           <Route path="/my-bookings" element={<MyBookings />} />
           <Route path="/my-account" element={<MyAccount />} />
           <Route path="/membership" element={<Membership />} />
+          <Route path="/league" element={<LeagueHub />} />
+          <Route path="/league/rounds" element={<LeagueRounds />} />
+          <Route path="/league/leaderboard" element={<LeagueLeaderboard />} />
+          <Route path="/league/profile" element={<LeagueProfile />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

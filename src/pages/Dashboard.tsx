@@ -154,10 +154,9 @@ const Dashboard = () => {
                     </Button>
                     <Button 
                       className="flex-1 bg-accent text-accent-foreground hover:bg-accent/90"
-                      onClick={() => window.open("https://hub.birdiesbayside.com.au", "_blank")}
+                      onClick={() => navigate("/league")}
                     >
                       League Hub
-                      <ExternalLink className="h-3 w-3 ml-1" />
                     </Button>
                   </div>
                 </>
