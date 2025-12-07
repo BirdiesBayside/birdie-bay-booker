@@ -1,0 +1,168 @@
+import { ReactNode, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { 
+  Calendar, 
+  Users, 
+  LayoutDashboard, 
+  Menu, 
+  X, 
+  LogOut,
+  ChevronLeft
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import birdieLogo from "@/assets/birdies-logo.png";
+
+interface AdminLayoutProps {
+  children: ReactNode;
+}
+
+const navItems = [
+  { path: "/admin", label: "Dashboard", icon: LayoutDashboard },
+  { path: "/admin/timetable", label: "Timetable", icon: Calendar },
+  { path: "/admin/customers", label: "Customers", icon: Users },
+];
+
+export function AdminLayout({ children }: AdminLayoutProps) {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    toast({
+      title: "Signed out",
+      description: "You have been signed out successfully.",
+      duration: 4000,
+    });
+    navigate("/");
+  };
+
+  const isActive = (path: string) => {
+    if (path === "/admin") {
+      return location.pathname === "/admin";
+    }
+    return location.pathname.startsWith(path);
+  };
+
+  return (
+    <div className="min-h-screen bg-background flex">
+      {/* Sidebar - Desktop */}
+      <aside className="hidden lg:flex lg:flex-col lg:w-64 bg-sidebar border-r border-sidebar-border">
+        <div className="p-4 border-b border-sidebar-border">
+          <Link to="/admin" className="flex items-center gap-3">
+            <img src={birdieLogo} alt="Birdies" className="h-8" />
+            <span className="font-display text-xl text-sidebar-foreground uppercase tracking-wide">
+              Admin
+            </span>
+          </Link>
+        </div>
+        
+        <nav className="flex-1 p-4 space-y-1">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.path}
+                to={item.path}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
+                  isActive(item.path)
+                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                    : "text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
+                }`}
+              >
+                <Icon className="h-5 w-5" />
+                <span className="font-medium">{item.label}</span>
+              </Link>
+            );
+          })}
+        </nav>
+
+        <div className="p-4 border-t border-sidebar-border space-y-2">
+          <Link
+            to="/dashboard"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
+          >
+            <ChevronLeft className="h-5 w-5" />
+            <span className="font-medium">Back to Hub</span>
+          </Link>
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors w-full"
+          >
+            <LogOut className="h-5 w-5" />
+            <span className="font-medium">Sign Out</span>
+          </button>
+        </div>
+      </aside>
+
+      {/* Mobile Header */}
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-sidebar border-b border-sidebar-border">
+        <div className="flex items-center justify-between p-4">
+          <Link to="/admin" className="flex items-center gap-2">
+            <img src={birdieLogo} alt="Birdies" className="h-7" />
+            <span className="font-display text-lg text-sidebar-foreground uppercase tracking-wide">
+              Admin
+            </span>
+          </Link>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="text-sidebar-foreground"
+          >
+            {sidebarOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+          </Button>
+        </div>
+
+        {/* Mobile Menu */}
+        {sidebarOpen && (
+          <nav className="p-4 space-y-1 bg-sidebar border-b border-sidebar-border">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  onClick={() => setSidebarOpen(false)}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
+                    isActive(item.path)
+                      ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                      : "text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
+                  }`}
+                >
+                  <Icon className="h-5 w-5" />
+                  <span className="font-medium">{item.label}</span>
+                </Link>
+              );
+            })}
+            <div className="pt-2 mt-2 border-t border-sidebar-border space-y-1">
+              <Link
+                to="/dashboard"
+                onClick={() => setSidebarOpen(false)}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
+              >
+                <ChevronLeft className="h-5 w-5" />
+                <span className="font-medium">Back to Hub</span>
+              </Link>
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors w-full"
+              >
+                <LogOut className="h-5 w-5" />
+                <span className="font-medium">Sign Out</span>
+              </button>
+            </div>
+          </nav>
+        )}
+      </div>
+
+      {/* Main Content */}
+      <main className="flex-1 lg:pt-0 pt-16 overflow-auto">
+        {children}
+      </main>
+    </div>
+  );
+}
