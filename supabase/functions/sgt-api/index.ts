@@ -282,17 +282,36 @@ serve(async (req) => {
 
     const { data: profile } = await supabase
       .from("profiles")
-      .select("sgt_user_id, display_name")
+      .select("sgt_user_id, display_name, email")
       .eq("user_id", user.id)
       .single();
 
-    const userSgtId = profile?.sgt_user_id;
+    let userSgtId = profile?.sgt_user_id;
 
     // Get valid API key (auto-creates/refreshes as needed)
     const apiKey = await getSgtApiKey(adminClient);
 
     // Ensure base data is synced before processing any action
     await ensureBaseDataSynced(adminClient, apiKey, clubUrl);
+
+    // Auto-link user by email if sgt_user_id is not set
+    if (!userSgtId && profile?.email) {
+      const { data: sgtMember } = await adminClient
+        .from("sgt_members")
+        .select("user_id")
+        .eq("user_email", profile.email)
+        .maybeSingle();
+
+      if (sgtMember?.user_id) {
+        console.log(`[SGT-API] Auto-linking user by email: ${profile.email} -> SGT ID ${sgtMember.user_id}`);
+        // Update the profile with the SGT user ID
+        await adminClient
+          .from("profiles")
+          .update({ sgt_user_id: sgtMember.user_id })
+          .eq("user_id", user.id);
+        userSgtId = sgtMember.user_id;
+      }
+    }
 
     let data;
 
