@@ -212,6 +212,16 @@ serve(async (req) => {
               <p style="margin: 5px 0;"><strong>Total:</strong> $${booking.total_price.toFixed(2)}</p>
             </div>
             
+            <div style="background-color: #1f4c25; padding: 20px; border-radius: 8px; margin: 20px 0;">
+              <p style="color: #fff5e4; margin: 0 0 10px 0; font-size: 16px;"><strong>Door Access Code:</strong> 7675#</p>
+              ${isAfter5pm ? `
+              <p style="color: #fff5e4; margin: 0; font-size: 14px;">
+                Playing after 5pm? You'll need the boom gate app: 
+                <a href="https://birdiesbayside.com.au/pages/birdies-gate-access" style="color: #ec622d;">Get the app here</a>
+              </p>
+              ` : ''}
+            </div>
+            
             <p>We look forward to seeing you at Birdies Bayside!</p>
             
             <p style="color: #666; font-size: 14px; margin-top: 30px;">
