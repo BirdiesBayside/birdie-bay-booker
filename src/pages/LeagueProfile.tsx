@@ -177,8 +177,8 @@ export default function LeagueProfile() {
             <div className="w-24 h-24 rounded-full bg-birdies-orange flex items-center justify-center text-white font-anton text-4xl shadow-lg mb-4">
               {displayName.charAt(0).toUpperCase()}
             </div>
-            <h1 className="font-anton text-2xl text-primary-foreground mb-1">
-              {displayName.toUpperCase()}
+            <h1 className="font-anton text-2xl text-primary-foreground mb-1 uppercase tracking-wide">
+              {displayName}
             </h1>
             {email && (
               <div className="flex items-center gap-2 text-primary-foreground/80 font-inter text-sm">
