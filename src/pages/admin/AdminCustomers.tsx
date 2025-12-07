@@ -41,7 +41,8 @@ import {
   Calendar,
   Columns,
   Download,
-  UserPlus
+  UserPlus,
+  KeyRound
 } from "lucide-react";
 import { format } from "date-fns";
 import { useSearchParams } from "react-router-dom";
@@ -94,6 +95,7 @@ export default function AdminCustomers() {
   const [newEmail, setNewEmail] = useState("");
   const [newPhone, setNewPhone] = useState("");
   const [isCreatingCustomer, setIsCreatingCustomer] = useState(false);
+  const [isSendingReset, setIsSendingReset] = useState(false);
 
   // Check for user query param to auto-select customer
   const highlightedUserId = searchParams.get("user");
@@ -247,6 +249,37 @@ export default function AdminCustomers() {
     }
 
     setIsCreatingCustomer(false);
+  };
+
+  const sendPasswordReset = async (customer: Customer) => {
+    setIsSendingReset(true);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke("send-password-reset", {
+        body: {
+          email: customer.email,
+          firstName: customer.first_name,
+          redirectUrl: `${window.location.origin}/reset-password`,
+        },
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Password reset email sent",
+        description: `${customer.first_name} will receive an email to set their password.`,
+        duration: 4000,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error sending reset email",
+        description: error.message || "Failed to send password reset email.",
+        variant: "destructive",
+        duration: 4000,
+      });
+    }
+
+    setIsSendingReset(false);
   };
 
   const visibleColumns = columns.filter(c => c.visible);
@@ -449,6 +482,10 @@ export default function AdminCustomers() {
                             </DropdownMenuItem>
                             <DropdownMenuItem>Edit Customer</DropdownMenuItem>
                             <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => sendPasswordReset(customer)}>
+                              <KeyRound className="h-4 w-4 mr-2" />
+                              Send Password Reset
+                            </DropdownMenuItem>
                             <DropdownMenuItem>
                               <Mail className="h-4 w-4 mr-2" />
                               Send Email
@@ -528,9 +565,14 @@ export default function AdminCustomers() {
 
                 {/* Actions */}
                 <div className="flex gap-2">
-                  <Button variant="outline" className="flex-1">
-                    <Mail className="h-4 w-4 mr-2" />
-                    Email
+                  <Button 
+                    variant="outline" 
+                    className="flex-1"
+                    onClick={() => sendPasswordReset(selectedCustomer)}
+                    disabled={isSendingReset}
+                  >
+                    <KeyRound className="h-4 w-4 mr-2" />
+                    {isSendingReset ? "Sending..." : "Reset Password"}
                   </Button>
                   <Button className="flex-1 bg-primary hover:bg-primary/90">
                     Edit Profile
