@@ -46,6 +46,7 @@ export function BayAvailabilityGrid({
         {bays.map((bay) => {
           const isAvailable = checkAvailability(bay.id, selectedTime, selectedDuration);
           const isSelected = selectedBayId === bay.id;
+          const isLeftyFriendly = bay.bay_number >= 4 && bay.bay_number <= 6;
 
           return (
             <Card
@@ -75,6 +76,11 @@ export function BayAvailabilityGrid({
                 )}>
                   {isAvailable ? "Available" : "Booked"}
                 </p>
+                {isLeftyFriendly && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Left-handed friendly
+                  </p>
+                )}
               </CardContent>
             </Card>
           );
