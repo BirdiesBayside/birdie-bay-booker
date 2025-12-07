@@ -59,7 +59,7 @@ export default function LeagueRounds() {
           ROUND HISTORY
         </h1>
         <p className="font-inter text-muted-foreground text-sm">
-          {rounds.length} rounds recorded at Birdies
+          {rounds.length} rounds recorded in the League Hub
         </p>
       </div>
 

@@ -167,7 +167,7 @@ export default function LeagueLeaderboard() {
           LEADERBOARD
         </h1>
         <p className="font-inter text-muted-foreground">
-          See how you compare to other Birdies players
+          See how you compare to other League Hub players
         </p>
       </div>
 

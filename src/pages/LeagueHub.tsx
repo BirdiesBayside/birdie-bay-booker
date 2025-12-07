@@ -83,7 +83,7 @@ export default function LeagueHub() {
           WELCOME BACK, {displayName.toUpperCase()}
         </h1>
         <p className="font-inter text-muted-foreground text-sm">
-          Here's your latest performance at Birdies
+          Here's your latest performance in the League Hub
         </p>
       </div>
 
