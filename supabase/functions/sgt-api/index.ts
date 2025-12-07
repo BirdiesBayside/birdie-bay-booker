@@ -13,18 +13,17 @@ interface SgtApiConfig {
   expires_at: string;
 }
 
-// Get or create/refresh SGT API key
+// Get or refresh SGT API key
 // deno-lint-ignore no-explicit-any
 async function getSgtApiKey(adminClient: any): Promise<string> {
   const clubUrl = Deno.env.get("SGT_CLUB_URL");
-  const username = Deno.env.get("SGT_USERNAME");
-  const password = Deno.env.get("SGT_PASSWORD");
+  const initialApiKey = Deno.env.get("SGT_API_KEY");
 
-  if (!clubUrl || !username || !password) {
-    throw new Error("SGT credentials not configured");
+  if (!clubUrl) {
+    throw new Error("SGT_CLUB_URL not configured");
   }
 
-  // Check if we have a valid API key stored
+  // Check if we have a valid API key stored in database
   const { data: config } = await adminClient
     .from("sgt_api_config")
     .select("api_key, expires_at")
@@ -53,16 +52,19 @@ async function getSgtApiKey(adminClient: any): Promise<string> {
         return refreshed.key;
       }
     } catch (e) {
-      console.log("[SGT-API] Refresh failed, will create new key:", e);
+      console.log("[SGT-API] Refresh failed:", e);
     }
   }
 
-  // Create new API key
-  console.log("[SGT-API] Creating new API key...");
-  const created = await createApiKey(clubUrl, username, password);
-  await saveApiKey(adminClient, created.key, created.expires);
-  console.log("[SGT-API] Successfully created new API key");
-  return created.key;
+  // Use initial API key from secrets if no valid cached key
+  if (initialApiKey) {
+    console.log("[SGT-API] Using initial API key from secrets, saving to database...");
+    // Save with 24h expiry (will be refreshed before it expires)
+    await saveApiKey(adminClient, initialApiKey, 86400);
+    return initialApiKey;
+  }
+
+  throw new Error("No valid SGT API key available. Please set SGT_API_KEY secret.");
 }
 
 async function createApiKey(clubUrl: string, username: string, password: string): Promise<{ key: string; expires: number }> {
