@@ -281,21 +281,23 @@ serve(async (req) => {
 
     logStep("Email sent successfully", { emailResponse });
 
-    // Send SMS if phone number exists
-    let smsResult: { success: boolean; response?: string; error?: string } = { success: false, error: "No phone number" };
+    // Send SMS only for confirmations (not cancellations)
+    let smsResult: { success: boolean; response?: string; error?: string } = { success: false, error: "SMS not sent" };
     let gateSmsResult: { success: boolean; response?: string; error?: string } | null = null;
     
-    if (profile.phone) {
+    if (notification_type === "confirmation" && profile.phone) {
       // Send main booking SMS
       smsResult = await sendSMS(profile.phone, smsMessage);
       logStep("SMS send result", smsResult);
       
-      // Send second SMS for boom gate access if needed (only for confirmation at dark hours)
-      if (notification_type === "confirmation" && needsBoomGate && smsResult.success) {
+      // Send second SMS for boom gate access if needed (only at dark hours)
+      if (needsBoomGate && smsResult.success) {
         const gateMessage = `IMPORTANT: You will require Boom gate access for your booking time. Download the Noke gate access app: birdiesbayside.com.au/pages/birdies-gate-access`;
         gateSmsResult = await sendSMS(profile.phone, gateMessage);
         logStep("Gate SMS send result", gateSmsResult);
       }
+    } else if (notification_type === "cancellation") {
+      logStep("Cancellation - skipping SMS (email only)");
     } else {
       logStep("No phone number, skipping SMS");
     }

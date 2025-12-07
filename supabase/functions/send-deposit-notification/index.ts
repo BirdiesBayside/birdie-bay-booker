@@ -166,22 +166,14 @@ serve(async (req) => {
 
     logStep("Email sent successfully", { emailResponse });
 
-    // Send SMS if phone number exists
-    let smsResult: { success: boolean; response?: string; error?: string } = { success: false, error: "No phone number" };
-    
-    if (profile.phone) {
-      smsResult = await sendSMS(profile.phone, smsMessage);
-      logStep("SMS send result", smsResult);
-    } else {
-      logStep("No phone number, skipping SMS");
-    }
+    // Credit notifications are email only (no SMS per business rules)
+    logStep("Credit notification - email only, skipping SMS");
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         email_sent: true,
-        sms_sent: smsResult.success,
-        sms_error: smsResult.error || null,
+        sms_sent: false,
         message: "Deposit notification sent successfully" 
       }),
       {
