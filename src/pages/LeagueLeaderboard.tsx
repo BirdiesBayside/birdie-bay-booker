@@ -76,10 +76,14 @@ export default function LeagueLeaderboard() {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
+        // Include tournaments that are completed, in progress, or have started
         const availableTournaments = data.results.filter(t => {
-          if (!t.start_date) return t.status === "Completed";
-          const startDate = new Date(t.start_date);
-          return startDate <= today || t.status === "Completed";
+          // Always show completed or in progress tournaments
+          if (t.status === "Completed" || t.status === "In Progress") return true;
+          // For upcoming, check if start date has passed
+          if (!t.start_date) return false;
+          const startDate = new Date(t.start_date + 'T00:00:00');
+          return startDate <= today;
         });
         setTournaments(availableTournaments);
         if (availableTournaments.length > 0) {
