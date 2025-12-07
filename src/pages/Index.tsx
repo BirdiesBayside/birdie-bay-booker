@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { useEffect } from "react";
 import { AuthForm } from "@/components/auth/AuthForm";
 import { useAuth } from "@/hooks/useAuth";
+import birdiesLogo from "@/assets/birdies-logo.png";
 
 const Index = () => {
   const { isAuthenticated, isLoading } = useAuth();
@@ -25,9 +26,7 @@ const Index = () => {
     <div className="min-h-screen flex flex-col">
       {/* Header */}
       <header className="bg-primary py-4 px-6">
-        <span className="font-display text-2xl tracking-wide text-primary-foreground">
-          BIRDIES
-        </span>
+        <img src={birdiesLogo} alt="Birdies" className="h-10" />
       </header>
 
       {/* Main content */}
