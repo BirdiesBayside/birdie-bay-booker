@@ -549,6 +549,15 @@ export default function AdminSettings() {
                     <Badge variant="secondary">Default</Badge>
                   </div>
                 </div>
+                <div className="border rounded-lg p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-medium">Credit Added</h4>
+                      <p className="text-sm text-muted-foreground">Sent when credit/deposit is added to account</p>
+                    </div>
+                    <Badge variant="secondary">Default</Badge>
+                  </div>
+                </div>
                 <p className="text-xs text-muted-foreground">
                   Template customization coming soon
                 </p>
