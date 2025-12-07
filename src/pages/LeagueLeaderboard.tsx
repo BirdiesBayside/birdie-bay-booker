@@ -309,7 +309,7 @@ export default function LeagueLeaderboard() {
                     <div className="col-span-2 md:col-span-1 flex items-center justify-center gap-2">
                       {getPositionIcon(standing.position)}
                       <span className={cn(
-                        "font-anton text-lg",
+                        "font-display text-lg",
                         standing.position <= 3 ? "text-foreground" : "text-muted-foreground"
                       )}>
                         {standing.position}
@@ -319,7 +319,7 @@ export default function LeagueLeaderboard() {
                     {/* Player */}
                     <div className="col-span-7 md:col-span-4 flex items-center gap-3">
                       <div className={cn(
-                        "w-10 h-10 rounded-full flex items-center justify-center font-anton text-lg",
+                        "w-10 h-10 rounded-full flex items-center justify-center font-display text-lg",
                         isCurrentPlayer
                           ? "bg-secondary text-secondary-foreground"
                           : "bg-primary text-primary-foreground"
@@ -359,7 +359,7 @@ export default function LeagueLeaderboard() {
 
                     {/* Points */}
                     <div className="col-span-3 md:col-span-2 text-center">
-                      <span className="font-anton text-xl text-foreground">
+                      <span className="font-display text-xl text-foreground">
                         {standing.points}
                       </span>
                       <span className="text-xs text-muted-foreground font-inter ml-1">pts</span>
@@ -439,7 +439,7 @@ export default function LeagueLeaderboard() {
                     <div className="col-span-2 md:col-span-1 flex items-center justify-center gap-1">
                       {getPositionIcon(result.position)}
                       <span className={cn(
-                        "font-anton text-lg",
+                        "font-display text-lg",
                         result.position <= 3 ? "text-foreground" : "text-muted-foreground"
                       )}>
                         {result.position}
@@ -459,7 +459,7 @@ export default function LeagueLeaderboard() {
                     {/* Player - Desktop */}
                     <div className="hidden md:flex col-span-3 items-center gap-3">
                       <div className={cn(
-                        "w-8 h-8 rounded-full flex items-center justify-center font-anton text-sm",
+                        "w-8 h-8 rounded-full flex items-center justify-center font-display text-sm",
                         isCurrentPlayer
                           ? "bg-secondary text-secondary-foreground"
                           : "bg-primary text-primary-foreground"
@@ -481,22 +481,22 @@ export default function LeagueLeaderboard() {
                     </div>
 
                     {/* Rounds */}
-                    <div className="col-span-2 text-center font-inter text-muted-foreground">
+                    <div className="col-span-2 text-center font-display text-muted-foreground">
                       {r1 ?? "-"}
                     </div>
-                    <div className="col-span-2 text-center font-inter text-muted-foreground">
+                    <div className="col-span-2 text-center font-display text-muted-foreground">
                       {r2 ?? "-"}
                     </div>
 
                     {/* Total - Desktop */}
-                    <div className="hidden md:block col-span-1 text-center font-inter font-medium text-foreground">
+                    <div className="hidden md:block col-span-1 text-center font-display font-medium text-foreground">
                       {total}
                     </div>
 
                     {/* To Par */}
                     <div className="col-span-2 text-center">
                       <span className={cn(
-                        "px-2 py-1 rounded font-inter font-medium text-sm",
+                        "px-2 py-1 rounded font-display font-medium text-sm",
                         toPar < 0 ? "bg-birdie/20 text-birdie" : toPar === 0 ? "bg-muted text-foreground" : "bg-bogey/20 text-bogey"
                       )}>
                         {formatScore(toPar)}
