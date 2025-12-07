@@ -276,12 +276,20 @@ serve(async (req) => {
           .from("sgt_scorecards")
           .select("*, sgt_tournaments!inner(name, course_name, end_date, status)")
           .eq("player_id", userId)
-          .order("sgt_tournaments(end_date)", { ascending: false })
           .limit(50);
         
         if (error) throw error;
         
-        data = scorecards?.map(sc => ({
+        // Sort by tournament end_date descending (most recent first), then by round descending
+        const sortedScorecards = (scorecards || []).sort((a, b) => {
+          const dateA = new Date(a.sgt_tournaments?.end_date || 0).getTime();
+          const dateB = new Date(b.sgt_tournaments?.end_date || 0).getTime();
+          if (dateB !== dateA) return dateB - dateA;
+          // If same date, sort by round descending
+          return (b.round || 1) - (a.round || 1);
+        });
+        
+        data = sortedScorecards.map(sc => ({
           tournamentId: sc.tournament_id,
           tournamentName: sc.sgt_tournaments?.name,
           courseName: sc.course_name || sc.sgt_tournaments?.course_name,
@@ -307,7 +315,7 @@ serve(async (req) => {
             holeData: sc.hole_data,
             ...sc.hole_data,
           },
-        })) || [];
+        }));
         break;
       }
       
