@@ -26,3 +26,6 @@ verify_jwt = false
 
 [functions.sgt-api]
 verify_jwt = false
+
+[functions.sgt-sync]
+verify_jwt = false

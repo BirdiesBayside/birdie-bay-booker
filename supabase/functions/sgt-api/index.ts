@@ -6,238 +6,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const SGT_BASE_URL = "https://simulatorgolftour.com/sgt-api/club-admin";
-
-interface SgtApiConfig {
-  api_key: string;
-  expires_at: string;
-}
-
-// Get or refresh SGT API key
-// deno-lint-ignore no-explicit-any
-async function getSgtApiKey(adminClient: any): Promise<string> {
-  const clubUrl = Deno.env.get("SGT_CLUB_URL");
-  const initialApiKey = Deno.env.get("SGT_API_KEY");
-
-  if (!clubUrl) {
-    throw new Error("SGT_CLUB_URL not configured");
-  }
-
-  // Check if we have a valid API key stored in database
-  const { data: config } = await adminClient
-    .from("sgt_api_config")
-    .select("api_key, expires_at")
-    .limit(1)
-    .maybeSingle() as { data: SgtApiConfig | null };
-
-  const now = new Date();
-  const bufferMinutes = 30; // Refresh 30 minutes before expiry
-
-  if (config) {
-    const expiresAt = new Date(config.expires_at);
-    const bufferTime = new Date(expiresAt.getTime() - bufferMinutes * 60 * 1000);
-
-    if (now < bufferTime) {
-      console.log("[SGT-API] Using cached API key, expires:", expiresAt.toISOString());
-      return config.api_key;
-    }
-
-    // Try to refresh existing key
-    console.log("[SGT-API] Attempting to refresh API key...");
-    try {
-      const refreshed = await refreshApiKey(clubUrl, config.api_key);
-      if (refreshed) {
-        await saveApiKey(adminClient, refreshed.key, refreshed.expires);
-        console.log("[SGT-API] Successfully refreshed API key");
-        return refreshed.key;
-      }
-    } catch (e) {
-      console.log("[SGT-API] Refresh failed:", e);
-    }
-  }
-
-  // Use initial API key from secrets if no valid cached key
-  if (initialApiKey) {
-    console.log("[SGT-API] Using initial API key from secrets, saving to database...");
-    // Save with 24h expiry (will be refreshed before it expires)
-    await saveApiKey(adminClient, initialApiKey, 86400);
-    return initialApiKey;
-  }
-
-  throw new Error("No valid SGT API key available. Please set SGT_API_KEY secret.");
-}
-
-async function refreshApiKey(clubUrl: string, apiKey: string): Promise<{ key: string; expires: number } | null> {
-  const response = await fetch(`${SGT_BASE_URL}/${clubUrl}/apikey/refresh`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: `api-key=${encodeURIComponent(apiKey)}`,
-  });
-
-  if (!response.ok) {
-    return null;
-  }
-
-  const data = await response.json();
-  if (!data.success || !data.key) {
-    return null;
-  }
-
-  return { key: data.key, expires: data.expires || 86400 };
-}
-
-// deno-lint-ignore no-explicit-any
-async function saveApiKey(adminClient: any, key: string, expiresSeconds: number): Promise<void> {
-  const expiresAt = new Date(Date.now() + expiresSeconds * 1000);
-
-  // Delete existing and insert new
-  await adminClient.from("sgt_api_config").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-  await adminClient.from("sgt_api_config").insert({
-    api_key: key,
-    expires_at: expiresAt.toISOString(),
-  });
-}
-
-// deno-lint-ignore no-explicit-any
-async function ensureBaseDataSynced(adminClient: any, apiKey: string, clubUrl: string): Promise<void> {
-  // Check if we have any members synced
-  const { count: memberCount } = await adminClient
-    .from("sgt_members")
-    .select("*", { count: "exact", head: true });
-
-  if (!memberCount || memberCount === 0) {
-    console.log("[SGT-API] No members cached, syncing from API...");
-    try {
-      const sgtData = await sgtApiRequest(apiKey, clubUrl, "members/list") as { members?: Array<Record<string, unknown>> };
-      if (sgtData.members) {
-        for (const member of sgtData.members) {
-          await adminClient
-            .from("sgt_members")
-            .upsert({
-              user_id: member.user_id,
-              user_name: member.user_name,
-              user_email: member.user_email || null,
-              user_country_code: member.user_country_code || null,
-              user_has_avatar: member.user_has_avatar || null,
-              user_active: member.user_active ?? 1,
-            }, { onConflict: "user_id" });
-        }
-        console.log(`[SGT-API] Synced ${sgtData.members.length} members`);
-      }
-    } catch (e) {
-      console.log("[SGT-API] Failed to sync members:", e);
-    }
-  }
-
-  // Check if we have any tours synced
-  const { count: tourCount } = await adminClient
-    .from("sgt_tours")
-    .select("*", { count: "exact", head: true });
-
-  if (!tourCount || tourCount === 0) {
-    console.log("[SGT-API] No tours cached, syncing from API...");
-    try {
-      const sgtData = await sgtApiRequest(apiKey, clubUrl, "tours/list") as Array<Record<string, unknown>>;
-      for (const tour of sgtData) {
-        await adminClient
-          .from("sgt_tours")
-          .upsert({
-            tour_id: tour.tourId,
-            name: tour.name,
-            start_date: tour.start_date || null,
-            end_date: tour.end_date || null,
-            team_tour: tour.teamTour ?? 0,
-            active: tour.active ?? 1,
-          }, { onConflict: "tour_id" });
-      }
-      console.log(`[SGT-API] Synced ${sgtData.length} tours`);
-
-      // Also sync tour members and standings for active tours
-      const activeTours = sgtData.filter(t => t.active === 1);
-      for (const tour of activeTours) {
-        try {
-          // Sync tour members
-          const tourMembers = await sgtApiRequest(apiKey, clubUrl, "tours/members", { tourId: String(tour.tourId) }) as Array<Record<string, unknown>>;
-          for (const member of tourMembers) {
-            await adminClient
-              .from("sgt_tour_members")
-              .upsert({
-                tour_id: tour.tourId,
-                user_id: member.user_id,
-                user_name: member.user_name || null,
-                hcp_index: member.hcp_index ?? null,
-                custom_hcp: member.custom_hcp ?? null,
-              }, { onConflict: "tour_id,user_id" });
-          }
-          console.log(`[SGT-API] Synced ${tourMembers.length} tour members for tour ${tour.tourId}`);
-
-          // Sync tour standings
-          const standings = await sgtApiRequest(apiKey, clubUrl, "tours/standings", { tourId: String(tour.tourId), grossOrNet: "gross" }) as Array<Record<string, unknown>>;
-          for (const standing of standings) {
-            await adminClient
-              .from("sgt_tour_standings")
-              .upsert({
-                tour_id: tour.tourId,
-                user_name: standing.user_name,
-                gross_or_net: "gross",
-                position: standing.position,
-                hcp: standing.hcp,
-                events: standing.events ?? 0,
-                first: standing.first ?? 0,
-                top5: standing.top5 ?? 0,
-                top10: standing.top10 ?? 0,
-                points: standing.points ?? 0,
-                country_code: standing.country_code || null,
-                user_has_avatar: standing.user_has_avatar || null,
-              }, { onConflict: "tour_id,user_name,gross_or_net" });
-          }
-          console.log(`[SGT-API] Synced ${standings.length} standings for tour ${tour.tourId}`);
-        } catch (e) {
-          console.log(`[SGT-API] Failed to sync tour ${tour.tourId} details:`, e);
-        }
-      }
-    } catch (e) {
-      console.log("[SGT-API] Failed to sync tours:", e);
-    }
-  }
-}
-
-// Make authenticated request to SGT API
-// API key is passed as query parameter per SGT API documentation
-async function sgtApiRequest(apiKey: string, clubUrl: string, endpoint: string, params: Record<string, string> = {}): Promise<unknown> {
-  const url = new URL(`${SGT_BASE_URL}/${clubUrl}/${endpoint}`);
-  // Add API key as query parameter (per SGT API docs)
-  url.searchParams.set("api-key", apiKey);
-  // Add other params
-  Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
-
-  console.log(`[SGT-API] Fetching: ${url.toString().replace(apiKey, "***")}`);
-
-  const response = await fetch(url.toString(), {
-    method: "GET",
-    headers: {
-      "Accept": "application/json",
-    },
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    console.error(`[SGT-API] Request to ${endpoint} failed:`, response.status, text.substring(0, 200));
-    throw new Error(`SGT API request failed: ${response.status}`);
-  }
-
-  const contentType = response.headers.get("content-type") || "";
-  if (!contentType.includes("application/json")) {
-    const text = await response.text();
-    console.error(`[SGT-API] Non-JSON response for ${endpoint}:`, text.substring(0, 200));
-    throw new Error(`SGT API returned non-JSON response`);
-  }
-
-  return response.json();
-}
-
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -245,22 +13,21 @@ serve(async (req) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const clubUrl = Deno.env.get("SGT_CLUB_URL")!;
-
+  
+  // Get the authorization header to pass through to Supabase client
   const authHeader = req.headers.get("Authorization");
-
+  
+  // Create client with the user's JWT for RLS
   const supabase = createClient(supabaseUrl, supabaseKey, {
     global: {
       headers: authHeader ? { Authorization: authHeader } : {},
     },
   });
 
-  const adminClient = createClient(supabaseUrl, serviceKey);
-
   try {
+    // Verify the user is authenticated
     const { data: { user }, error: authError } = await supabase.auth.getUser();
-
+    
     if (authError || !user) {
       console.error("[SGT-API] Auth error:", authError);
       return new Response(
@@ -271,288 +38,256 @@ serve(async (req) => {
 
     const { action, params = {} } = await req.json();
     console.log(`[SGT-API] Action: ${action}`, params);
-
+    
+    // Get the user's profile to find their SGT user ID
     const { data: profile } = await supabase
       .from("profiles")
-      .select("sgt_user_id, display_name, email")
+      .select("sgt_user_id")
       .eq("user_id", user.id)
-      .single();
+      .maybeSingle();
 
-    let userSgtId = profile?.sgt_user_id;
-
-    // Get valid API key (auto-creates/refreshes as needed)
-    const apiKey = await getSgtApiKey(adminClient);
-
-    // Ensure base data is synced before processing any action
-    await ensureBaseDataSynced(adminClient, apiKey, clubUrl);
-
-    // Auto-link user by email if sgt_user_id is not set
-    if (!userSgtId && profile?.email) {
-      const { data: sgtMember } = await adminClient
-        .from("sgt_members")
-        .select("user_id")
-        .eq("user_email", profile.email)
-        .maybeSingle();
-
-      if (sgtMember?.user_id) {
-        console.log(`[SGT-API] Auto-linking user by email: ${profile.email} -> SGT ID ${sgtMember.user_id}`);
-        // Update the profile with the SGT user ID
-        await adminClient
-          .from("profiles")
-          .update({ sgt_user_id: sgtMember.user_id })
-          .eq("user_id", user.id);
-        userSgtId = sgtMember.user_id;
-      }
-    }
-
+    const userSgtId = profile?.sgt_user_id;
+    
     let data;
-
+    
     switch (action) {
       case "members": {
-        // Endpoint: /{clubUrl}/members/list
-        try {
-          const sgtData = await sgtApiRequest(apiKey, clubUrl, "members/list") as { members?: Array<Record<string, unknown>> };
-          if (sgtData.members) {
-            // Sync members to database
-            for (const member of sgtData.members) {
-              await adminClient
-                .from("sgt_members")
-                .upsert({
-                  user_id: member.user_id,
-                  user_name: member.user_name,
-                  user_email: member.user_email || null,
-                  user_country_code: member.user_country_code || null,
-                  user_has_avatar: member.user_has_avatar || null,
-                  user_active: member.user_active ?? 1,
-                }, { onConflict: "user_id" });
-            }
-          }
-          data = sgtData;
-        } catch (e) {
-          console.log("[SGT-API] Falling back to cached members:", e);
-          const { data: members } = await adminClient
-            .from("sgt_members")
-            .select("user_id, user_name, user_country_code, user_has_avatar, user_active")
-            .eq("user_active", 1)
-            .order("user_name");
-          data = { members: members || [] };
-        }
-        break;
-      }
-
-      case "tours": {
-        // Endpoint: /{clubUrl}/tours/list
-        try {
-          const sgtData = await sgtApiRequest(apiKey, clubUrl, "tours/list") as Array<Record<string, unknown>>;
-          // Sync tours to database
-          for (const tour of sgtData) {
-            await adminClient
-              .from("sgt_tours")
-              .upsert({
-                tour_id: tour.tourId,
-                name: tour.name,
-                start_date: tour.start_date || null,
-                end_date: tour.end_date || null,
-                team_tour: tour.teamTour ?? 0,
-                active: tour.active ?? 1,
-              }, { onConflict: "tour_id" });
-          }
-          data = sgtData;
-        } catch (e) {
-          console.log("[SGT-API] Falling back to cached tours:", e);
-          const { data: tours } = await adminClient
-            .from("sgt_tours")
-            .select("*")
-            .order("active", { ascending: false });
-          data = tours?.map(t => ({
-            tourId: t.tour_id,
-            name: t.name,
-            start_date: t.start_date,
-            end_date: t.end_date,
-            teamTour: t.team_tour,
-            active: t.active,
-          })) || [];
-        }
-        break;
-      }
-
-      case "tour-standings": {
-        // Endpoint: /{clubUrl}/tours/standings?tourId=X&grossOrNet=Y
-        if (!params.tourId) throw new Error("tourId required");
-        const grossOrNet = params.grossOrNet || "gross";
-
-        try {
-          const sgtData = await sgtApiRequest(apiKey, clubUrl, "tours/standings", { tourId: params.tourId, grossOrNet }) as Array<Record<string, unknown>>;
-          // Sync standings to database
-          for (const standing of sgtData) {
-            await adminClient
-              .from("sgt_tour_standings")
-              .upsert({
-                tour_id: parseInt(params.tourId),
-                user_name: standing.user_name,
-                gross_or_net: grossOrNet,
-                position: standing.position,
-                hcp: standing.hcp,
-                events: standing.events ?? 0,
-                first: standing.first ?? 0,
-                top5: standing.top5 ?? 0,
-                top10: standing.top10 ?? 0,
-                points: standing.points ?? 0,
-                country_code: standing.country_code || null,
-                user_has_avatar: standing.user_has_avatar || null,
-              }, { onConflict: "tour_id,user_name,gross_or_net" });
-          }
-          data = sgtData;
-        } catch (e) {
-          console.log("[SGT-API] Falling back to cached standings:", e);
-          const { data: standings } = await adminClient
-            .from("sgt_tour_standings")
-            .select("*")
-            .eq("tour_id", parseInt(params.tourId))
-            .eq("gross_or_net", grossOrNet)
-            .order("position");
-          data = standings?.map(s => ({
-            user_name: s.user_name,
-            country_code: s.country_code,
-            user_has_avatar: s.user_has_avatar,
-            hcp: s.hcp,
-            events: s.events,
-            first: s.first,
-            top5: s.top5,
-            top10: s.top10,
-            points: s.points,
-            position: s.position,
-          })) || [];
-        }
-        break;
-      }
-
-      case "tour-members": {
-        // Endpoint: /{clubUrl}/tours/members?tourId=X
-        if (!params.tourId) throw new Error("tourId required");
-
-        try {
-          const sgtData = await sgtApiRequest(apiKey, clubUrl, "tours/members", { tourId: params.tourId }) as Array<Record<string, unknown>>;
-          // Sync tour members to database
-          for (const member of sgtData) {
-            await adminClient
-              .from("sgt_tour_members")
-              .upsert({
-                tour_id: parseInt(params.tourId),
-                user_id: member.user_id,
-                user_name: member.user_name || null,
-                hcp_index: member.hcp_index ?? null,
-                custom_hcp: member.custom_hcp ?? null,
-              }, { onConflict: "tour_id,user_id" });
-          }
-          data = sgtData;
-        } catch (e) {
-          console.log("[SGT-API] Falling back to cached tour members:", e);
-          const { data: members } = await adminClient
-            .from("sgt_tour_members")
-            .select("*")
-            .eq("tour_id", parseInt(params.tourId));
-          data = members?.map(m => ({
+        // Only return member names (not emails) for authenticated users
+        const { data: members, error } = await supabase
+          .from("sgt_members")
+          .select("user_id, user_name, user_country_code, user_has_avatar, user_active")
+          .eq("user_active", 1)
+          .order("user_name");
+        
+        if (error) throw error;
+        
+        data = { 
+          members: members?.map(m => ({
             user_id: m.user_id,
             user_name: m.user_name,
-            hcp_index: m.hcp_index,
-            custom_hcp: m.custom_hcp,
-          })) || [];
-        }
+            user_country_code: m.user_country_code,
+            user_has_avatar: m.user_has_avatar,
+            user_active: m.user_active,
+          })) || []
+        };
         break;
       }
-
-      case "tournaments": {
-        // Endpoint: /{clubUrl}/tournaments/list?tourId=X
+        
+      case "tours": {
+        const { data: tours, error } = await supabase
+          .from("sgt_tours")
+          .select("*")
+          .order("active", { ascending: false });
+        
+        if (error) throw error;
+        
+        data = tours?.map(t => ({
+          tourId: t.tour_id,
+          name: t.name,
+          start_date: t.start_date,
+          end_date: t.end_date,
+          teamTour: t.team_tour,
+          active: t.active,
+        })) || [];
+        break;
+      }
+        
+      case "tour-standings": {
         if (!params.tourId) throw new Error("tourId required");
-
-        try {
-          const sgtData = await sgtApiRequest(apiKey, clubUrl, "tournaments/list", { tourId: params.tourId }) as { results?: Array<Record<string, unknown>> };
-          if (sgtData.results) {
-            for (const tournament of sgtData.results) {
-              await adminClient
-                .from("sgt_tournaments")
-                .upsert({
-                  tournament_id: tournament.tournamentId,
-                  tour_id: parseInt(params.tourId),
-                  name: tournament.name,
-                  course_name: tournament.courseName || null,
-                  status: tournament.status || "Upcoming",
-                  start_date: tournament.start_date || null,
-                  end_date: tournament.end_date || null,
-                }, { onConflict: "tournament_id" });
-            }
-          }
-          data = sgtData;
-        } catch (e) {
-          console.log("[SGT-API] Falling back to cached tournaments:", e);
-          const { data: tournaments } = await adminClient
-            .from("sgt_tournaments")
-            .select("*")
-            .eq("tour_id", parseInt(params.tourId))
-            .order("end_date", { ascending: false });
-          data = {
-            results: tournaments?.map(t => ({
-              tournamentId: t.tournament_id,
-              tourId: t.tour_id,
-              name: t.name,
-              courseName: t.course_name,
-              status: t.status,
-              start_date: t.start_date,
-              end_date: t.end_date,
-            })) || []
-          };
-        }
+        
+        const { data: standings, error } = await supabase
+          .from("sgt_tour_standings")
+          .select("*")
+          .eq("tour_id", parseInt(params.tourId))
+          .eq("gross_or_net", params.grossOrNet || "gross")
+          .order("position");
+        
+        if (error) throw error;
+        
+        data = standings?.map(s => ({
+          user_name: s.user_name,
+          country_code: s.country_code,
+          user_has_avatar: s.user_has_avatar,
+          hcp: s.hcp,
+          events: s.events,
+          first: s.first,
+          top5: s.top5,
+          top10: s.top10,
+          points: s.points,
+          position: s.position,
+        })) || [];
         break;
       }
-
+        
+      case "tour-members": {
+        if (!params.tourId) throw new Error("tourId required");
+        
+        const { data: members, error } = await supabase
+          .from("sgt_tour_members")
+          .select("*")
+          .eq("tour_id", parseInt(params.tourId));
+        
+        if (error) throw error;
+        
+        data = members?.map(m => ({
+          user_id: m.user_id,
+          user_name: m.user_name,
+          hcp_index: m.hcp_index,
+          custom_hcp: m.custom_hcp,
+        })) || [];
+        break;
+      }
+        
+      case "tournaments": {
+        if (!params.tourId) throw new Error("tourId required");
+        
+        const { data: tournaments, error } = await supabase
+          .from("sgt_tournaments")
+          .select("*")
+          .eq("tour_id", parseInt(params.tourId))
+          .order("end_date", { ascending: false });
+        
+        if (error) throw error;
+        
+        data = { 
+          results: tournaments?.map(t => ({
+            tournamentId: t.tournament_id,
+            tourId: t.tour_id,
+            name: t.name,
+            courseName: t.course_name,
+            status: t.status,
+            start_date: t.start_date,
+            end_date: t.end_date,
+          })) || []
+        };
+        break;
+      }
+        
       case "scorecards": {
-        // Endpoint: /{clubUrl}/tournaments/scorecards?tournamentId=X
         if (!params.tournamentId) throw new Error("tournamentId required");
-
-        try {
-          const sgtData = await sgtApiRequest(apiKey, clubUrl, "tournaments/scorecards", { tournamentId: params.tournamentId }) as Array<Record<string, unknown>>;
-          for (const sc of sgtData) {
-            // Build hole data object from flat properties
-            const holeData: Record<string, number | string> = {};
-            for (let i = 1; i <= 18; i++) {
-              if (sc[`hole${i}_gross`] !== undefined) holeData[`hole${i}_gross`] = sc[`hole${i}_gross`] as number;
-              if (sc[`hole${i}_net`] !== undefined) holeData[`hole${i}_net`] = sc[`hole${i}_net`] as number;
-              if (sc[`h${i}_Par`] !== undefined) holeData[`h${i}_Par`] = sc[`h${i}_Par`] as number;
-              if (sc[`h${i}_index`] !== undefined) holeData[`h${i}_index`] = sc[`h${i}_index`] as number;
-            }
-
-            await adminClient
-              .from("sgt_scorecards")
-              .upsert({
-                tournament_id: parseInt(params.tournamentId),
-                player_id: sc.playerId,
-                player_name: sc.player_name,
-                round: sc.round ?? 1,
-                hcp_index: sc.hcp_index ?? null,
-                course_name: sc.courseName || null,
-                teetype: sc.teetype || null,
-                rating: sc.rating ?? null,
-                slope: sc.slope ?? null,
-                total_gross: sc.total_gross ?? null,
-                total_net: sc.total_net ?? null,
-                to_par_gross: sc.toPar_gross ?? null,
-                to_par_net: sc.toPar_net ?? null,
-                in_gross: sc.in_gross ?? null,
-                out_gross: sc.out_gross ?? null,
-                in_net: sc.in_net ?? null,
-                out_net: sc.out_net ?? null,
-                hole_data: Object.keys(holeData).length > 0 ? holeData : null,
-              }, { onConflict: "tournament_id,player_id,round" });
+        
+        // RLS will automatically filter to only show user's own scorecards
+        const { data: scorecards, error } = await supabase
+          .from("sgt_scorecards")
+          .select("*")
+          .eq("tournament_id", parseInt(params.tournamentId));
+        
+        if (error) throw error;
+        
+        data = scorecards?.map(sc => ({
+          playerId: sc.player_id,
+          player_name: sc.player_name,
+          hcp_index: sc.hcp_index,
+          round: sc.round,
+          courseName: sc.course_name,
+          teetype: sc.teetype,
+          rating: sc.rating,
+          slope: sc.slope,
+          total_gross: sc.total_gross,
+          total_net: sc.total_net,
+          toPar_gross: sc.to_par_gross,
+          toPar_net: sc.to_par_net,
+          in_gross: sc.in_gross,
+          out_gross: sc.out_gross,
+          in_net: sc.in_net,
+          out_net: sc.out_net,
+          ...sc.hole_data,
+        })) || [];
+        break;
+      }
+        
+      case "member-stats": {
+        // Users can only get their own stats
+        const userId = userSgtId;
+        if (!userId) {
+          data = { tours: [], handicap: null, totalRounds: 0, standing: null };
+          break;
+        }
+        
+        // Get user's SGT username from sgt_members
+        const { data: sgtMember } = await supabase
+          .from("sgt_members")
+          .select("user_name")
+          .eq("user_id", userId)
+          .maybeSingle();
+        
+        const sgtUserName = sgtMember?.user_name;
+        
+        // Get tour memberships with handicap info
+        const { data: tourMemberships, error: tmError } = await supabase
+          .from("sgt_tour_members")
+          .select("*, sgt_tours!inner(name, active, tour_id)")
+          .eq("user_id", userId);
+        
+        if (tmError) throw tmError;
+        
+        const activeTourMemberships = tourMemberships?.filter(tm => tm.sgt_tours?.active === 1) || [];
+        
+        const tours = activeTourMemberships.map(tm => ({
+          tourId: tm.tour_id,
+          tourName: tm.sgt_tours?.name,
+          handicap: tm.hcp_index || 0,
+          customHandicap: tm.custom_hcp || 0,
+        }));
+        
+        // Get user's standing in the active tour
+        let standing = null;
+        if (sgtUserName && activeTourMemberships.length > 0) {
+          const activeTourId = activeTourMemberships[0].tour_id;
+          const { data: standingData } = await supabase
+            .from("sgt_tour_standings")
+            .select("position, points, first, top5, top10, events")
+            .eq("tour_id", activeTourId)
+            .eq("user_name", sgtUserName)
+            .eq("gross_or_net", "gross")
+            .maybeSingle();
+          
+          if (standingData) {
+            standing = {
+              position: standingData.position,
+              points: standingData.points,
+              first: standingData.first,
+              top5: standingData.top5,
+              top10: standingData.top10,
+              events: standingData.events,
+            };
           }
-          data = sgtData;
-        } catch (e) {
-          console.log("[SGT-API] Falling back to cached scorecards:", e);
-          const { data: scorecards } = await adminClient
-            .from("sgt_scorecards")
-            .select("*")
-            .eq("tournament_id", parseInt(params.tournamentId));
-          data = scorecards?.map(sc => ({
+        }
+        
+        data = {
+          tours,
+          handicap: tours.length > 0 ? tours[0].handicap : null,
+          totalRounds: 0,
+          standing,
+        };
+        break;
+      }
+        
+      case "player-rounds": {
+        // Users can only get their own rounds - RLS enforces this
+        const userId = userSgtId;
+        if (!userId) {
+          data = [];
+          break;
+        }
+        
+        // RLS will filter to only show user's own scorecards
+        const { data: scorecards, error } = await supabase
+          .from("sgt_scorecards")
+          .select("*, sgt_tournaments!inner(name, course_name, end_date, status)")
+          .eq("player_id", userId)
+          .order("sgt_tournaments(end_date)", { ascending: false })
+          .limit(50);
+        
+        if (error) throw error;
+        
+        data = scorecards?.map(sc => ({
+          tournamentId: sc.tournament_id,
+          tournamentName: sc.sgt_tournaments?.name,
+          courseName: sc.course_name || sc.sgt_tournaments?.course_name,
+          date: sc.sgt_tournaments?.end_date,
+          status: sc.sgt_tournaments?.status,
+          scorecard: {
             playerId: sc.player_id,
             player_name: sc.player_name,
             hcp_index: sc.hcp_index,
@@ -570,152 +305,28 @@ serve(async (req) => {
             in_net: sc.in_net,
             out_net: sc.out_net,
             holeData: sc.hole_data,
-          })) || [];
-        }
+            ...sc.hole_data,
+          },
+        })) || [];
         break;
       }
-
-      case "member-stats": {
-        const userId = userSgtId;
-        if (!userId) {
-          data = { tours: [], handicap: null, totalRounds: 0, standing: null };
-          break;
-        }
-
-        // Get user's tour memberships
-        const { data: tourMemberships } = await adminClient
-          .from("sgt_tour_members")
-          .select("*")
-          .eq("user_id", userId);
-
-        // Get active tours
-        const { data: activeTours } = await adminClient
-          .from("sgt_tours")
-          .select("tour_id, name")
-          .eq("active", 1);
-
-        const activeTourIds = new Set(activeTours?.map(t => t.tour_id) || []);
-        const activeTourMemberships = tourMemberships?.filter(tm => activeTourIds.has(tm.tour_id)) || [];
-
-        const tours = activeTourMemberships.map(tm => {
-          const tour = activeTours?.find(t => t.tour_id === tm.tour_id);
-          return {
-            tourId: tm.tour_id,
-            tourName: tour?.name,
-            handicap: tm.hcp_index || 0,
-            customHandicap: tm.custom_hcp || 0,
-          };
-        });
-
-        // Get user's standing
-        const { data: sgtMember } = await adminClient
-          .from("sgt_members")
-          .select("user_name")
-          .eq("user_id", userId)
-          .maybeSingle();
-
-        let standing = null;
-        if (sgtMember?.user_name && activeTourMemberships.length > 0) {
-          const activeTourId = activeTourMemberships[0].tour_id;
-          const { data: standingData } = await adminClient
-            .from("sgt_tour_standings")
-            .select("position, points, first, top5, top10, events")
-            .eq("tour_id", activeTourId)
-            .eq("user_name", sgtMember.user_name)
-            .eq("gross_or_net", "gross")
-            .maybeSingle();
-
-          if (standingData) {
-            standing = {
-              position: standingData.position,
-              points: standingData.points,
-              first: standingData.first,
-              top5: standingData.top5,
-              top10: standingData.top10,
-              events: standingData.events,
-            };
-          }
-        }
-
-        // Count total rounds
-        const { count: totalRounds } = await adminClient
-          .from("sgt_scorecards")
-          .select("*", { count: "exact", head: true })
-          .eq("player_id", userId);
-
-        data = {
-          tours,
-          handicap: tours.length > 0 ? tours[0].handicap : null,
-          totalRounds: totalRounds || 0,
-          standing,
-        };
-        break;
-      }
-
-      case "player-rounds": {
-        const userId = userSgtId;
-        if (!userId) {
-          data = [];
-          break;
-        }
-
-        const { data: scorecards } = await adminClient
-          .from("sgt_scorecards")
-          .select("*")
-          .eq("player_id", userId)
-          .order("created_at", { ascending: false })
-          .limit(50);
-
-        const tournamentIds = [...new Set(scorecards?.map(sc => sc.tournament_id) || [])];
-        const { data: tournaments } = await adminClient
-          .from("sgt_tournaments")
-          .select("*")
-          .in("tournament_id", tournamentIds);
-
-        const tournamentMap = new Map(tournaments?.map(t => [t.tournament_id, t]) || []);
-
-        data = scorecards?.map(sc => {
-          const tournament = tournamentMap.get(sc.tournament_id);
-          return {
-            tournamentId: sc.tournament_id,
-            tournamentName: tournament?.name,
-            courseName: sc.course_name || tournament?.course_name,
-            date: tournament?.end_date,
-            status: tournament?.status,
-            scorecard: {
-              tournamentId: sc.tournament_id,
-              playerId: sc.player_id,
-              player_name: sc.player_name,
-              hcp_index: sc.hcp_index,
-              round: sc.round,
-              courseName: sc.course_name,
-              teetype: sc.teetype,
-              rating: sc.rating,
-              slope: sc.slope,
-              total_gross: sc.total_gross,
-              total_net: sc.total_net,
-              toPar_gross: sc.to_par_gross,
-              toPar_net: sc.to_par_net,
-              in_gross: sc.in_gross,
-              out_gross: sc.out_gross,
-              in_net: sc.in_net,
-              out_net: sc.out_net,
-              holeData: sc.hole_data,
-            },
-          };
-        }) || [];
-        break;
-      }
-
+      
       case "tournament-results": {
         if (!params.tournamentId) throw new Error("tournamentId required");
-
-        const { data: scorecards } = await adminClient
+        
+        // Use service role to bypass RLS for public leaderboard data
+        const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+        const adminClient = createClient(supabaseUrl, serviceKey);
+        
+        const { data: scorecards, error } = await adminClient
           .from("sgt_scorecards")
           .select("player_name, hcp_index, round, total_gross, total_net, to_par_gross, to_par_net")
           .eq("tournament_id", parseInt(params.tournamentId))
           .order("round");
-
+        
+        if (error) throw error;
+        
+        // Group scorecards by player
         const playerMap = new Map<string, {
           player_name: string;
           hcp: number;
@@ -728,7 +339,7 @@ serve(async (req) => {
           to_par_gross: number;
           to_par_net: number;
         }>();
-
+        
         for (const sc of scorecards || []) {
           const existing = playerMap.get(sc.player_name) || {
             player_name: sc.player_name,
@@ -742,7 +353,7 @@ serve(async (req) => {
             to_par_gross: 0,
             to_par_net: 0,
           };
-
+          
           if (sc.round === 1) {
             existing.r1_gross = sc.total_gross;
             existing.r1_net = sc.total_net;
@@ -750,27 +361,29 @@ serve(async (req) => {
             existing.r2_gross = sc.total_gross;
             existing.r2_net = sc.total_net;
           }
-
+          
           existing.total_gross += sc.total_gross || 0;
           existing.total_net += sc.total_net || 0;
           existing.to_par_gross += sc.to_par_gross || 0;
           existing.to_par_net += sc.to_par_net || 0;
-
+          
           playerMap.set(sc.player_name, existing);
         }
-
+        
+        // Sort by gross or net score
         const sortBy = params.grossOrNet === "net" ? "to_par_net" : "to_par_gross";
         const sorted = Array.from(playerMap.values()).sort((a, b) => {
-          return (a[sortBy as keyof typeof a] as number ?? 999) - (b[sortBy as keyof typeof b] as number ?? 999);
+          return (a[sortBy] ?? 999) - (b[sortBy] ?? 999);
         });
-
+        
+        // Add positions
         data = sorted.map((player, index) => ({
           position: index + 1,
           ...player,
         }));
         break;
       }
-
+        
       default:
         throw new Error(`Unknown action: ${action}`);
     }
