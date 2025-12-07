@@ -41,9 +41,17 @@ export function LeagueLayout({ children }: LeagueLayoutProps) {
       {/* Header */}
       <header className="bg-primary sticky top-0 z-50">
         <div className="container flex items-center justify-between h-16 px-4">
-          <Link to="/league" className="flex items-center">
-            <img src={birdiesBLogo} alt="Birdies" className="h-10 w-auto" />
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link
+              to="/dashboard"
+              className="text-primary-foreground/80 hover:text-primary-foreground transition-colors"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Link>
+            <Link to="/league" className="flex items-center">
+              <img src={birdiesBLogo} alt="Birdies" className="h-10 w-auto" />
+            </Link>
+          </div>
 
           {/* Mobile Menu Button */}
           <button
@@ -83,7 +91,7 @@ export function LeagueLayout({ children }: LeagueLayoutProps) {
                 className="flex items-center gap-3 px-4 py-4 font-inter text-base text-primary-foreground/90"
               >
                 <ArrowLeft className="h-5 w-5" />
-                Back to Booking
+                Back to Hub
               </Link>
               <button
                 onClick={handleLogout}
