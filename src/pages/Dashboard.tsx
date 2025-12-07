@@ -2,7 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
-import { LogOut, Calendar, Settings, ClipboardList, Trophy, Lock, ExternalLink } from "lucide-react";
+import { LogOut, Calendar, Settings, ClipboardList, Trophy, Lock, ExternalLink, Shield } from "lucide-react";
 import birdiesLogo from "@/assets/birdies-logo.png";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -12,6 +12,7 @@ const Dashboard = () => {
   const { user, isAuthenticated, isLoading, signOut } = useAuth();
   const navigate = useNavigate();
   const [membershipTier, setMembershipTier] = useState<MembershipTier>("visitor");
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -32,6 +33,18 @@ const Dashboard = () => {
       }
     };
     fetchMembership();
+  }, [user]);
+
+  useEffect(() => {
+    const checkAdminStatus = async () => {
+      if (!user) return;
+      const { data } = await supabase.rpc('has_role', { 
+        _user_id: user.id, 
+        _role: 'admin' 
+      });
+      setIsAdmin(!!data);
+    };
+    checkAdminStatus();
   }, [user]);
 
   const handleSignOut = async () => {
@@ -63,18 +76,28 @@ const Dashboard = () => {
           alt="Birdies" 
           className="h-10 w-auto"
         />
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 sm:gap-4">
           <span className="text-primary-foreground/80 text-sm hidden sm:block">
             Welcome, {firstName}
           </span>
+          {isAdmin && (
+            <Button
+              size="sm"
+              onClick={() => navigate("/admin")}
+              className="bg-accent text-accent-foreground hover:bg-accent/90"
+            >
+              <Shield className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Admin</span>
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="sm"
             onClick={handleSignOut}
             className="text-primary-foreground hover:bg-primary-foreground/10"
           >
-            <LogOut className="h-4 w-4 mr-2" />
-            Sign Out
+            <LogOut className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Sign Out</span>
           </Button>
         </div>
       </header>
