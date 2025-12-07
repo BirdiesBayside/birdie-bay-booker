@@ -162,9 +162,9 @@ serve(async (req) => {
     };
     const startTime12hr = formatTime12hr(startTime);
     
-    // Check if booking is after 5pm (17:00)
+    // Check if booking needs boom gate access (5-6am or 5pm onwards)
     const startHour = parseInt(booking.start_time.split(':')[0], 10);
-    const isAfter5pm = startHour >= 17;
+    const needsBoomGate = (startHour >= 5 && startHour < 7) || startHour >= 17;
 
     // Email content based on notification type
     let subject: string;
@@ -182,9 +182,9 @@ serve(async (req) => {
         `Your door code is 7675#`
       ];
       
-      if (isAfter5pm) {
+      if (needsBoomGate) {
         smsLines.push(``);
-        smsLines.push(`If you are playing after 5pm, please get the boom gate app here: https://birdiesbayside.com.au/pages/birdies-gate-access`);
+        smsLines.push(`IMPORTANT: You will require Boom gate access for your booking time, download the app here: https://birdiesbayside.com.au/pages/birdies-gate-access`);
       }
       
       smsMessage = smsLines.join('\n');
@@ -214,10 +214,10 @@ serve(async (req) => {
             
             <div style="background-color: #1f4c25; padding: 20px; border-radius: 8px; margin: 20px 0;">
               <p style="color: #fff5e4; margin: 0 0 10px 0; font-size: 16px;"><strong>Door Access Code:</strong> 7675#</p>
-              ${isAfter5pm ? `
+              ${needsBoomGate ? `
               <p style="color: #fff5e4; margin: 0; font-size: 14px;">
-                Playing after 5pm? You'll need the boom gate app: 
-                <a href="https://birdiesbayside.com.au/pages/birdies-gate-access" style="color: #ec622d;">Get the app here</a>
+                <strong>IMPORTANT:</strong> You will require Boom gate access for your booking time, 
+                <a href="https://birdiesbayside.com.au/pages/birdies-gate-access" style="color: #ec622d;">download the app here</a>
               </p>
               ` : ''}
             </div>
