@@ -134,4 +134,29 @@
   .gradient-green {
     background: linear-gradient(135deg, hsl(var(--birdies-green)) 0%, hsl(var(--birdies-green-light)) 100%);
   }
+
+  /* Golf Score Colors */
+  .score-eagle {
+    @apply bg-amber-400 text-amber-950;
+  }
+
+  .score-birdie {
+    @apply bg-red-500 text-white;
+  }
+
+  .score-par {
+    @apply bg-green-500 text-white;
+  }
+
+  .score-bogey {
+    @apply bg-blue-400 text-white;
+  }
+
+  .score-double {
+    @apply bg-blue-600 text-white;
+  }
+
+  .score-other {
+    @apply bg-blue-800 text-white;
+  }
 }
