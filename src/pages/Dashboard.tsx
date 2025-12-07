@@ -147,7 +147,7 @@ const Dashboard = () => {
             </div>
 
             {/* Birdies League Section */}
-            <div className={`bg-card rounded-lg p-6 shadow-md border border-border relative ${!hasLeagueAccess ? "opacity-60" : ""}`}>
+            <div className={`bg-card rounded-lg p-6 shadow-md border relative ${!hasLeagueAccess ? "border-border opacity-60" : "border-league-primary/30"}`}>
               {!hasLeagueAccess && (
                 <div className="absolute top-3 right-3">
                   <div className="flex items-center gap-1 text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full">
@@ -157,8 +157,8 @@ const Dashboard = () => {
                 </div>
               )}
               <div className="flex items-center gap-3 mb-4">
-                <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${hasLeagueAccess ? "bg-accent/10" : "bg-muted"}`}>
-                  <Trophy className={`h-5 w-5 ${hasLeagueAccess ? "text-accent" : "text-muted-foreground"}`} />
+                <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${hasLeagueAccess ? "bg-league-primary/15" : "bg-muted"}`}>
+                  <Trophy className={`h-5 w-5 ${hasLeagueAccess ? "text-league-primary-dark" : "text-muted-foreground"}`} />
                 </div>
                 <h2 className="font-semibold text-lg">League Hub</h2>
               </div>
@@ -169,14 +169,14 @@ const Dashboard = () => {
                   </p>
                   <div className="flex gap-2">
                     <Button 
-                      className="flex-1 bg-accent text-accent-foreground hover:bg-accent/90"
+                      className="flex-1 bg-league-primary text-league-foreground hover:bg-league-primary-dark"
                       onClick={() => window.open("https://birdiesbayside.com.au/pages/birdies-league-sign-up", "_blank")}
                     >
                       Register
                       <ExternalLink className="h-3 w-3 ml-1" />
                     </Button>
                     <Button 
-                      className="flex-1 bg-accent text-accent-foreground hover:bg-accent/90"
+                      className="flex-1 bg-league-primary text-league-foreground hover:bg-league-primary-dark"
                       onClick={() => navigate("/league")}
                     >
                       League Hub

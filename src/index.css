@@ -65,6 +65,11 @@
     --birdies-cream: 37 100% 95%;
     --birdies-green-light: 128 30% 35%;
     --birdies-orange-light: 18 84% 65%;
+    
+    /* League Hub - Premium Gold/Amber theme */
+    --league-primary: 45 93% 47%;
+    --league-primary-dark: 38 92% 40%;
+    --league-foreground: 30 30% 15%;
   }
 
   .dark {
