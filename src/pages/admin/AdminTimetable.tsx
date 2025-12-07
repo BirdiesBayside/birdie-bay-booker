@@ -38,7 +38,8 @@ import {
   X,
   Trash2,
   CircleDollarSign,
-  AlertCircle
+  AlertCircle,
+  ShoppingCart
 } from "lucide-react";
 import { AddBookingDialog } from "@/components/admin/AddBookingDialog";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -815,6 +816,32 @@ export default function AdminTimetable() {
                       Edit Booking
                     </Button>
                   </div>
+                  {/* Send to POS button for unpaid bookings */}
+                  {!isBookingPaid(selectedBooking) && (
+                    <Button 
+                      variant="outline" 
+                      className="w-full"
+                      onClick={() => {
+                        // Navigate to POS with booking data
+                        const duration = selectedBooking.duration_hours;
+                        const bookingData = {
+                          bookingId: selectedBooking.id,
+                          customerId: selectedBooking.user_id,
+                          duration: duration,
+                          customerName: `${selectedBooking.profile?.first_name || ''} ${selectedBooking.profile?.last_name || ''}`.trim(),
+                          totalPrice: selectedBooking.total_price,
+                          bayName: bays.find(b => b.id === selectedBooking.bay_id)?.name || '',
+                          bookingDate: selectedBooking.booking_date,
+                          startTime: selectedBooking.start_time,
+                        };
+                        setSelectedBooking(null);
+                        navigate('/admin/pos', { state: { bookingData } });
+                      }}
+                    >
+                      <ShoppingCart className="h-4 w-4 mr-2" />
+                      Send to POS
+                    </Button>
+                  )}
                   <Button 
                     variant="destructive" 
                     className="w-full"
