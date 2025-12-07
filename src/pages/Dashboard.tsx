@@ -137,7 +137,7 @@ const Dashboard = () => {
                 <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${hasLeagueAccess ? "bg-accent/10" : "bg-muted"}`}>
                   <Trophy className={`h-5 w-5 ${hasLeagueAccess ? "text-accent" : "text-muted-foreground"}`} />
                 </div>
-                <h2 className="font-semibold text-lg">Birdies League</h2>
+                <h2 className="font-semibold text-lg">League Hub</h2>
               </div>
               {hasLeagueAccess ? (
                 <>
