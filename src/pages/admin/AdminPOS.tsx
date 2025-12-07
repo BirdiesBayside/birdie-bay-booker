@@ -268,6 +268,22 @@ export default function AdminPOS() {
   const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const total = subtotal;
 
+  const [terminalPaymentIntentId, setTerminalPaymentIntentId] = useState<string | null>(null);
+
+  const handleCancelTerminal = async () => {
+    try {
+      await supabase.functions.invoke('stripe-terminal', {
+        body: { action: 'cancel_reader_action' },
+      });
+      toast.info("Payment cancelled");
+      setTerminalPaymentIntentId(null);
+      setIsProcessing(false);
+    } catch (error: any) {
+      console.error('Cancel error:', error);
+      toast.error("Failed to cancel payment");
+    }
+  };
+
   const handlePayment = async (method: 'cash' | 'customer_account' | 'pos') => {
     if (cart.length === 0) {
       toast.error("Cart is empty");
@@ -319,9 +335,10 @@ export default function AdminPOS() {
         }
 
         toast.info("Please complete payment on terminal...");
+        const paymentIntentId = data.paymentIntentId;
+        setTerminalPaymentIntentId(paymentIntentId);
 
         // Poll for payment status
-        const paymentIntentId = data.paymentIntentId;
         let attempts = 0;
         const maxAttempts = 60; // 2 minutes timeout
 
@@ -334,6 +351,7 @@ export default function AdminPOS() {
             await saveTransaction(method, paymentIntentId);
             toast.success("Payment successful!");
             setShowPaymentDialog(false);
+            setTerminalPaymentIntentId(null);
             clearCart();
             setIsProcessing(false);
             return;
@@ -341,6 +359,7 @@ export default function AdminPOS() {
 
           if (statusData?.status === 'canceled' || statusData?.status === 'requires_payment_method') {
             toast.error("Payment was cancelled or failed");
+            setTerminalPaymentIntentId(null);
             setIsProcessing(false);
             return;
           }
@@ -350,6 +369,7 @@ export default function AdminPOS() {
             setTimeout(checkStatus, 2000);
           } else {
             toast.error("Payment timed out");
+            setTerminalPaymentIntentId(null);
             setIsProcessing(false);
           }
         };
@@ -736,8 +756,18 @@ export default function AdminPOS() {
             </Button>
           </div>
           {isProcessing && (
-            <div className="text-center py-4 text-muted-foreground">
-              Processing payment...
+            <div className="text-center py-4 space-y-3">
+              <p className="text-muted-foreground">Processing payment...</p>
+              {terminalPaymentIntentId && (
+                <Button
+                  variant="destructive"
+                  onClick={handleCancelTerminal}
+                  className="w-full"
+                >
+                  <X className="h-4 w-4 mr-2" />
+                  Cancel Payment
+                </Button>
+              )}
             </div>
           )}
         </DialogContent>
