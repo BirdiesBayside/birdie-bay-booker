@@ -20,68 +20,13 @@ const logStep = (step: string, details?: any) => {
   console.log(`[SEND-DEPOSIT-NOTIFICATION] ${step}${detailsStr}`);
 };
 
-// Format phone number for SMS Broadcast (Australian format)
-const formatPhoneForSMS = (phone: string | null): string | null => {
-  if (!phone) return null;
-  
-  let cleaned = phone.replace(/\D/g, '');
-  
-  if (cleaned.startsWith('0')) {
-    cleaned = '61' + cleaned.slice(1);
-  } else if (cleaned.startsWith('+61')) {
-    cleaned = cleaned.slice(1);
-  } else if (!cleaned.startsWith('61') && cleaned.length === 9) {
-    cleaned = '61' + cleaned;
+// Replace template tags with actual values
+const replaceTemplateTags = (template: string, tags: Record<string, string>): string => {
+  let result = template;
+  for (const [tag, value] of Object.entries(tags)) {
+    result = result.replace(new RegExp(tag.replace(/[{}]/g, '\\$&'), 'g'), value);
   }
-  
-  if (cleaned.length !== 11 || !cleaned.startsWith('614')) {
-    logStep("Invalid phone number format", { original: phone, cleaned });
-    return null;
-  }
-  
-  return cleaned;
-};
-
-// Send SMS via SMS Broadcast API
-const sendSMS = async (phone: string, message: string): Promise<{ success: boolean; response?: string; error?: string }> => {
-  const username = Deno.env.get("SMS_BROADCAST_USERNAME");
-  const password = Deno.env.get("SMS_BROADCAST_PASSWORD");
-  
-  if (!username || !password) {
-    logStep("SMS Broadcast credentials not configured");
-    return { success: false, error: "SMS credentials not configured" };
-  }
-  
-  const formattedPhone = formatPhoneForSMS(phone);
-  if (!formattedPhone) {
-    return { success: false, error: "Invalid phone number" };
-  }
-  
-  try {
-    const params = new URLSearchParams({
-      username,
-      password,
-      to: formattedPhone,
-      from: "Birdies",
-      message: message,
-    });
-    
-    const response = await fetch(`https://api.smsbroadcast.com.au/api-adv.php?${params.toString()}`, {
-      method: "GET",
-    });
-    
-    const responseText = await response.text();
-    logStep("SMS Broadcast response", { response: responseText });
-    
-    if (responseText.startsWith("OK:")) {
-      return { success: true, response: responseText };
-    } else {
-      return { success: false, error: responseText };
-    }
-  } catch (error: any) {
-    logStep("SMS send error", { error: error.message });
-    return { success: false, error: error.message };
-  }
+  return result;
 };
 
 serve(async (req) => {
@@ -117,44 +62,78 @@ serve(async (req) => {
     }
     logStep("Profile fetched", { email: profile.email, phone: profile.phone });
 
-    const subject = "Credit Added to Your Account - Birdies Bayside";
-    const smsMessage = `Birdies Bayside: $${amount.toFixed(2)} credit has been added to your account. New balance: $${new_balance.toFixed(2)}. Use it for your next booking!`;
+    // Fetch custom email template
+    const { data: emailTemplate, error: templateError } = await supabaseClient
+      .from("email_templates")
+      .select("*")
+      .eq("template_key", "credit_added")
+      .single();
     
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      </head>
-      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <div style="background-color: #1f4c25; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
-          <h1 style="color: #fff5e4; margin: 0;">Credit Added!</h1>
-        </div>
-        <div style="background-color: #fff5e4; padding: 30px; border-radius: 0 0 8px 8px;">
-          <p>Hi ${profile.first_name},</p>
-          <p>Great news! Credit has been added to your Birdies Bayside account.</p>
-          
-          <div style="background-color: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ec622d; text-align: center;">
-            <p style="margin: 5px 0; font-size: 18px;"><strong>Amount Added:</strong></p>
-            <p style="margin: 5px 0; font-size: 32px; color: #1f4c25;"><strong>$${amount.toFixed(2)}</strong></p>
-            <hr style="border: none; border-top: 1px solid #eee; margin: 15px 0;">
-            <p style="margin: 5px 0; font-size: 16px;"><strong>New Balance:</strong> $${new_balance.toFixed(2)}</p>
+    if (templateError) {
+      logStep("Template fetch error (using default)", { error: templateError.message });
+    } else {
+      logStep("Template fetched", { hasCustomHtml: !!emailTemplate?.html_content });
+    }
+
+    // Calculate previous balance
+    const previousBalance = new_balance - amount;
+
+    // Template replacement tags
+    const templateTags: Record<string, string> = {
+      '{first_name}': profile.first_name || '',
+      '{last_name}': profile.last_name || '',
+      '{email}': profile.email || '',
+      '{deposit_amount}': `$${amount.toFixed(2)}`,
+      '{new_balance}': `$${new_balance.toFixed(2)}`,
+      '{previous_balance}': `$${previousBalance.toFixed(2)}`,
+    };
+
+    // Use custom subject if available
+    let subject = emailTemplate?.subject || "Credit Added to Your Account - Birdies Bayside";
+    let htmlContent: string;
+
+    if (emailTemplate?.html_content) {
+      htmlContent = replaceTemplateTags(emailTemplate.html_content, templateTags);
+      subject = replaceTemplateTags(subject, templateTags);
+      logStep("Using custom email template");
+    } else {
+      // Default template
+      htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="background-color: #1f4c25; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
+            <h1 style="color: #fff5e4; margin: 0;">Credit Added!</h1>
           </div>
-          
-          <p>You can use your credit balance when booking a bay - just select "Use Balance" at checkout!</p>
-          
-          <p style="color: #666; font-size: 14px; margin-top: 30px;">
-            If you have any questions, please contact us.
-          </p>
-        </div>
-        <div style="text-align: center; padding: 20px; color: #666; font-size: 12px;">
-          <p>Birdies Bayside Golf Simulators</p>
-          <p>info@birdiesbayside.com.au</p>
-        </div>
-      </body>
-      </html>
-    `;
+          <div style="background-color: #fff5e4; padding: 30px; border-radius: 0 0 8px 8px;">
+            <p>Hi ${profile.first_name},</p>
+            <p>Great news! Credit has been added to your Birdies Bayside account.</p>
+            
+            <div style="background-color: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ec622d; text-align: center;">
+              <p style="margin: 5px 0; font-size: 18px;"><strong>Amount Added:</strong></p>
+              <p style="margin: 5px 0; font-size: 32px; color: #1f4c25;"><strong>$${amount.toFixed(2)}</strong></p>
+              <hr style="border: none; border-top: 1px solid #eee; margin: 15px 0;">
+              <p style="margin: 5px 0; font-size: 16px;"><strong>New Balance:</strong> $${new_balance.toFixed(2)}</p>
+            </div>
+            
+            <p>You can use your credit balance when booking a bay - just select "Use Balance" at checkout!</p>
+            
+            <p style="color: #666; font-size: 14px; margin-top: 30px;">
+              If you have any questions, please contact us.
+            </p>
+          </div>
+          <div style="text-align: center; padding: 20px; color: #666; font-size: 12px;">
+            <p>Birdies Bayside Golf Simulators</p>
+            <p>info@birdiesbayside.com.au</p>
+          </div>
+        </body>
+        </html>
+      `;
+    }
 
     // Send email
     const emailResponse = await resend.emails.send({

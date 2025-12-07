@@ -63,6 +63,16 @@ const TEMPLATE_TAGS: Record<string, { tag: string; description: string }[]> = {
   ],
 };
 
+interface EmailTemplateDB {
+  id: string;
+  template_key: string;
+  name: string;
+  description: string | null;
+  subject: string | null;
+  html_content: string | null;
+  is_active: boolean;
+}
+
 interface EmailTemplate {
   id: string;
   name: string;
@@ -132,14 +142,12 @@ export default function AdminSettings() {
 
   // Email Templates
   const [selectedTemplate, setSelectedTemplate] = useState<EmailTemplate | null>(null);
+  const [emailTemplates, setEmailTemplates] = useState<EmailTemplateDB[]>([]);
+  const [isLoadingTemplates, setIsLoadingTemplates] = useState(true);
   const [templateHtml, setTemplateHtml] = useState("");
+  const [templateSubject, setTemplateSubject] = useState("");
   const [copiedTag, setCopiedTag] = useState<string | null>(null);
-
-  const emailTemplates: EmailTemplate[] = [
-    { id: "1", name: "Booking Confirmation", description: "Sent when a booking is created", templateKey: "booking_confirmation" },
-    { id: "2", name: "Booking Cancellation", description: "Sent when a booking is cancelled", templateKey: "booking_cancellation" },
-    { id: "3", name: "Credit Added", description: "Sent when credit/deposit is added to account", templateKey: "credit_added" },
-  ];
+  const [isSavingTemplate, setIsSavingTemplate] = useState(false);
 
   const copyTag = (tag: string) => {
     navigator.clipboard.writeText(tag);
@@ -147,16 +155,69 @@ export default function AdminSettings() {
     setTimeout(() => setCopiedTag(null), 2000);
   };
 
-  const openTemplateEditor = (template: EmailTemplate) => {
-    setSelectedTemplate(template);
-    // In future, load saved template HTML from database here
-    setTemplateHtml("");
+  const fetchEmailTemplates = async () => {
+    setIsLoadingTemplates(true);
+    const { data, error } = await supabase
+      .from("email_templates")
+      .select("*")
+      .order("name");
+    
+    if (!error && data) {
+      setEmailTemplates(data);
+    }
+    setIsLoadingTemplates(false);
+  };
+
+  const openTemplateEditor = (template: EmailTemplateDB) => {
+    setSelectedTemplate({
+      id: template.id,
+      name: template.name,
+      description: template.description || "",
+      templateKey: template.template_key,
+    });
+    setTemplateHtml(template.html_content || "");
+    setTemplateSubject(template.subject || "");
+  };
+
+  const saveTemplate = async () => {
+    if (!selectedTemplate) return;
+    
+    setIsSavingTemplate(true);
+    try {
+      const { error } = await supabase
+        .from("email_templates")
+        .update({
+          html_content: templateHtml || null,
+          subject: templateSubject || null,
+        })
+        .eq("template_key", selectedTemplate.templateKey);
+
+      if (error) throw error;
+
+      toast({
+        title: "Template saved",
+        description: `${selectedTemplate.name} template has been updated.`,
+        duration: 4000,
+      });
+
+      setSelectedTemplate(null);
+      fetchEmailTemplates();
+    } catch (error: any) {
+      toast({
+        title: "Error saving template",
+        description: error.message || "Failed to save template.",
+        variant: "destructive",
+        duration: 4000,
+      });
+    }
+    setIsSavingTemplate(false);
   };
 
   useEffect(() => {
     if (isAdmin) {
       fetchProducts();
       fetchCustomers();
+      fetchEmailTemplates();
     }
   }, [isAdmin]);
 
@@ -599,24 +660,34 @@ export default function AdminSettings() {
                 <CardDescription>Customize email notification templates</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {emailTemplates.map((template) => (
-                  <button
-                    key={template.id}
-                    onClick={() => openTemplateEditor(template)}
-                    className="w-full border rounded-lg p-4 text-left hover:bg-muted/50 transition-colors"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h4 className="font-medium">{template.name}</h4>
-                        <p className="text-sm text-muted-foreground">{template.description}</p>
+                {isLoadingTemplates ? (
+                  <Skeleton className="h-32" />
+                ) : emailTemplates.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No templates found.</p>
+                ) : (
+                  emailTemplates.map((template) => (
+                    <button
+                      key={template.id}
+                      onClick={() => openTemplateEditor(template)}
+                      className="w-full border rounded-lg p-4 text-left hover:bg-muted/50 transition-colors"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="font-medium">{template.name}</h4>
+                          <p className="text-sm text-muted-foreground">{template.description}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {template.html_content ? (
+                            <Badge variant="default" className="bg-green-600">Custom</Badge>
+                          ) : (
+                            <Badge variant="secondary">Default</Badge>
+                          )}
+                          <Pencil className="h-4 w-4 text-muted-foreground" />
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="secondary">Default</Badge>
-                        <Pencil className="h-4 w-4 text-muted-foreground" />
-                      </div>
-                    </div>
-                  </button>
-                ))}
+                    </button>
+                  ))
+                )}
               </CardContent>
             </Card>
 
@@ -690,6 +761,16 @@ export default function AdminSettings() {
                   </div>
                 </div>
 
+                {/* Subject Line */}
+                <div className="space-y-2">
+                  <Label>Email Subject</Label>
+                  <Input
+                    value={templateSubject}
+                    onChange={(e) => setTemplateSubject(e.target.value)}
+                    placeholder="e.g. Your Birdies Booking Confirmation"
+                  />
+                </div>
+
                 {/* HTML Editor */}
                 <div className="space-y-2">
                   <Label>Template HTML</Label>
@@ -700,7 +781,7 @@ export default function AdminSettings() {
                     className="font-mono text-sm min-h-[200px]"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Paste your custom HTML email template here. Use the tags above to personalize the message.
+                    Paste your custom HTML email template here. Use the tags above to personalize the message. Leave empty to use the default template.
                   </p>
                 </div>
 
@@ -708,8 +789,8 @@ export default function AdminSettings() {
                   <Button variant="outline" onClick={() => setSelectedTemplate(null)}>
                     Cancel
                   </Button>
-                  <Button disabled>
-                    Save Template (Coming Soon)
+                  <Button onClick={saveTemplate} disabled={isSavingTemplate}>
+                    {isSavingTemplate ? "Saving..." : "Save Template"}
                   </Button>
                 </div>
               </div>
