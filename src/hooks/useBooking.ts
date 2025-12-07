@@ -68,14 +68,23 @@ export function useBooking() {
     setIsLoading(true);
     const dateStr = format(date, "yyyy-MM-dd");
 
+    // Use the secure booking_availability view that only exposes scheduling data
     const { data, error } = await supabase
-      .from("bookings")
-      .select("id, bay_id, booking_date, start_time, end_time, duration_hours, status")
-      .eq("booking_date", dateStr)
-      .eq("status", "confirmed");
+      .from("booking_availability")
+      .select("bay_id, booking_date, start_time, end_time")
+      .eq("booking_date", dateStr);
 
     if (!error && data) {
-      setBookings(data);
+      // Map to Booking interface with minimal required fields for availability
+      setBookings(data.map(b => ({
+        id: '', // Not available from view - not needed for availability
+        bay_id: b.bay_id,
+        booking_date: b.booking_date,
+        start_time: b.start_time,
+        end_time: b.end_time,
+        duration_hours: 0, // Not available from view - not needed for availability
+        status: 'confirmed'
+      })));
     }
     setIsLoading(false);
   };
