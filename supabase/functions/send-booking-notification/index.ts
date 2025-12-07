@@ -181,18 +181,12 @@ serve(async (req) => {
         year: "numeric",
       });
       
-      let smsLines = [
+      // Main booking SMS (keep under 160 chars for 1 unit)
+      smsMessage = [
         `Hi ${profile.first_name} ${profile.last_name} thank you for your booking on ${formattedSmsDate} at ${startTime12hr} for Bay ${bayNumber}`,
         ``,
         `Your door code is: 7675#`
-      ];
-      
-      if (needsBoomGate) {
-        smsLines.push(``);
-        smsLines.push(`Gate app: birdiesbayside.com.au/gate`);
-      }
-      
-      smsMessage = smsLines.join('\n');
+      ].join('\n');
       htmlContent = `
         <!DOCTYPE html>
         <html>
@@ -289,9 +283,19 @@ serve(async (req) => {
 
     // Send SMS if phone number exists
     let smsResult: { success: boolean; response?: string; error?: string } = { success: false, error: "No phone number" };
+    let gateSmsResult: { success: boolean; response?: string; error?: string } | null = null;
+    
     if (profile.phone) {
+      // Send main booking SMS
       smsResult = await sendSMS(profile.phone, smsMessage);
       logStep("SMS send result", smsResult);
+      
+      // Send second SMS for boom gate access if needed (only for confirmation at dark hours)
+      if (notification_type === "confirmation" && needsBoomGate && smsResult.success) {
+        const gateMessage = `IMPORTANT: You will require Boom gate access for your booking time. Download the Noke gate access app: birdiesbayside.com.au/pages/birdies-gate-access`;
+        gateSmsResult = await sendSMS(profile.phone, gateMessage);
+        logStep("Gate SMS send result", gateSmsResult);
+      }
     } else {
       logStep("No phone number, skipping SMS");
     }
@@ -302,6 +306,8 @@ serve(async (req) => {
         email_sent: true,
         sms_sent: smsResult.success,
         sms_error: smsResult.error || null,
+        gate_sms_sent: gateSmsResult?.success || false,
+        gate_sms_error: gateSmsResult?.error || null,
         message: `${notification_type} notification sent successfully` 
       }),
       {
