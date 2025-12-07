@@ -168,6 +168,24 @@ export function DateTimePicker({
         </Popover>
       </div>
 
+      {/* Time Selector */}
+      <div className="space-y-2">
+        <label className="text-sm font-medium text-foreground">Start Time</label>
+        <Select value={selectedTime} onValueChange={onTimeChange}>
+          <SelectTrigger className="w-full">
+            <Clock className="mr-2 h-4 w-4" />
+            <SelectValue placeholder="Select time" />
+          </SelectTrigger>
+          <SelectContent className="bg-popover max-h-60">
+            {getAvailableTimeSlots().map((time) => (
+              <SelectItem key={time} value={time}>
+                {formatTimeDisplay(time)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
       {/* Duration Selector */}
       <div className="space-y-2">
         <label className="text-sm font-medium text-foreground">Duration</label>
@@ -182,24 +200,6 @@ export function DateTimePicker({
             {DURATIONS.map((duration) => (
               <SelectItem key={duration} value={duration.toString()}>
                 {duration} {duration === 1 ? "hour" : "hours"}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Time Selector */}
-      <div className="space-y-2">
-        <label className="text-sm font-medium text-foreground">Start Time</label>
-        <Select value={selectedTime} onValueChange={onTimeChange}>
-          <SelectTrigger className="w-full">
-            <Clock className="mr-2 h-4 w-4" />
-            <SelectValue placeholder="Select time" />
-          </SelectTrigger>
-          <SelectContent className="bg-popover max-h-60">
-            {getAvailableTimeSlots().map((time) => (
-              <SelectItem key={time} value={time}>
-                {formatTimeDisplay(time)}
               </SelectItem>
             ))}
           </SelectContent>
