@@ -190,7 +190,7 @@ export default function LeagueProfile() {
 
           {/* Handicap Section */}
           <div className="p-6 text-center">
-            <p className="text-sm font-inter text-muted-foreground mb-1">Current Handicap</p>
+            <p className="text-xs font-anton text-muted-foreground uppercase tracking-wide mb-1">CURRENT HANDICAP</p>
             <p className="font-anton text-5xl text-primary">
               {stats?.handicap ?? "N/A"}
             </p>
