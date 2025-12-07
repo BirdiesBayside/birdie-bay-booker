@@ -496,8 +496,8 @@ export default function LeagueLeaderboard() {
                     {/* To Par */}
                     <div className="col-span-2 text-center">
                       <span className={cn(
-                        "px-2 py-1 rounded font-display font-medium text-sm",
-                        toPar < 0 ? "bg-birdie/20 text-birdie" : toPar === 0 ? "bg-muted text-foreground" : "bg-bogey/20 text-bogey"
+                        "px-3 py-1.5 rounded-lg font-display text-lg",
+                        toPar < 0 ? "text-green-500" : toPar === 0 ? "text-foreground" : "text-red-500"
                       )}>
                         {formatScore(toPar)}
                       </span>
