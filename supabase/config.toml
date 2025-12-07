@@ -32,3 +32,6 @@ verify_jwt = false
 
 [functions.refund-booking]
 verify_jwt = false
+
+[functions.stripe-terminal]
+verify_jwt = false

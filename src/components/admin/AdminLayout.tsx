@@ -7,7 +7,8 @@ import {
   Menu, 
   X, 
   LogOut,
-  ChevronLeft
+  ChevronLeft,
+  ShoppingCart
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,6 +22,7 @@ interface AdminLayoutProps {
 const navItems = [
   { path: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { path: "/admin/timetable", label: "Timetable", icon: Calendar },
+  { path: "/admin/pos", label: "POS", icon: ShoppingCart },
   { path: "/admin/customers", label: "Customers", icon: Users },
 ];
 
