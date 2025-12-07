@@ -215,38 +215,32 @@ export default function AdminCustomers() {
     setIsCreatingCustomer(true);
 
     try {
-      // Create auth user with a temporary password (admin-created accounts)
-      const tempPassword = `Temp${Math.random().toString(36).slice(2)}!`;
-      
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: newEmail,
-        password: tempPassword,
-        options: {
-          data: {
-            first_name: newFirstName,
-            last_name: newLastName,
-            phone: newPhone,
-          },
+      // Use edge function to create customer (doesn't affect admin's session)
+      const { data, error } = await supabase.functions.invoke("create-customer", {
+        body: {
+          email: newEmail,
+          firstName: newFirstName,
+          lastName: newLastName,
+          phone: newPhone || undefined,
         },
       });
 
-      if (authError) throw authError;
+      if (error) throw error;
+      if (data.error) throw new Error(data.error);
 
-      if (authData.user) {
-        toast({
-          title: "Customer created",
-          description: `${newFirstName} ${newLastName} has been added successfully.`,
-          duration: 4000,
-        });
-        
-        setShowAddCustomerDialog(false);
-        resetAddCustomerForm();
-        
-        // Wait a moment for the profile trigger to create the profile
-        setTimeout(() => {
-          fetchCustomers();
-        }, 1000);
-      }
+      toast({
+        title: "Customer created",
+        description: `${newFirstName} ${newLastName} has been added successfully.`,
+        duration: 4000,
+      });
+      
+      setShowAddCustomerDialog(false);
+      resetAddCustomerForm();
+      
+      // Wait a moment for the profile trigger to create the profile
+      setTimeout(() => {
+        fetchCustomers();
+      }, 1000);
     } catch (error: any) {
       toast({
         title: "Error creating customer",
