@@ -266,17 +266,8 @@ export default function AdminTimetable() {
     <AdminLayout>
       <div className="p-4 lg:p-6 space-y-4">
         {/* Header */}
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div>
-            <h1 className="font-display text-2xl lg:text-3xl uppercase tracking-wide text-foreground">
-              Timetable
-            </h1>
-            <p className="text-muted-foreground text-sm mt-1">
-              Bay bookings and schedule
-            </p>
-          </div>
-
-          {/* Controls */}
+        <div className="flex flex-col-reverse lg:flex-row lg:items-center lg:justify-between gap-4">
+          {/* Controls - Left side */}
           <div className="flex flex-wrap items-center gap-2">
             {/* Stats */}
             <div className="flex items-center gap-4 mr-4">
@@ -319,7 +310,7 @@ export default function AdminTimetable() {
                     }
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="end">
+                <PopoverContent className="w-auto p-0" align="start">
                   <Calendar
                     mode="single"
                     selected={selectedDate}
@@ -329,6 +320,7 @@ export default function AdminTimetable() {
                         setCalendarOpen(false);
                       }
                     }}
+                    className="pointer-events-auto"
                   />
                 </PopoverContent>
               </Popover>
@@ -341,6 +333,16 @@ export default function AdminTimetable() {
             <Button variant="outline" size="sm" onClick={() => setSelectedDate(new Date())}>
               Today
             </Button>
+          </div>
+
+          {/* Title - Right side */}
+          <div className="text-right">
+            <h1 className="font-display text-2xl lg:text-3xl uppercase tracking-wide text-foreground">
+              Timetable
+            </h1>
+            <p className="text-muted-foreground text-sm mt-1">
+              Bay bookings and schedule
+            </p>
           </div>
         </div>
 
