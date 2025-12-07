@@ -225,39 +225,33 @@ export function AddBookingDialog({
     setIsCreatingCustomer(true);
 
     try {
-      // Create auth user with a temporary password (admin-created accounts)
-      const tempPassword = `Temp${Math.random().toString(36).slice(2)}!`;
-      
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: newEmail,
-        password: tempPassword,
-        options: {
-          data: {
-            first_name: newFirstName,
-            last_name: newLastName,
-            phone: newPhone,
-          },
+      // Use edge function to create customer (doesn't affect admin's session)
+      const { data, error } = await supabase.functions.invoke("create-customer", {
+        body: {
+          email: newEmail,
+          firstName: newFirstName,
+          lastName: newLastName,
+          phone: newPhone || undefined,
         },
       });
 
-      if (authError) throw authError;
+      if (error) throw error;
+      if (data.error) throw new Error(data.error);
 
-      if (authData.user) {
-        // Wait a moment for the profile trigger to create the profile
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // Refresh customer list and select the new customer
-        await fetchCustomers();
-        setSelectedCustomerId(authData.user.id);
-        setIsAddingNewCustomer(false);
-        resetNewCustomerForm();
-        
-        toast({
-          title: "Customer created",
-          description: `${newFirstName} ${newLastName} has been added.`,
-          duration: 4000,
-        });
-      }
+      // Wait a moment for the profile trigger to create the profile
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Refresh customer list and select the new customer
+      await fetchCustomers();
+      setSelectedCustomerId(data.user.id);
+      setIsAddingNewCustomer(false);
+      resetNewCustomerForm();
+      
+      toast({
+        title: "Customer created",
+        description: `${newFirstName} ${newLastName} has been added.`,
+        duration: 4000,
+      });
     } catch (error: any) {
       toast({
         title: "Error creating customer",
