@@ -174,6 +174,30 @@ export type Database = {
         }
         Relationships: []
       }
+      sgt_api_config: {
+        Row: {
+          api_key: string
+          created_at: string
+          expires_at: string
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          api_key: string
+          created_at?: string
+          expires_at: string
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          api_key?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       sgt_members: {
         Row: {
           created_at: string
