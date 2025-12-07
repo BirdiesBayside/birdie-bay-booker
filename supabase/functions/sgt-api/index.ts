@@ -121,6 +121,110 @@ async function saveApiKey(adminClient: any, key: string, expiresSeconds: number)
   });
 }
 
+// deno-lint-ignore no-explicit-any
+async function ensureBaseDataSynced(adminClient: any, apiKey: string, clubUrl: string): Promise<void> {
+  // Check if we have any members synced
+  const { count: memberCount } = await adminClient
+    .from("sgt_members")
+    .select("*", { count: "exact", head: true });
+
+  if (!memberCount || memberCount === 0) {
+    console.log("[SGT-API] No members cached, syncing from API...");
+    try {
+      const sgtData = await sgtApiRequest(apiKey, clubUrl, "members") as { members?: Array<Record<string, unknown>> };
+      if (sgtData.members) {
+        for (const member of sgtData.members) {
+          await adminClient
+            .from("sgt_members")
+            .upsert({
+              user_id: member.user_id,
+              user_name: member.user_name,
+              user_email: member.user_email || null,
+              user_country_code: member.user_country_code || null,
+              user_has_avatar: member.user_has_avatar || null,
+              user_active: member.user_active ?? 1,
+            }, { onConflict: "user_id" });
+        }
+        console.log(`[SGT-API] Synced ${sgtData.members.length} members`);
+      }
+    } catch (e) {
+      console.log("[SGT-API] Failed to sync members:", e);
+    }
+  }
+
+  // Check if we have any tours synced
+  const { count: tourCount } = await adminClient
+    .from("sgt_tours")
+    .select("*", { count: "exact", head: true });
+
+  if (!tourCount || tourCount === 0) {
+    console.log("[SGT-API] No tours cached, syncing from API...");
+    try {
+      const sgtData = await sgtApiRequest(apiKey, clubUrl, "tours") as Array<Record<string, unknown>>;
+      for (const tour of sgtData) {
+        await adminClient
+          .from("sgt_tours")
+          .upsert({
+            tour_id: tour.tourId,
+            name: tour.name,
+            start_date: tour.start_date || null,
+            end_date: tour.end_date || null,
+            team_tour: tour.teamTour ?? 0,
+            active: tour.active ?? 1,
+          }, { onConflict: "tour_id" });
+      }
+      console.log(`[SGT-API] Synced ${sgtData.length} tours`);
+
+      // Also sync tour members and standings for active tours
+      const activeTours = sgtData.filter(t => t.active === 1);
+      for (const tour of activeTours) {
+        try {
+          // Sync tour members
+          const tourMembers = await sgtApiRequest(apiKey, clubUrl, `tour/${tour.tourId}/members`) as Array<Record<string, unknown>>;
+          for (const member of tourMembers) {
+            await adminClient
+              .from("sgt_tour_members")
+              .upsert({
+                tour_id: tour.tourId,
+                user_id: member.user_id,
+                user_name: member.user_name || null,
+                hcp_index: member.hcp_index ?? null,
+                custom_hcp: member.custom_hcp ?? null,
+              }, { onConflict: "tour_id,user_id" });
+          }
+          console.log(`[SGT-API] Synced ${tourMembers.length} tour members for tour ${tour.tourId}`);
+
+          // Sync tour standings
+          const standings = await sgtApiRequest(apiKey, clubUrl, `tour/${tour.tourId}/standings`, { grossOrNet: "gross" }) as Array<Record<string, unknown>>;
+          for (const standing of standings) {
+            await adminClient
+              .from("sgt_tour_standings")
+              .upsert({
+                tour_id: tour.tourId,
+                user_name: standing.user_name,
+                gross_or_net: "gross",
+                position: standing.position,
+                hcp: standing.hcp,
+                events: standing.events ?? 0,
+                first: standing.first ?? 0,
+                top5: standing.top5 ?? 0,
+                top10: standing.top10 ?? 0,
+                points: standing.points ?? 0,
+                country_code: standing.country_code || null,
+                user_has_avatar: standing.user_has_avatar || null,
+              }, { onConflict: "tour_id,user_name,gross_or_net" });
+          }
+          console.log(`[SGT-API] Synced ${standings.length} standings for tour ${tour.tourId}`);
+        } catch (e) {
+          console.log(`[SGT-API] Failed to sync tour ${tour.tourId} details:`, e);
+        }
+      }
+    } catch (e) {
+      console.log("[SGT-API] Failed to sync tours:", e);
+    }
+  }
+}
+
 // Make authenticated request to SGT API
 async function sgtApiRequest(apiKey: string, clubUrl: string, endpoint: string, params: Record<string, string> = {}): Promise<unknown> {
   const url = new URL(`${SGT_BASE_URL}/${clubUrl}/${endpoint}`);
@@ -186,6 +290,9 @@ serve(async (req) => {
 
     // Get valid API key (auto-creates/refreshes as needed)
     const apiKey = await getSgtApiKey(adminClient);
+
+    // Ensure base data is synced before processing any action
+    await ensureBaseDataSynced(adminClient, apiKey, clubUrl);
 
     let data;
 
