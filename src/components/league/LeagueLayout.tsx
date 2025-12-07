@@ -1,7 +1,7 @@
 import { ReactNode, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import birdiesLogo from "@/assets/birdies-logo.png";
+import birdiesBLogo from "@/assets/birdies-b-logo.png";
 import {
   LayoutDashboard,
   History,
@@ -43,7 +43,7 @@ export function LeagueLayout({ children }: LeagueLayoutProps) {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="hero-section sticky top-0 z-50 shadow-lg">
+      <header className="bg-primary sticky top-0 z-50 shadow-lg">
         <div className="container flex items-center justify-between h-16 px-4">
           <div className="flex items-center gap-3">
             <button
@@ -55,9 +55,9 @@ export function LeagueLayout({ children }: LeagueLayoutProps) {
             </button>
             <div className="h-6 w-px bg-primary-foreground/30 hidden sm:block" />
             <Link to="/league" className="flex items-center gap-3">
-              <img src={birdiesLogo} alt="Birdies" className="h-10 w-auto" />
-              <span className="font-anton text-xl text-primary-foreground hidden sm:block">
-                BIRDIES LEAGUE
+              <img src={birdiesBLogo} alt="Birdies" className="h-10 w-auto" />
+              <span className="font-display text-xl text-primary-foreground tracking-wide">
+                BIRDIES HUB
               </span>
             </Link>
           </div>
