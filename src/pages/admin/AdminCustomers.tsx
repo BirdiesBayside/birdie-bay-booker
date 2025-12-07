@@ -42,7 +42,8 @@ import {
   Columns,
   Download,
   UserPlus,
-  KeyRound
+  KeyRound,
+  DollarSign
 } from "lucide-react";
 import { format } from "date-fns";
 import { useSearchParams } from "react-router-dom";
@@ -56,6 +57,7 @@ interface Customer {
   phone: string | null;
   membership_tier: string;
   custom_hourly_rate: number | null;
+  deposit_balance: number;
   created_at: string;
 }
 
@@ -71,6 +73,7 @@ const DEFAULT_COLUMNS: ColumnConfig[] = [
   { key: "email", label: "Email", visible: true },
   { key: "phone", label: "Phone", visible: true },
   { key: "membership_tier", label: "Membership", visible: true },
+  { key: "deposit_balance", label: "Balance", visible: false },
   { key: "custom_hourly_rate", label: "Custom Rate", visible: false },
   { key: "created_at", label: "Joined", visible: false },
 ];
@@ -104,6 +107,11 @@ export default function AdminCustomers() {
   const [newPhone, setNewPhone] = useState("");
   const [isCreatingCustomer, setIsCreatingCustomer] = useState(false);
   const [isSendingReset, setIsSendingReset] = useState(false);
+
+  // Deposit dialog state
+  const [showDepositDialog, setShowDepositDialog] = useState(false);
+  const [depositAmount, setDepositAmount] = useState("");
+  const [isAddingDeposit, setIsAddingDeposit] = useState(false);
 
   // Check for user query param to auto-select customer
   const highlightedUserId = searchParams.get("user");
@@ -282,6 +290,79 @@ export default function AdminCustomers() {
     }
 
     setIsSendingReset(false);
+  };
+
+  const addDeposit = async () => {
+    if (!selectedCustomer) return;
+    
+    const amount = parseFloat(depositAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast({
+        title: "Invalid amount",
+        description: "Please enter a valid positive amount.",
+        variant: "destructive",
+        duration: 4000,
+      });
+      return;
+    }
+
+    setIsAddingDeposit(true);
+
+    try {
+      const newBalance = (selectedCustomer.deposit_balance || 0) + amount;
+      
+      const { error } = await supabase
+        .from("profiles")
+        .update({ deposit_balance: newBalance })
+        .eq("id", selectedCustomer.id);
+
+      if (error) throw error;
+
+      // Send notification
+      try {
+        await supabase.functions.invoke("send-deposit-notification", {
+          body: {
+            user_id: selectedCustomer.user_id,
+            amount: amount,
+            new_balance: newBalance,
+          },
+        });
+      } catch (notificationError) {
+        console.error("Failed to send deposit notification:", notificationError);
+      }
+
+      toast({
+        title: "Deposit added",
+        description: `$${amount.toFixed(2)} added to ${selectedCustomer.first_name}'s account.`,
+        duration: 4000,
+      });
+
+      // Update local state
+      setCustomers(prev =>
+        prev.map(c =>
+          c.id === selectedCustomer.id
+            ? { ...c, deposit_balance: newBalance }
+            : c
+        )
+      );
+      
+      setSelectedCustomer({
+        ...selectedCustomer,
+        deposit_balance: newBalance,
+      });
+      
+      setShowDepositDialog(false);
+      setDepositAmount("");
+    } catch (error: any) {
+      toast({
+        title: "Error adding deposit",
+        description: error.message || "Failed to add deposit.",
+        variant: "destructive",
+        duration: 4000,
+      });
+    }
+
+    setIsAddingDeposit(false);
   };
 
   const openEditMode = (customer: Customer) => {
@@ -546,6 +627,8 @@ export default function AdminCustomers() {
                             customer.phone || "-"
                           ) : col.key === "custom_hourly_rate" ? (
                             customer.custom_hourly_rate ? `$${customer.custom_hourly_rate}/hr` : "-"
+                          ) : col.key === "deposit_balance" ? (
+                            customer.deposit_balance > 0 ? `$${Number(customer.deposit_balance).toFixed(2)}` : "-"
                           ) : (
                             customer[col.key as keyof Customer]
                           )}
@@ -649,6 +732,29 @@ export default function AdminCustomers() {
                       Joined {format(new Date(selectedCustomer.created_at), "MMMM d, yyyy")}
                     </span>
                   </div>
+                </div>
+
+                <hr className="border-border" />
+
+                {/* Balance Section */}
+                <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                  <div>
+                    <div className="text-sm text-muted-foreground">Credit Balance</div>
+                    <div className="text-xl font-semibold text-primary">
+                      ${Number(selectedCustomer.deposit_balance || 0).toFixed(2)}
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setDepositAmount("");
+                      setShowDepositDialog(true);
+                    }}
+                  >
+                    <DollarSign className="h-4 w-4 mr-1" />
+                    Add Credit
+                  </Button>
                 </div>
 
                 <hr className="border-border" />
@@ -809,6 +915,60 @@ export default function AdminCustomers() {
                 >
                   <UserPlus className="h-4 w-4 mr-2" />
                   {isCreatingCustomer ? "Creating..." : "Add Customer"}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Add Deposit Dialog */}
+        <Dialog open={showDepositDialog} onOpenChange={setShowDepositDialog}>
+          <DialogContent className="max-w-xs">
+            <DialogHeader>
+              <DialogTitle className="font-display text-xl uppercase tracking-wide">
+                Add Credit
+              </DialogTitle>
+            </DialogHeader>
+            
+            <div className="space-y-4">
+              {selectedCustomer && (
+                <p className="text-sm text-muted-foreground">
+                  Adding credit to {selectedCustomer.first_name} {selectedCustomer.last_name}'s account.
+                  Current balance: ${Number(selectedCustomer.deposit_balance || 0).toFixed(2)}
+                </p>
+              )}
+              
+              <div className="space-y-2">
+                <Label>Amount ($)</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={depositAmount}
+                  onChange={(e) => setDepositAmount(e.target.value)}
+                  placeholder="0.00"
+                />
+              </div>
+              
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => {
+                    setShowDepositDialog(false);
+                    setDepositAmount("");
+                  }}
+                  disabled={isAddingDeposit}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1"
+                  onClick={addDeposit}
+                  disabled={isAddingDeposit || !depositAmount}
+                >
+                  <DollarSign className="h-4 w-4 mr-2" />
+                  {isAddingDeposit ? "Adding..." : "Add Credit"}
                 </Button>
               </div>
             </div>

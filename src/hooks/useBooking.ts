@@ -32,12 +32,15 @@ const MEMBERSHIP_PRICING: Record<string, number> = {
   albatross: 8,
 };
 
+export type PaymentMethod = "card" | "balance";
+
 export function useBooking() {
   const [bays, setBays] = useState<Bay[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [userMembershipTier, setUserMembershipTier] = useState<string>("visitor");
   const [customHourlyRate, setCustomHourlyRate] = useState<number | null>(null);
+  const [depositBalance, setDepositBalance] = useState<number>(0);
 
   const fetchBays = async () => {
     const { data, error } = await supabase
@@ -55,7 +58,7 @@ export function useBooking() {
     if (user) {
       const { data } = await supabase
         .from("profiles")
-        .select("membership_tier, custom_hourly_rate")
+        .select("membership_tier, custom_hourly_rate, deposit_balance")
         .eq("user_id", user.id)
         .maybeSingle();
 
@@ -64,6 +67,9 @@ export function useBooking() {
       }
       if (data?.custom_hourly_rate !== undefined) {
         setCustomHourlyRate(data.custom_hourly_rate);
+      }
+      if (data?.deposit_balance !== undefined) {
+        setDepositBalance(Number(data.deposit_balance) || 0);
       }
     }
   };
@@ -136,13 +142,31 @@ export function useBooking() {
     date: Date,
     startTime: string,
     durationHours: number,
-    playerCount: number = 1
+    playerCount: number = 1,
+    paymentMethod: PaymentMethod = "card"
   ) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
 
     const hourlyRate = getHourlyRate();
     const totalPrice = hourlyRate * durationHours;
+
+    // If using balance, check if sufficient funds
+    if (paymentMethod === "balance") {
+      if (depositBalance < totalPrice) {
+        throw new Error("Insufficient balance");
+      }
+      
+      // Deduct from balance
+      const newBalance = depositBalance - totalPrice;
+      const { error: balanceError } = await supabase
+        .from("profiles")
+        .update({ deposit_balance: newBalance })
+        .eq("user_id", user.id);
+      
+      if (balanceError) throw new Error("Failed to deduct balance");
+      setDepositBalance(newBalance);
+    }
 
     const startHour = parseInt(startTime.split(":")[0]);
     const startMinute = parseInt(startTime.split(":")[1]);
@@ -161,6 +185,7 @@ export function useBooking() {
         hourly_rate: hourlyRate,
         total_price: totalPrice,
         player_count: playerCount,
+        payment_method: paymentMethod === "balance" ? "balance" : "pending",
       })
       .select()
       .single();
@@ -193,6 +218,7 @@ export function useBooking() {
     bookings,
     isLoading,
     userMembershipTier,
+    depositBalance,
     getHourlyRate,
     fetchBookingsForDate,
     checkBayAvailability,

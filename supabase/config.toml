@@ -35,3 +35,6 @@ verify_jwt = false
 
 [functions.stripe-terminal]
 verify_jwt = false
+
+[functions.send-deposit-notification]
+verify_jwt = false

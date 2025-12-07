@@ -1,13 +1,20 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2, CreditCard, Wallet } from "lucide-react";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
-import { useBooking } from "@/hooks/useBooking";
+import { useBooking, PaymentMethod } from "@/hooks/useBooking";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DateTimePicker } from "@/components/booking/DateTimePicker";
 import { BayAvailabilityGrid } from "@/components/booking/BayAvailabilityGrid";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
 import birdiesLogo from "@/assets/birdies-logo.png";
 
@@ -26,6 +33,7 @@ export default function Booking() {
     bays,
     isLoading,
     userMembershipTier,
+    depositBalance,
     getHourlyRate,
     fetchBookingsForDate,
     checkBayAvailability,
@@ -38,6 +46,7 @@ export default function Booking() {
   const [selectedPlayers, setSelectedPlayers] = useState<number>(1);
   const [selectedBayId, setSelectedBayId] = useState<string | undefined>();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -71,7 +80,7 @@ export default function Booking() {
     setSelectedPlayers(players);
   };
 
-  const handleConfirmBooking = async () => {
+  const handleConfirmClick = () => {
     if (!selectedDate || !selectedTime || !selectedBayId) {
       toast({
         title: "Missing selection",
@@ -81,12 +90,39 @@ export default function Booking() {
       return;
     }
 
+    const totalPrice = hourlyRate * selectedDuration;
+    
+    // If customer has balance, show payment options
+    if (depositBalance > 0) {
+      setShowPaymentDialog(true);
+    } else {
+      // No balance, proceed with card payment
+      handleConfirmBooking("card");
+    }
+  };
+
+  const handleConfirmBooking = async (paymentMethod: PaymentMethod) => {
+    if (!selectedDate || !selectedTime || !selectedBayId) return;
+
+    const totalPrice = hourlyRate * selectedDuration;
+    
+    // Check if balance is sufficient when using balance
+    if (paymentMethod === "balance" && depositBalance < totalPrice) {
+      toast({
+        title: "Insufficient balance",
+        description: `Your balance ($${depositBalance.toFixed(2)}) is less than the booking cost ($${totalPrice.toFixed(2)}).`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setShowPaymentDialog(false);
     setIsSubmitting(true);
     try {
-      await createBooking(selectedBayId, selectedDate, selectedTime, selectedDuration, selectedPlayers);
+      await createBooking(selectedBayId, selectedDate, selectedTime, selectedDuration, selectedPlayers, paymentMethod);
       toast({
         title: "Booking confirmed!",
-        description: `Your bay is booked for ${format(selectedDate, "PPP")} at ${selectedTime}.`,
+        description: `Your bay is booked for ${format(selectedDate, "PPP")} at ${selectedTime}.${paymentMethod === "balance" ? " Balance deducted." : ""}`,
       });
       navigate("/dashboard");
     } catch (error: any) {
@@ -196,7 +232,7 @@ export default function Booking() {
         <Button
           className="w-full py-6 text-lg font-display gradient-orange text-accent-foreground"
           disabled={!canConfirm || isSubmitting}
-          onClick={handleConfirmBooking}
+          onClick={handleConfirmClick}
         >
           {isSubmitting ? (
             <>
@@ -207,6 +243,52 @@ export default function Booking() {
             `Confirm Booking${canConfirm ? ` - $${hourlyRate * selectedDuration}` : ""}`
           )}
         </Button>
+
+        {/* Payment Method Dialog */}
+        <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="font-display text-xl">Choose Payment Method</DialogTitle>
+              <DialogDescription>
+                Total: ${(hourlyRate * selectedDuration).toFixed(2)}
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-3 pt-2">
+              <Button
+                variant="outline"
+                className="w-full h-auto py-4 justify-start"
+                onClick={() => handleConfirmBooking("balance")}
+                disabled={depositBalance < hourlyRate * selectedDuration}
+              >
+                <Wallet className="h-5 w-5 mr-3 text-primary" />
+                <div className="text-left">
+                  <div className="font-medium">Use Balance</div>
+                  <div className="text-sm text-muted-foreground">
+                    Available: ${depositBalance.toFixed(2)}
+                    {depositBalance < hourlyRate * selectedDuration && (
+                      <span className="text-destructive ml-2">(Insufficient)</span>
+                    )}
+                  </div>
+                </div>
+              </Button>
+              
+              <Button
+                variant="outline"
+                className="w-full h-auto py-4 justify-start"
+                onClick={() => handleConfirmBooking("card")}
+              >
+                <CreditCard className="h-5 w-5 mr-3 text-primary" />
+                <div className="text-left">
+                  <div className="font-medium">Pay by Card</div>
+                  <div className="text-sm text-muted-foreground">
+                    Charge to saved card
+                  </div>
+                </div>
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );
