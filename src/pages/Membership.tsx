@@ -224,7 +224,7 @@ const Membership = () => {
                   key={key} 
                   className={`relative flex flex-col ${tier.color} border-2 ${
                     isCurrentTier(key) ? "ring-2 ring-accent ring-offset-2" : ""
-                  } ${tier.popular ? "lg:-mt-4 lg:mb-4" : ""}`}
+                  }`}
                 >
                   {tier.popular && (
                     <div className="absolute -top-3 left-1/2 -translate-x-1/2">
