@@ -88,6 +88,15 @@ const sendSMS = async (phone: string, message: string): Promise<{ success: boole
   }
 };
 
+// Replace template tags with actual values
+const replaceTemplateTags = (template: string, tags: Record<string, string>): string => {
+  let result = template;
+  for (const [tag, value] of Object.entries(tags)) {
+    result = result.replace(new RegExp(tag.replace(/[{}]/g, '\\$&'), 'g'), value);
+  }
+  return result;
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -136,6 +145,20 @@ serve(async (req) => {
     }
     logStep("Profile fetched", { email: profile.email, phone: profile.phone });
 
+    // Fetch custom email template
+    const templateKey = notification_type === "confirmation" ? "booking_confirmation" : "booking_cancellation";
+    const { data: emailTemplate, error: templateError } = await supabaseClient
+      .from("email_templates")
+      .select("*")
+      .eq("template_key", templateKey)
+      .single();
+    
+    if (templateError) {
+      logStep("Template fetch error (using default)", { error: templateError.message });
+    } else {
+      logStep("Template fetched", { templateKey, hasCustomHtml: !!emailTemplate?.html_content });
+    }
+
     // Format booking details
     const bookingDate = new Date(booking.booking_date).toLocaleDateString("en-AU", {
       weekday: "long",
@@ -156,15 +179,33 @@ serve(async (req) => {
     // Format time for display (12-hour format)
     const formatTime12hr = (time24: string) => {
       const [hours, minutes] = time24.split(':').map(Number);
-      const period = hours >= 12 ? 'pm' : 'am';
+      const period = hours >= 12 ? 'PM' : 'AM';
       const hours12 = hours % 12 || 12;
-      return `${hours12}:${minutes.toString().padStart(2, '0')}${period}`;
+      return `${hours12}:${minutes.toString().padStart(2, '0')} ${period}`;
     };
     const startTime12hr = formatTime12hr(startTime);
+    const endTime12hr = formatTime12hr(endTime);
     
     // Check if booking needs boom gate access (5-6am or 5pm onwards)
     const startHour = parseInt(booking.start_time.split(':')[0], 10);
     const needsBoomGate = (startHour >= 5 && startHour < 7) || startHour >= 17;
+
+    // Template replacement tags
+    const templateTags: Record<string, string> = {
+      '{first_name}': profile.first_name || '',
+      '{last_name}': profile.last_name || '',
+      '{email}': profile.email || '',
+      '{booking_date}': bookingDate,
+      '{booking_time}': startTime12hr,
+      '{end_time}': endTime12hr,
+      '{duration}': booking.duration_hours.toString(),
+      '{bay_number}': bayNumber.toString(),
+      '{bay_name}': bayName,
+      '{player_count}': booking.player_count.toString(),
+      '{total_price}': `$${booking.total_price.toFixed(2)}`,
+      '{door_code}': '7675#',
+      '{refund_amount}': '', // Will be populated if refund occurred
+    };
 
     // Email content based on notification type
     let subject: string;
@@ -172,7 +213,8 @@ serve(async (req) => {
     let smsMessage: string;
 
     if (notification_type === "confirmation") {
-      subject = "Booking Confirmed - Birdies Bayside";
+      // Use custom subject if available
+      subject = emailTemplate?.subject || "Booking Confirmed - Birdies Bayside";
       
       // Build SMS message matching SMS Broadcast template style (concise for SMS limits)
       const formattedSmsDate = new Date(booking.booking_date).toLocaleDateString("en-AU", {
@@ -187,88 +229,108 @@ serve(async (req) => {
         ``,
         `Your door code is: 7675#`
       ].join('\n');
-      htmlContent = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        </head>
-        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="background-color: #1f4c25; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
-            <h1 style="color: #fff5e4; margin: 0;">Booking Confirmed!</h1>
-          </div>
-          <div style="background-color: #fff5e4; padding: 30px; border-radius: 0 0 8px 8px;">
-            <p>Hi ${profile.first_name},</p>
-            <p>Your golf simulator booking has been confirmed. Here are your booking details:</p>
-            
-            <div style="background-color: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ec622d;">
-              <p style="margin: 5px 0;"><strong>Date:</strong> ${bookingDate}</p>
-              <p style="margin: 5px 0;"><strong>Time:</strong> ${startTime} - ${endTime}</p>
-              <p style="margin: 5px 0;"><strong>Duration:</strong> ${booking.duration_hours} hour${booking.duration_hours > 1 ? "s" : ""}</p>
-              <p style="margin: 5px 0;"><strong>Bay:</strong> ${bayName}</p>
-              <p style="margin: 5px 0;"><strong>Players:</strong> ${booking.player_count}</p>
-              <p style="margin: 5px 0;"><strong>Total:</strong> $${booking.total_price.toFixed(2)}</p>
+
+      // Check if custom template exists
+      if (emailTemplate?.html_content) {
+        htmlContent = replaceTemplateTags(emailTemplate.html_content, templateTags);
+        logStep("Using custom email template");
+      } else {
+        // Default template
+        htmlContent = `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          </head>
+          <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="background-color: #1f4c25; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
+              <h1 style="color: #fff5e4; margin: 0;">Booking Confirmed!</h1>
             </div>
-            
-            <div style="background-color: #1f4c25; padding: 20px; border-radius: 8px; margin: 20px 0;">
-              <p style="color: #fff5e4; margin: 0 0 10px 0; font-size: 16px;"><strong>Door Access Code:</strong> 7675#</p>
-              ${needsBoomGate ? `
-              <p style="color: #fff5e4; margin: 0; font-size: 14px;">
-                <strong>IMPORTANT:</strong> You will require Boom gate access for your booking time, 
-                <a href="https://birdiesbayside.com.au/pages/birdies-gate-access" style="color: #ec622d;">download the app here</a>
+            <div style="background-color: #fff5e4; padding: 30px; border-radius: 0 0 8px 8px;">
+              <p>Hi ${profile.first_name},</p>
+              <p>Your golf simulator booking has been confirmed. Here are your booking details:</p>
+              
+              <div style="background-color: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ec622d;">
+                <p style="margin: 5px 0;"><strong>Date:</strong> ${bookingDate}</p>
+                <p style="margin: 5px 0;"><strong>Time:</strong> ${startTime} - ${endTime}</p>
+                <p style="margin: 5px 0;"><strong>Duration:</strong> ${booking.duration_hours} hour${booking.duration_hours > 1 ? "s" : ""}</p>
+                <p style="margin: 5px 0;"><strong>Bay:</strong> ${bayName}</p>
+                <p style="margin: 5px 0;"><strong>Players:</strong> ${booking.player_count}</p>
+                <p style="margin: 5px 0;"><strong>Total:</strong> $${booking.total_price.toFixed(2)}</p>
+              </div>
+              
+              <div style="background-color: #1f4c25; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                <p style="color: #fff5e4; margin: 0 0 10px 0; font-size: 16px;"><strong>Door Access Code:</strong> 7675#</p>
+                ${needsBoomGate ? `
+                <p style="color: #fff5e4; margin: 0; font-size: 14px;">
+                  <strong>IMPORTANT:</strong> You will require Boom gate access for your booking time, 
+                  <a href="https://birdiesbayside.com.au/pages/birdies-gate-access" style="color: #ec622d;">download the app here</a>
+                </p>
+                ` : ''}
+              </div>
+              
+              <p>We look forward to seeing you at Birdies Bayside!</p>
+              
+              <p style="color: #666; font-size: 14px; margin-top: 30px;">
+                If you need to make changes to your booking, please log in to your account or contact us.
               </p>
-              ` : ''}
             </div>
-            
-            <p>We look forward to seeing you at Birdies Bayside!</p>
-            
-            <p style="color: #666; font-size: 14px; margin-top: 30px;">
-              If you need to make changes to your booking, please log in to your account or contact us.
-            </p>
-          </div>
-          <div style="text-align: center; padding: 20px; color: #666; font-size: 12px;">
-            <p>Birdies Bayside Golf Simulators</p>
-            <p>info@birdiesbayside.com.au</p>
-          </div>
-        </body>
-        </html>
-      `;
+            <div style="text-align: center; padding: 20px; color: #666; font-size: 12px;">
+              <p>Birdies Bayside Golf Simulators</p>
+              <p>info@birdiesbayside.com.au</p>
+            </div>
+          </body>
+          </html>
+        `;
+      }
     } else {
-      subject = "Booking Cancelled - Birdies Bayside";
+      // Cancellation
+      subject = emailTemplate?.subject || "Booking Cancelled - Birdies Bayside";
       smsMessage = `Birdies Bayside: Your booking for ${shortDate} ${startTime}-${endTime} has been cancelled. Questions? Contact us.`;
-      htmlContent = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        </head>
-        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="background-color: #1f4c25; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
-            <h1 style="color: #fff5e4; margin: 0;">Booking Cancelled</h1>
-          </div>
-          <div style="background-color: #fff5e4; padding: 30px; border-radius: 0 0 8px 8px;">
-            <p>Hi ${profile.first_name},</p>
-            <p>Your booking has been cancelled. Here were the booking details:</p>
-            
-            <div style="background-color: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #666;">
-              <p style="margin: 5px 0;"><strong>Date:</strong> ${bookingDate}</p>
-              <p style="margin: 5px 0;"><strong>Time:</strong> ${startTime} - ${endTime}</p>
-              <p style="margin: 5px 0;"><strong>Bay:</strong> ${bayName}</p>
+      
+      if (emailTemplate?.html_content) {
+        htmlContent = replaceTemplateTags(emailTemplate.html_content, templateTags);
+        logStep("Using custom email template");
+      } else {
+        htmlContent = `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          </head>
+          <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="background-color: #1f4c25; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
+              <h1 style="color: #fff5e4; margin: 0;">Booking Cancelled</h1>
             </div>
-            
-            <p>If you didn't request this cancellation or need assistance, please contact us.</p>
-            
-            <p style="margin-top: 20px;">We hope to see you again soon at Birdies Bayside!</p>
-          </div>
-          <div style="text-align: center; padding: 20px; color: #666; font-size: 12px;">
-            <p>Birdies Bayside Golf Simulators</p>
-            <p>info@birdiesbayside.com.au</p>
-          </div>
-        </body>
-        </html>
-      `;
+            <div style="background-color: #fff5e4; padding: 30px; border-radius: 0 0 8px 8px;">
+              <p>Hi ${profile.first_name},</p>
+              <p>Your booking has been cancelled. Here were the booking details:</p>
+              
+              <div style="background-color: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #666;">
+                <p style="margin: 5px 0;"><strong>Date:</strong> ${bookingDate}</p>
+                <p style="margin: 5px 0;"><strong>Time:</strong> ${startTime} - ${endTime}</p>
+                <p style="margin: 5px 0;"><strong>Bay:</strong> ${bayName}</p>
+              </div>
+              
+              <p>If you didn't request this cancellation or need assistance, please contact us.</p>
+              
+              <p style="margin-top: 20px;">We hope to see you again soon at Birdies Bayside!</p>
+            </div>
+            <div style="text-align: center; padding: 20px; color: #666; font-size: 12px;">
+              <p>Birdies Bayside Golf Simulators</p>
+              <p>info@birdiesbayside.com.au</p>
+            </div>
+          </body>
+          </html>
+        `;
+      }
+    }
+
+    // Apply tag replacement to subject if custom
+    if (emailTemplate?.subject) {
+      subject = replaceTemplateTags(subject, templateTags);
     }
 
     // Send email

@@ -179,6 +179,42 @@ export type Database = {
           },
         ]
       }
+      email_templates: {
+        Row: {
+          created_at: string
+          description: string | null
+          html_content: string | null
+          id: string
+          is_active: boolean
+          name: string
+          subject: string | null
+          template_key: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          html_content?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          subject?: string | null
+          template_key: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          html_content?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          subject?: string | null
+          template_key?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       pos_products: {
         Row: {
           created_at: string
