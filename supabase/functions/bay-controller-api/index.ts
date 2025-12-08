@@ -84,7 +84,7 @@ serve(async (req) => {
         // Get today's date in YYYY-MM-DD format
         const today = new Date().toISOString().split("T")[0];
 
-        // Fetch bookings for this bay from today onwards
+        // Fetch bookings for this bay from today onwards with customer info
         const { data: bookings, error: bookingsError } = await supabase
           .from("bookings")
           .select(`
@@ -94,13 +94,31 @@ serve(async (req) => {
             end_time,
             duration_hours,
             player_count,
-            status
+            status,
+            profiles:user_id (
+              first_name,
+              last_name
+            )
           `)
           .eq("bay_id", bay.id)
           .eq("status", "confirmed")
           .gte("booking_date", today)
           .order("booking_date", { ascending: true })
           .order("start_time", { ascending: true });
+
+        // Transform bookings to include customer_name
+        const bookingsWithNames = (bookings || []).map((booking: any) => ({
+          id: booking.id,
+          booking_date: booking.booking_date,
+          start_time: booking.start_time,
+          end_time: booking.end_time,
+          duration_hours: booking.duration_hours,
+          player_count: booking.player_count,
+          status: booking.status,
+          customer_name: booking.profiles 
+            ? `${booking.profiles.first_name || ''} ${booking.profiles.last_name || ''}`.trim() 
+            : 'Unknown',
+        }));
 
         if (bookingsError) {
           console.error("Bookings fetch error:", bookingsError);
@@ -119,7 +137,7 @@ serve(async (req) => {
               number: bayNumber,
               name: bay.name,
             },
-            bookings: bookings || [],
+            bookings: bookingsWithNames,
             server_time: new Date().toISOString(),
           }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }

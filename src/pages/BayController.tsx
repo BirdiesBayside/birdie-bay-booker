@@ -20,6 +20,7 @@ interface Booking {
   duration_hours: number;
   player_count: number;
   status: string;
+  customer_name?: string;
 }
 
 interface TapoPlug {
@@ -649,7 +650,7 @@ export default function BayController() {
             </div>
             {activeBooking && (
               <div className="mt-4 p-3 bg-primary/10 rounded-lg">
-                <p className="font-medium">Active Booking</p>
+                <p className="font-medium">{activeBooking.customer_name || 'Active Booking'}</p>
                 <p className="text-sm text-muted-foreground">
                   {activeBooking.start_time.slice(0, 5)} - {activeBooking.end_time.slice(0, 5)}
                   {" "}({activeBooking.duration_hours}h, {activeBooking.player_count} player{activeBooking.player_count > 1 ? "s" : ""})
