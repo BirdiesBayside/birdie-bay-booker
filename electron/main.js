@@ -20,7 +20,7 @@ function createWindow() {
     height: 768,
     minWidth: 800,
     minHeight: 600,
-    icon: path.join(__dirname, 'icon.ico'),
+    icon: path.join(__dirname, 'icon.png'),
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -34,12 +34,26 @@ function createWindow() {
   if (isDev) {
     mainWindow.loadURL('http://localhost:5173/bay-controller');
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
-    // Navigate to bay-controller route after loading
-    mainWindow.webContents.on('did-finish-load', () => {
-      mainWindow.webContents.executeJavaScript(`window.location.hash = '/bay-controller'`);
+    // Load the built app with hash navigation
+    const indexPath = path.join(__dirname, '../dist/index.html');
+    console.log('Loading from:', indexPath);
+    mainWindow.loadFile(indexPath).then(() => {
+      // Set hash after file loads
+      mainWindow.webContents.executeJavaScript(`
+        if (!window.location.hash || window.location.hash === '#/') {
+          window.location.hash = '/bay-controller';
+        }
+      `);
+    }).catch(err => {
+      console.error('Failed to load app:', err);
     });
   }
+
+  // Open DevTools in development or if loading fails
+  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+    console.error('Failed to load:', errorCode, errorDescription);
+    mainWindow.webContents.openDevTools();
+  });
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
@@ -56,7 +70,7 @@ function createWindow() {
 }
 
 function createTray() {
-  tray = new Tray(path.join(__dirname, 'icon.ico'));
+  tray = new Tray(path.join(__dirname, 'icon.png'));
   
   const contextMenu = Menu.buildFromTemplate([
     { 
