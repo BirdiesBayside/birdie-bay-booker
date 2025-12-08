@@ -82,19 +82,27 @@ export default function AdminBayControl() {
     const now = new Date();
     const today = format(now, "yyyy-MM-dd");
 
-    // Fetch bays - use defaults if fetch fails
-    let displayBays = DEFAULT_BAYS;
+    // Fetch bays - need real bay IDs to match bookings
+    let displayBays: Bay[] = [];
     try {
-      const { data: bays } = await supabase
+      const { data: bays, error } = await supabase
         .from("bays")
         .select("*")
         .order("bay_number");
+      
+      console.log("Fetched bays:", bays, "Error:", error);
       
       if (bays && bays.length > 0) {
         displayBays = bays;
       }
     } catch (e) {
       console.error("Error fetching bays:", e);
+    }
+
+    // If no bays from DB, use defaults for display only (statuses won't match)
+    if (displayBays.length === 0) {
+      displayBays = DEFAULT_BAYS;
+      console.warn("Using default bays - bookings won't match");
     }
 
     // Fetch bay devices - continue even if this fails
@@ -109,7 +117,7 @@ export default function AdminBayControl() {
     // Fetch today's bookings - continue even if this fails
     let bookings: any[] = [];
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("bookings")
         .select(`
           id,
@@ -127,10 +135,15 @@ export default function AdminBayControl() {
         .eq("booking_date", today)
         .eq("status", "confirmed")
         .order("start_time");
+      
+      console.log("Fetched bookings for", today, ":", data, "Error:", error);
       bookings = data || [];
     } catch (e) {
       console.error("Error fetching bookings:", e);
     }
+
+    console.log("Display bays:", displayBays.map(b => ({ id: b.id, num: b.bay_number })));
+    console.log("Bookings bay_ids:", bookings.map(b => b.bay_id));
 
     // Build bay statuses - always create all 6
     const statuses: BayStatus[] = displayBays.map((bay) => {
