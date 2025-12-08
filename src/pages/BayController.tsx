@@ -127,6 +127,7 @@ export default function BayController() {
     
     setIsLoadingBookings(true);
     setConnectionStatus("connecting");
+    setBookings([]); // Clear previous bookings when fetching new bay
     
     try {
       const { data, error } = await supabase.functions.invoke("bay-controller-api", {
