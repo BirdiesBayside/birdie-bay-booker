@@ -128,6 +128,8 @@ export default function BayController() {
     setIsLoadingBookings(true);
     setConnectionStatus("connecting");
     setBookings([]); // Clear previous bookings when fetching new bay
+    setActiveBooking(null); // Clear active booking when switching bays
+    setPlugsStatus({ monitor: false, projector: false }); // Reset plug status
     
     try {
       const { data, error } = await supabase.functions.invoke("bay-controller-api", {
