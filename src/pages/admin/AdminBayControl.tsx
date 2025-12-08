@@ -281,7 +281,10 @@ export default function AdminBayControl() {
       <div className="p-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-display uppercase">Bay Control</h1>
+          <div>
+            <h1 className="text-2xl font-display uppercase">Bay Control</h1>
+            <p className="text-xs text-muted-foreground mt-1">Auto-refreshes every 30 seconds • Real-time updates enabled</p>
+          </div>
           <Button
             variant="outline"
             size="sm"
