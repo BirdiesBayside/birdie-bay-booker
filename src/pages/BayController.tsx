@@ -7,7 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
-import { Lock, Wifi, Power, Clock, AlertTriangle, CheckCircle, XCircle, Settings, RefreshCw, Monitor, Play, Square, FolderOpen } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Lock, Wifi, Power, Clock, AlertTriangle, CheckCircle, XCircle, Settings, RefreshCw, Monitor, Play, Square, FolderOpen, ChevronDown, ChevronUp, TestTube } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format, addMinutes, isBefore, isAfter, parseISO } from "date-fns";
@@ -76,6 +77,44 @@ declare global {
 
 const CORRECT_PASSWORD = "Holeinone1";
 const APP_VERSION = "1.0.1";
+
+// Collapsible Settings Card Component
+function CollapsibleSettingsCard({ 
+  title, 
+  icon, 
+  children, 
+  defaultOpen = true 
+}: { 
+  title: string; 
+  icon: React.ReactNode; 
+  children: React.ReactNode; 
+  defaultOpen?: boolean;
+}) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+  
+  return (
+    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+      <Card>
+        <CollapsibleTrigger asChild>
+          <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+            <CardTitle className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {icon}
+                {title}
+              </div>
+              {isOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </CardTitle>
+          </CardHeader>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <CardContent className="space-y-4 pt-0">
+            {children}
+          </CardContent>
+        </CollapsibleContent>
+      </Card>
+    </Collapsible>
+  );
+}
 
 export default function BayController() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -836,287 +875,284 @@ export default function BayController() {
           </CardContent>
         </Card>
 
-        {/* App Launch */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Monitor className="w-5 h-5" />
-              App Launch
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Enable/Disable toggle */}
-            <div className="flex items-center justify-between">
-              <div>
-                <Label>Auto-launch apps</Label>
-                <p className="text-sm text-muted-foreground">
-                  Automatically launch apps {appLaunchConfig.appLaunchMinutes} min before booking
-                </p>
-              </div>
-              <Switch
-                checked={appLaunchConfig.enabled}
-                onCheckedChange={(checked) => updateAppConfig("enabled", checked)}
-              />
+        {/* TAPO Smart Plugs - Collapsible */}
+        <CollapsibleSettingsCard title="TAPO Smart Plugs" icon={<Wifi className="w-5 h-5" />} defaultOpen={true}>
+          {/* Assigned plugs for this bay */}
+          {selectedBay && getAssignedPlugsForBay(selectedBay).length > 0 && (
+            <div className="space-y-2">
+              <Label>Assigned to Bay {selectedBay}</Label>
+              {getAssignedPlugsForBay(selectedBay).map((plug) => (
+                <div key={plug.id} className="flex items-center justify-between p-3 bg-primary/10 border border-primary/20 rounded-lg">
+                  <div>
+                    <p className="font-medium">{plug.name}</p>
+                    <p className="text-xs text-muted-foreground">{plug.ip}</p>
+                  </div>
+                  <Button 
+                    size="sm" 
+                    variant="ghost"
+                    onClick={() => removePlugFromBay(plug.id, selectedBay)}
+                  >
+                    Remove
+                  </Button>
+                </div>
+              ))}
             </div>
+          )}
 
-            <Separator />
-
-            {/* App status */}
-            <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-              <div>
-                <p className="font-medium">App Status</p>
-                <p className="text-sm text-muted-foreground">
-                  {appLaunchStatus || (appsRunning ? "Apps running" : "Apps not running")}
-                </p>
-              </div>
-              <Badge variant={appsRunning ? "default" : "secondary"}>
-                {appsRunning ? "Running" : "Stopped"}
-              </Badge>
-            </div>
-
-            {/* Manual controls */}
-            <div className="flex gap-2">
-              <Button 
-                onClick={launchApps} 
-                disabled={isLaunchingApps || appsRunning || !isElectron}
-                className="flex-1"
-              >
-                {isLaunchingApps ? (
-                  <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Launching...</>
-                ) : (
-                  <><Play className="w-4 h-4 mr-2" /> Launch Apps</>
-                )}
-              </Button>
-              <Button 
-                onClick={closeApps} 
-                disabled={!appsRunning || !isElectron}
-                variant="outline" 
-                className="flex-1"
-              >
-                <Square className="w-4 h-4 mr-2" /> Close Apps
-              </Button>
-            </div>
-
-            {!isElectron && (
-              <p className="text-xs text-amber-500 text-center">
-                App launch requires the desktop application
+          <div className="flex items-center gap-4">
+            <div className="flex-1">
+              <p className="text-sm text-muted-foreground">
+                {getAssignedPlugsForBay(selectedBay || 0).length} plug(s) assigned to this bay
               </p>
-            )}
-
-            <Separator />
-
-            {/* Configuration */}
-            <div className="space-y-3">
-              <Label>Configuration</Label>
-              
-              {/* GSPRO Path */}
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">GSPRO Path</Label>
-                <div className="flex gap-2">
-                  <Input
-                    value={appLaunchConfig.gsproPath}
-                    onChange={(e) => updateAppConfig("gsproPath", e.target.value)}
-                    placeholder="C:\Program Files\GSPro\GSPro.exe"
-                    className="flex-1 text-xs"
-                  />
-                </div>
-              </div>
-
-              {/* Protee Labs Path */}
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Protee Labs Path</Label>
-                <div className="flex gap-2">
-                  <Input
-                    value={appLaunchConfig.proteeLabsPath}
-                    onChange={(e) => updateAppConfig("proteeLabsPath", e.target.value)}
-                    placeholder="C:\Program Files\Protee Labs\ProteeLabs.exe"
-                    className="flex-1 text-xs"
-                  />
-                </div>
-              </div>
-
-              {/* Display assignment */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">GSPRO Display</Label>
-                  <Select 
-                    value={appLaunchConfig.gsproDisplay.toString()} 
-                    onValueChange={(v) => updateAppConfig("gsproDisplay", parseInt(v))}
-                  >
-                    <SelectTrigger className="text-xs">
-                      <SelectValue placeholder="Select display" />
+            </div>
+            <Button onClick={scanForPlugs} disabled={isScanning}>
+              {isScanning ? (
+                <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Scanning...</>
+              ) : (
+                <><Wifi className="w-4 h-4 mr-2" /> Scan Network</>
+              )}
+            </Button>
+          </div>
+          
+          {/* Unassigned plugs from scan */}
+          {unassignedPlugs.length > 0 && (
+            <div className="space-y-2">
+              <Label>Available Plugs ({unassignedPlugs.length})</Label>
+              {unassignedPlugs.map((plug) => (
+                <div key={plug.id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                  <div>
+                    <p className="font-medium">{plug.name}</p>
+                    <p className="text-xs text-muted-foreground">{plug.ip}</p>
+                  </div>
+                  <Select onValueChange={(value) => assignPlugToBay(plug, parseInt(value))}>
+                    <SelectTrigger className="w-32">
+                      <SelectValue placeholder="Add to Bay" />
                     </SelectTrigger>
                     <SelectContent>
-                      {displays.length > 0 ? (
-                        displays.map((d) => (
-                          <SelectItem key={d.id} value={d.index.toString()}>
-                            {d.label || `Display ${d.index + 1}`} {d.isPrimary ? "(Primary)" : ""}
-                          </SelectItem>
-                        ))
-                      ) : (
-                        <>
-                          <SelectItem value="0">Display 1</SelectItem>
-                          <SelectItem value="1">Display 2</SelectItem>
-                          <SelectItem value="2">Display 3</SelectItem>
-                        </>
-                      )}
+                      {[1, 2, 3, 4, 5, 6].map((bay) => (
+                        <SelectItem key={bay} value={bay.toString()}>Bay {bay}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
-                
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Protee Display (Touchscreen)</Label>
-                  <Select 
-                    value={appLaunchConfig.proteeDisplay.toString()} 
-                    onValueChange={(v) => updateAppConfig("proteeDisplay", parseInt(v))}
-                  >
-                    <SelectTrigger className="text-xs">
-                      <SelectValue placeholder="Select display" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {displays.length > 0 ? (
-                        displays.map((d) => (
-                          <SelectItem key={d.id} value={d.index.toString()}>
-                            {d.label || `Display ${d.index + 1}`} {d.isPrimary ? "(Primary)" : ""}
-                          </SelectItem>
-                        ))
-                      ) : (
-                        <>
-                          <SelectItem value="0">Display 1</SelectItem>
-                          <SelectItem value="1">Display 2</SelectItem>
-                          <SelectItem value="2">Display 3</SelectItem>
-                        </>
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
+              ))}
+            </div>
+          )}
 
-              {/* App launch timing */}
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label className="text-xs text-muted-foreground">Launch apps before booking</Label>
-                </div>
+          {discoveredPlugs.length > 0 && unassignedPlugs.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-2">
+              All discovered plugs have been assigned
+            </p>
+          )}
+        </CollapsibleSettingsCard>
+
+        {/* App Launch - Collapsible, at bottom */}
+        <CollapsibleSettingsCard title="App Launch" icon={<Monitor className="w-5 h-5" />} defaultOpen={false}>
+          {/* Enable/Disable toggle */}
+          <div className="flex items-center justify-between">
+            <div>
+              <Label>Auto-launch apps</Label>
+              <p className="text-sm text-muted-foreground">
+                Automatically launch apps {appLaunchConfig.appLaunchMinutes} min before booking
+              </p>
+            </div>
+            <Switch
+              checked={appLaunchConfig.enabled}
+              onCheckedChange={(checked) => updateAppConfig("enabled", checked)}
+            />
+          </div>
+
+          <Separator />
+
+          {/* App status */}
+          <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+            <div>
+              <p className="font-medium">App Status</p>
+              <p className="text-sm text-muted-foreground">
+                {appLaunchStatus || (appsRunning ? "Apps running" : "Apps not running")}
+              </p>
+            </div>
+            <Badge variant={appsRunning ? "default" : "secondary"}>
+              {appsRunning ? "Running" : "Stopped"}
+            </Badge>
+          </div>
+
+          {/* Manual controls */}
+          <div className="flex gap-2">
+            <Button 
+              onClick={launchApps} 
+              disabled={isLaunchingApps || appsRunning || !isElectron}
+              className="flex-1"
+            >
+              {isLaunchingApps ? (
+                <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Launching...</>
+              ) : (
+                <><Play className="w-4 h-4 mr-2" /> Launch Apps</>
+              )}
+            </Button>
+            <Button 
+              onClick={closeApps} 
+              disabled={!appsRunning || !isElectron}
+              variant="outline" 
+              className="flex-1"
+            >
+              <Square className="w-4 h-4 mr-2" /> Close Apps
+            </Button>
+          </div>
+
+          {/* Test Launch Button */}
+          <Button 
+            onClick={() => {
+              setAppsRunning(false); // Reset state to allow test
+              launchApps();
+            }}
+            disabled={isLaunchingApps || !isElectron}
+            variant="secondary"
+            className="w-full"
+          >
+            <TestTube className="w-4 h-4 mr-2" /> Test Launch
+          </Button>
+
+          {!isElectron && (
+            <p className="text-xs text-amber-500 text-center">
+              App launch requires the desktop application
+            </p>
+          )}
+
+          <Separator />
+
+          {/* Configuration */}
+          <div className="space-y-3">
+            <Label>Configuration</Label>
+            
+            {/* GSPRO Path */}
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">GSPRO Path</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={appLaunchConfig.gsproPath}
+                  onChange={(e) => updateAppConfig("gsproPath", e.target.value)}
+                  placeholder="C:\Program Files\GSPro\GSPro.exe"
+                  className="flex-1 text-xs"
+                />
+              </div>
+            </div>
+
+            {/* Protee Labs Path */}
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Protee Labs Path</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={appLaunchConfig.proteeLabsPath}
+                  onChange={(e) => updateAppConfig("proteeLabsPath", e.target.value)}
+                  placeholder="C:\Program Files\Protee Labs\ProteeLabs.exe"
+                  className="flex-1 text-xs"
+                />
+              </div>
+            </div>
+
+            {/* Display assignment */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">GSPRO Display</Label>
                 <Select 
-                  value={appLaunchConfig.appLaunchMinutes.toString()} 
-                  onValueChange={(v) => updateAppConfig("appLaunchMinutes", parseInt(v))}
+                  value={appLaunchConfig.gsproDisplay.toString()} 
+                  onValueChange={(v) => updateAppConfig("gsproDisplay", parseInt(v))}
                 >
-                  <SelectTrigger className="w-24 text-xs">
-                    <SelectValue />
+                  <SelectTrigger className="text-xs">
+                    <SelectValue placeholder="Select display" />
                   </SelectTrigger>
                   <SelectContent>
-                    {[1, 2, 3].map((min) => (
-                      <SelectItem key={min} value={min.toString()}>{min} min</SelectItem>
-                    ))}
+                    {displays.length > 0 ? (
+                      displays.map((d) => (
+                        <SelectItem key={d.id} value={d.index.toString()}>
+                          {d.label || `Display ${d.index + 1}`} {d.isPrimary ? "(Primary)" : ""}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <>
+                        <SelectItem value="0">Display 1</SelectItem>
+                        <SelectItem value="1">Display 2</SelectItem>
+                        <SelectItem value="2">Display 3</SelectItem>
+                      </>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
+              
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Protee Display (Touchscreen)</Label>
+                <Select 
+                  value={appLaunchConfig.proteeDisplay.toString()} 
+                  onValueChange={(v) => updateAppConfig("proteeDisplay", parseInt(v))}
+                >
+                  <SelectTrigger className="text-xs">
+                    <SelectValue placeholder="Select display" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {displays.length > 0 ? (
+                      displays.map((d) => (
+                        <SelectItem key={d.id} value={d.index.toString()}>
+                          {d.label || `Display ${d.index + 1}`} {d.isPrimary ? "(Primary)" : ""}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <>
+                        <SelectItem value="0">Display 1</SelectItem>
+                        <SelectItem value="1">Display 2</SelectItem>
+                        <SelectItem value="2">Display 3</SelectItem>
+                      </>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
 
-              {/* Refresh displays button */}
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={refreshDisplays}
-                disabled={!isElectron}
-                className="w-full"
+            {/* App launch timing */}
+            <div className="flex items-center justify-between">
+              <div>
+                <Label className="text-xs text-muted-foreground">Launch apps before booking</Label>
+              </div>
+              <Select 
+                value={appLaunchConfig.appLaunchMinutes.toString()} 
+                onValueChange={(v) => updateAppConfig("appLaunchMinutes", parseInt(v))}
               >
-                <RefreshCw className="w-4 h-4 mr-2" /> Refresh Displays ({displays.length} detected)
-              </Button>
+                <SelectTrigger className="w-24 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {[1, 2, 3].map((min) => (
+                    <SelectItem key={min} value={min.toString()}>{min} min</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
-            {/* Display info */}
-            {displays.length > 0 && (
-              <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground">Detected Displays</Label>
-                {displays.map((d) => (
-                  <div key={d.id} className="text-xs p-2 bg-muted rounded flex justify-between">
-                    <span>{d.label || `Display ${d.index + 1}`}</span>
-                    <span className="text-muted-foreground">{d.bounds.width}x{d.bounds.height}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+            {/* Refresh displays button */}
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={refreshDisplays}
+              disabled={!isElectron}
+              className="w-full"
+            >
+              <RefreshCw className="w-4 h-4 mr-2" /> Refresh Displays ({displays.length} detected)
+            </Button>
+          </div>
 
-        {/* TAPO Plug Discovery */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Wifi className="w-5 h-5" />
-              TAPO Smart Plugs
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Assigned plugs for this bay */}
-            {selectedBay && getAssignedPlugsForBay(selectedBay).length > 0 && (
-              <div className="space-y-2">
-                <Label>Assigned to Bay {selectedBay}</Label>
-                {getAssignedPlugsForBay(selectedBay).map((plug) => (
-                  <div key={plug.id} className="flex items-center justify-between p-3 bg-primary/10 border border-primary/20 rounded-lg">
-                    <div>
-                      <p className="font-medium">{plug.name}</p>
-                      <p className="text-xs text-muted-foreground">{plug.ip}</p>
-                    </div>
-                    <Button 
-                      size="sm" 
-                      variant="ghost"
-                      onClick={() => removePlugFromBay(plug.id, selectedBay)}
-                    >
-                      Remove
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="flex items-center gap-4">
-              <div className="flex-1">
-                <p className="text-sm text-muted-foreground">
-                  {getAssignedPlugsForBay(selectedBay || 0).length} plug(s) assigned to this bay
-                </p>
-              </div>
-              <Button onClick={scanForPlugs} disabled={isScanning}>
-                {isScanning ? (
-                  <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Scanning...</>
-                ) : (
-                  <><Wifi className="w-4 h-4 mr-2" /> Scan Network</>
-                )}
-              </Button>
+          {/* Display info */}
+          {displays.length > 0 && (
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Detected Displays</Label>
+              {displays.map((d) => (
+                <div key={d.id} className="text-xs p-2 bg-muted rounded flex justify-between">
+                  <span>{d.label || `Display ${d.index + 1}`}</span>
+                  <span className="text-muted-foreground">{d.bounds.width}x{d.bounds.height}</span>
+                </div>
+              ))}
             </div>
-            
-            {/* Unassigned plugs from scan */}
-            {unassignedPlugs.length > 0 && (
-              <div className="space-y-2">
-                <Label>Available Plugs ({unassignedPlugs.length})</Label>
-                {unassignedPlugs.map((plug) => (
-                  <div key={plug.id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                    <div>
-                      <p className="font-medium">{plug.name}</p>
-                      <p className="text-xs text-muted-foreground">{plug.ip}</p>
-                    </div>
-                    <Select onValueChange={(value) => assignPlugToBay(plug, parseInt(value))}>
-                      <SelectTrigger className="w-32">
-                        <SelectValue placeholder="Add to Bay" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {[1, 2, 3, 4, 5, 6].map((bay) => (
-                          <SelectItem key={bay} value={bay.toString()}>Bay {bay}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {discoveredPlugs.length > 0 && unassignedPlugs.length === 0 && (
-              <p className="text-sm text-muted-foreground text-center py-2">
-                All discovered plugs have been assigned
-              </p>
-            )}
-          </CardContent>
-        </Card>
+          )}
+        </CollapsibleSettingsCard>
 
         {/* Upcoming Bookings */}
         <Card>
