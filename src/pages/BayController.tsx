@@ -1000,18 +1000,6 @@ export default function BayController() {
             </Button>
           </div>
 
-          {/* Test Launch Button */}
-          <Button 
-            onClick={() => {
-              setAppsRunning(false); // Reset state to allow test
-              launchApps();
-            }}
-            disabled={isLaunchingApps || !isElectron}
-            variant="secondary"
-            className="w-full"
-          >
-            <TestTube className="w-4 h-4 mr-2" /> Test Launch
-          </Button>
 
           {!isElectron && (
             <p className="text-xs text-amber-500 text-center">
