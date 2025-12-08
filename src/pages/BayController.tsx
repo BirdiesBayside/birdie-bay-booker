@@ -27,6 +27,7 @@ interface TapoPlug {
   name: string;
   ip: string;
   isOn: boolean;
+  deviceId?: string;
 }
 
 interface BayPlugAssignment {
@@ -34,8 +35,20 @@ interface BayPlugAssignment {
   plugs: TapoPlug[];
 }
 
+// Type for Electron API exposed via preload
+declare global {
+  interface Window {
+    electronAPI?: {
+      isElectron: boolean;
+      tapoInit: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+      scanNetwork: (email: string, password: string) => Promise<{ success: boolean; plugs: TapoPlug[]; error?: string }>;
+      controlPlug: (email: string, password: string, ip: string, action: 'on' | 'off' | 'status') => Promise<{ success: boolean; isOn?: boolean; error?: string }>;
+    };
+  }
+}
+
 const CORRECT_PASSWORD = "Holeinone1";
-const APP_VERSION = "1.0.0";
+const APP_VERSION = "1.0.1";
 
 export default function BayController() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -58,6 +71,23 @@ export default function BayController() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [activeBooking, setActiveBooking] = useState<Booking | null>(null);
   const [plugsStatus, setPlugsStatus] = useState({ monitor: false, projector: false });
+  
+  // TAPO credentials state
+  const [tapoEmail, setTapoEmail] = useState("");
+  const [tapoPassword, setTapoPassword] = useState("");
+  const [isElectron, setIsElectron] = useState(false);
+
+  // Check if running in Electron and load saved TAPO credentials
+  useEffect(() => {
+    const electronCheck = !!window.electronAPI?.isElectron;
+    setIsElectron(electronCheck);
+    
+    // Load saved TAPO credentials from localStorage
+    const savedEmail = localStorage.getItem("bayController_tapoEmail");
+    const savedPassword = localStorage.getItem("bayController_tapoPassword");
+    if (savedEmail) setTapoEmail(savedEmail);
+    if (savedPassword) setTapoPassword(savedPassword);
+  }, []);
 
   // Update current time every second
   useEffect(() => {
@@ -232,48 +262,101 @@ export default function BayController() {
     }
   }, [currentTime, bookings, preStartMinutes]);
 
-  // Scan for TAPO plugs (simulated - real implementation would use local network scanning)
+  // Scan for TAPO plugs
   const scanForPlugs = async () => {
     setIsScanning(true);
-    toast.info("Scanning local network for TAPO plugs...");
-
-    // Simulated discovery - in real Electron app, this would use network scanning
-    // TAPO P110 plugs typically respond on port 9999
-    setTimeout(() => {
-      // This is placeholder - real implementation needs Electron IPC for network scanning
-      // Simulating 12 plugs (2 per bay) with naming convention: "Bay X (M)" and "Bay X (P)"
-      const mockPlugs: TapoPlug[] = [
-        { id: "1", name: "Bay 1 (M)", ip: "192.168.1.100", isOn: false },
-        { id: "2", name: "Bay 1 (P)", ip: "192.168.1.101", isOn: false },
-        { id: "3", name: "Bay 2 (M)", ip: "192.168.1.102", isOn: false },
-        { id: "4", name: "Bay 2 (P)", ip: "192.168.1.103", isOn: false },
-        { id: "5", name: "Bay 3 (M)", ip: "192.168.1.104", isOn: false },
-        { id: "6", name: "Bay 3 (P)", ip: "192.168.1.105", isOn: false },
-        { id: "7", name: "Bay 4 (M)", ip: "192.168.1.106", isOn: false },
-        { id: "8", name: "Bay 4 (P)", ip: "192.168.1.107", isOn: false },
-        { id: "9", name: "Bay 5 (M)", ip: "192.168.1.108", isOn: false },
-        { id: "10", name: "Bay 5 (P)", ip: "192.168.1.109", isOn: false },
-        { id: "11", name: "Bay 6 (M)", ip: "192.168.1.110", isOn: false },
-        { id: "12", name: "Bay 6 (P)", ip: "192.168.1.111", isOn: false },
-      ];
-      setDiscoveredPlugs(mockPlugs);
+    
+    // Check if running in Electron with real scanning capability
+    if (isElectron && window.electronAPI) {
+      if (!tapoEmail || !tapoPassword) {
+        toast.error("Please enter your TAPO credentials first");
+        setIsScanning(false);
+        return;
+      }
+      
+      toast.info("Scanning for TAPO devices via cloud...");
+      
+      try {
+        const result = await window.electronAPI.scanNetwork(tapoEmail, tapoPassword);
+        
+        if (result.success && result.plugs) {
+          setDiscoveredPlugs(result.plugs);
+          toast.success(`Found ${result.plugs.length} TAPO devices`);
+          
+          // Save credentials on successful scan
+          localStorage.setItem("bayController_tapoEmail", tapoEmail);
+          localStorage.setItem("bayController_tapoPassword", tapoPassword);
+        } else {
+          toast.error(result.error || "Failed to scan for devices");
+        }
+      } catch (error) {
+        console.error("Scan error:", error);
+        toast.error("Failed to communicate with TAPO cloud");
+      }
+      
       setIsScanning(false);
-      toast.success(`Found ${mockPlugs.length} TAPO plugs`);
-    }, 3000);
+    } else {
+      // Browser mode - show mock data for demo
+      toast.info("Demo mode - showing sample plugs (real scanning requires desktop app)");
+      
+      setTimeout(() => {
+        const mockPlugs: TapoPlug[] = [
+          { id: "1", name: "Bay 1 (M)", ip: "192.168.1.100", isOn: false },
+          { id: "2", name: "Bay 1 (P)", ip: "192.168.1.101", isOn: false },
+          { id: "3", name: "Bay 2 (M)", ip: "192.168.1.102", isOn: false },
+          { id: "4", name: "Bay 2 (P)", ip: "192.168.1.103", isOn: false },
+          { id: "5", name: "Bay 3 (M)", ip: "192.168.1.104", isOn: false },
+          { id: "6", name: "Bay 3 (P)", ip: "192.168.1.105", isOn: false },
+          { id: "7", name: "Bay 4 (M)", ip: "192.168.1.106", isOn: false },
+          { id: "8", name: "Bay 4 (P)", ip: "192.168.1.107", isOn: false },
+          { id: "9", name: "Bay 5 (M)", ip: "192.168.1.108", isOn: false },
+          { id: "10", name: "Bay 5 (P)", ip: "192.168.1.109", isOn: false },
+          { id: "11", name: "Bay 6 (M)", ip: "192.168.1.110", isOn: false },
+          { id: "12", name: "Bay 6 (P)", ip: "192.168.1.111", isOn: false },
+        ];
+        setDiscoveredPlugs(mockPlugs);
+        setIsScanning(false);
+        toast.success(`Demo: Found ${mockPlugs.length} sample plugs`);
+      }, 2000);
+    }
   };
 
   const turnOnPlugs = async () => {
     console.log("Turning ON plugs");
+    
+    if (isElectron && window.electronAPI && selectedBay) {
+      const bayPlugs = getAssignedPlugsForBay(selectedBay);
+      
+      for (const plug of bayPlugs) {
+        try {
+          await window.electronAPI.controlPlug(tapoEmail, tapoPassword, plug.ip, 'on');
+        } catch (error) {
+          console.error(`Failed to turn on ${plug.name}:`, error);
+        }
+      }
+    }
+    
     setPlugsStatus({ monitor: true, projector: true });
     toast.success("Bay equipment powered ON");
-    // Real implementation: Call TAPO API to turn on plugs
   };
 
   const turnOffPlugs = async () => {
     console.log("Turning OFF plugs");
+    
+    if (isElectron && window.electronAPI && selectedBay) {
+      const bayPlugs = getAssignedPlugsForBay(selectedBay);
+      
+      for (const plug of bayPlugs) {
+        try {
+          await window.electronAPI.controlPlug(tapoEmail, tapoPassword, plug.ip, 'off');
+        } catch (error) {
+          console.error(`Failed to turn off ${plug.name}:`, error);
+        }
+      }
+    }
+    
     setPlugsStatus({ monitor: false, projector: false });
     toast.info("Bay equipment powered OFF");
-    // Real implementation: Call TAPO API to turn off plugs
   };
 
   const showWarningNotification = (minutes: number) => {
@@ -431,6 +514,35 @@ export default function BayController() {
               <CardTitle className="text-lg">Settings</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* TAPO Credentials */}
+              <div className="space-y-2">
+                <Label>TAPO Cloud Credentials</Label>
+                <p className="text-sm text-muted-foreground">
+                  {isElectron ? "Enter your Tapo app login to control plugs" : "Desktop app required for real plug control"}
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    type="email"
+                    placeholder="Tapo Email"
+                    value={tapoEmail}
+                    onChange={(e) => setTapoEmail(e.target.value)}
+                    disabled={!isElectron}
+                  />
+                  <Input
+                    type="password"
+                    placeholder="Tapo Password"
+                    value={tapoPassword}
+                    onChange={(e) => setTapoPassword(e.target.value)}
+                    disabled={!isElectron}
+                  />
+                </div>
+                {!isElectron && (
+                  <p className="text-xs text-amber-500">
+                    Running in browser - plug control is simulated. Install the desktop app for real control.
+                  </p>
+                )}
+              </div>
+              <Separator />
               <div className="flex items-center justify-between">
                 <div>
                   <Label>Pre-start time (minutes)</Label>

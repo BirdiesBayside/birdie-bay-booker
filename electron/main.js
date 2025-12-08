@@ -3,8 +3,13 @@ const path = require('path');
 
 let mainWindow;
 let tray;
+let tapoClient = null;
 
 const isDev = process.env.NODE_ENV === 'development';
+
+// TAPO credentials - these should be set via environment or config
+const TAPO_EMAIL = process.env.TAPO_EMAIL || '';
+const TAPO_PASSWORD = process.env.TAPO_PASSWORD || '';
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -96,15 +101,90 @@ app.on('activate', () => {
   }
 });
 
-// Handle TAPO plug control via IPC (to be implemented)
-ipcMain.handle('scan-network', async () => {
-  // Network scanning implementation would go here
-  // Uses node-arp or similar to scan local network
-  return [];
+// Initialize TAPO connection
+async function initTapo(email, password) {
+  try {
+    const { cloudLogin } = require('tp-link-tapo-connect');
+    tapoClient = await cloudLogin(email, password);
+    console.log('TAPO cloud login successful');
+    return { success: true };
+  } catch (error) {
+    console.error('TAPO cloud login failed:', error.message);
+    return { success: false, error: error.message };
+  }
+}
+
+// Scan for TAPO devices using cloud API
+async function scanForTapoDevices(email, password) {
+  try {
+    const { cloudLogin } = require('tp-link-tapo-connect');
+    
+    // Login to TAPO cloud
+    const cloudClient = await cloudLogin(email, password);
+    console.log('TAPO cloud login successful');
+    
+    // Get list of devices from cloud
+    const devices = await cloudClient.listDevices();
+    console.log(`Found ${devices.length} TAPO devices`);
+    
+    // Map to our plug format
+    const plugs = devices.map((device, index) => ({
+      id: device.deviceId || `device-${index}`,
+      name: device.alias || device.deviceName || `Device ${index + 1}`,
+      ip: device.deviceMac || 'Unknown', // MAC address as identifier
+      deviceId: device.deviceId,
+      deviceType: device.deviceType,
+      isOn: false // Will be updated when we check status
+    }));
+    
+    return { success: true, plugs };
+  } catch (error) {
+    console.error('TAPO scan failed:', error.message);
+    return { success: false, error: error.message, plugs: [] };
+  }
+}
+
+// Control a specific TAPO plug
+async function controlTapoPlug(email, password, deviceIp, action) {
+  try {
+    const { loginDevice } = require('tp-link-tapo-connect');
+    
+    // Connect to the specific device
+    const device = await loginDevice(email, password, deviceIp);
+    
+    if (action === 'on') {
+      await device.turnOn();
+      console.log(`Turned ON plug at ${deviceIp}`);
+    } else if (action === 'off') {
+      await device.turnOff();
+      console.log(`Turned OFF plug at ${deviceIp}`);
+    } else if (action === 'status') {
+      const status = await device.getDeviceInfo();
+      return { success: true, isOn: status.device_on };
+    }
+    
+    return { success: true };
+  } catch (error) {
+    console.error(`TAPO control failed for ${deviceIp}:`, error.message);
+    return { success: false, error: error.message };
+  }
+}
+
+// IPC Handlers
+ipcMain.handle('tapo-init', async (event, { email, password }) => {
+  return await initTapo(email, password);
 });
 
-ipcMain.handle('control-plug', async (event, { ip, action }) => {
-  // TAPO plug control implementation would go here
-  // Uses tapo-p100 npm package or direct API calls
-  return { success: true };
+ipcMain.handle('scan-network', async (event, { email, password }) => {
+  console.log('Scanning for TAPO devices...');
+  return await scanForTapoDevices(email, password);
+});
+
+ipcMain.handle('control-plug', async (event, { email, password, ip, action }) => {
+  console.log(`Controlling plug at ${ip}: ${action}`);
+  return await controlTapoPlug(email, password, ip, action);
+});
+
+ipcMain.handle('check-electron', async () => {
+  return true;
 });
