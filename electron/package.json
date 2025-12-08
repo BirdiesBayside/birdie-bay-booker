@@ -38,6 +38,6 @@
     "electron-builder": "^24.9.1"
   },
   "dependencies": {
-    "tapo": "^0.2.0"
+    "tp-link-tapo-connect": "^1.0.7"
   }
 }
