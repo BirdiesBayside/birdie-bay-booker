@@ -10,8 +10,6 @@ import {
   PowerOff, 
   User, 
   Clock, 
-  Wifi, 
-  WifiOff,
   RefreshCw
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -309,20 +307,7 @@ export default function AdminBayControl() {
               <CardContent className="p-4">
                 {/* Bay Header */}
                 <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-lg font-semibold">Bay {status.bay.bay_number}</h3>
-                    {status.device?.is_online ? (
-                      <Badge variant="outline" className="text-xs bg-green-500/10 text-green-600 border-green-500/30">
-                        <Wifi className="h-3 w-3 mr-1" />
-                        Online
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline" className="text-xs bg-muted text-muted-foreground">
-                        <WifiOff className="h-3 w-3 mr-1" />
-                        Offline
-                      </Badge>
-                    )}
-                  </div>
+                  <h3 className="text-lg font-semibold">Bay {status.bay.bay_number}</h3>
                   
                   {/* Power Controls */}
                   <div className="flex items-center gap-2">
@@ -403,14 +388,6 @@ export default function AdminBayControl() {
 
         {/* Legend */}
         <div className="mt-6 flex items-center gap-6 text-xs text-muted-foreground">
-          <div className="flex items-center gap-2">
-            <div className="h-3 w-3 rounded-full bg-green-500" />
-            <span>Device Online</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="h-3 w-3 rounded-full bg-muted-foreground" />
-            <span>Device Offline</span>
-          </div>
           <div className="flex items-center gap-2">
             <div className="h-3 w-3 rounded border-2 border-primary/50" />
             <span>Active Booking</span>
