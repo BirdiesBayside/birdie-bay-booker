@@ -9,7 +9,8 @@ import {
   LogOut,
   ChevronLeft,
   ShoppingCart,
-  Settings
+  Settings,
+  Zap
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -25,6 +26,7 @@ const navItems = [
   { path: "/admin/timetable", label: "Timetable", icon: Calendar },
   { path: "/admin/pos", label: "POS", icon: ShoppingCart },
   { path: "/admin/customers", label: "Customers", icon: Users },
+  { path: "/admin/bay-control", label: "Bay Control", icon: Zap },
   { path: "/admin/settings", label: "Settings", icon: Settings },
 ];
 

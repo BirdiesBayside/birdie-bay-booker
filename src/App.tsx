@@ -21,6 +21,7 @@ import AdminCustomers from "./pages/admin/AdminCustomers";
 import AdminPOS from "./pages/admin/AdminPOS";
 import AdminSettings from "./pages/admin/AdminSettings";
 import AdminBulkEmail from "./pages/admin/AdminBulkEmail";
+import AdminBayControl from "./pages/admin/AdminBayControl";
 import BayController from "./pages/BayController";
 
 const queryClient = new QueryClient();
@@ -53,6 +54,7 @@ const App = () => (
           <Route path="/admin/timetable" element={<AdminTimetable />} />
           <Route path="/admin/customers" element={<AdminCustomers />} />
           <Route path="/admin/pos" element={<AdminPOS />} />
+          <Route path="/admin/bay-control" element={<AdminBayControl />} />
           <Route path="/admin/settings" element={<AdminSettings />} />
           <Route path="/admin/bulk-email" element={<AdminBulkEmail />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
