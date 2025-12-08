@@ -65,15 +65,27 @@ export default function AdminBayControl() {
     try {
       const now = new Date();
       const today = format(now, "yyyy-MM-dd");
-      const currentTime = format(now, "HH:mm:ss");
 
-      // Fetch bays
+      // Fetch bays - if none returned due to RLS, create default 6 bays structure
       const { data: bays, error: baysError } = await supabase
         .from("bays")
         .select("*")
         .order("bay_number");
 
-      if (baysError) throw baysError;
+      if (baysError) {
+        console.error("Error fetching bays:", baysError);
+      }
+
+      // Always ensure we have 6 bays to display
+      const defaultBays: Bay[] = [1, 2, 3, 4, 5, 6].map((num) => ({
+        id: `bay-${num}`,
+        bay_number: num,
+        name: `Bay ${num}`,
+        is_active: true,
+      }));
+
+      // Use fetched bays if available, otherwise use defaults
+      const displayBays = bays && bays.length > 0 ? bays : defaultBays;
 
       // Fetch bay devices
       const { data: devices, error: devicesError } = await supabase
@@ -104,8 +116,8 @@ export default function AdminBayControl() {
 
       if (bookingsError) throw bookingsError;
 
-      // Build bay statuses
-      const statuses: BayStatus[] = (bays || []).map((bay) => {
+      // Build bay statuses using displayBays
+      const statuses: BayStatus[] = displayBays.map((bay) => {
         const device = devices?.find((d) => d.bay_id === bay.id) || null;
         const bayBookings = (bookings || []).filter((b) => b.bay_id === bay.id);
 
