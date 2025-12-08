@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
-import { Lock, Wifi, Power, Clock, AlertTriangle, CheckCircle, XCircle, Settings, RefreshCw } from "lucide-react";
+import { Lock, Wifi, Power, Clock, AlertTriangle, CheckCircle, XCircle, Settings, RefreshCw, Monitor, Play, Square, FolderOpen } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format, addMinutes, isBefore, isAfter, parseISO } from "date-fns";
@@ -36,6 +36,23 @@ interface BayPlugAssignment {
   plugs: TapoPlug[];
 }
 
+interface DisplayInfo {
+  id: number;
+  index: number;
+  label: string;
+  bounds: { x: number; y: number; width: number; height: number };
+  isPrimary: boolean;
+}
+
+interface AppLaunchConfig {
+  gsproPath: string;
+  proteeLabsPath: string;
+  gsproDisplay: number; // Display index for GSPRO (duplicate screens)
+  proteeDisplay: number; // Display index for Protee (touchscreen)
+  appLaunchMinutes: number; // Minutes before booking to launch apps (after plugs are on)
+  enabled: boolean;
+}
+
 // Type for Electron API exposed via preload
 declare global {
   interface Window {
@@ -44,6 +61,15 @@ declare global {
       tapoInit: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
       scanNetwork: (email: string, password: string) => Promise<{ success: boolean; plugs: TapoPlug[]; error?: string }>;
       controlPlug: (email: string, password: string, ip: string, action: 'on' | 'off' | 'status') => Promise<{ success: boolean; isOn?: boolean; error?: string }>;
+      // App automation
+      getDisplays: () => Promise<DisplayInfo[]>;
+      launchApp: (exePath: string) => Promise<{ success: boolean; pid?: number; error?: string }>;
+      findWindow: (titlePattern: string) => Promise<{ success: boolean; hwnd?: number; title?: string; error?: string }>;
+      moveWindow: (hwnd: number, displayIndex: number, fullscreen?: boolean) => Promise<{ success: boolean; error?: string }>;
+      minimizeWindow: (hwnd: number) => Promise<{ success: boolean; error?: string }>;
+      focusWindow: (hwnd: number) => Promise<{ success: boolean; error?: string }>;
+      runAppSequence: (config: AppLaunchConfig) => Promise<{ success: boolean; results?: any[]; error?: string }>;
+      closeApps: (appNames: string[]) => Promise<{ success: boolean; results?: any[]; error?: string }>;
     };
   }
 }
@@ -78,7 +104,21 @@ export default function BayController() {
   const [tapoPassword, setTapoPassword] = useState("");
   const [isElectron, setIsElectron] = useState(false);
 
-  // Check if running in Electron and load saved TAPO credentials
+  // App Launch state
+  const [displays, setDisplays] = useState<DisplayInfo[]>([]);
+  const [appLaunchConfig, setAppLaunchConfig] = useState<AppLaunchConfig>({
+    gsproPath: "C:\\Program Files\\GSPro\\GSPro.exe",
+    proteeLabsPath: "C:\\Program Files\\Protee Labs\\ProteeLabs.exe",
+    gsproDisplay: 0,
+    proteeDisplay: 1,
+    appLaunchMinutes: 1, // 1 minute before booking (after plugs turn on at 3 mins)
+    enabled: false
+  });
+  const [isLaunchingApps, setIsLaunchingApps] = useState(false);
+  const [appLaunchStatus, setAppLaunchStatus] = useState<string | null>(null);
+  const [appsRunning, setAppsRunning] = useState(false);
+
+  // Check if running in Electron and load saved credentials/config
   useEffect(() => {
     const electronCheck = !!window.electronAPI?.isElectron;
     setIsElectron(electronCheck);
@@ -88,6 +128,22 @@ export default function BayController() {
     const savedPassword = localStorage.getItem("bayController_tapoPassword");
     if (savedEmail) setTapoEmail(savedEmail);
     if (savedPassword) setTapoPassword(savedPassword);
+    
+    // Load saved app launch config
+    const savedAppConfig = localStorage.getItem("bayController_appLaunchConfig");
+    if (savedAppConfig) {
+      setAppLaunchConfig(JSON.parse(savedAppConfig));
+    }
+    
+    // Get display info if in Electron
+    if (electronCheck && window.electronAPI) {
+      window.electronAPI.getDisplays().then(displayList => {
+        setDisplays(displayList);
+        console.log("Detected displays:", displayList);
+      }).catch(err => {
+        console.error("Failed to get displays:", err);
+      });
+    }
   }, []);
 
   // Update current time every second
@@ -253,6 +309,11 @@ export default function BayController() {
     localStorage.setItem("bayController_preStartMinutes", preStartMinutes.toString());
   }, [preStartMinutes]);
 
+  // Save app launch config
+  useEffect(() => {
+    localStorage.setItem("bayController_appLaunchConfig", JSON.stringify(appLaunchConfig));
+  }, [appLaunchConfig]);
+
   // Check for active booking and manage plugs
   useEffect(() => {
     if (bookings.length === 0) return;
@@ -266,17 +327,24 @@ export default function BayController() {
     
     // Check if we're in a booking or about to start one
     let shouldPlugsBeOn = false;
+    let shouldLaunchApps = false;
     let currentBooking: Booking | null = null;
 
     for (const booking of todaysBookings) {
       const startTime = parseISO(`${booking.booking_date}T${booking.start_time}`);
       const endTime = parseISO(`${booking.booking_date}T${booking.end_time}`);
       const preStartTime = addMinutes(startTime, -preStartMinutes);
+      const appLaunchTime = addMinutes(startTime, -appLaunchConfig.appLaunchMinutes);
 
       // Check if we should have plugs on (pre-start time to end time)
       if (isAfter(now, preStartTime) && isBefore(now, endTime)) {
         shouldPlugsBeOn = true;
         currentBooking = booking;
+      }
+
+      // Check if we should launch apps (app launch time to end time)
+      if (appLaunchConfig.enabled && isAfter(now, appLaunchTime) && isBefore(now, endTime)) {
+        shouldLaunchApps = true;
       }
 
       // Check for back-to-back bookings
@@ -290,6 +358,7 @@ export default function BayController() {
         const nextEndTime = parseISO(`${nextBooking.booking_date}T${nextBooking.end_time}`);
         if (isBefore(now, nextEndTime)) {
           shouldPlugsBeOn = true;
+          shouldLaunchApps = true; // Keep apps running through back-to-back
         }
       }
     }
@@ -305,6 +374,16 @@ export default function BayController() {
       }
     }
 
+    // Auto-launch apps if enabled and not already running
+    if (shouldLaunchApps && !appsRunning && !isLaunchingApps && appLaunchConfig.enabled && isElectron) {
+      launchApps();
+    }
+
+    // Auto-close apps when session ends (if no back-to-back)
+    if (!shouldLaunchApps && appsRunning && appLaunchConfig.enabled && isElectron) {
+      closeApps();
+    }
+
     // Check for warnings
     if (currentBooking) {
       const endTime = parseISO(`${currentBooking.booking_date}T${currentBooking.end_time}`);
@@ -314,7 +393,7 @@ export default function BayController() {
         showWarningNotification(minutesRemaining);
       }
     }
-  }, [currentTime, bookings, preStartMinutes]);
+  }, [currentTime, bookings, preStartMinutes, appLaunchConfig.enabled, appLaunchConfig.appLaunchMinutes, appsRunning, isLaunchingApps, isElectron]);
 
   // Scan for TAPO plugs
   const scanForPlugs = async () => {
@@ -461,6 +540,75 @@ export default function BayController() {
   };
 
   const unassignedPlugs = discoveredPlugs.filter(p => !isPlugAssigned(p.id));
+
+  // App Launch Functions
+  const refreshDisplays = async () => {
+    if (isElectron && window.electronAPI) {
+      try {
+        const displayList = await window.electronAPI.getDisplays();
+        setDisplays(displayList);
+        toast.success(`Detected ${displayList.length} displays`);
+      } catch (error) {
+        toast.error("Failed to detect displays");
+      }
+    }
+  };
+
+  const launchApps = async () => {
+    if (!isElectron || !window.electronAPI) {
+      toast.error("App launch requires desktop app");
+      return;
+    }
+
+    setIsLaunchingApps(true);
+    setAppLaunchStatus("Starting app launch sequence...");
+
+    try {
+      const result = await window.electronAPI.runAppSequence(appLaunchConfig);
+      
+      if (result.success) {
+        setAppsRunning(true);
+        setAppLaunchStatus("All apps launched successfully");
+        toast.success("Apps launched successfully");
+        
+        // Log results
+        result.results?.forEach(r => {
+          console.log(`${r.step}: ${r.status}`, r);
+        });
+      } else {
+        setAppLaunchStatus(`Launch failed: ${result.error}`);
+        toast.error(`Launch failed: ${result.error}`);
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : "Unknown error";
+      setAppLaunchStatus(`Error: ${errorMsg}`);
+      toast.error(`Launch error: ${errorMsg}`);
+    } finally {
+      setIsLaunchingApps(false);
+    }
+  };
+
+  const closeApps = async () => {
+    if (!isElectron || !window.electronAPI) {
+      toast.error("App control requires desktop app");
+      return;
+    }
+
+    try {
+      const result = await window.electronAPI.closeApps(["GSPro.exe", "ProteeLabs.exe"]);
+      if (result.success) {
+        setAppsRunning(false);
+        setAppLaunchStatus(null);
+        toast.info("Apps closed");
+      }
+    } catch (error) {
+      toast.error("Failed to close apps");
+    }
+  };
+
+  const updateAppConfig = (key: keyof AppLaunchConfig, value: any) => {
+    setAppLaunchConfig(prev => ({ ...prev, [key]: value }));
+  };
 
   // Password screen
   if (!isAuthenticated) {
@@ -668,6 +816,209 @@ export default function BayController() {
                 <Power className="w-4 h-4 mr-2" /> Turn Off
               </Button>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* App Launch */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Monitor className="w-5 h-5" />
+              App Launch
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Enable/Disable toggle */}
+            <div className="flex items-center justify-between">
+              <div>
+                <Label>Auto-launch apps</Label>
+                <p className="text-sm text-muted-foreground">
+                  Automatically launch apps {appLaunchConfig.appLaunchMinutes} min before booking
+                </p>
+              </div>
+              <Switch
+                checked={appLaunchConfig.enabled}
+                onCheckedChange={(checked) => updateAppConfig("enabled", checked)}
+              />
+            </div>
+
+            <Separator />
+
+            {/* App status */}
+            <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+              <div>
+                <p className="font-medium">App Status</p>
+                <p className="text-sm text-muted-foreground">
+                  {appLaunchStatus || (appsRunning ? "Apps running" : "Apps not running")}
+                </p>
+              </div>
+              <Badge variant={appsRunning ? "default" : "secondary"}>
+                {appsRunning ? "Running" : "Stopped"}
+              </Badge>
+            </div>
+
+            {/* Manual controls */}
+            <div className="flex gap-2">
+              <Button 
+                onClick={launchApps} 
+                disabled={isLaunchingApps || appsRunning || !isElectron}
+                className="flex-1"
+              >
+                {isLaunchingApps ? (
+                  <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Launching...</>
+                ) : (
+                  <><Play className="w-4 h-4 mr-2" /> Launch Apps</>
+                )}
+              </Button>
+              <Button 
+                onClick={closeApps} 
+                disabled={!appsRunning || !isElectron}
+                variant="outline" 
+                className="flex-1"
+              >
+                <Square className="w-4 h-4 mr-2" /> Close Apps
+              </Button>
+            </div>
+
+            {!isElectron && (
+              <p className="text-xs text-amber-500 text-center">
+                App launch requires the desktop application
+              </p>
+            )}
+
+            <Separator />
+
+            {/* Configuration */}
+            <div className="space-y-3">
+              <Label>Configuration</Label>
+              
+              {/* GSPRO Path */}
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">GSPRO Path</Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={appLaunchConfig.gsproPath}
+                    onChange={(e) => updateAppConfig("gsproPath", e.target.value)}
+                    placeholder="C:\Program Files\GSPro\GSPro.exe"
+                    className="flex-1 text-xs"
+                  />
+                </div>
+              </div>
+
+              {/* Protee Labs Path */}
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Protee Labs Path</Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={appLaunchConfig.proteeLabsPath}
+                    onChange={(e) => updateAppConfig("proteeLabsPath", e.target.value)}
+                    placeholder="C:\Program Files\Protee Labs\ProteeLabs.exe"
+                    className="flex-1 text-xs"
+                  />
+                </div>
+              </div>
+
+              {/* Display assignment */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">GSPRO Display</Label>
+                  <Select 
+                    value={appLaunchConfig.gsproDisplay.toString()} 
+                    onValueChange={(v) => updateAppConfig("gsproDisplay", parseInt(v))}
+                  >
+                    <SelectTrigger className="text-xs">
+                      <SelectValue placeholder="Select display" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {displays.length > 0 ? (
+                        displays.map((d) => (
+                          <SelectItem key={d.id} value={d.index.toString()}>
+                            {d.label || `Display ${d.index + 1}`} {d.isPrimary ? "(Primary)" : ""}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <>
+                          <SelectItem value="0">Display 1</SelectItem>
+                          <SelectItem value="1">Display 2</SelectItem>
+                          <SelectItem value="2">Display 3</SelectItem>
+                        </>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Protee Display (Touchscreen)</Label>
+                  <Select 
+                    value={appLaunchConfig.proteeDisplay.toString()} 
+                    onValueChange={(v) => updateAppConfig("proteeDisplay", parseInt(v))}
+                  >
+                    <SelectTrigger className="text-xs">
+                      <SelectValue placeholder="Select display" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {displays.length > 0 ? (
+                        displays.map((d) => (
+                          <SelectItem key={d.id} value={d.index.toString()}>
+                            {d.label || `Display ${d.index + 1}`} {d.isPrimary ? "(Primary)" : ""}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <>
+                          <SelectItem value="0">Display 1</SelectItem>
+                          <SelectItem value="1">Display 2</SelectItem>
+                          <SelectItem value="2">Display 3</SelectItem>
+                        </>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* App launch timing */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-xs text-muted-foreground">Launch apps before booking</Label>
+                </div>
+                <Select 
+                  value={appLaunchConfig.appLaunchMinutes.toString()} 
+                  onValueChange={(v) => updateAppConfig("appLaunchMinutes", parseInt(v))}
+                >
+                  <SelectTrigger className="w-24 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[1, 2, 3].map((min) => (
+                      <SelectItem key={min} value={min.toString()}>{min} min</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Refresh displays button */}
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={refreshDisplays}
+                disabled={!isElectron}
+                className="w-full"
+              >
+                <RefreshCw className="w-4 h-4 mr-2" /> Refresh Displays ({displays.length} detected)
+              </Button>
+            </div>
+
+            {/* Display info */}
+            {displays.length > 0 && (
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">Detected Displays</Label>
+                {displays.map((d) => (
+                  <div key={d.id} className="text-xs p-2 bg-muted rounded flex justify-between">
+                    <span>{d.label || `Display ${d.index + 1}`}</span>
+                    <span className="text-muted-foreground">{d.bounds.width}x{d.bounds.height}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 
