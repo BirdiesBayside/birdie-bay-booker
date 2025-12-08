@@ -168,17 +168,67 @@ export default function BayController() {
     }
   }, [selectedBay]);
 
-  // Set up polling for bookings and heartbeat
+  // Set up real-time subscription for bookings and heartbeat
   useEffect(() => {
     if (!selectedBay) return;
 
+    // Initial fetch
     fetchBookings();
-    const bookingInterval = setInterval(fetchBookings, 60000); // Every minute
+
+    // Get bay_id for the selected bay number
+    const setupRealtimeSubscription = async () => {
+      const { data: bayData } = await supabase
+        .from("bays")
+        .select("id")
+        .eq("bay_number", selectedBay)
+        .maybeSingle();
+
+      if (!bayData?.id) {
+        console.error("Could not find bay ID for bay number:", selectedBay);
+        return;
+      }
+
+      // Subscribe to real-time changes on bookings table for this bay
+      const channel = supabase
+        .channel(`bay-${selectedBay}-bookings`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*', // Listen to INSERT, UPDATE, DELETE
+            schema: 'public',
+            table: 'bookings',
+            filter: `bay_id=eq.${bayData.id}`
+          },
+          (payload) => {
+            console.log('Real-time booking update received:', payload);
+            toast.info("Booking update received");
+            // Refetch bookings to get the latest data
+            fetchBookings();
+          }
+        )
+        .subscribe((status) => {
+          console.log('Realtime subscription status:', status);
+          if (status === 'SUBSCRIBED') {
+            console.log('Successfully subscribed to real-time booking updates');
+          }
+        });
+
+      return channel;
+    };
+
+    let realtimeChannel: ReturnType<typeof supabase.channel> | undefined;
+    setupRealtimeSubscription().then(channel => {
+      realtimeChannel = channel;
+    });
+
+    // Heartbeat to keep device status updated
     const heartbeatInterval = setInterval(sendHeartbeat, 30000); // Every 30 seconds
 
     return () => {
-      clearInterval(bookingInterval);
       clearInterval(heartbeatInterval);
+      if (realtimeChannel) {
+        supabase.removeChannel(realtimeChannel);
+      }
     };
   }, [selectedBay, fetchBookings, sendHeartbeat]);
 
