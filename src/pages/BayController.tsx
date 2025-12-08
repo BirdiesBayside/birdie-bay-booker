@@ -320,31 +320,23 @@ export default function BayController() {
 
     const now = currentTime;
     const today = format(now, "yyyy-MM-dd");
-    const currentTimeStr = format(now, "HH:mm:ss");
 
     // Find current or upcoming booking
     const todaysBookings = bookings.filter(b => b.booking_date === today);
     
     // Check if we're in a booking or about to start one
     let shouldPlugsBeOn = false;
-    let shouldLaunchApps = false;
     let currentBooking: Booking | null = null;
 
     for (const booking of todaysBookings) {
       const startTime = parseISO(`${booking.booking_date}T${booking.start_time}`);
       const endTime = parseISO(`${booking.booking_date}T${booking.end_time}`);
       const preStartTime = addMinutes(startTime, -preStartMinutes);
-      const appLaunchTime = addMinutes(startTime, -appLaunchConfig.appLaunchMinutes);
 
       // Check if we should have plugs on (pre-start time to end time)
       if (isAfter(now, preStartTime) && isBefore(now, endTime)) {
         shouldPlugsBeOn = true;
         currentBooking = booking;
-      }
-
-      // Check if we should launch apps (app launch time to end time)
-      if (appLaunchConfig.enabled && isAfter(now, appLaunchTime) && isBefore(now, endTime)) {
-        shouldLaunchApps = true;
       }
 
       // Check for back-to-back bookings
@@ -358,7 +350,6 @@ export default function BayController() {
         const nextEndTime = parseISO(`${nextBooking.booking_date}T${nextBooking.end_time}`);
         if (isBefore(now, nextEndTime)) {
           shouldPlugsBeOn = true;
-          shouldLaunchApps = true; // Keep apps running through back-to-back
         }
       }
     }
@@ -374,16 +365,6 @@ export default function BayController() {
       }
     }
 
-    // Auto-launch apps if enabled and not already running
-    if (shouldLaunchApps && !appsRunning && !isLaunchingApps && appLaunchConfig.enabled && isElectron) {
-      launchApps();
-    }
-
-    // Auto-close apps when session ends (if no back-to-back)
-    if (!shouldLaunchApps && appsRunning && appLaunchConfig.enabled && isElectron) {
-      closeApps();
-    }
-
     // Check for warnings
     if (currentBooking) {
       const endTime = parseISO(`${currentBooking.booking_date}T${currentBooking.end_time}`);
@@ -393,7 +374,7 @@ export default function BayController() {
         showWarningNotification(minutesRemaining);
       }
     }
-  }, [currentTime, bookings, preStartMinutes, appLaunchConfig.enabled, appLaunchConfig.appLaunchMinutes, appsRunning, isLaunchingApps, isElectron]);
+  }, [currentTime, bookings, preStartMinutes]);
 
   // Scan for TAPO plugs
   const scanForPlugs = async () => {
@@ -609,6 +590,42 @@ export default function BayController() {
   const updateAppConfig = (key: keyof AppLaunchConfig, value: any) => {
     setAppLaunchConfig(prev => ({ ...prev, [key]: value }));
   };
+
+  // Auto-launch apps based on booking time (separate effect after functions are defined)
+  useEffect(() => {
+    if (!appLaunchConfig.enabled || !isElectron || bookings.length === 0) return;
+
+    const now = currentTime;
+    const today = format(now, "yyyy-MM-dd");
+    const todaysBookings = bookings.filter(b => b.booking_date === today);
+    
+    let shouldLaunchApps = false;
+
+    for (const booking of todaysBookings) {
+      const startTime = parseISO(`${booking.booking_date}T${booking.start_time}`);
+      const endTime = parseISO(`${booking.booking_date}T${booking.end_time}`);
+      const appLaunchTime = addMinutes(startTime, -appLaunchConfig.appLaunchMinutes);
+
+      if (isAfter(now, appLaunchTime) && isBefore(now, endTime)) {
+        shouldLaunchApps = true;
+      }
+
+      // Check for back-to-back
+      const nextBooking = todaysBookings.find(b => b.id !== booking.id && b.start_time === booking.end_time);
+      if (nextBooking) {
+        const nextEndTime = parseISO(`${nextBooking.booking_date}T${nextBooking.end_time}`);
+        if (isBefore(now, nextEndTime)) {
+          shouldLaunchApps = true;
+        }
+      }
+    }
+
+    if (shouldLaunchApps && !appsRunning && !isLaunchingApps) {
+      launchApps();
+    } else if (!shouldLaunchApps && appsRunning) {
+      closeApps();
+    }
+  }, [currentTime, bookings, appLaunchConfig.enabled, appLaunchConfig.appLaunchMinutes, appsRunning, isLaunchingApps, isElectron]);
 
   // Password screen
   if (!isAuthenticated) {
