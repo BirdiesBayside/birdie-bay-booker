@@ -26,13 +26,12 @@ interface TapoPlug {
   id: string;
   name: string;
   ip: string;
-  type: "monitor" | "projector";
   isOn: boolean;
 }
 
-interface PlugAssignment {
-  monitorPlug: TapoPlug | null;
-  projectorPlug: TapoPlug | null;
+interface BayPlugAssignment {
+  bayNumber: number;
+  plugs: TapoPlug[];
 }
 
 const CORRECT_PASSWORD = "Holeinone1";
@@ -50,7 +49,7 @@ export default function BayController() {
   
   const [discoveredPlugs, setDiscoveredPlugs] = useState<TapoPlug[]>([]);
   const [isScanning, setIsScanning] = useState(false);
-  const [plugAssignment, setPlugAssignment] = useState<PlugAssignment>({ monitorPlug: null, projectorPlug: null });
+  const [bayPlugAssignments, setBayPlugAssignments] = useState<BayPlugAssignment[]>([]);
   
   const [preStartMinutes, setPreStartMinutes] = useState(3);
   const [warningMinutes, setWarningMinutes] = useState([5, 1]);
@@ -78,9 +77,9 @@ export default function BayController() {
         setSelectedBay(parseInt(savedBay));
       }
       // Load saved plug assignments
-      const savedPlugs = localStorage.getItem("bayController_plugAssignment");
+      const savedPlugs = localStorage.getItem("bayController_bayPlugAssignments");
       if (savedPlugs) {
-        setPlugAssignment(JSON.parse(savedPlugs));
+        setBayPlugAssignments(JSON.parse(savedPlugs));
       }
       const savedPreStart = localStorage.getItem("bayController_preStartMinutes");
       if (savedPreStart) {
@@ -162,8 +161,8 @@ export default function BayController() {
 
   // Save plug assignments
   useEffect(() => {
-    localStorage.setItem("bayController_plugAssignment", JSON.stringify(plugAssignment));
-  }, [plugAssignment]);
+    localStorage.setItem("bayController_bayPlugAssignments", JSON.stringify(bayPlugAssignments));
+  }, [bayPlugAssignments]);
 
   // Save pre-start minutes
   useEffect(() => {
@@ -242,10 +241,20 @@ export default function BayController() {
     // TAPO P110 plugs typically respond on port 9999
     setTimeout(() => {
       // This is placeholder - real implementation needs Electron IPC for network scanning
+      // Simulating 12 plugs (2 per bay) with naming convention: "Bay X (M)" and "Bay X (P)"
       const mockPlugs: TapoPlug[] = [
-        { id: "1", name: "Bay Monitor", ip: "192.168.1.100", type: "monitor", isOn: false },
-        { id: "2", name: "Bay Projector", ip: "192.168.1.101", type: "projector", isOn: false },
-        { id: "3", name: "Living Room", ip: "192.168.1.102", type: "monitor", isOn: false },
+        { id: "1", name: "Bay 1 (M)", ip: "192.168.1.100", isOn: false },
+        { id: "2", name: "Bay 1 (P)", ip: "192.168.1.101", isOn: false },
+        { id: "3", name: "Bay 2 (M)", ip: "192.168.1.102", isOn: false },
+        { id: "4", name: "Bay 2 (P)", ip: "192.168.1.103", isOn: false },
+        { id: "5", name: "Bay 3 (M)", ip: "192.168.1.104", isOn: false },
+        { id: "6", name: "Bay 3 (P)", ip: "192.168.1.105", isOn: false },
+        { id: "7", name: "Bay 4 (M)", ip: "192.168.1.106", isOn: false },
+        { id: "8", name: "Bay 4 (P)", ip: "192.168.1.107", isOn: false },
+        { id: "9", name: "Bay 5 (M)", ip: "192.168.1.108", isOn: false },
+        { id: "10", name: "Bay 5 (P)", ip: "192.168.1.109", isOn: false },
+        { id: "11", name: "Bay 6 (M)", ip: "192.168.1.110", isOn: false },
+        { id: "12", name: "Bay 6 (P)", ip: "192.168.1.111", isOn: false },
       ];
       setDiscoveredPlugs(mockPlugs);
       setIsScanning(false);
@@ -275,13 +284,46 @@ export default function BayController() {
     }
   };
 
-  const assignPlug = (plug: TapoPlug, type: "monitor" | "projector") => {
-    setPlugAssignment(prev => ({
-      ...prev,
-      [type === "monitor" ? "monitorPlug" : "projectorPlug"]: plug
-    }));
-    toast.success(`${plug.name} assigned as ${type}`);
+  const assignPlugToBay = (plug: TapoPlug, bayNumber: number) => {
+    setBayPlugAssignments(prev => {
+      const existing = prev.find(a => a.bayNumber === bayNumber);
+      if (existing) {
+        // Add plug to existing bay assignment if not already there
+        if (!existing.plugs.find(p => p.id === plug.id)) {
+          return prev.map(a => 
+            a.bayNumber === bayNumber 
+              ? { ...a, plugs: [...a.plugs, plug] }
+              : a
+          );
+        }
+        return prev;
+      } else {
+        // Create new bay assignment
+        return [...prev, { bayNumber, plugs: [plug] }];
+      }
+    });
+    toast.success(`${plug.name} assigned to Bay ${bayNumber}`);
   };
+
+  const removePlugFromBay = (plugId: string, bayNumber: number) => {
+    setBayPlugAssignments(prev => 
+      prev.map(a => 
+        a.bayNumber === bayNumber 
+          ? { ...a, plugs: a.plugs.filter(p => p.id !== plugId) }
+          : a
+      ).filter(a => a.plugs.length > 0)
+    );
+  };
+
+  const isPlugAssigned = (plugId: string): boolean => {
+    return bayPlugAssignments.some(a => a.plugs.some(p => p.id === plugId));
+  };
+
+  const getAssignedPlugsForBay = (bayNumber: number): TapoPlug[] => {
+    return bayPlugAssignments.find(a => a.bayNumber === bayNumber)?.plugs || [];
+  };
+
+  const unassignedPlugs = discoveredPlugs.filter(p => !isPlugAssigned(p.id));
 
   // Password screen
   if (!isAuthenticated) {
@@ -472,13 +514,32 @@ export default function BayController() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Assigned plugs for this bay */}
+            {selectedBay && getAssignedPlugsForBay(selectedBay).length > 0 && (
+              <div className="space-y-2">
+                <Label>Assigned to Bay {selectedBay}</Label>
+                {getAssignedPlugsForBay(selectedBay).map((plug) => (
+                  <div key={plug.id} className="flex items-center justify-between p-3 bg-primary/10 border border-primary/20 rounded-lg">
+                    <div>
+                      <p className="font-medium">{plug.name}</p>
+                      <p className="text-xs text-muted-foreground">{plug.ip}</p>
+                    </div>
+                    <Button 
+                      size="sm" 
+                      variant="ghost"
+                      onClick={() => removePlugFromBay(plug.id, selectedBay)}
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div className="flex items-center gap-4">
               <div className="flex-1">
                 <p className="text-sm text-muted-foreground">
-                  Monitor: {plugAssignment.monitorPlug?.name || "Not assigned"}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  Projector: {plugAssignment.projectorPlug?.name || "Not assigned"}
+                  {getAssignedPlugsForBay(selectedBay || 0).length} plug(s) assigned to this bay
                 </p>
               </div>
               <Button onClick={scanForPlugs} disabled={isScanning}>
@@ -490,34 +551,35 @@ export default function BayController() {
               </Button>
             </div>
             
-            {discoveredPlugs.length > 0 && (
+            {/* Unassigned plugs from scan */}
+            {unassignedPlugs.length > 0 && (
               <div className="space-y-2">
-                <Label>Discovered Plugs</Label>
-                {discoveredPlugs.map((plug) => (
+                <Label>Available Plugs ({unassignedPlugs.length})</Label>
+                {unassignedPlugs.map((plug) => (
                   <div key={plug.id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
                     <div>
                       <p className="font-medium">{plug.name}</p>
                       <p className="text-xs text-muted-foreground">{plug.ip}</p>
                     </div>
-                    <div className="flex gap-2">
-                      <Button 
-                        size="sm" 
-                        variant={plugAssignment.monitorPlug?.id === plug.id ? "default" : "outline"}
-                        onClick={() => assignPlug(plug, "monitor")}
-                      >
-                        Monitor
-                      </Button>
-                      <Button 
-                        size="sm"
-                        variant={plugAssignment.projectorPlug?.id === plug.id ? "default" : "outline"}
-                        onClick={() => assignPlug(plug, "projector")}
-                      >
-                        Projector
-                      </Button>
-                    </div>
+                    <Select onValueChange={(value) => assignPlugToBay(plug, parseInt(value))}>
+                      <SelectTrigger className="w-32">
+                        <SelectValue placeholder="Add to Bay" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[1, 2, 3, 4, 5, 6].map((bay) => (
+                          <SelectItem key={bay} value={bay.toString()}>Bay {bay}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 ))}
               </div>
+            )}
+
+            {discoveredPlugs.length > 0 && unassignedPlugs.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-2">
+                All discovered plugs have been assigned
+              </p>
             )}
           </CardContent>
         </Card>
