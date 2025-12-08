@@ -160,7 +160,7 @@ const Dashboard = () => {
                 <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${hasLeagueAccess ? "bg-league-primary/15" : "bg-muted"}`}>
                   <Trophy className={`h-5 w-5 ${hasLeagueAccess ? "text-league-primary-dark" : "text-muted-foreground"}`} />
                 </div>
-                <h2 className="font-semibold text-lg">League Hub</h2>
+                <h2 className="font-semibold text-lg">Birdies League</h2>
               </div>
               {hasLeagueAccess ? (
                 <>
@@ -179,7 +179,7 @@ const Dashboard = () => {
                       className="flex-1 bg-league-primary text-league-foreground hover:bg-league-primary-dark"
                       onClick={() => navigate("/league")}
                     >
-                      League Hub
+                      View League
                     </Button>
                   </div>
                 </>
