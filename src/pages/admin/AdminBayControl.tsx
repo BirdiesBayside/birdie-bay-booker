@@ -55,47 +55,61 @@ interface BayStatus {
   plugsOn: boolean;
 }
 
+// Always have 6 bays to display
+const DEFAULT_BAYS: Bay[] = [1, 2, 3, 4, 5, 6].map((num) => ({
+  id: `bay-${num}`,
+  bay_number: num,
+  name: `Bay ${num}`,
+  is_active: true,
+}));
+
 export default function AdminBayControl() {
   const { isLoading: authLoading, isAdmin } = useAdminAuth();
-  const [bayStatuses, setBayStatuses] = useState<BayStatus[]>([]);
+  const [bayStatuses, setBayStatuses] = useState<BayStatus[]>(
+    // Initialize with default bays immediately
+    DEFAULT_BAYS.map((bay) => ({
+      bay,
+      device: null,
+      currentBooking: null,
+      nextBooking: null,
+      plugsOn: false,
+    }))
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const fetchBayStatuses = async () => {
-    try {
-      const now = new Date();
-      const today = format(now, "yyyy-MM-dd");
+    const now = new Date();
+    const today = format(now, "yyyy-MM-dd");
 
-      // Fetch bays - if none returned due to RLS, create default 6 bays structure
-      const { data: bays, error: baysError } = await supabase
+    // Fetch bays - use defaults if fetch fails
+    let displayBays = DEFAULT_BAYS;
+    try {
+      const { data: bays } = await supabase
         .from("bays")
         .select("*")
         .order("bay_number");
-
-      if (baysError) {
-        console.error("Error fetching bays:", baysError);
+      
+      if (bays && bays.length > 0) {
+        displayBays = bays;
       }
+    } catch (e) {
+      console.error("Error fetching bays:", e);
+    }
 
-      // Always ensure we have 6 bays to display
-      const defaultBays: Bay[] = [1, 2, 3, 4, 5, 6].map((num) => ({
-        id: `bay-${num}`,
-        bay_number: num,
-        name: `Bay ${num}`,
-        is_active: true,
-      }));
+    // Fetch bay devices - continue even if this fails
+    let devices: BayDevice[] = [];
+    try {
+      const { data } = await supabase.from("bay_devices").select("*");
+      devices = data || [];
+    } catch (e) {
+      console.error("Error fetching devices:", e);
+    }
 
-      // Use fetched bays if available, otherwise use defaults
-      const displayBays = bays && bays.length > 0 ? bays : defaultBays;
-
-      // Fetch bay devices
-      const { data: devices, error: devicesError } = await supabase
-        .from("bay_devices")
-        .select("*");
-
-      if (devicesError) throw devicesError;
-
-      // Fetch today's bookings with profiles
-      const { data: bookings, error: bookingsError } = await supabase
+    // Fetch today's bookings - continue even if this fails
+    let bookings: any[] = [];
+    try {
+      const { data } = await supabase
         .from("bookings")
         .select(`
           id,
@@ -113,53 +127,50 @@ export default function AdminBayControl() {
         .eq("booking_date", today)
         .eq("status", "confirmed")
         .order("start_time");
-
-      if (bookingsError) throw bookingsError;
-
-      // Build bay statuses using displayBays
-      const statuses: BayStatus[] = displayBays.map((bay) => {
-        const device = devices?.find((d) => d.bay_id === bay.id) || null;
-        const bayBookings = (bookings || []).filter((b) => b.bay_id === bay.id);
-
-        // Find current booking (now is between start and end)
-        const currentBooking = bayBookings.find((b) => {
-          const startTime = parseISO(`${b.booking_date}T${b.start_time}`);
-          const endTime = parseISO(`${b.booking_date}T${b.end_time}`);
-          return isAfter(now, startTime) && isBefore(now, endTime);
-        }) || null;
-
-        // Find next booking (starts after now)
-        const nextBooking = bayBookings.find((b) => {
-          const startTime = parseISO(`${b.booking_date}T${b.start_time}`);
-          return isAfter(startTime, now);
-        }) || null;
-
-        // Determine if plugs should be on (simplified - actual state from device)
-        const plugsOn = !!currentBooking;
-
-        return {
-          bay,
-          device,
-          currentBooking: currentBooking ? {
-            ...currentBooking,
-            profiles: currentBooking.profiles as unknown as { first_name: string; last_name: string }
-          } : null,
-          nextBooking: nextBooking ? {
-            ...nextBooking,
-            profiles: nextBooking.profiles as unknown as { first_name: string; last_name: string }
-          } : null,
-          plugsOn,
-        };
-      });
-
-      setBayStatuses(statuses);
-    } catch (error) {
-      console.error("Failed to fetch bay statuses:", error);
-      toast.error("Failed to load bay statuses");
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
+      bookings = data || [];
+    } catch (e) {
+      console.error("Error fetching bookings:", e);
     }
+
+    // Build bay statuses - always create all 6
+    const statuses: BayStatus[] = displayBays.map((bay) => {
+      const device = devices.find((d) => d.bay_id === bay.id) || null;
+      const bayBookings = bookings.filter((b) => b.bay_id === bay.id);
+
+      // Find current booking (now is between start and end)
+      const currentBooking = bayBookings.find((b) => {
+        const startTime = parseISO(`${b.booking_date}T${b.start_time}`);
+        const endTime = parseISO(`${b.booking_date}T${b.end_time}`);
+        return isAfter(now, startTime) && isBefore(now, endTime);
+      }) || null;
+
+      // Find next booking (starts after now)
+      const nextBooking = bayBookings.find((b) => {
+        const startTime = parseISO(`${b.booking_date}T${b.start_time}`);
+        return isAfter(startTime, now);
+      }) || null;
+
+      // Determine if plugs should be on (simplified - actual state from device)
+      const plugsOn = !!currentBooking;
+
+      return {
+        bay,
+        device,
+        currentBooking: currentBooking ? {
+          ...currentBooking,
+          profiles: currentBooking.profiles as unknown as { first_name: string; last_name: string }
+        } : null,
+        nextBooking: nextBooking ? {
+          ...nextBooking,
+          profiles: nextBooking.profiles as unknown as { first_name: string; last_name: string }
+        } : null,
+        plugsOn,
+      };
+    });
+
+    setBayStatuses(statuses);
+    setIsLoading(false);
+    setIsRefreshing(false);
   };
 
   useEffect(() => {
