@@ -127,17 +127,36 @@ export default function AdminBayControl() {
           end_time,
           duration_hours,
           status,
-          profiles:user_id (
-            first_name,
-            last_name
-          )
+          user_id
         `)
         .eq("booking_date", today)
         .eq("status", "confirmed")
         .order("start_time");
       
       console.log("Fetched bookings for", today, ":", data, "Error:", error);
-      bookings = data || [];
+      
+      if (data && data.length > 0) {
+        // Fetch profiles separately for these bookings
+        const userIds = [...new Set(data.map((b: any) => b.user_id))];
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("user_id, first_name, last_name")
+          .in("user_id", userIds);
+        
+        // Create a map of user_id to profile
+        const profileMap: Record<string, { first_name: string; last_name: string }> = {};
+        if (profiles) {
+          profiles.forEach((p: any) => {
+            profileMap[p.user_id] = { first_name: p.first_name, last_name: p.last_name };
+          });
+        }
+        
+        // Attach profiles to bookings
+        bookings = data.map((b: any) => ({
+          ...b,
+          profiles: profileMap[b.user_id] || null
+        }));
+      }
     } catch (e) {
       console.error("Error fetching bookings:", e);
     }

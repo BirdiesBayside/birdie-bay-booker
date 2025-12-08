@@ -84,7 +84,7 @@ serve(async (req) => {
         // Get today's date in YYYY-MM-DD format
         const today = new Date().toISOString().split("T")[0];
 
-        // Fetch bookings for this bay from today onwards with customer info
+        // Fetch bookings for this bay from today onwards
         const { data: bookings, error: bookingsError } = await supabase
           .from("bookings")
           .select(`
@@ -95,30 +95,13 @@ serve(async (req) => {
             duration_hours,
             player_count,
             status,
-            profiles:user_id (
-              first_name,
-              last_name
-            )
+            user_id
           `)
           .eq("bay_id", bay.id)
           .eq("status", "confirmed")
           .gte("booking_date", today)
           .order("booking_date", { ascending: true })
           .order("start_time", { ascending: true });
-
-        // Transform bookings to include customer_name
-        const bookingsWithNames = (bookings || []).map((booking: any) => ({
-          id: booking.id,
-          booking_date: booking.booking_date,
-          start_time: booking.start_time,
-          end_time: booking.end_time,
-          duration_hours: booking.duration_hours,
-          player_count: booking.player_count,
-          status: booking.status,
-          customer_name: booking.profiles 
-            ? `${booking.profiles.first_name || ''} ${booking.profiles.last_name || ''}`.trim() 
-            : 'Unknown',
-        }));
 
         if (bookingsError) {
           console.error("Bookings fetch error:", bookingsError);
@@ -127,6 +110,40 @@ serve(async (req) => {
             { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
+
+        // Fetch customer names for each booking
+        const userIds = [...new Set((bookings || []).map((b: any) => b.user_id))];
+        let profilesMap: Record<string, { first_name: string; last_name: string }> = {};
+        
+        if (userIds.length > 0) {
+          const { data: profiles } = await supabase
+            .from("profiles")
+            .select("user_id, first_name, last_name")
+            .in("user_id", userIds);
+          
+          if (profiles) {
+            profiles.forEach((p: any) => {
+              profilesMap[p.user_id] = { first_name: p.first_name, last_name: p.last_name };
+            });
+          }
+        }
+
+        // Transform bookings to include customer_name
+        const bookingsWithNames = (bookings || []).map((booking: any) => {
+          const profile = profilesMap[booking.user_id];
+          return {
+            id: booking.id,
+            booking_date: booking.booking_date,
+            start_time: booking.start_time,
+            end_time: booking.end_time,
+            duration_hours: booking.duration_hours,
+            player_count: booking.player_count,
+            status: booking.status,
+            customer_name: profile 
+              ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim() 
+              : 'Unknown',
+          };
+        });
 
         console.log(`Returning ${bookings?.length || 0} bookings for bay ${bayNumber}`);
 
