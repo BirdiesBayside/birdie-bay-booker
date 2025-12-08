@@ -34,34 +34,10 @@ function createWindow() {
   if (isDev) {
     mainWindow.loadURL('http://localhost:5173/bay-controller');
   } else {
-    // In production, the app is packaged with asar
-    // __dirname will be inside the asar, so we need to find the dist folder
-    const fs = require('fs');
-    
-    // Try multiple possible paths for the built app
-    const possiblePaths = [
-      path.join(__dirname, '..', 'dist', 'index.html'),           // Relative to electron folder
-      path.join(app.getAppPath(), 'dist', 'index.html'),          // App path + dist
-      path.join(app.getAppPath(), '..', 'dist', 'index.html'),    // Parent of app path
-      path.join(process.resourcesPath, 'app', 'dist', 'index.html'), // Resources folder
-      path.join(process.resourcesPath, 'dist', 'index.html'),     // Direct in resources
-    ];
-    
-    let indexPath = possiblePaths[0];
-    for (const p of possiblePaths) {
-      console.log('Checking path:', p);
-      try {
-        if (fs.existsSync(p)) {
-          indexPath = p;
-          console.log('Found index.html at:', p);
-          break;
-        }
-      } catch (e) {
-        // Path doesn't exist, continue
-      }
-    }
-    
+    // In production, dist is in extraResources folder
+    const indexPath = path.join(process.resourcesPath, 'dist', 'index.html');
     console.log('Loading from:', indexPath);
+    
     mainWindow.loadFile(indexPath).then(() => {
       // Set hash after file loads for HashRouter
       mainWindow.webContents.executeJavaScript(`
@@ -71,7 +47,6 @@ function createWindow() {
       `);
     }).catch(err => {
       console.error('Failed to load app:', err);
-      // Show error in window
       mainWindow.webContents.openDevTools();
     });
   }
