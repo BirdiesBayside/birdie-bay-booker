@@ -19,8 +19,14 @@
       "main.js",
       "preload.js",
       "icon.ico",
-      "icon.png",
-      "../dist/**/*"
+      "icon.png"
+    ],
+    "extraResources": [
+      {
+        "from": "../dist",
+        "to": "dist",
+        "filter": ["**/*"]
+      }
     ],
     "win": {
       "target": "nsis",
