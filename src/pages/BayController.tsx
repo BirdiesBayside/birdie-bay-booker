@@ -776,6 +776,11 @@ export default function BayController() {
                       <p className="text-sm text-muted-foreground">
                         {booking.start_time.slice(0, 5)} - {booking.end_time.slice(0, 5)}
                       </p>
+                      {booking.customer_name && (
+                        <p className="text-sm font-medium text-primary mt-1">
+                          {booking.customer_name}
+                        </p>
+                      )}
                     </div>
                     <div className="text-right">
                       <p className="text-sm">{booking.duration_hours}h</p>
