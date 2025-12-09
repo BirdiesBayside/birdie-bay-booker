@@ -142,17 +142,37 @@ async function scanForTapoDevices(email, password) {
 // Control a specific TAPO plug
 async function controlTapoPlug(email, password, deviceIp, action) {
   try {
+    // Validate inputs
+    if (!email || typeof email !== 'string' || email.trim() === '') {
+      console.error('TAPO control: Invalid email');
+      return { success: false, error: 'Invalid email address' };
+    }
+    if (!password || typeof password !== 'string' || password.trim() === '') {
+      console.error('TAPO control: Invalid password');
+      return { success: false, error: 'Invalid password' };
+    }
+    if (!deviceIp || typeof deviceIp !== 'string' || deviceIp.trim() === '') {
+      console.error('TAPO control: Invalid device IP');
+      return { success: false, error: 'Invalid device IP address' };
+    }
+    
+    const cleanEmail = email.trim();
+    const cleanPassword = password.trim();
+    const cleanIp = deviceIp.trim();
+    
+    console.log(`TAPO control: Connecting to ${cleanIp} with action ${action}`);
+    
     const { loginDevice } = require('tp-link-tapo-connect');
     
     // Connect to the specific device
-    const device = await loginDevice(email, password, deviceIp);
+    const device = await loginDevice(cleanEmail, cleanPassword, cleanIp);
     
     if (action === 'on') {
       await device.turnOn();
-      console.log(`Turned ON plug at ${deviceIp}`);
+      console.log(`Turned ON plug at ${cleanIp}`);
     } else if (action === 'off') {
       await device.turnOff();
-      console.log(`Turned OFF plug at ${deviceIp}`);
+      console.log(`Turned OFF plug at ${cleanIp}`);
     } else if (action === 'status') {
       const status = await device.getDeviceInfo();
       return { success: true, isOn: status.device_on };

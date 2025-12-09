@@ -535,7 +535,7 @@ export default function BayController() {
     
     if (isElectron && window.electronAPI && selectedBay) {
       const bayPlugs = getAssignedPlugsForBay(selectedBay);
-      console.log("Assigned plugs for bay:", bayPlugs);
+      console.log("Assigned plugs for bay:", JSON.stringify(bayPlugs, null, 2));
       
       if (bayPlugs.length === 0) {
         console.warn("No plugs assigned to this bay!");
@@ -543,10 +543,26 @@ export default function BayController() {
         return;
       }
       
+      // Validate credentials
+      if (!tapoEmail || !tapoPassword) {
+        toast.error("TAPO credentials not configured");
+        return;
+      }
+      
       for (const plug of bayPlugs) {
-        console.log(`Attempting to turn ON plug: ${plug.name} at ${plug.ip}`);
+        // Validate plug data
+        if (!plug.ip || typeof plug.ip !== 'string' || plug.ip.trim() === '') {
+          console.error(`Invalid IP for plug ${plug.name}:`, plug);
+          toast.error(`Invalid IP address for ${plug.name || 'plug'}`);
+          continue;
+        }
+        
+        const cleanIp = plug.ip.trim();
+        console.log(`Attempting to turn ON plug: ${plug.name} at ${cleanIp}`);
+        console.log(`Using credentials: email=${tapoEmail}, password=${tapoPassword ? '***' : 'MISSING'}`);
+        
         try {
-          const result = await window.electronAPI.controlPlug(tapoEmail, tapoPassword, plug.ip, 'on');
+          const result = await window.electronAPI.controlPlug(tapoEmail, tapoPassword, cleanIp, 'on');
           console.log(`Control result for ${plug.name}:`, result);
           if (!result.success) {
             toast.error(`Failed to turn on ${plug.name}: ${result.error}`);
@@ -555,7 +571,7 @@ export default function BayController() {
           }
         } catch (error) {
           console.error(`Failed to turn on ${plug.name}:`, error);
-          toast.error(`Error controlling ${plug.name}`);
+          toast.error(`Error controlling ${plug.name}: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
       }
     } else {
