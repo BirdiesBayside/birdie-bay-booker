@@ -49,7 +49,7 @@ async def control_plug(email: str, password: str, ip: str, action: str):
         return {"success": False, "error": error_msg}
 
 async def scan_network(email: str, password: str):
-    """Scan local network for TAPO devices."""
+    """Scan local network for TAPO devices using direct device probing."""
     try:
         from tapo import ApiClient
         
@@ -62,26 +62,46 @@ async def scan_network(email: str, password: str):
         ip_parts = local_ip.split('.')
         network_prefix = '.'.join(ip_parts[:3])
         
-        client = ApiClient(email, password)
         found_devices = []
         
-        # Scan common IP range (1-254)
-        tasks = []
+        # First, find all IPs with port 80 open (TAPO devices use HTTP)
+        open_ips = []
         for i in range(1, 255):
             ip = f"{network_prefix}.{i}"
-            tasks.append(check_tapo_device(client, ip))
+            if check_port_open(ip, 80, timeout=0.5):
+                open_ips.append(ip)
         
-        # Run scans concurrently with timeout
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        # Now try to connect to each open IP as a TAPO device
+        client = ApiClient(email, password)
         
-        for result in results:
-            if isinstance(result, dict) and result.get("found"):
-                found_devices.append(result)
+        for ip in open_ips:
+            try:
+                device = await asyncio.wait_for(
+                    client.p110(ip),
+                    timeout=5.0
+                )
+                info = await asyncio.wait_for(
+                    device.get_device_info(),
+                    timeout=5.0
+                )
+                
+                found_devices.append({
+                    "found": True,
+                    "ip": ip,
+                    "nickname": getattr(info, 'nickname', 'Unknown'),
+                    "model": getattr(info, 'model', 'P110'),
+                    "isOn": getattr(info, 'device_on', False)
+                })
+            except asyncio.TimeoutError:
+                continue
+            except Exception:
+                continue
         
         return {
             "success": True,
             "network": f"{network_prefix}.0/24",
             "scanned": 254,
+            "open_ports": len(open_ips),
             "plugs": found_devices
         }
         
@@ -90,26 +110,28 @@ async def scan_network(email: str, password: str):
     except Exception as e:
         return {"success": False, "error": str(e)}
 
+def check_port_open(ip: str, port: int, timeout: float = 0.5) -> bool:
+    """Check if a port is open on an IP address."""
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(timeout)
+        result = sock.connect_ex((ip, port))
+        sock.close()
+        return result == 0
+    except Exception:
+        return False
+
 async def check_tapo_device(client, ip: str):
     """Check if a specific IP is a TAPO device."""
     try:
-        # Quick port check first (TAPO uses port 80)
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(0.3)
-        result = sock.connect_ex((ip, 80))
-        sock.close()
-        
-        if result != 0:
-            return {"found": False}
-        
-        # Try to connect as P110
+        # Try to connect as P110 with longer timeout
         device = await asyncio.wait_for(
             client.p110(ip),
-            timeout=2.0
+            timeout=5.0
         )
         info = await asyncio.wait_for(
             device.get_device_info(),
-            timeout=2.0
+            timeout=5.0
         )
         
         return {
