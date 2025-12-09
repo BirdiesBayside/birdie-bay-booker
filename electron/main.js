@@ -162,10 +162,11 @@ async function controlTapoPlug(email, password, deviceIp, action) {
     
     console.log(`TAPO control: Connecting to ${cleanIp} with action ${action}`);
     
-    const { loginDevice } = require('tp-link-tapo-connect');
+    // Use loginDeviceByIp - the correct function for local IP control
+    const { loginDeviceByIp } = require('tp-link-tapo-connect');
     
-    // Connect to the specific device
-    const device = await loginDevice(cleanEmail, cleanPassword, cleanIp);
+    // Connect to the specific device by IP
+    const device = await loginDeviceByIp(cleanEmail, cleanPassword, cleanIp);
     
     if (action === 'on') {
       await device.turnOn();
