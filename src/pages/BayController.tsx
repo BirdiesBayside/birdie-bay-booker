@@ -72,6 +72,7 @@ declare global {
     electronAPI?: {
       isElectron: boolean;
       tapoInit: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+      tapoTestLogin: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
       scanNetwork: (email: string, password: string) => Promise<{ success: boolean; plugs: TapoPlug[]; error?: string; message?: string }>;
       controlPlug: (email: string, password: string, ip: string, action: 'on' | 'off' | 'status') => Promise<{ success: boolean; isOn?: boolean; error?: string }>;
       // App automation
@@ -174,6 +175,8 @@ export default function BayController() {
   const [isLaunchingApps, setIsLaunchingApps] = useState(false);
   const [appLaunchStatus, setAppLaunchStatus] = useState<string | null>(null);
   const [appsRunning, setAppsRunning] = useState(false);
+  const [isTestingLogin, setIsTestingLogin] = useState(false);
+  const [loginTestResult, setLoginTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
   // Check if running in Electron and load saved credentials/config
   useEffect(() => {
@@ -472,6 +475,40 @@ export default function BayController() {
     setNewPlugName("");
     setNewPlugIp("");
     toast.success(`Added plug: ${newPlug.name}`);
+  };
+
+  // Test TAPO login credentials
+  const testTapoLogin = async () => {
+    if (!isElectron || !window.electronAPI) {
+      toast.error("Login test requires desktop app");
+      return;
+    }
+    
+    if (!tapoEmail || !tapoPassword) {
+      toast.error("Please enter your TAPO email and password");
+      return;
+    }
+    
+    setIsTestingLogin(true);
+    setLoginTestResult(null);
+    
+    try {
+      const result = await window.electronAPI.tapoTestLogin(tapoEmail, tapoPassword);
+      
+      if (result.success) {
+        setLoginTestResult({ success: true, message: "Login successful! Credentials are valid." });
+        toast.success("TAPO login successful!");
+      } else {
+        setLoginTestResult({ success: false, message: result.error || "Login failed" });
+        toast.error(`Login failed: ${result.error}`);
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : "Unknown error";
+      setLoginTestResult({ success: false, message: errorMsg });
+      toast.error(`Login test error: ${errorMsg}`);
+    } finally {
+      setIsTestingLogin(false);
+    }
   };
 
   // Scan for TAPO plugs (shows message since cloud scanning not available)
@@ -895,6 +932,38 @@ export default function BayController() {
                     disabled={!isElectron}
                   />
                 </div>
+                {isElectron && (
+                  <div className="space-y-2">
+                    <Button 
+                      onClick={testTapoLogin}
+                      disabled={isTestingLogin || !tapoEmail || !tapoPassword}
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                    >
+                      {isTestingLogin ? (
+                        <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Testing...</>
+                      ) : (
+                        <><TestTube className="w-4 h-4 mr-2" /> Test TAPO Login</>
+                      )}
+                    </Button>
+                    {loginTestResult && (
+                      <div className={`p-2 rounded text-sm ${loginTestResult.success ? 'bg-green-500/10 text-green-600' : 'bg-red-500/10 text-red-600'}`}>
+                        {loginTestResult.success ? (
+                          <div className="flex items-center gap-2">
+                            <CheckCircle className="w-4 h-4" />
+                            {loginTestResult.message}
+                          </div>
+                        ) : (
+                          <div className="flex items-start gap-2">
+                            <XCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                            <span>{loginTestResult.message}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
                 {!isElectron && (
                   <p className="text-xs text-amber-500">
                     Running in browser - plug control is simulated. Install the desktop app for real control.

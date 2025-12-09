@@ -126,6 +126,43 @@ async function initTapo(email, password) {
   }
 }
 
+// Test TAPO login credentials without controlling any device
+async function testTapoLogin(email, password) {
+  try {
+    if (!email || typeof email !== 'string' || email.trim() === '') {
+      return { success: false, error: 'Please enter your TAPO email address' };
+    }
+    if (!password || typeof password !== 'string' || password.trim() === '') {
+      return { success: false, error: 'Please enter your TAPO password' };
+    }
+    
+    const cleanEmail = email.trim();
+    const cleanPassword = password.trim();
+    
+    console.log('Testing TAPO login for:', cleanEmail);
+    
+    const { cloudLogin } = require('tp-link-tapo-connect');
+    const client = await cloudLogin(cleanEmail, cleanPassword);
+    
+    console.log('TAPO login test successful');
+    return { success: true };
+  } catch (error) {
+    console.error('TAPO login test failed:', error.message);
+    
+    // Provide clearer error messages
+    let errorMessage = error.message;
+    if (error.message?.includes('1003')) {
+      errorMessage = 'Authentication failed - wrong email or password. Make sure you\'re using your TAPO app login credentials. If you have 2FA enabled, disable it in the TAPO app.';
+    } else if (error.message?.includes('1002')) {
+      errorMessage = 'Invalid request format';
+    } else if (error.message?.includes('ETIMEDOUT') || error.message?.includes('ECONNREFUSED')) {
+      errorMessage = 'Cannot connect to TAPO cloud servers - check your internet connection';
+    }
+    
+    return { success: false, error: errorMessage };
+  }
+}
+
 // Scan for TAPO devices - requires manual IP entry since cloud API isn't available for TAPO
 async function scanForTapoDevices(email, password) {
   // TAPO plugs don't have a cloud API for device listing in Node.js
@@ -503,6 +540,11 @@ async function closeApps(appNames) {
 // IPC Handlers - TAPO
 ipcMain.handle('tapo-init', async (event, { email, password }) => {
   return await initTapo(email, password);
+});
+
+ipcMain.handle('tapo-test-login', async (event, { email, password }) => {
+  console.log('Testing TAPO login...');
+  return await testTapoLogin(email, password);
 });
 
 ipcMain.handle('scan-network', async (event, { email, password }) => {
