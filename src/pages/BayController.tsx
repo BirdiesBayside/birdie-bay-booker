@@ -531,41 +531,70 @@ export default function BayController() {
   };
 
   const turnOnPlugs = async () => {
-    console.log("Turning ON plugs");
+    console.log("Turning ON plugs for bay:", selectedBay);
     
     if (isElectron && window.electronAPI && selectedBay) {
       const bayPlugs = getAssignedPlugsForBay(selectedBay);
+      console.log("Assigned plugs for bay:", bayPlugs);
+      
+      if (bayPlugs.length === 0) {
+        console.warn("No plugs assigned to this bay!");
+        toast.warning("No plugs assigned to this bay");
+        return;
+      }
       
       for (const plug of bayPlugs) {
+        console.log(`Attempting to turn ON plug: ${plug.name} at ${plug.ip}`);
         try {
-          await window.electronAPI.controlPlug(tapoEmail, tapoPassword, plug.ip, 'on');
+          const result = await window.electronAPI.controlPlug(tapoEmail, tapoPassword, plug.ip, 'on');
+          console.log(`Control result for ${plug.name}:`, result);
+          if (!result.success) {
+            toast.error(`Failed to turn on ${plug.name}: ${result.error}`);
+          } else {
+            toast.success(`Turned ON: ${plug.name}`);
+          }
         } catch (error) {
           console.error(`Failed to turn on ${plug.name}:`, error);
+          toast.error(`Error controlling ${plug.name}`);
         }
       }
+    } else {
+      console.log("Not in Electron or no bay selected");
     }
     
     setPlugsStatus({ monitor: true, projector: true });
-    toast.success("Bay equipment powered ON");
   };
 
   const turnOffPlugs = async () => {
-    console.log("Turning OFF plugs");
+    console.log("Turning OFF plugs for bay:", selectedBay);
     
     if (isElectron && window.electronAPI && selectedBay) {
       const bayPlugs = getAssignedPlugsForBay(selectedBay);
+      console.log("Assigned plugs for bay:", bayPlugs);
+      
+      if (bayPlugs.length === 0) {
+        console.warn("No plugs assigned to this bay!");
+        return;
+      }
       
       for (const plug of bayPlugs) {
+        console.log(`Attempting to turn OFF plug: ${plug.name} at ${plug.ip}`);
         try {
-          await window.electronAPI.controlPlug(tapoEmail, tapoPassword, plug.ip, 'off');
+          const result = await window.electronAPI.controlPlug(tapoEmail, tapoPassword, plug.ip, 'off');
+          console.log(`Control result for ${plug.name}:`, result);
+          if (!result.success) {
+            toast.error(`Failed to turn off ${plug.name}: ${result.error}`);
+          } else {
+            toast.success(`Turned OFF: ${plug.name}`);
+          }
         } catch (error) {
           console.error(`Failed to turn off ${plug.name}:`, error);
+          toast.error(`Error controlling ${plug.name}`);
         }
       }
     }
     
     setPlugsStatus({ monitor: false, projector: false });
-    toast.info("Bay equipment powered OFF");
   };
 
   const showWarningNotification = (minutes: number) => {
