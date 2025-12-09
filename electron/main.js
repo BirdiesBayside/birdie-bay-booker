@@ -143,38 +143,53 @@ async function testTapoLogin(email, password) {
     
     console.log('Testing TAPO credentials format for:', cleanEmail);
     
-    // Check if Python is available
+    // Check if Python is available - try multiple commands
     const { spawn } = require('child_process');
     
+    const pythonCommands = [
+      'py',  // Windows Python Launcher (most reliable)
+      'python',
+      'python3',
+      'C:\\Python312\\python.exe',
+      'C:\\Python311\\python.exe',
+      process.env.LOCALAPPDATA + '\\Programs\\Python\\Python312\\python.exe',
+      process.env.LOCALAPPDATA + '\\Programs\\Python\\Python311\\python.exe',
+    ].filter(Boolean);
+    
     return new Promise((resolve) => {
+      let cmdIndex = 0;
+      
       const checkPython = (cmd) => {
-        const proc = spawn(cmd, ['--version']);
+        console.log(`Checking Python: ${cmd}`);
+        const proc = spawn(cmd, ['--version'], { shell: false, windowsHide: true });
         
         proc.on('error', () => {
-          if (cmd === 'python') {
-            checkPython('python3');
+          cmdIndex++;
+          if (cmdIndex < pythonCommands.length) {
+            checkPython(pythonCommands[cmdIndex]);
           } else {
-            resolve({ success: false, error: 'Python not found. Install Python and run: pip install tapo' });
+            resolve({ success: false, error: 'Python not found. Install Python from python.org (NOT Microsoft Store), then run: pip install tapo' });
           }
         });
         
         proc.on('close', (code) => {
           if (code === 0) {
-            // Python is available - credentials format is valid
-            // Actual validation happens when controlling a device
             resolve({ 
               success: true, 
               message: 'Credentials saved. Test with a plug to verify login works.' 
             });
-          } else if (cmd === 'python') {
-            checkPython('python3');
           } else {
-            resolve({ success: false, error: 'Python check failed' });
+            cmdIndex++;
+            if (cmdIndex < pythonCommands.length) {
+              checkPython(pythonCommands[cmdIndex]);
+            } else {
+              resolve({ success: false, error: 'Python not found. Install Python from python.org (NOT Microsoft Store), then run: pip install tapo' });
+            }
           }
         });
       };
       
-      checkPython('python');
+      checkPython(pythonCommands[0]);
     });
   } catch (error) {
     console.error('TAPO login test failed:', error.message);
@@ -245,9 +260,28 @@ async function controlTapoPlug(email, password, deviceIp, action) {
     
     console.log('Using Python script:', scriptPath);
     
-    // Try 'python' first, then 'python3'
+    // List of Python commands to try - includes Windows py launcher and common install paths
+    const pythonCommands = [
+      'py',  // Windows Python Launcher (most reliable on Windows)
+      'python',
+      'python3',
+      'C:\\Python312\\python.exe',
+      'C:\\Python311\\python.exe',
+      'C:\\Python310\\python.exe',
+      'C:\\Python39\\python.exe',
+      process.env.LOCALAPPDATA + '\\Programs\\Python\\Python312\\python.exe',
+      process.env.LOCALAPPDATA + '\\Programs\\Python\\Python311\\python.exe',
+      process.env.LOCALAPPDATA + '\\Programs\\Python\\Python310\\python.exe',
+    ].filter(Boolean);
+    
+    let cmdIndex = 0;
+    
     const tryPython = (pythonCmd) => {
-      const proc = spawn(pythonCmd, [scriptPath, cleanEmail, cleanPassword, cleanIp, action]);
+      console.log(`Trying Python command: ${pythonCmd}`);
+      const proc = spawn(pythonCmd, [scriptPath, cleanEmail, cleanPassword, cleanIp, action], {
+        shell: false,
+        windowsHide: true
+      });
       
       let stdout = '';
       let stderr = '';
@@ -256,18 +290,31 @@ async function controlTapoPlug(email, password, deviceIp, action) {
       proc.stderr.on('data', (data) => { stderr += data.toString(); });
       
       proc.on('error', (err) => {
-        if (pythonCmd === 'python') {
-          // Try python3 if python fails
-          tryPython('python3');
+        console.log(`Python command failed: ${pythonCmd} - ${err.message}`);
+        cmdIndex++;
+        if (cmdIndex < pythonCommands.length) {
+          tryPython(pythonCommands[cmdIndex]);
         } else {
-          console.error('Python not found:', err.message);
-          resolve({ success: false, error: 'Python not found. Please install Python and the tapo package: pip install tapo' });
+          console.error('All Python commands failed');
+          resolve({ 
+            success: false, 
+            error: 'Python not found. Install Python from python.org (NOT Microsoft Store). After installing, run: pip install tapo' 
+          });
         }
       });
       
       proc.on('close', (code) => {
         console.log('Python script output:', stdout);
         if (stderr) console.error('Python script stderr:', stderr);
+        
+        // Check if this was a Windows Store alias redirect (exits immediately with no output)
+        if (code !== 0 && !stdout.trim() && stderr.includes('was not found')) {
+          cmdIndex++;
+          if (cmdIndex < pythonCommands.length) {
+            tryPython(pythonCommands[cmdIndex]);
+            return;
+          }
+        }
         
         try {
           const result = JSON.parse(stdout.trim());
@@ -276,13 +323,13 @@ async function controlTapoPlug(email, password, deviceIp, action) {
           console.error('Failed to parse Python output:', stdout);
           resolve({ 
             success: false, 
-            error: stderr || stdout || `Python script exited with code ${code}`
+            error: stderr || stdout || `Python script exited with code ${code}. Install Python from python.org and run: pip install tapo`
           });
         }
       });
     };
     
-    tryPython('python');
+    tryPython(pythonCommands[0]);
   });
 }
 
