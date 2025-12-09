@@ -72,7 +72,7 @@ declare global {
     electronAPI?: {
       isElectron: boolean;
       tapoInit: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-      scanNetwork: (email: string, password: string) => Promise<{ success: boolean; plugs: TapoPlug[]; error?: string }>;
+      scanNetwork: (email: string, password: string) => Promise<{ success: boolean; plugs: TapoPlug[]; error?: string; message?: string }>;
       controlPlug: (email: string, password: string, ip: string, action: 'on' | 'off' | 'status') => Promise<{ success: boolean; isOn?: boolean; error?: string }>;
       // App automation
       getDisplays: () => Promise<DisplayInfo[]>;
@@ -433,11 +433,52 @@ export default function BayController() {
     }
   }, [currentTime, bookings, preStartMinutes]);
 
-  // Scan for TAPO plugs
+  // State for manual plug entry
+  const [newPlugName, setNewPlugName] = useState("");
+  const [newPlugIp, setNewPlugIp] = useState("");
+
+  // Save TAPO credentials whenever they change
+  useEffect(() => {
+    if (tapoEmail) {
+      localStorage.setItem("bayController_tapoEmail", tapoEmail);
+    }
+    if (tapoPassword) {
+      localStorage.setItem("bayController_tapoPassword", tapoPassword);
+    }
+  }, [tapoEmail, tapoPassword]);
+
+  // Add a plug manually
+  const addPlugManually = () => {
+    if (!newPlugName.trim() || !newPlugIp.trim()) {
+      toast.error("Please enter both plug name and IP address");
+      return;
+    }
+    
+    // Validate IP format
+    const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/;
+    if (!ipRegex.test(newPlugIp.trim())) {
+      toast.error("Please enter a valid IP address (e.g., 192.168.1.100)");
+      return;
+    }
+    
+    const newPlug: TapoPlug = {
+      id: `manual-${Date.now()}`,
+      name: newPlugName.trim(),
+      ip: newPlugIp.trim(),
+      isOn: false
+    };
+    
+    setDiscoveredPlugs(prev => [...prev, newPlug]);
+    setNewPlugName("");
+    setNewPlugIp("");
+    toast.success(`Added plug: ${newPlug.name}`);
+  };
+
+  // Scan for TAPO plugs (shows message since cloud scanning not available)
   const scanForPlugs = async () => {
     setIsScanning(true);
     
-    // Check if running in Electron with real scanning capability
+    // Check if running in Electron
     if (isElectron && window.electronAPI) {
       if (!tapoEmail || !tapoPassword) {
         toast.error("Please enter your TAPO credentials first");
@@ -445,24 +486,21 @@ export default function BayController() {
         return;
       }
       
-      toast.info("Scanning for TAPO devices via cloud...");
-      
       try {
         const result = await window.electronAPI.scanNetwork(tapoEmail, tapoPassword);
         
-        if (result.success && result.plugs) {
+        if (result.message) {
+          // Cloud scanning not available - show help message
+          toast.info(result.message, { duration: 6000 });
+        } else if (result.success && result.plugs && result.plugs.length > 0) {
           setDiscoveredPlugs(result.plugs);
           toast.success(`Found ${result.plugs.length} TAPO devices`);
-          
-          // Save credentials on successful scan
-          localStorage.setItem("bayController_tapoEmail", tapoEmail);
-          localStorage.setItem("bayController_tapoPassword", tapoPassword);
         } else {
-          toast.error(result.error || "Failed to scan for devices");
+          toast.info("No devices found. Add plugs manually using IP addresses.");
         }
       } catch (error) {
         console.error("Scan error:", error);
-        toast.error("Failed to communicate with TAPO cloud");
+        toast.info("Add plugs manually using their IP addresses from your router or TAPO app.");
       }
       
       setIsScanning(false);
@@ -917,22 +955,38 @@ export default function BayController() {
             </div>
           )}
 
+          {/* Manual plug entry */}
+          <div className="space-y-3 p-3 bg-muted/50 rounded-lg border border-dashed">
+            <Label className="text-sm font-medium">Add Plug Manually</Label>
+            <p className="text-xs text-muted-foreground">
+              Find plug IPs in your router admin page or TAPO mobile app (Device Settings → Device Info)
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <Input
+                placeholder="Name (e.g., Bay 1 (M))"
+                value={newPlugName}
+                onChange={(e) => setNewPlugName(e.target.value)}
+              />
+              <Input
+                placeholder="IP (e.g., 192.168.1.100)"
+                value={newPlugIp}
+                onChange={(e) => setNewPlugIp(e.target.value)}
+              />
+            </div>
+            <Button onClick={addPlugManually} size="sm" className="w-full">
+              Add Plug
+            </Button>
+          </div>
+
           <div className="flex items-center gap-4">
             <div className="flex-1">
               <p className="text-sm text-muted-foreground">
                 {getAssignedPlugsForBay(selectedBay || 0).length} plug(s) assigned to this bay
               </p>
             </div>
-            <Button onClick={scanForPlugs} disabled={isScanning}>
-              {isScanning ? (
-                <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Scanning...</>
-              ) : (
-                <><Wifi className="w-4 h-4 mr-2" /> Scan Network</>
-              )}
-            </Button>
           </div>
           
-          {/* Unassigned plugs from scan */}
+          {/* Unassigned plugs */}
           {unassignedPlugs.length > 0 && (
             <div className="space-y-2">
               <Label>Available Plugs ({unassignedPlugs.length})</Label>
@@ -957,9 +1011,9 @@ export default function BayController() {
             </div>
           )}
 
-          {discoveredPlugs.length > 0 && unassignedPlugs.length === 0 && (
+          {discoveredPlugs.length === 0 && (
             <p className="text-sm text-muted-foreground text-center py-2">
-              All discovered plugs have been assigned
+              No plugs added yet. Add plugs manually using IP addresses above.
             </p>
           )}
         </CollapsibleSettingsCard>
