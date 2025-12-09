@@ -42,17 +42,29 @@ interface DisplayInfo {
   index: number;
   label: string;
   bounds: { x: number; y: number; width: number; height: number };
+  size: { width: number; height: number };
   isPrimary: boolean;
+  signature: string; // "widthxheight" for matching
 }
 
 interface AppLaunchConfig {
   gsproPath: string;
   proteeLabsPath: string;
-  gsproDisplay: number; // Display index for GSPRO (duplicate screens)
-  proteeDisplay: number; // Display index for Protee (touchscreen)
+  gsproDisplaySignature: string; // Display signature (e.g., "1920x1080") for GSPRO
+  proteeDisplaySignature: string; // Display signature for Protee (touchscreen)
   appLaunchMinutes: number; // Minutes before booking to launch apps (after plugs are on)
   enabled: boolean;
 }
+
+// Helper to create display signature
+const getDisplaySignature = (display: DisplayInfo): string => {
+  return `${display.size?.width || display.bounds.width}x${display.size?.height || display.bounds.height}`;
+};
+
+// Helper to find display by signature
+const findDisplayBySignature = (displays: DisplayInfo[], signature: string): DisplayInfo | undefined => {
+  return displays.find(d => getDisplaySignature(d) === signature);
+};
 
 // Type for Electron API exposed via preload
 declare global {
@@ -154,8 +166,8 @@ export default function BayController() {
   const [appLaunchConfig, setAppLaunchConfig] = useState<AppLaunchConfig>({
     gsproPath: "C:\\Program Files\\GSPro\\GSPro.exe",
     proteeLabsPath: "C:\\Program Files\\Protee Labs\\ProteeLabs.exe",
-    gsproDisplay: 0,
-    proteeDisplay: 1,
+    gsproDisplaySignature: "", // Will be set when display is selected
+    proteeDisplaySignature: "", // Will be set when display is selected
     appLaunchMinutes: 1, // 1 minute before booking (after plugs turn on at 3 mins)
     enabled: false
   });
@@ -1045,30 +1057,29 @@ export default function BayController() {
               </div>
             </div>
 
-            {/* Display assignment */}
+            {/* Display assignment - shows resolution for reliable matching */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">GSPRO Display</Label>
                 <Select 
-                  value={appLaunchConfig.gsproDisplay.toString()} 
-                  onValueChange={(v) => updateAppConfig("gsproDisplay", parseInt(v))}
+                  value={appLaunchConfig.gsproDisplaySignature} 
+                  onValueChange={(v) => updateAppConfig("gsproDisplaySignature", v)}
                 >
                   <SelectTrigger className="text-xs">
-                    <SelectValue placeholder="Select display" />
+                    <SelectValue placeholder="Select by resolution" />
                   </SelectTrigger>
                   <SelectContent>
                     {displays.length > 0 ? (
-                      displays.map((d) => (
-                        <SelectItem key={d.id} value={d.index.toString()}>
-                          {d.label || `Display ${d.index + 1}`} {d.isPrimary ? "(Primary)" : ""}
-                        </SelectItem>
-                      ))
+                      displays.map((d) => {
+                        const sig = getDisplaySignature(d);
+                        return (
+                          <SelectItem key={d.id} value={sig}>
+                            {sig} {d.isPrimary ? "(Primary)" : ""} - {d.label || `Display ${d.index + 1}`}
+                          </SelectItem>
+                        );
+                      })
                     ) : (
-                      <>
-                        <SelectItem value="0">Display 1</SelectItem>
-                        <SelectItem value="1">Display 2</SelectItem>
-                        <SelectItem value="2">Display 3</SelectItem>
-                      </>
+                      <SelectItem value="" disabled>No displays detected</SelectItem>
                     )}
                   </SelectContent>
                 </Select>
@@ -1077,30 +1088,33 @@ export default function BayController() {
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">Protee Display (Touchscreen)</Label>
                 <Select 
-                  value={appLaunchConfig.proteeDisplay.toString()} 
-                  onValueChange={(v) => updateAppConfig("proteeDisplay", parseInt(v))}
+                  value={appLaunchConfig.proteeDisplaySignature} 
+                  onValueChange={(v) => updateAppConfig("proteeDisplaySignature", v)}
                 >
                   <SelectTrigger className="text-xs">
-                    <SelectValue placeholder="Select display" />
+                    <SelectValue placeholder="Select by resolution" />
                   </SelectTrigger>
                   <SelectContent>
                     {displays.length > 0 ? (
-                      displays.map((d) => (
-                        <SelectItem key={d.id} value={d.index.toString()}>
-                          {d.label || `Display ${d.index + 1}`} {d.isPrimary ? "(Primary)" : ""}
-                        </SelectItem>
-                      ))
+                      displays.map((d) => {
+                        const sig = getDisplaySignature(d);
+                        return (
+                          <SelectItem key={d.id} value={sig}>
+                            {sig} {d.isPrimary ? "(Primary)" : ""} - {d.label || `Display ${d.index + 1}`}
+                          </SelectItem>
+                        );
+                      })
                     ) : (
-                      <>
-                        <SelectItem value="0">Display 1</SelectItem>
-                        <SelectItem value="1">Display 2</SelectItem>
-                        <SelectItem value="2">Display 3</SelectItem>
-                      </>
+                      <SelectItem value="" disabled>No displays detected</SelectItem>
                     )}
                   </SelectContent>
                 </Select>
               </div>
             </div>
+
+            <p className="text-xs text-muted-foreground">
+              Displays are saved by resolution. At launch time, displays are re-detected and matched.
+            </p>
 
             {/* App launch timing */}
             <div className="flex items-center justify-between">
