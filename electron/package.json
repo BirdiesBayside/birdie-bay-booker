@@ -18,13 +18,18 @@
     "files": [
       "main.js",
       "preload.js",
-      "icon.png"
+      "icon.png",
+      "tapo_control.py"
     ],
     "extraResources": [
       {
         "from": "../dist-electron-app",
         "to": "dist",
         "filter": ["**/*"]
+      },
+      {
+        "from": "tapo_control.py",
+        "to": "tapo_control.py"
       }
     ],
     "win": {
