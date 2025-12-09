@@ -25,8 +25,8 @@ jobs:
       - name: Install web app dependencies
         run: npm ci
 
-      - name: Build web app
-        run: npm run build
+      - name: Build bay controller app
+        run: npx vite build --config vite.config.electron.ts
 
       - name: Install Electron dependencies
         working-directory: ./electron
