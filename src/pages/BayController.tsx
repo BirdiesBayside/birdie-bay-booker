@@ -76,7 +76,13 @@ declare global {
 }
 
 const CORRECT_PASSWORD = "Holeinone1";
-const APP_VERSION = "1.0.1";
+const APP_VERSION = "1.0.2";
+
+// Debug log for Electron builds
+console.log(`Bay Controller v${APP_VERSION} starting...`, {
+  isElectron: typeof window !== 'undefined' && !!(window as any).electronAPI?.isElectron,
+  userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'N/A'
+});
 
 // Collapsible Settings Card Component
 function CollapsibleSettingsCard({ 
