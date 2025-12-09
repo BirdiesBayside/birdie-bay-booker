@@ -173,17 +173,70 @@ async function testTapoLogin(email, password) {
   }
 }
 
-// Scan for TAPO devices - requires manual IP entry since cloud API isn't available for TAPO
+// Scan for TAPO devices on the local network
 async function scanForTapoDevices(email, password) {
-  // TAPO plugs don't have a cloud API for device listing in Node.js
-  // Users need to find plug IPs from their router or TAPO app
-  console.log('TAPO device scanning: Manual IP entry required');
+  const { spawn } = require('child_process');
+  const path = require('path');
+  const fs = require('fs');
   
-  return { 
-    success: true, 
-    plugs: [],
-    message: 'TAPO plugs require manual IP entry. Find plug IPs in your router admin or TAPO mobile app under Device Settings > Device Info.'
-  };
+  return new Promise((resolve) => {
+    if (!email || !password) {
+      resolve({ success: false, error: 'Please enter TAPO credentials first' });
+      return;
+    }
+    
+    const cleanEmail = email.trim();
+    const cleanPassword = password.trim();
+    
+    console.log('Scanning network for TAPO devices...');
+    
+    // Find the bundled tapo_control.exe
+    const possiblePaths = [
+      path.join(__dirname, 'tapo_control.exe'),
+      path.join(process.resourcesPath || '', 'tapo_control.exe'),
+      path.join(app.getAppPath(), 'tapo_control.exe'),
+    ];
+    
+    const exePath = possiblePaths.find(p => {
+      try {
+        fs.accessSync(p);
+        return true;
+      } catch { return false; }
+    });
+    
+    if (!exePath) {
+      resolve({ success: false, error: 'tapo_control.exe not found. Please reinstall the Bay Controller app.' });
+      return;
+    }
+    
+    const proc = spawn(exePath, ['--scan', cleanEmail, cleanPassword], {
+      shell: false,
+      windowsHide: true
+    });
+    
+    let stdout = '';
+    let stderr = '';
+    
+    proc.stdout.on('data', (data) => { stdout += data.toString(); });
+    proc.stderr.on('data', (data) => { stderr += data.toString(); });
+    
+    proc.on('error', (err) => {
+      console.error('Scan error:', err.message);
+      resolve({ success: false, error: `Scan failed: ${err.message}` });
+    });
+    
+    proc.on('close', (code) => {
+      console.log('Scan output:', stdout);
+      if (stderr) console.error('Scan stderr:', stderr);
+      
+      try {
+        const result = JSON.parse(stdout.trim());
+        resolve(result);
+      } catch (parseError) {
+        resolve({ success: false, error: stderr || stdout || 'Scan failed' });
+      }
+    });
+  });
 }
 
 // Control a specific TAPO plug using bundled tapo_control.exe
