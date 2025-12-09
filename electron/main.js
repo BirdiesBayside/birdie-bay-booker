@@ -177,7 +177,9 @@ async function scanForTapoDevices(email, password) {
 }
 
 // Control a specific TAPO plug
-async function controlTapoPlug(email, password, deviceIp, action) {
+// NOTE: P110 plugs use KLAP protocol not supported by tp-link-tapo-connect (P100/P105 only)
+// We'll try cloud API first (by device name), then fall back to local IP
+async function controlTapoPlug(email, password, deviceIdentifier, action) {
   try {
     // Validate inputs
     if (!email || typeof email !== 'string' || email.trim() === '') {
@@ -188,48 +190,86 @@ async function controlTapoPlug(email, password, deviceIp, action) {
       console.error('TAPO control: Invalid password');
       return { success: false, error: 'Invalid password' };
     }
-    if (!deviceIp || typeof deviceIp !== 'string' || deviceIp.trim() === '') {
-      console.error('TAPO control: Invalid device IP');
-      return { success: false, error: 'Invalid device IP address' };
+    if (!deviceIdentifier || typeof deviceIdentifier !== 'string' || deviceIdentifier.trim() === '') {
+      console.error('TAPO control: Invalid device identifier');
+      return { success: false, error: 'Invalid device identifier (name or IP)' };
     }
     
     const cleanEmail = email.trim();
     const cleanPassword = password.trim();
-    const cleanIp = deviceIp.trim();
+    const cleanIdentifier = deviceIdentifier.trim();
     
-    console.log(`TAPO control: Connecting to ${cleanIp} with action ${action}`);
+    console.log(`TAPO control: Attempting to control "${cleanIdentifier}" with action ${action}`);
     
-    // Use loginDeviceByIp - the correct function for local IP control
+    // Try cloud API first (works with P110 via device name)
+    try {
+      const { cloudLogin } = require('tp-link-tapo-connect');
+      const client = await cloudLogin(cleanEmail, cleanPassword);
+      
+      // Get list of devices from cloud
+      const devices = await client.listDevices();
+      console.log('TAPO cloud devices:', devices.map(d => ({ alias: d.alias, deviceId: d.deviceId, deviceModel: d.deviceModel })));
+      
+      // Find device by name (alias) or deviceId
+      const device = devices.find(d => 
+        d.alias?.toLowerCase() === cleanIdentifier.toLowerCase() ||
+        d.deviceId === cleanIdentifier
+      );
+      
+      if (device) {
+        console.log(`Found device "${device.alias}" (${device.deviceModel}) via cloud`);
+        
+        // Use cloud control
+        const cloudDevice = await client.getDevice(device.deviceId);
+        
+        if (action === 'on') {
+          await cloudDevice.turnOn();
+          console.log(`Turned ON "${device.alias}" via cloud`);
+        } else if (action === 'off') {
+          await cloudDevice.turnOff();
+          console.log(`Turned OFF "${device.alias}" via cloud`);
+        } else if (action === 'status') {
+          const info = await cloudDevice.getDeviceInfo();
+          return { success: true, isOn: info.device_on };
+        }
+        
+        return { success: true, action, method: 'cloud' };
+      }
+      
+      console.log(`Device "${cleanIdentifier}" not found in cloud, trying local IP...`);
+    } catch (cloudError) {
+      console.log('Cloud control failed, trying local IP...', cloudError.message);
+    }
+    
+    // Fall back to local IP control (only works for P100/P105)
     const { loginDeviceByIp } = require('tp-link-tapo-connect');
-    
-    // Connect to the specific device by IP
-    const device = await loginDeviceByIp(cleanEmail, cleanPassword, cleanIp);
+    const device = await loginDeviceByIp(cleanEmail, cleanPassword, cleanIdentifier);
     
     if (action === 'on') {
       await device.turnOn();
-      console.log(`Turned ON plug at ${cleanIp}`);
+      console.log(`Turned ON plug at ${cleanIdentifier} via local`);
     } else if (action === 'off') {
       await device.turnOff();
-      console.log(`Turned OFF plug at ${cleanIp}`);
+      console.log(`Turned OFF plug at ${cleanIdentifier} via local`);
     } else if (action === 'status') {
       const status = await device.getDeviceInfo();
       return { success: true, isOn: status.device_on };
     }
     
-    return { success: true, action };
+    return { success: true, action, method: 'local' };
   } catch (error) {
-    console.error(`TAPO control failed for ${deviceIp}:`, error.message);
+    console.error(`TAPO control failed for ${deviceIdentifier}:`, error.message);
     
     // Provide clearer error messages for known TAPO error codes
     let errorMessage = error.message;
     if (error.message?.includes('1003')) {
-      errorMessage = 'Authentication failed - check your TAPO email/password. If you have 2FA enabled on your TAPO account, disable it in the TAPO app settings.';
+      errorMessage = 'P110 plugs require cloud control by device NAME (not IP). The library only supports P100/P105 for local IP control. Enter your plug name from the TAPO app instead of the IP address.';
     } else if (error.message?.includes('1002')) {
       errorMessage = 'Invalid request - the device may not support this command';
     } else if (error.message?.includes('-1301')) {
-      errorMessage = 'Device not found - check the IP address is correct and the plug is powered on';
+      errorMessage = 'Device not found - check the name/IP is correct and the plug is powered on';
     } else if (error.message?.includes('ETIMEDOUT') || error.message?.includes('ECONNREFUSED')) {
-      errorMessage = 'Cannot reach device - check the IP address and ensure plug is on the same network';
+      errorMessage = 'Cannot reach device - for P110 plugs, use the device NAME from TAPO app instead of IP';
     }
     
     return { success: false, error: errorMessage };
