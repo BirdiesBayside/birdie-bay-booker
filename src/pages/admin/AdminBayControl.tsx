@@ -389,13 +389,6 @@ export default function AdminBayControl() {
           ))}
         </div>
 
-        {/* Legend */}
-        <div className="mt-6 flex items-center gap-6 text-xs text-muted-foreground">
-          <div className="flex items-center gap-2">
-            <div className="h-3 w-3 rounded border-2 border-primary/50" />
-            <span>Active Booking</span>
-          </div>
-        </div>
       </div>
     </AdminLayout>
   );
