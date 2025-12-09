@@ -179,10 +179,23 @@ async function controlTapoPlug(email, password, deviceIp, action) {
       return { success: true, isOn: status.device_on };
     }
     
-    return { success: true };
+    return { success: true, action };
   } catch (error) {
     console.error(`TAPO control failed for ${deviceIp}:`, error.message);
-    return { success: false, error: error.message };
+    
+    // Provide clearer error messages for known TAPO error codes
+    let errorMessage = error.message;
+    if (error.message?.includes('1003')) {
+      errorMessage = 'Authentication failed - check your TAPO email/password. If you have 2FA enabled on your TAPO account, disable it in the TAPO app settings.';
+    } else if (error.message?.includes('1002')) {
+      errorMessage = 'Invalid request - the device may not support this command';
+    } else if (error.message?.includes('-1301')) {
+      errorMessage = 'Device not found - check the IP address is correct and the plug is powered on';
+    } else if (error.message?.includes('ETIMEDOUT') || error.message?.includes('ECONNREFUSED')) {
+      errorMessage = 'Cannot reach device - check the IP address and ensure plug is on the same network';
+    }
+    
+    return { success: false, error: errorMessage };
   }
 }
 
