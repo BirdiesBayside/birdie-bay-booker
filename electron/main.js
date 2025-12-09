@@ -126,39 +126,17 @@ async function initTapo(email, password) {
   }
 }
 
-// Scan for TAPO devices using TP-Link cloud API
+// Scan for TAPO devices - requires manual IP entry since cloud API isn't available for TAPO
 async function scanForTapoDevices(email, password) {
-  try {
-    const { login } = require('tplink-cloud-api');
-    const { v4: uuidV4 } = require('uuid');
-    
-    // Generate a terminal UUID for this session
-    const termId = uuidV4();
-    
-    // Login to TP-Link cloud
-    const tplink = await login(email, password, termId);
-    console.log('TP-Link cloud login successful');
-    
-    // Get list of devices from cloud
-    const devices = await tplink.getDeviceList();
-    console.log(`Found ${devices.length} TP-Link devices`);
-    
-    // Map to our plug format - filter for TAPO devices
-    const plugs = devices.map((device, index) => ({
-      id: device.deviceId || `device-${index}`,
-      name: device.alias || device.deviceName || `Device ${index + 1}`,
-      ip: 'Requires local IP', // Cloud API doesn't provide local IP
-      deviceId: device.deviceId,
-      deviceType: device.deviceType || device.deviceModel,
-      deviceModel: device.deviceModel,
-      isOn: false
-    }));
-    
-    return { success: true, plugs };
-  } catch (error) {
-    console.error('TAPO scan failed:', error.message);
-    return { success: false, error: error.message, plugs: [] };
-  }
+  // TAPO plugs don't have a cloud API for device listing in Node.js
+  // Users need to find plug IPs from their router or TAPO app
+  console.log('TAPO device scanning: Manual IP entry required');
+  
+  return { 
+    success: true, 
+    plugs: [],
+    message: 'TAPO plugs require manual IP entry. Find plug IPs in your router admin or TAPO mobile app under Device Settings > Device Info.'
+  };
 }
 
 // Control a specific TAPO plug
