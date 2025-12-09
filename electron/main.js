@@ -34,18 +34,11 @@ function createWindow() {
   if (isDev) {
     mainWindow.loadURL('http://localhost:5173/bay-controller');
   } else {
-    // In production, dist is in extraResources folder
-    const indexPath = path.join(process.resourcesPath, 'dist', 'index.html');
-    console.log('Loading from:', indexPath);
+    // In production, load the standalone bay controller HTML directly
+    const indexPath = path.join(process.resourcesPath, 'dist', 'bay-controller.html');
+    console.log('Loading bay controller from:', indexPath);
     
-    mainWindow.loadFile(indexPath).then(() => {
-      // Set hash after file loads for HashRouter
-      mainWindow.webContents.executeJavaScript(`
-        if (!window.location.hash || window.location.hash === '#/') {
-          window.location.hash = '#/bay-controller';
-        }
-      `);
-    }).catch(err => {
+    mainWindow.loadFile(indexPath).catch(err => {
       console.error('Failed to load app:', err);
       mainWindow.webContents.openDevTools();
     });

@@ -18,12 +18,13 @@
     "files": [
       "main.js",
       "preload.js",
+      "bay-controller.html",
       "icon.ico",
       "icon.png"
     ],
     "extraResources": [
       {
-        "from": "../dist",
+        "from": "../dist-electron-app",
         "to": "dist",
         "filter": ["**/*"]
       }
