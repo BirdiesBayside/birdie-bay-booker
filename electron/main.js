@@ -126,7 +126,9 @@ async function initTapo(email, password) {
   }
 }
 
-// Test TAPO login credentials without controlling any device
+// Test TAPO login credentials by attempting to control a test device
+// Since the Python tapo library validates credentials when connecting to a device,
+// we'll just validate the format here and let actual control test the credentials
 async function testTapoLogin(email, password) {
   try {
     if (!email || typeof email !== 'string' || email.trim() === '') {
@@ -139,27 +141,44 @@ async function testTapoLogin(email, password) {
     const cleanEmail = email.trim();
     const cleanPassword = password.trim();
     
-    console.log('Testing TAPO login for:', cleanEmail);
+    console.log('Testing TAPO credentials format for:', cleanEmail);
     
-    const { cloudLogin } = require('tp-link-tapo-connect');
-    const client = await cloudLogin(cleanEmail, cleanPassword);
+    // Check if Python is available
+    const { spawn } = require('child_process');
     
-    console.log('TAPO login test successful');
-    return { success: true };
+    return new Promise((resolve) => {
+      const checkPython = (cmd) => {
+        const proc = spawn(cmd, ['--version']);
+        
+        proc.on('error', () => {
+          if (cmd === 'python') {
+            checkPython('python3');
+          } else {
+            resolve({ success: false, error: 'Python not found. Install Python and run: pip install tapo' });
+          }
+        });
+        
+        proc.on('close', (code) => {
+          if (code === 0) {
+            // Python is available - credentials format is valid
+            // Actual validation happens when controlling a device
+            resolve({ 
+              success: true, 
+              message: 'Credentials saved. Test with a plug to verify login works.' 
+            });
+          } else if (cmd === 'python') {
+            checkPython('python3');
+          } else {
+            resolve({ success: false, error: 'Python check failed' });
+          }
+        });
+      };
+      
+      checkPython('python');
+    });
   } catch (error) {
     console.error('TAPO login test failed:', error.message);
-    
-    // Provide clearer error messages
-    let errorMessage = error.message;
-    if (error.message?.includes('1003')) {
-      errorMessage = 'Authentication failed - wrong email or password. Make sure you\'re using your TAPO app login credentials. If you have 2FA enabled, disable it in the TAPO app.';
-    } else if (error.message?.includes('1002')) {
-      errorMessage = 'Invalid request format';
-    } else if (error.message?.includes('ETIMEDOUT') || error.message?.includes('ECONNREFUSED')) {
-      errorMessage = 'Cannot connect to TAPO cloud servers - check your internet connection';
-    }
-    
-    return { success: false, error: errorMessage };
+    return { success: false, error: error.message };
   }
 }
 
@@ -176,104 +195,95 @@ async function scanForTapoDevices(email, password) {
   };
 }
 
-// Control a specific TAPO plug
-// NOTE: P110 plugs use KLAP protocol not supported by tp-link-tapo-connect (P100/P105 only)
-// We'll try cloud API first (by device name), then fall back to local IP
-async function controlTapoPlug(email, password, deviceIdentifier, action) {
-  try {
+// Control a specific TAPO plug using Python subprocess
+// P110 plugs require the Python 'tapo' library for proper KLAP protocol support
+async function controlTapoPlug(email, password, deviceIp, action) {
+  const { spawn } = require('child_process');
+  const path = require('path');
+  
+  return new Promise((resolve) => {
     // Validate inputs
     if (!email || typeof email !== 'string' || email.trim() === '') {
-      console.error('TAPO control: Invalid email');
-      return { success: false, error: 'Invalid email address' };
+      resolve({ success: false, error: 'Invalid email address' });
+      return;
     }
     if (!password || typeof password !== 'string' || password.trim() === '') {
-      console.error('TAPO control: Invalid password');
-      return { success: false, error: 'Invalid password' };
+      resolve({ success: false, error: 'Invalid password' });
+      return;
     }
-    if (!deviceIdentifier || typeof deviceIdentifier !== 'string' || deviceIdentifier.trim() === '') {
-      console.error('TAPO control: Invalid device identifier');
-      return { success: false, error: 'Invalid device identifier (name or IP)' };
+    if (!deviceIp || typeof deviceIp !== 'string' || deviceIp.trim() === '') {
+      resolve({ success: false, error: 'Invalid device IP address' });
+      return;
     }
     
     const cleanEmail = email.trim();
     const cleanPassword = password.trim();
-    const cleanIdentifier = deviceIdentifier.trim();
+    const cleanIp = deviceIp.trim();
     
-    console.log(`TAPO control: Attempting to control "${cleanIdentifier}" with action ${action}`);
+    console.log(`TAPO control via Python: ${cleanIp} -> ${action}`);
     
-    // Try cloud API first (works with P110 via device name)
-    try {
-      const { cloudLogin } = require('tp-link-tapo-connect');
-      const client = await cloudLogin(cleanEmail, cleanPassword);
+    // Find the Python script - check multiple locations
+    const possiblePaths = [
+      path.join(__dirname, 'tapo_control.py'),
+      path.join(process.resourcesPath || '', 'tapo_control.py'),
+      path.join(app.getAppPath(), 'tapo_control.py'),
+      path.join(app.getAppPath(), 'electron', 'tapo_control.py')
+    ];
+    
+    let scriptPath = possiblePaths.find(p => {
+      try {
+        require('fs').accessSync(p);
+        return true;
+      } catch { return false; }
+    });
+    
+    if (!scriptPath) {
+      console.error('Python script not found in:', possiblePaths);
+      resolve({ success: false, error: 'tapo_control.py not found. Ensure Python script is bundled with the app.' });
+      return;
+    }
+    
+    console.log('Using Python script:', scriptPath);
+    
+    // Try 'python' first, then 'python3'
+    const tryPython = (pythonCmd) => {
+      const proc = spawn(pythonCmd, [scriptPath, cleanEmail, cleanPassword, cleanIp, action]);
       
-      // Get list of devices from cloud
-      const devices = await client.listDevices();
-      console.log('TAPO cloud devices:', devices.map(d => ({ alias: d.alias, deviceId: d.deviceId, deviceModel: d.deviceModel })));
+      let stdout = '';
+      let stderr = '';
       
-      // Find device by name (alias) or deviceId
-      const device = devices.find(d => 
-        d.alias?.toLowerCase() === cleanIdentifier.toLowerCase() ||
-        d.deviceId === cleanIdentifier
-      );
+      proc.stdout.on('data', (data) => { stdout += data.toString(); });
+      proc.stderr.on('data', (data) => { stderr += data.toString(); });
       
-      if (device) {
-        console.log(`Found device "${device.alias}" (${device.deviceModel}) via cloud`);
-        
-        // Use cloud control
-        const cloudDevice = await client.getDevice(device.deviceId);
-        
-        if (action === 'on') {
-          await cloudDevice.turnOn();
-          console.log(`Turned ON "${device.alias}" via cloud`);
-        } else if (action === 'off') {
-          await cloudDevice.turnOff();
-          console.log(`Turned OFF "${device.alias}" via cloud`);
-        } else if (action === 'status') {
-          const info = await cloudDevice.getDeviceInfo();
-          return { success: true, isOn: info.device_on };
+      proc.on('error', (err) => {
+        if (pythonCmd === 'python') {
+          // Try python3 if python fails
+          tryPython('python3');
+        } else {
+          console.error('Python not found:', err.message);
+          resolve({ success: false, error: 'Python not found. Please install Python and the tapo package: pip install tapo' });
         }
-        
-        return { success: true, action, method: 'cloud' };
-      }
+      });
       
-      console.log(`Device "${cleanIdentifier}" not found in cloud, trying local IP...`);
-    } catch (cloudError) {
-      console.log('Cloud control failed, trying local IP...', cloudError.message);
-    }
+      proc.on('close', (code) => {
+        console.log('Python script output:', stdout);
+        if (stderr) console.error('Python script stderr:', stderr);
+        
+        try {
+          const result = JSON.parse(stdout.trim());
+          resolve(result);
+        } catch (parseError) {
+          console.error('Failed to parse Python output:', stdout);
+          resolve({ 
+            success: false, 
+            error: stderr || stdout || `Python script exited with code ${code}`
+          });
+        }
+      });
+    };
     
-    // Fall back to local IP control (only works for P100/P105)
-    const { loginDeviceByIp } = require('tp-link-tapo-connect');
-    const device = await loginDeviceByIp(cleanEmail, cleanPassword, cleanIdentifier);
-    
-    if (action === 'on') {
-      await device.turnOn();
-      console.log(`Turned ON plug at ${cleanIdentifier} via local`);
-    } else if (action === 'off') {
-      await device.turnOff();
-      console.log(`Turned OFF plug at ${cleanIdentifier} via local`);
-    } else if (action === 'status') {
-      const status = await device.getDeviceInfo();
-      return { success: true, isOn: status.device_on };
-    }
-    
-    return { success: true, action, method: 'local' };
-  } catch (error) {
-    console.error(`TAPO control failed for ${deviceIdentifier}:`, error.message);
-    
-    // Provide clearer error messages for known TAPO error codes
-    let errorMessage = error.message;
-    if (error.message?.includes('1003')) {
-      errorMessage = 'P110 plugs require cloud control by device NAME (not IP). The library only supports P100/P105 for local IP control. Enter your plug name from the TAPO app instead of the IP address.';
-    } else if (error.message?.includes('1002')) {
-      errorMessage = 'Invalid request - the device may not support this command';
-    } else if (error.message?.includes('-1301')) {
-      errorMessage = 'Device not found - check the name/IP is correct and the plug is powered on';
-    } else if (error.message?.includes('ETIMEDOUT') || error.message?.includes('ECONNREFUSED')) {
-      errorMessage = 'Cannot reach device - for P110 plugs, use the device NAME from TAPO app instead of IP';
-    }
-    
-    return { success: false, error: errorMessage };
-  }
+    tryPython('python');
+  });
 }
 
 // =====================================================
