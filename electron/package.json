@@ -44,6 +44,8 @@
     "electron-builder": "^24.9.1"
   },
   "dependencies": {
-    "tp-link-tapo-connect": "^1.0.7"
+    "tp-link-tapo-connect": "^1.0.7",
+    "tplink-cloud-api": "^3.0.0",
+    "uuid": "^9.0.0"
   }
 }
