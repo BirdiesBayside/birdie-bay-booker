@@ -8,6 +8,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Initialize TAPO connection
   tapoInit: (email, password) => ipcRenderer.invoke('tapo-init', { email, password }),
   
+  // Test TAPO login credentials
+  tapoTestLogin: (email, password) => ipcRenderer.invoke('tapo-test-login', { email, password }),
+  
   // Scan for TAPO devices on network
   scanNetwork: (email, password) => ipcRenderer.invoke('scan-network', { email, password }),
   
