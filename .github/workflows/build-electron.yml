@@ -22,6 +22,18 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Build TAPO control executable
+        working-directory: ./electron
+        run: |
+          pip install pyinstaller tapo
+          pyinstaller --onefile --distpath . --workpath build_temp --specpath build_temp --clean --noconfirm tapo_control.py
+          Remove-Item -Recurse -Force build_temp -ErrorAction SilentlyContinue
+
       - name: Install web app dependencies
         run: npm ci
 
