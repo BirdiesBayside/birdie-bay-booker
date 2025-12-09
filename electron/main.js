@@ -126,27 +126,32 @@ async function initTapo(email, password) {
   }
 }
 
-// Scan for TAPO devices using cloud API
+// Scan for TAPO devices using TP-Link cloud API
 async function scanForTapoDevices(email, password) {
   try {
-    const { cloudLogin } = require('tp-link-tapo-connect');
+    const { login } = require('tplink-cloud-api');
+    const { v4: uuidV4 } = require('uuid');
     
-    // Login to TAPO cloud
-    const cloudClient = await cloudLogin(email, password);
-    console.log('TAPO cloud login successful');
+    // Generate a terminal UUID for this session
+    const termId = uuidV4();
+    
+    // Login to TP-Link cloud
+    const tplink = await login(email, password, termId);
+    console.log('TP-Link cloud login successful');
     
     // Get list of devices from cloud
-    const devices = await cloudClient.listDevices();
-    console.log(`Found ${devices.length} TAPO devices`);
+    const devices = await tplink.getDeviceList();
+    console.log(`Found ${devices.length} TP-Link devices`);
     
-    // Map to our plug format
+    // Map to our plug format - filter for TAPO devices
     const plugs = devices.map((device, index) => ({
       id: device.deviceId || `device-${index}`,
       name: device.alias || device.deviceName || `Device ${index + 1}`,
-      ip: device.deviceMac || 'Unknown', // MAC address as identifier
+      ip: 'Requires local IP', // Cloud API doesn't provide local IP
       deviceId: device.deviceId,
-      deviceType: device.deviceType,
-      isOn: false // Will be updated when we check status
+      deviceType: device.deviceType || device.deviceModel,
+      deviceModel: device.deviceModel,
+      isOn: false
     }));
     
     return { success: true, plugs };
