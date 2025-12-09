@@ -126,9 +126,7 @@ async function initTapo(email, password) {
   }
 }
 
-// Test TAPO login credentials by attempting to control a test device
-// Since the Python tapo library validates credentials when connecting to a device,
-// we'll just validate the format here and let actual control test the credentials
+// Test TAPO login credentials - validates format and checks tapo_control.exe exists
 async function testTapoLogin(email, password) {
   try {
     if (!email || typeof email !== 'string' || email.trim() === '') {
@@ -139,58 +137,36 @@ async function testTapoLogin(email, password) {
     }
     
     const cleanEmail = email.trim();
-    const cleanPassword = password.trim();
-    
     console.log('Testing TAPO credentials format for:', cleanEmail);
     
-    // Check if Python is available - try multiple commands
-    const { spawn } = require('child_process');
+    // Check if tapo_control.exe exists
+    const path = require('path');
+    const fs = require('fs');
     
-    const pythonCommands = [
-      'py',  // Windows Python Launcher (most reliable)
-      'python',
-      'python3',
-      'C:\\Python312\\python.exe',
-      'C:\\Python311\\python.exe',
-      process.env.LOCALAPPDATA + '\\Programs\\Python\\Python312\\python.exe',
-      process.env.LOCALAPPDATA + '\\Programs\\Python\\Python311\\python.exe',
-    ].filter(Boolean);
+    const possiblePaths = [
+      path.join(__dirname, 'tapo_control.exe'),
+      path.join(process.resourcesPath || '', 'tapo_control.exe'),
+      path.join(app.getAppPath(), 'tapo_control.exe'),
+    ];
     
-    return new Promise((resolve) => {
-      let cmdIndex = 0;
-      
-      const checkPython = (cmd) => {
-        console.log(`Checking Python: ${cmd}`);
-        const proc = spawn(cmd, ['--version'], { shell: false, windowsHide: true });
-        
-        proc.on('error', () => {
-          cmdIndex++;
-          if (cmdIndex < pythonCommands.length) {
-            checkPython(pythonCommands[cmdIndex]);
-          } else {
-            resolve({ success: false, error: 'Python not found. Install Python from python.org (NOT Microsoft Store), then run: pip install tapo' });
-          }
-        });
-        
-        proc.on('close', (code) => {
-          if (code === 0) {
-            resolve({ 
-              success: true, 
-              message: 'Credentials saved. Test with a plug to verify login works.' 
-            });
-          } else {
-            cmdIndex++;
-            if (cmdIndex < pythonCommands.length) {
-              checkPython(pythonCommands[cmdIndex]);
-            } else {
-              resolve({ success: false, error: 'Python not found. Install Python from python.org (NOT Microsoft Store), then run: pip install tapo' });
-            }
-          }
-        });
-      };
-      
-      checkPython(pythonCommands[0]);
+    const exePath = possiblePaths.find(p => {
+      try {
+        fs.accessSync(p);
+        return true;
+      } catch { return false; }
     });
+    
+    if (exePath) {
+      return { 
+        success: true, 
+        message: 'Credentials saved. Test with a plug to verify login works.' 
+      };
+    } else {
+      return { 
+        success: false, 
+        error: 'tapo_control.exe not found. Please reinstall the Bay Controller app.' 
+      };
+    }
   } catch (error) {
     console.error('TAPO login test failed:', error.message);
     return { success: false, error: error.message };
@@ -210,11 +186,12 @@ async function scanForTapoDevices(email, password) {
   };
 }
 
-// Control a specific TAPO plug using Python subprocess
-// P110 plugs require the Python 'tapo' library for proper KLAP protocol support
+// Control a specific TAPO plug using bundled tapo_control.exe
+// P110 plugs require the Python 'tapo' library - bundled as standalone .exe via PyInstaller
 async function controlTapoPlug(email, password, deviceIp, action) {
   const { spawn } = require('child_process');
   const path = require('path');
+  const fs = require('fs');
   
   return new Promise((resolve) => {
     // Validate inputs
@@ -235,101 +212,61 @@ async function controlTapoPlug(email, password, deviceIp, action) {
     const cleanPassword = password.trim();
     const cleanIp = deviceIp.trim();
     
-    console.log(`TAPO control via Python: ${cleanIp} -> ${action}`);
+    console.log(`TAPO control: ${cleanIp} -> ${action}`);
     
-    // Find the Python script - check multiple locations
+    // Find the bundled tapo_control.exe
     const possiblePaths = [
-      path.join(__dirname, 'tapo_control.py'),
-      path.join(process.resourcesPath || '', 'tapo_control.py'),
-      path.join(app.getAppPath(), 'tapo_control.py'),
-      path.join(app.getAppPath(), 'electron', 'tapo_control.py')
+      path.join(__dirname, 'tapo_control.exe'),
+      path.join(process.resourcesPath || '', 'tapo_control.exe'),
+      path.join(app.getAppPath(), 'tapo_control.exe'),
     ];
     
-    let scriptPath = possiblePaths.find(p => {
+    const exePath = possiblePaths.find(p => {
       try {
-        require('fs').accessSync(p);
+        fs.accessSync(p);
         return true;
       } catch { return false; }
     });
     
-    if (!scriptPath) {
-      console.error('Python script not found in:', possiblePaths);
-      resolve({ success: false, error: 'tapo_control.py not found. Ensure Python script is bundled with the app.' });
+    if (!exePath) {
+      console.error('tapo_control.exe not found in:', possiblePaths);
+      resolve({ success: false, error: 'tapo_control.exe not found. Please reinstall the Bay Controller app.' });
       return;
     }
     
-    console.log('Using Python script:', scriptPath);
+    console.log('Using tapo_control.exe:', exePath);
     
-    // List of Python commands to try - includes Windows py launcher and common install paths
-    const pythonCommands = [
-      'py',  // Windows Python Launcher (most reliable on Windows)
-      'python',
-      'python3',
-      'C:\\Python312\\python.exe',
-      'C:\\Python311\\python.exe',
-      'C:\\Python310\\python.exe',
-      'C:\\Python39\\python.exe',
-      process.env.LOCALAPPDATA + '\\Programs\\Python\\Python312\\python.exe',
-      process.env.LOCALAPPDATA + '\\Programs\\Python\\Python311\\python.exe',
-      process.env.LOCALAPPDATA + '\\Programs\\Python\\Python310\\python.exe',
-    ].filter(Boolean);
+    const proc = spawn(exePath, [cleanEmail, cleanPassword, cleanIp, action], {
+      shell: false,
+      windowsHide: true
+    });
     
-    let cmdIndex = 0;
+    let stdout = '';
+    let stderr = '';
     
-    const tryPython = (pythonCmd) => {
-      console.log(`Trying Python command: ${pythonCmd}`);
-      const proc = spawn(pythonCmd, [scriptPath, cleanEmail, cleanPassword, cleanIp, action], {
-        shell: false,
-        windowsHide: true
-      });
-      
-      let stdout = '';
-      let stderr = '';
-      
-      proc.stdout.on('data', (data) => { stdout += data.toString(); });
-      proc.stderr.on('data', (data) => { stderr += data.toString(); });
-      
-      proc.on('error', (err) => {
-        console.log(`Python command failed: ${pythonCmd} - ${err.message}`);
-        cmdIndex++;
-        if (cmdIndex < pythonCommands.length) {
-          tryPython(pythonCommands[cmdIndex]);
-        } else {
-          console.error('All Python commands failed');
-          resolve({ 
-            success: false, 
-            error: 'Python not found. Install Python from python.org (NOT Microsoft Store). After installing, run: pip install tapo' 
-          });
-        }
-      });
-      
-      proc.on('close', (code) => {
-        console.log('Python script output:', stdout);
-        if (stderr) console.error('Python script stderr:', stderr);
-        
-        // Check if this was a Windows Store alias redirect (exits immediately with no output)
-        if (code !== 0 && !stdout.trim() && stderr.includes('was not found')) {
-          cmdIndex++;
-          if (cmdIndex < pythonCommands.length) {
-            tryPython(pythonCommands[cmdIndex]);
-            return;
-          }
-        }
-        
-        try {
-          const result = JSON.parse(stdout.trim());
-          resolve(result);
-        } catch (parseError) {
-          console.error('Failed to parse Python output:', stdout);
-          resolve({ 
-            success: false, 
-            error: stderr || stdout || `Python script exited with code ${code}. Install Python from python.org and run: pip install tapo`
-          });
-        }
-      });
-    };
+    proc.stdout.on('data', (data) => { stdout += data.toString(); });
+    proc.stderr.on('data', (data) => { stderr += data.toString(); });
     
-    tryPython(pythonCommands[0]);
+    proc.on('error', (err) => {
+      console.error('tapo_control.exe error:', err.message);
+      resolve({ success: false, error: `Failed to run tapo_control.exe: ${err.message}` });
+    });
+    
+    proc.on('close', (code) => {
+      console.log('tapo_control.exe output:', stdout);
+      if (stderr) console.error('tapo_control.exe stderr:', stderr);
+      
+      try {
+        const result = JSON.parse(stdout.trim());
+        resolve(result);
+      } catch (parseError) {
+        console.error('Failed to parse output:', stdout);
+        resolve({ 
+          success: false, 
+          error: stderr || stdout || `tapo_control.exe exited with code ${code}`
+        });
+      }
+    });
   });
 }
 

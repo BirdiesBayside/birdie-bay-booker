@@ -1,6 +1,6 @@
 {
   "name": "birdies-bay-controller",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Bay Controller for Birdies Golf Simulators",
   "main": "main.js",
   "author": "Birdies",
@@ -18,8 +18,7 @@
     "files": [
       "main.js",
       "preload.js",
-      "icon.png",
-      "tapo_control.py"
+      "icon.png"
     ],
     "extraResources": [
       {
@@ -28,8 +27,8 @@
         "filter": ["**/*"]
       },
       {
-        "from": "tapo_control.py",
-        "to": "tapo_control.py"
+        "from": "tapo_control.exe",
+        "to": "tapo_control.exe"
       }
     ],
     "win": {
