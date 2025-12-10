@@ -1115,7 +1115,7 @@ export default function BayController() {
             {isScanning && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground">Scanning 254 IPs on local network...</span>
+                  <span className="text-muted-foreground">Scanning subnets 1-10 (~2,540 IPs)...</span>
                   <span className="font-medium">{scanProgress}%</span>
                 </div>
                 <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
@@ -1126,7 +1126,7 @@ export default function BayController() {
                 </div>
                 {scanStartTime && (
                   <p className="text-xs text-muted-foreground text-center">
-                    Checking each IP for TAPO devices...
+                    Checking 192.168.1.x through 192.168.10.x...
                   </p>
                 )}
               </div>
@@ -1141,28 +1141,37 @@ export default function BayController() {
 
           <Separator />
 
-          {/* Manual plug entry */}
-          <div className="space-y-3 p-3 bg-muted/50 rounded-lg border border-dashed">
-            <Label className="text-sm font-medium">Add Plug Manually</Label>
-            <p className="text-xs text-muted-foreground">
-              Or find plug IPs in your router admin page or TAPO mobile app (Device Settings → Device Info)
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              <Input
-                placeholder="Name (e.g., Bay 1 (M))"
-                value={newPlugName}
-                onChange={(e) => setNewPlugName(e.target.value)}
-              />
-              <Input
-                placeholder="IP (e.g., 192.168.1.100)"
-                value={newPlugIp}
-                onChange={(e) => setNewPlugIp(e.target.value)}
-              />
-            </div>
-            <Button onClick={addPlugManually} size="sm" variant="outline" className="w-full">
-              Add Plug
-            </Button>
-          </div>
+          {/* Manual plug entry - collapsible */}
+          <Collapsible>
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" size="sm" className="w-full justify-between text-muted-foreground hover:text-foreground">
+                <span className="text-sm">Add Plug Manually</span>
+                <ChevronDown className="h-4 w-4" />
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="space-y-3 p-3 bg-muted/50 rounded-lg border border-dashed mt-2">
+                <p className="text-xs text-muted-foreground">
+                  Find plug IPs in your router admin page or TAPO mobile app (Device Settings → Device Info)
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    placeholder="Name (e.g., Bay 1 (M))"
+                    value={newPlugName}
+                    onChange={(e) => setNewPlugName(e.target.value)}
+                  />
+                  <Input
+                    placeholder="IP (e.g., 192.168.5.141)"
+                    value={newPlugIp}
+                    onChange={(e) => setNewPlugIp(e.target.value)}
+                  />
+                </div>
+                <Button onClick={addPlugManually} size="sm" variant="outline" className="w-full">
+                  Add Plug
+                </Button>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
 
           <div className="flex items-center gap-4">
             <div className="flex-1">
