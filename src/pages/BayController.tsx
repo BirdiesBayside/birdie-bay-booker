@@ -147,6 +147,8 @@ export default function BayController() {
   
   const [discoveredPlugs, setDiscoveredPlugs] = useState<TapoPlug[]>([]);
   const [isScanning, setIsScanning] = useState(false);
+  const [scanProgress, setScanProgress] = useState(0);
+  const [scanStartTime, setScanStartTime] = useState<number | null>(null);
   const [bayPlugAssignments, setBayPlugAssignments] = useState<BayPlugAssignment[]>([]);
   
   const [preStartMinutes, setPreStartMinutes] = useState(3);
@@ -514,18 +516,34 @@ export default function BayController() {
   // Scan for TAPO plugs on local network
   const scanForPlugs = async () => {
     setIsScanning(true);
+    setScanProgress(0);
+    setScanStartTime(Date.now());
+    
+    // Simulate progress (actual scan doesn't provide real progress)
+    const progressInterval = setInterval(() => {
+      setScanProgress(prev => {
+        // Slow down as we approach 100%, never quite reaching it until complete
+        const increment = prev < 50 ? 3 : prev < 80 ? 2 : 1;
+        return Math.min(prev + increment, 95);
+      });
+    }, 1000);
     
     // Check if running in Electron
     if (isElectron && window.electronAPI) {
       if (!tapoEmail || !tapoPassword) {
         toast.error("Please enter your TAPO credentials first");
         setIsScanning(false);
+        setScanProgress(0);
+        setScanStartTime(null);
+        clearInterval(progressInterval);
         return;
       }
       
       try {
-        toast.info("Scanning network for TAPO devices...", { duration: 3000 });
         const result = await window.electronAPI.scanNetwork(tapoEmail, tapoPassword);
+        
+        clearInterval(progressInterval);
+        setScanProgress(100);
         
         if (result.success && result.plugs && result.plugs.length > 0) {
           // Merge with existing discovered plugs (avoid duplicates by IP)
@@ -541,10 +559,17 @@ export default function BayController() {
       } catch (error) {
         console.error("Scan error:", error);
         toast.error("Network scan failed. Try adding plugs manually.");
+        clearInterval(progressInterval);
       }
       
-      setIsScanning(false);
+      // Reset after a brief moment to show 100%
+      setTimeout(() => {
+        setIsScanning(false);
+        setScanProgress(0);
+        setScanStartTime(null);
+      }, 500);
     } else {
+      clearInterval(progressInterval);
       // Browser mode - show mock data for demo
       toast.info("Demo mode - showing sample plugs (real scanning requires desktop app)");
       
@@ -1070,7 +1095,7 @@ export default function BayController() {
               <div>
                 <Label className="text-sm font-medium">Scan Network</Label>
                 <p className="text-xs text-muted-foreground">
-                  Auto-discover TAPO plugs on your local network
+                  Auto-discover TAPO plugs (~30-60 seconds)
                 </p>
               </div>
               <Button 
@@ -1085,7 +1110,29 @@ export default function BayController() {
                 )}
               </Button>
             </div>
-            {(!tapoEmail || !tapoPassword) && (
+            
+            {/* Scan Progress Indicator */}
+            {isScanning && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">Scanning 254 IPs on local network...</span>
+                  <span className="font-medium">{scanProgress}%</span>
+                </div>
+                <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                  <div 
+                    className="bg-primary h-full transition-all duration-500 ease-out"
+                    style={{ width: `${scanProgress}%` }}
+                  />
+                </div>
+                {scanStartTime && (
+                  <p className="text-xs text-muted-foreground text-center">
+                    Checking each IP for TAPO devices...
+                  </p>
+                )}
+              </div>
+            )}
+            
+            {(!tapoEmail || !tapoPassword) && !isScanning && (
               <p className="text-xs text-amber-500">
                 Enter TAPO credentials in Settings to enable scanning
               </p>
