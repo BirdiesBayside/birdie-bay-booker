@@ -173,71 +173,6 @@ async function testTapoLogin(email, password) {
   }
 }
 
-// Scan for TAPO devices on the local network
-async function scanForTapoDevices(email, password) {
-  const { spawn } = require('child_process');
-  const path = require('path');
-  const fs = require('fs');
-  
-  return new Promise((resolve) => {
-    if (!email || !password) {
-      resolve({ success: false, error: 'Please enter TAPO credentials first' });
-      return;
-    }
-    
-    const cleanEmail = email.trim();
-    const cleanPassword = password.trim();
-    
-    console.log('Scanning network for TAPO devices...');
-    
-    // Find the bundled tapo_control.exe
-    const possiblePaths = [
-      path.join(__dirname, 'tapo_control.exe'),
-      path.join(process.resourcesPath || '', 'tapo_control.exe'),
-      path.join(app.getAppPath(), 'tapo_control.exe'),
-    ];
-    
-    const exePath = possiblePaths.find(p => {
-      try {
-        fs.accessSync(p);
-        return true;
-      } catch { return false; }
-    });
-    
-    if (!exePath) {
-      resolve({ success: false, error: 'tapo_control.exe not found. Please reinstall the Bay Controller app.' });
-      return;
-    }
-    
-    const proc = spawn(exePath, ['--scan', cleanEmail, cleanPassword], {
-      shell: false,
-      windowsHide: true
-    });
-    
-    let stdout = '';
-    let stderr = '';
-    
-    proc.stdout.on('data', (data) => { stdout += data.toString(); });
-    proc.stderr.on('data', (data) => { stderr += data.toString(); });
-    
-    proc.on('error', (err) => {
-      console.error('Scan error:', err.message);
-      resolve({ success: false, error: `Scan failed: ${err.message}` });
-    });
-    
-    proc.on('close', (code) => {
-      console.log('Scan output:', stdout);
-      if (stderr) console.error('Scan stderr:', stderr);
-      
-      try {
-        const result = JSON.parse(stdout.trim());
-        resolve(result);
-      } catch (parseError) {
-        resolve({ success: false, error: stderr || stdout || 'Scan failed' });
-      }
-    });
-  });
-}
 
 // Control a specific TAPO plug using bundled tapo_control.exe
 // P110 plugs require the Python 'tapo' library - bundled as standalone .exe via PyInstaller
@@ -634,10 +569,6 @@ ipcMain.handle('tapo-test-login', async (event, { email, password }) => {
   return await testTapoLogin(email, password);
 });
 
-ipcMain.handle('scan-network', async (event, { email, password }) => {
-  console.log('Scanning for TAPO devices...');
-  return await scanForTapoDevices(email, password);
-});
 
 ipcMain.handle('control-plug', async (event, { email, password, ip, action }) => {
   console.log(`Controlling plug at ${ip}: ${action}`);
