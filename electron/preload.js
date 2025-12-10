@@ -11,9 +11,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Test TAPO login credentials
   tapoTestLogin: (email, password) => ipcRenderer.invoke('tapo-test-login', { email, password }),
   
-  // Scan for TAPO devices on network
-  scanNetwork: (email, password) => ipcRenderer.invoke('scan-network', { email, password }),
-  
   // Control a specific plug (on/off/status)
   controlPlug: (email, password, ip, action) => 
     ipcRenderer.invoke('control-plug', { email, password, ip, action }),

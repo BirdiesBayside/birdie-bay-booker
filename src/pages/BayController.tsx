@@ -73,7 +73,6 @@ declare global {
       isElectron: boolean;
       tapoInit: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
       tapoTestLogin: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-      scanNetwork: (email: string, password: string) => Promise<{ success: boolean; plugs: TapoPlug[]; error?: string; message?: string }>;
       controlPlug: (email: string, password: string, ip: string, action: 'on' | 'off' | 'status') => Promise<{ success: boolean; isOn?: boolean; error?: string }>;
       // App automation
       getDisplays: () => Promise<DisplayInfo[]>;
@@ -146,9 +145,6 @@ export default function BayController() {
   const [connectionStatus, setConnectionStatus] = useState<"connected" | "disconnected" | "connecting">("disconnected");
   
   const [discoveredPlugs, setDiscoveredPlugs] = useState<TapoPlug[]>([]);
-  const [isScanning, setIsScanning] = useState(false);
-  const [scanProgress, setScanProgress] = useState(0);
-  const [scanStartTime, setScanStartTime] = useState<number | null>(null);
   const [bayPlugAssignments, setBayPlugAssignments] = useState<BayPlugAssignment[]>([]);
   
   const [preStartMinutes, setPreStartMinutes] = useState(3);
@@ -510,80 +506,6 @@ export default function BayController() {
       toast.error(`Login test error: ${errorMsg}`);
     } finally {
       setIsTestingLogin(false);
-    }
-  };
-
-  // Scan for TAPO plugs on local network
-  const scanForPlugs = async () => {
-    setIsScanning(true);
-    setScanProgress(0);
-    setScanStartTime(Date.now());
-    
-    // Simulate progress (actual scan doesn't provide real progress)
-    const progressInterval = setInterval(() => {
-      setScanProgress(prev => {
-        // Slow down as we approach 100%, never quite reaching it until complete
-        const increment = prev < 50 ? 3 : prev < 80 ? 2 : 1;
-        return Math.min(prev + increment, 95);
-      });
-    }, 1000);
-    
-    // Check if running in Electron
-    if (isElectron && window.electronAPI) {
-      if (!tapoEmail || !tapoPassword) {
-        toast.error("Please enter your TAPO credentials first");
-        setIsScanning(false);
-        setScanProgress(0);
-        setScanStartTime(null);
-        clearInterval(progressInterval);
-        return;
-      }
-      
-      try {
-        const result = await window.electronAPI.scanNetwork(tapoEmail, tapoPassword);
-        
-        clearInterval(progressInterval);
-        setScanProgress(100);
-        
-        if (result.success && result.plugs && result.plugs.length > 0) {
-          // Merge with existing discovered plugs (avoid duplicates by IP)
-          const existingIps = discoveredPlugs.map(p => p.ip);
-          const newPlugs = result.plugs.filter((p: TapoPlug) => !existingIps.includes(p.ip));
-          setDiscoveredPlugs(prev => [...prev, ...newPlugs]);
-          toast.success(`Found ${result.plugs.length} TAPO device(s)${newPlugs.length < result.plugs.length ? ` (${result.plugs.length - newPlugs.length} already added)` : ''}`);
-        } else if (result.error) {
-          toast.error(`Scan failed: ${result.error}`);
-        } else {
-          toast.info("No devices found. Make sure plugs are on the same network.");
-        }
-      } catch (error) {
-        console.error("Scan error:", error);
-        toast.error("Network scan failed. Try adding plugs manually.");
-        clearInterval(progressInterval);
-      }
-      
-      // Reset after a brief moment to show 100%
-      setTimeout(() => {
-        setIsScanning(false);
-        setScanProgress(0);
-        setScanStartTime(null);
-      }, 500);
-    } else {
-      clearInterval(progressInterval);
-      // Browser mode - show mock data for demo
-      toast.info("Demo mode - showing sample plugs (real scanning requires desktop app)");
-      
-      setTimeout(() => {
-        const mockPlugs: TapoPlug[] = [
-          { id: "1", name: "Bay 1 (M)", ip: "192.168.1.100", isOn: false },
-          { id: "2", name: "Bay 1 (P)", ip: "192.168.1.101", isOn: false },
-          { id: "3", name: "Bay 2 (M)", ip: "192.168.1.102", isOn: false },
-          { id: "4", name: "Bay 2 (P)", ip: "192.168.1.103", isOn: false },
-        ];
-        setDiscoveredPlugs(mockPlugs);
-        setIsScanning(false);
-        toast.success(`Demo: Found ${mockPlugs.length} sample plugs`);
-      }, 2000);
     }
   };
 
@@ -1089,89 +1011,27 @@ export default function BayController() {
             </div>
           )}
 
-          {/* Network Scan Button */}
-          <div className="space-y-3 p-3 bg-primary/5 rounded-lg border border-primary/20">
-            <div className="flex items-center justify-between">
-              <div>
-                <Label className="text-sm font-medium">Scan Network</Label>
-                <p className="text-xs text-muted-foreground">
-                  Auto-discover TAPO plugs (~30-60 seconds)
-                </p>
-              </div>
-              <Button 
-                onClick={scanForPlugs} 
-                disabled={isScanning || !tapoEmail || !tapoPassword}
-                size="sm"
-              >
-                {isScanning ? (
-                  <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Scanning...</>
-                ) : (
-                  <><Wifi className="w-4 h-4 mr-2" /> Scan</>
-                )}
-              </Button>
+          {/* Manual plug entry */}
+          <div className="space-y-3 p-3 bg-muted/50 rounded-lg border border-dashed">
+            <p className="text-xs text-muted-foreground">
+              Find plug IPs in your router admin page or TAPO mobile app (Device Settings → Device Info)
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <Input
+                placeholder="Name (e.g., Bay 1 (M))"
+                value={newPlugName}
+                onChange={(e) => setNewPlugName(e.target.value)}
+              />
+              <Input
+                placeholder="IP (e.g., 192.168.5.141)"
+                value={newPlugIp}
+                onChange={(e) => setNewPlugIp(e.target.value)}
+              />
             </div>
-            
-            {/* Scan Progress Indicator */}
-            {isScanning && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground">Scanning subnets 1-10 (~2,540 IPs)...</span>
-                  <span className="font-medium">{scanProgress}%</span>
-                </div>
-                <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
-                  <div 
-                    className="bg-primary h-full transition-all duration-500 ease-out"
-                    style={{ width: `${scanProgress}%` }}
-                  />
-                </div>
-                {scanStartTime && (
-                  <p className="text-xs text-muted-foreground text-center">
-                    Checking 192.168.1.x through 192.168.10.x...
-                  </p>
-                )}
-              </div>
-            )}
-            
-            {(!tapoEmail || !tapoPassword) && !isScanning && (
-              <p className="text-xs text-amber-500">
-                Enter TAPO credentials in Settings to enable scanning
-              </p>
-            )}
+            <Button onClick={addPlugManually} size="sm" variant="outline" className="w-full">
+              Add Plug
+            </Button>
           </div>
-
-          <Separator />
-
-          {/* Manual plug entry - collapsible */}
-          <Collapsible>
-            <CollapsibleTrigger asChild>
-              <Button variant="ghost" size="sm" className="w-full justify-between text-muted-foreground hover:text-foreground">
-                <span className="text-sm">Add Plug Manually</span>
-                <ChevronDown className="h-4 w-4" />
-              </Button>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <div className="space-y-3 p-3 bg-muted/50 rounded-lg border border-dashed mt-2">
-                <p className="text-xs text-muted-foreground">
-                  Find plug IPs in your router admin page or TAPO mobile app (Device Settings → Device Info)
-                </p>
-                <div className="grid grid-cols-2 gap-2">
-                  <Input
-                    placeholder="Name (e.g., Bay 1 (M))"
-                    value={newPlugName}
-                    onChange={(e) => setNewPlugName(e.target.value)}
-                  />
-                  <Input
-                    placeholder="IP (e.g., 192.168.5.141)"
-                    value={newPlugIp}
-                    onChange={(e) => setNewPlugIp(e.target.value)}
-                  />
-                </div>
-                <Button onClick={addPlugManually} size="sm" variant="outline" className="w-full">
-                  Add Plug
-                </Button>
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
 
           <div className="flex items-center gap-4">
             <div className="flex-1">
