@@ -49,59 +49,68 @@ async def control_plug(email: str, password: str, ip: str, action: str):
         return {"success": False, "error": error_msg}
 
 async def scan_network(email: str, password: str):
-    """Scan local network for TAPO devices using direct device probing."""
+    """Scan subnets 1-10 for TAPO devices using direct device probing."""
     try:
         from tapo import ApiClient
         
-        # Get local IP to determine network range
+        # Get local IP to determine base network (e.g., 192.168.x.x)
         local_ip = get_local_ip()
         if not local_ip:
             return {"success": False, "error": "Could not determine local IP address"}
         
-        # Calculate network range (assuming /24 subnet)
+        # Get base network (first two octets, e.g., "192.168")
         ip_parts = local_ip.split('.')
-        network_prefix = '.'.join(ip_parts[:3])
+        base_network = '.'.join(ip_parts[:2])
         
         found_devices = []
+        total_open_ports = 0
+        subnets_scanned = []
         
-        # First, find all IPs with port 80 open (TAPO devices use HTTP)
-        open_ips = []
-        for i in range(1, 255):
-            ip = f"{network_prefix}.{i}"
-            if check_port_open(ip, 80, timeout=0.5):
-                open_ips.append(ip)
-        
-        # Now try to connect to each open IP as a TAPO device
-        client = ApiClient(email, password)
-        
-        for ip in open_ips:
-            try:
-                device = await asyncio.wait_for(
-                    client.p110(ip),
-                    timeout=5.0
-                )
-                info = await asyncio.wait_for(
-                    device.get_device_info(),
-                    timeout=5.0
-                )
-                
-                found_devices.append({
-                    "found": True,
-                    "ip": ip,
-                    "nickname": getattr(info, 'nickname', 'Unknown'),
-                    "model": getattr(info, 'model', 'P110'),
-                    "isOn": getattr(info, 'device_on', False)
-                })
-            except asyncio.TimeoutError:
-                continue
-            except Exception:
-                continue
+        # Scan subnets 1-10, starting from 1
+        for subnet in range(1, 11):
+            network_prefix = f"{base_network}.{subnet}"
+            subnets_scanned.append(f"{network_prefix}.0/24")
+            
+            # Find all IPs with port 80 open (TAPO devices use HTTP)
+            open_ips = []
+            for i in range(1, 255):
+                ip = f"{network_prefix}.{i}"
+                if check_port_open(ip, 80, timeout=0.3):  # Slightly faster timeout for multi-subnet
+                    open_ips.append(ip)
+            
+            total_open_ports += len(open_ips)
+            
+            # Try to connect to each open IP as a TAPO device
+            client = ApiClient(email, password)
+            
+            for ip in open_ips:
+                try:
+                    device = await asyncio.wait_for(
+                        client.p110(ip),
+                        timeout=5.0
+                    )
+                    info = await asyncio.wait_for(
+                        device.get_device_info(),
+                        timeout=5.0
+                    )
+                    
+                    found_devices.append({
+                        "found": True,
+                        "ip": ip,
+                        "nickname": getattr(info, 'nickname', 'Unknown'),
+                        "model": getattr(info, 'model', 'P110'),
+                        "isOn": getattr(info, 'device_on', False)
+                    })
+                except asyncio.TimeoutError:
+                    continue
+                except Exception:
+                    continue
         
         return {
             "success": True,
-            "network": f"{network_prefix}.0/24",
-            "scanned": 254,
-            "open_ports": len(open_ips),
+            "networks": subnets_scanned,
+            "scanned": 254 * 10,  # 10 subnets x 254 IPs
+            "open_ports": total_open_ports,
             "plugs": found_devices
         }
         
