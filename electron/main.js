@@ -469,8 +469,35 @@ function cancelAppLaunch() {
   console.log('App launch sequence cancelled by user');
 }
 
+// Background watcher for Protee United VX - runs independently
+async function watchForProteeConnector(durationMs = 120000) {
+  const startTime = Date.now();
+  console.log('Starting background watcher for Protee United VX (2 minute window)...');
+  
+  while (Date.now() - startTime < durationMs) {
+    if (appLaunchCancelled) {
+      console.log('Protee United VX watcher cancelled');
+      return { success: false, cancelled: true };
+    }
+    
+    const result = await findWindowByTitle('Protee United VX');
+    if (result.success) {
+      console.log('Protee United VX window found, minimizing...');
+      await minimizeWindow(result.hwnd);
+      console.log('Protee United VX minimized successfully');
+      return { success: true, hwnd: result.hwnd };
+    }
+    
+    // Poll every 2 seconds
+    await new Promise(resolve => setTimeout(resolve, 2000));
+  }
+  
+  console.log('Protee United VX watcher timed out after 2 minutes');
+  return { success: false, error: 'Timeout - window not found' };
+}
+
 // Run the full app launch sequence
-// Order: 1) GSPRO, 2) Protee Labs immediately, 3) Minimize "Protee United VX" connector, 4) Refocus GSPRO
+// Order: 1) GSPRO, 2) Start background watcher for Protee United VX, 3) Wait 10s then launch Protee Labs, 4) Refocus GSPRO
 async function runAppLaunchSequence(config) {
   const {
     gsproPath,
@@ -499,26 +526,46 @@ async function runAppLaunchSequence(config) {
     
     if (appLaunchCancelled) return { success: false, cancelled: true, results };
     
+    let gsproHwnd = null;
     if (gsproWindow.success) {
       console.log('GSPRO window found, moving to display', gsproDisplay);
       await moveWindowToDisplay(gsproWindow.hwnd, gsproDisplay, true);
+      gsproHwnd = gsproWindow.hwnd;
       results.push({ step: 'move_gspro', status: 'done', hwnd: gsproWindow.hwnd });
     } else {
       results.push({ step: 'move_gspro', status: 'warning', message: 'GSPRO window not found' });
     }
     
-    // Step 2: Launch Protee Labs IMMEDIATELY after GSPRO
-    console.log('Step 2: Launching Protee Labs...');
-    results.push({ step: 'launch_protee', status: 'starting' });
+    // Step 2: Start background watcher for Protee United VX (runs independently for 2 minutes)
+    console.log('Step 2: Starting background watcher for Protee United VX...');
+    results.push({ step: 'start_connector_watcher', status: 'starting' });
+    
+    // Start watcher in background (don't await - runs independently)
+    const connectorWatcherPromise = watchForProteeConnector(120000).then(watchResult => {
+      if (watchResult.success) {
+        results.push({ step: 'minimize_connector', status: 'done', hwnd: watchResult.hwnd });
+      } else if (!watchResult.cancelled) {
+        results.push({ step: 'minimize_connector', status: 'warning', message: 'Protee United VX window not found within 2 minutes' });
+      }
+    });
+    
+    results.push({ step: 'start_connector_watcher', status: 'done', message: 'Watcher running in background' });
+    
+    // Step 3: Wait 10 seconds then launch Protee Labs
+    console.log('Step 3: Waiting 10 seconds before launching Protee Labs...');
+    await new Promise(resolve => setTimeout(resolve, 10000));
     
     if (appLaunchCancelled) return { success: false, cancelled: true, results };
+    
+    console.log('Launching Protee Labs...');
+    results.push({ step: 'launch_protee', status: 'starting' });
     
     const proteeLaunch = await launchApp(proteeLabsPath);
     results.push({ step: 'launch_protee', status: 'done', result: proteeLaunch });
     
     // Wait for Protee Labs window
     console.log('Waiting for Protee Labs window...');
-    const proteeWindow = await waitForWindow('Protee', 30000);
+    const proteeWindow = await waitForWindow('Protee Labs', 30000);
     
     if (appLaunchCancelled) return { success: false, cancelled: true, results };
     
@@ -530,29 +577,14 @@ async function runAppLaunchSequence(config) {
       results.push({ step: 'move_protee', status: 'warning', message: 'Protee Labs window not found' });
     }
     
-    // Step 3: Wait for and minimize "Protee United VX" connector window
-    console.log('Step 3: Waiting for Protee United VX connector window...');
-    results.push({ step: 'wait_connector_window', status: 'starting' });
-    
-    if (appLaunchCancelled) return { success: false, cancelled: true, results };
-    
-    const connectorWindow = await waitForWindow('Protee United VX', 30000);
-    if (connectorWindow.success) {
-      console.log('Protee United VX window found, minimizing...');
-      await minimizeWindow(connectorWindow.hwnd);
-      results.push({ step: 'minimize_connector', status: 'done', hwnd: connectorWindow.hwnd });
-    } else {
-      results.push({ step: 'minimize_connector', status: 'warning', message: 'Protee United VX window not found' });
-    }
-    
-    // Step 4: Refocus GSPRO
+    // Step 4: Wait a bit then refocus GSPRO
     console.log('Step 4: Refocusing GSPRO...');
     await new Promise(resolve => setTimeout(resolve, postLaunchDelay));
     
     if (appLaunchCancelled) return { success: false, cancelled: true, results };
     
-    if (gsproWindow.success) {
-      await focusWindow(gsproWindow.hwnd);
+    if (gsproHwnd) {
+      await focusWindow(gsproHwnd);
       results.push({ step: 'focus_gspro', status: 'done' });
     } else {
       // Try to find GSPRO again
@@ -564,6 +596,9 @@ async function runAppLaunchSequence(config) {
         results.push({ step: 'focus_gspro', status: 'warning', message: 'Could not refocus GSPRO' });
       }
     }
+    
+    // Don't wait for connector watcher - it runs independently
+    // The watcher will minimize the window whenever it appears
     
     return { success: true, results };
   } catch (error) {

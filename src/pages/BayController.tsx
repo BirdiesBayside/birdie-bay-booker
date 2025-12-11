@@ -396,18 +396,13 @@ export default function BayController() {
     localStorage.setItem("bayController_appLaunchConfig", JSON.stringify(appLaunchConfig));
   }, [appLaunchConfig]);
 
-  // Check for active booking and manage plugs
-  useEffect(() => {
-    if (bookings.length === 0) return;
-
-    const now = currentTime;
+  // Helper function to calculate if plugs should be on based on bookings
+  const calculateShouldPlugsBeOn = useCallback(() => {
+    const now = new Date();
     const today = format(now, "yyyy-MM-dd");
-
-    // Find current or upcoming booking
-    const todaysBookings = bookings.filter(b => b.booking_date === today);
+    const todaysBookings = bookings.filter(b => b.booking_date === today && b.status === 'confirmed');
     
-    // Check if we're in a booking or about to start one
-    let shouldPlugsBeOn = false;
+    let shouldBeOn = false;
     let currentBooking: Booking | null = null;
 
     for (const booking of todaysBookings) {
@@ -415,9 +410,8 @@ export default function BayController() {
       const endTime = parseISO(`${booking.booking_date}T${booking.end_time}`);
       const preStartTime = addMinutes(startTime, -preStartMinutes);
 
-      // Check if we should have plugs on (pre-start time to end time)
       if (isAfter(now, preStartTime) && isBefore(now, endTime)) {
-        shouldPlugsBeOn = true;
+        shouldBeOn = true;
         currentBooking = booking;
       }
 
@@ -428,22 +422,52 @@ export default function BayController() {
       );
       
       if (nextBooking && isAfter(now, preStartTime)) {
-        // Don't turn off between bookings
         const nextEndTime = parseISO(`${nextBooking.booking_date}T${nextBooking.end_time}`);
         if (isBefore(now, nextEndTime)) {
-          shouldPlugsBeOn = true;
+          shouldBeOn = true;
         }
       }
     }
 
+    return { shouldBeOn, currentBooking };
+  }, [bookings, preStartMinutes]);
+
+  // Track previous bookings to detect cancellations
+  const previousBookingsRef = useRef<Booking[]>([]);
+
+  // Check for active booking and manage plugs
+  useEffect(() => {
+    const now = currentTime;
+    const today = format(now, "yyyy-MM-dd");
+    const todaysBookings = bookings.filter(b => b.booking_date === today && b.status === 'confirmed');
+    
+    const { shouldBeOn, currentBooking } = calculateShouldPlugsBeOn();
+
     setActiveBooking(currentBooking);
 
+    // Detect if a booking was cancelled/removed that was previously active
+    const prevBookingIds = previousBookingsRef.current.map(b => b.id);
+    const currentBookingIds = bookings.map(b => b.id);
+    const removedBookings = prevBookingIds.filter(id => !currentBookingIds.includes(id));
+    
+    if (removedBookings.length > 0) {
+      console.log('Booking(s) removed/cancelled:', removedBookings);
+      // Recalculate and force plug control if needed
+      if (!shouldBeOn && (plugsStatus.monitor || plugsStatus.projector)) {
+        console.log('Cancelled booking detected - turning off plugs');
+        turnOffPlugs(false, false);
+      }
+    }
+    
+    // Update previous bookings ref
+    previousBookingsRef.current = [...bookings];
+
     // Control plugs based on booking state - ONLY if manual override is not active
-    if (!manualOverride && (shouldPlugsBeOn !== plugsStatus.monitor || shouldPlugsBeOn !== plugsStatus.projector)) {
-      if (shouldPlugsBeOn) {
-        turnOnPlugs(false, false); // Auto control, no toast
-      } else {
-        turnOffPlugs(false, false); // Auto control, no toast
+    if (!manualOverride) {
+      if (shouldBeOn && (!plugsStatus.monitor || !plugsStatus.projector)) {
+        turnOnPlugs(false, false);
+      } else if (!shouldBeOn && (plugsStatus.monitor || plugsStatus.projector)) {
+        turnOffPlugs(false, false);
       }
     }
 
@@ -456,7 +480,22 @@ export default function BayController() {
         showWarningNotification(minutesRemaining);
       }
     }
-  }, [currentTime, bookings, preStartMinutes, manualOverride]);
+  }, [currentTime, bookings, preStartMinutes, manualOverride, calculateShouldPlugsBeOn]);
+
+  // Resume auto function - checks current booking state and controls plugs accordingly
+  const resumeAuto = useCallback(() => {
+    console.log('Resuming auto control...');
+    setManualOverride(false);
+    
+    const { shouldBeOn } = calculateShouldPlugsBeOn();
+    console.log('Current booking state - should plugs be on:', shouldBeOn);
+    
+    if (shouldBeOn) {
+      turnOnPlugs(false, true); // Auto control, show toast
+    } else {
+      turnOffPlugs(false, true); // Auto control, show toast
+    }
+  }, [calculateShouldPlugsBeOn]);
 
   // State for manual plug entry
   const [newPlugName, setNewPlugName] = useState("");
@@ -1069,7 +1108,7 @@ export default function BayController() {
                 Manual override active - auto-control paused.{" "}
                 <button 
                   className="text-primary underline" 
-                  onClick={() => setManualOverride(false)}
+                  onClick={resumeAuto}
                 >
                   Resume auto
                 </button>
