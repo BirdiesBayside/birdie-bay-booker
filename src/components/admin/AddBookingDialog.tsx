@@ -264,6 +264,84 @@ export function AddBookingDialog({
     setIsCreatingCustomer(false);
   };
 
+  // Check for overlapping bookings or blocks
+  const checkForOverlaps = async (date: string, bay: string, start: string, end: string): Promise<{ hasOverlap: boolean; message: string }> => {
+    // Check existing bookings
+    const { data: existingBookings, error: bookingError } = await supabase
+      .from("bookings")
+      .select("id, start_time, end_time")
+      .eq("bay_id", bay)
+      .eq("booking_date", date)
+      .eq("status", "confirmed");
+
+    if (bookingError) {
+      console.error("Error checking bookings:", bookingError);
+      return { hasOverlap: false, message: "" };
+    }
+
+    // Check existing blocks
+    const { data: existingBlocks, error: blockError } = await supabase
+      .from("bay_blocks")
+      .select("id, start_time, end_time")
+      .eq("bay_id", bay)
+      .eq("block_date", date);
+
+    if (blockError) {
+      console.error("Error checking blocks:", blockError);
+      return { hasOverlap: false, message: "" };
+    }
+
+    // Helper to check if two time ranges overlap
+    const timeToMinutes = (time: string) => {
+      const [h, m] = time.split(":").map(Number);
+      return h * 60 + m;
+    };
+
+    const newStart = timeToMinutes(start);
+    const newEnd = timeToMinutes(end);
+
+    // Check bookings for overlap
+    for (const booking of existingBookings || []) {
+      const existingStart = timeToMinutes(booking.start_time);
+      const existingEnd = timeToMinutes(booking.end_time);
+      
+      // Overlap exists if: newStart < existingEnd AND newEnd > existingStart
+      if (newStart < existingEnd && newEnd > existingStart) {
+        const formatTime = (t: string) => {
+          const [h, m] = t.split(":").map(Number);
+          const ampm = h >= 12 ? "PM" : "AM";
+          const displayHour = h % 12 || 12;
+          return `${displayHour}:${m.toString().padStart(2, "0")}${ampm}`;
+        };
+        return { 
+          hasOverlap: true, 
+          message: `This time overlaps with an existing booking (${formatTime(booking.start_time)} - ${formatTime(booking.end_time)}).` 
+        };
+      }
+    }
+
+    // Check blocks for overlap
+    for (const block of existingBlocks || []) {
+      const existingStart = timeToMinutes(block.start_time);
+      const existingEnd = timeToMinutes(block.end_time);
+      
+      if (newStart < existingEnd && newEnd > existingStart) {
+        const formatTime = (t: string) => {
+          const [h, m] = t.split(":").map(Number);
+          const ampm = h >= 12 ? "PM" : "AM";
+          const displayHour = h % 12 || 12;
+          return `${displayHour}:${m.toString().padStart(2, "0")}${ampm}`;
+        };
+        return { 
+          hasOverlap: true, 
+          message: `This time overlaps with a bay block (${formatTime(block.start_time)} - ${formatTime(block.end_time)}).` 
+        };
+      }
+    }
+
+    return { hasOverlap: false, message: "" };
+  };
+
   const createBooking = async () => {
     if (!selectedCustomerId || !bookingDate || !startTime || !bayId) {
       toast({
@@ -289,6 +367,21 @@ export function AddBookingDialog({
     }
 
     setIsSaving(true);
+
+    // Check for overlapping bookings or blocks
+    const dateStr = format(bookingDate, "yyyy-MM-dd");
+    const { hasOverlap, message } = await checkForOverlaps(dateStr, bayId, startTime, endTime);
+    
+    if (hasOverlap) {
+      toast({
+        title: "Time slot not available",
+        description: message,
+        variant: "destructive",
+        duration: 4000,
+      });
+      setIsSaving(false);
+      return;
+    }
 
     try {
       const hourlyRate = getHourlyRate(selectedCustomer?.membership_tier || "visitor");
@@ -372,6 +465,21 @@ export function AddBookingDialog({
     }
 
     setIsSaving(true);
+
+    // Check for overlapping bookings or blocks
+    const dateStr = format(bookingDate, "yyyy-MM-dd");
+    const { hasOverlap, message } = await checkForOverlaps(dateStr, bayId, startTime, endTime);
+    
+    if (hasOverlap) {
+      toast({
+        title: "Time slot not available",
+        description: message,
+        variant: "destructive",
+        duration: 4000,
+      });
+      setIsSaving(false);
+      return;
+    }
 
     try {
       const { error } = await supabase
