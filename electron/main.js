@@ -282,7 +282,9 @@ async function launchApp(exePath) {
   return new Promise((resolve, reject) => {
     try {
       console.log(`Launching: ${exePath}`);
-      const child = spawn(exePath, [], { 
+      // Quote the path to handle spaces in directory/file names
+      const quotedPath = `"${exePath}"`;
+      const child = spawn(quotedPath, [], { 
         detached: true, 
         stdio: 'ignore',
         shell: true
