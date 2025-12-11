@@ -327,7 +327,6 @@ export default function BayController() {
           },
           (payload) => {
             console.log('Real-time booking update received:', payload);
-            toast.info("Booking update received");
             // Refetch bookings to get the latest data
             fetchBookings();
           }
