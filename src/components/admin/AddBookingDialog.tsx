@@ -50,8 +50,8 @@ interface AddBookingDialogProps {
   onBookingCreated: () => void;
 }
 
-// Membership tier hourly rates
-const TIER_RATES: Record<string, number> = {
+// Fallback pricing - will be overridden by database values
+const FALLBACK_RATES: Record<string, number> = {
   visitor: 30,
   par: 12,
   birdie: 10,
@@ -127,8 +127,29 @@ export function AddBookingDialog({
   const [newPhone, setNewPhone] = useState("");
   const [isCreatingCustomer, setIsCreatingCustomer] = useState(false);
 
+  // Pricing from database
+  const [tierRates, setTierRates] = useState<Record<string, number>>(FALLBACK_RATES);
+
   // Selected customer details
   const selectedCustomer = customers.find(c => c.user_id === selectedCustomerId);
+
+  // Fetch pricing on mount
+  useEffect(() => {
+    const fetchPricing = async () => {
+      const { data, error } = await supabase
+        .from("pricing_config")
+        .select("tier, hourly_rate");
+
+      if (!error && data) {
+        const rates: Record<string, number> = {};
+        data.forEach((p: { tier: string; hourly_rate: number }) => {
+          rates[p.tier] = Number(p.hourly_rate);
+        });
+        setTierRates(rates);
+      }
+    };
+    fetchPricing();
+  }, []);
 
   // Reset form when dialog opens/closes
   useEffect(() => {
@@ -195,7 +216,7 @@ export function AddBookingDialog({
   };
 
   const getHourlyRate = (tier: string): number => {
-    return TIER_RATES[tier.toLowerCase()] || TIER_RATES.visitor;
+    return tierRates[tier.toLowerCase()] || tierRates.visitor || FALLBACK_RATES.visitor;
   };
 
   const calculateTotalPrice = (): number => {

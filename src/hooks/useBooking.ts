@@ -24,7 +24,8 @@ export interface MembershipPricing {
   hourlyRate: number;
 }
 
-const MEMBERSHIP_PRICING: Record<string, number> = {
+// Fallback pricing in case database fetch fails
+const FALLBACK_PRICING: Record<string, number> = {
   visitor: 30,
   par: 12,
   birdie: 10,
@@ -41,6 +42,21 @@ export function useBooking() {
   const [userMembershipTier, setUserMembershipTier] = useState<string>("visitor");
   const [customHourlyRate, setCustomHourlyRate] = useState<number | null>(null);
   const [depositBalance, setDepositBalance] = useState<number>(0);
+  const [tierPricing, setTierPricing] = useState<Record<string, number>>(FALLBACK_PRICING);
+
+  const fetchPricing = async () => {
+    const { data, error } = await supabase
+      .from("pricing_config")
+      .select("tier, hourly_rate");
+
+    if (!error && data) {
+      const pricing: Record<string, number> = {};
+      data.forEach((p: { tier: string; hourly_rate: number }) => {
+        pricing[p.tier] = Number(p.hourly_rate);
+      });
+      setTierPricing(pricing);
+    }
+  };
 
   const fetchBays = async () => {
     const { data, error } = await supabase
@@ -104,7 +120,7 @@ export function useBooking() {
     if (customHourlyRate !== null) {
       return customHourlyRate;
     }
-    return MEMBERSHIP_PRICING[tier] || MEMBERSHIP_PRICING.visitor;
+    return tierPricing[tier] || tierPricing.visitor || FALLBACK_PRICING.visitor;
   };
 
   const checkBayAvailability = (
@@ -211,6 +227,7 @@ export function useBooking() {
   useEffect(() => {
     fetchBays();
     fetchUserProfile();
+    fetchPricing();
   }, []);
 
   return {
