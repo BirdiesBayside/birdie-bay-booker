@@ -82,7 +82,7 @@ declare global {
       moveWindow: (hwnd: number, displayIndex: number, fullscreen?: boolean) => Promise<{ success: boolean; error?: string }>;
       minimizeWindow: (hwnd: number) => Promise<{ success: boolean; error?: string }>;
       focusWindow: (hwnd: number) => Promise<{ success: boolean; error?: string }>;
-      runAppSequence: (config: AppLaunchConfig) => Promise<{ success: boolean; cancelled?: boolean; results?: any[]; error?: string }>;
+      runAppSequence: (config: { gsproPath: string; proteeLabsPath: string; gsproDisplay: number; proteeDisplay: number; postLaunchDelay?: number }) => Promise<{ success: boolean; cancelled?: boolean; results?: any[]; error?: string }>;
       cancelAppSequence: () => Promise<{ success: boolean }>;
       closeApps: (appNames: string[]) => Promise<{ success: boolean; results?: any[]; error?: string }>;
     };
@@ -156,6 +156,7 @@ export default function BayController() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [activeBooking, setActiveBooking] = useState<Booking | null>(null);
   const [plugsStatus, setPlugsStatus] = useState({ monitor: false, projector: false });
+  const [manualOverride, setManualOverride] = useState(false); // Prevents auto-control when manually controlling
   
   // TAPO credentials state
   const [tapoEmail, setTapoEmail] = useState("");
@@ -421,8 +422,8 @@ export default function BayController() {
 
     setActiveBooking(currentBooking);
 
-    // Control plugs based on booking state
-    if (shouldPlugsBeOn !== plugsStatus.monitor || shouldPlugsBeOn !== plugsStatus.projector) {
+    // Control plugs based on booking state - ONLY if manual override is not active
+    if (!manualOverride && (shouldPlugsBeOn !== plugsStatus.monitor || shouldPlugsBeOn !== plugsStatus.projector)) {
       if (shouldPlugsBeOn) {
         turnOnPlugs();
       } else {
@@ -439,7 +440,7 @@ export default function BayController() {
         showWarningNotification(minutesRemaining);
       }
     }
-  }, [currentTime, bookings, preStartMinutes]);
+  }, [currentTime, bookings, preStartMinutes, manualOverride]);
 
   // State for manual plug entry
   const [newPlugName, setNewPlugName] = useState("");
@@ -524,8 +525,13 @@ export default function BayController() {
     }
   };
 
-  const turnOnPlugs = async () => {
-    console.log("Turning ON plugs for bay:", selectedBay);
+  const turnOnPlugs = async (isManual = false) => {
+    console.log("Turning ON plugs for bay:", selectedBay, isManual ? "(MANUAL)" : "(AUTO)");
+    
+    // Set manual override when manually controlling
+    if (isManual) {
+      setManualOverride(true);
+    }
     
     if (isElectron && window.electronAPI && selectedBay) {
       const bayPlugs = getAssignedPlugsForBay(selectedBay);
@@ -579,8 +585,13 @@ export default function BayController() {
     }
   };
 
-  const turnOffPlugs = async () => {
-    console.log("Turning OFF plugs for bay:", selectedBay);
+  const turnOffPlugs = async (isManual = false) => {
+    console.log("Turning OFF plugs for bay:", selectedBay, isManual ? "(MANUAL)" : "(AUTO)");
+    
+    // Set manual override when manually controlling
+    if (isManual) {
+      setManualOverride(true);
+    }
     
     if (isElectron && window.electronAPI && selectedBay) {
       const bayPlugs = getAssignedPlugsForBay(selectedBay);
@@ -690,7 +701,20 @@ export default function BayController() {
     setAppLaunchStatus("Starting app launch sequence...");
 
     try {
-      const result = await window.electronAPI.runAppSequence(appLaunchConfig);
+      // Find display indices from signatures
+      const gsproDisplayIndex = displays.findIndex(d => getDisplaySignature(d) === appLaunchConfig.gsproDisplaySignature);
+      const proteeDisplayIndex = displays.findIndex(d => getDisplaySignature(d) === appLaunchConfig.proteeDisplaySignature);
+      
+      const launchConfig = {
+        gsproPath: appLaunchConfig.gsproPath,
+        proteeLabsPath: appLaunchConfig.proteeLabsPath,
+        gsproDisplay: gsproDisplayIndex >= 0 ? gsproDisplayIndex : 0,
+        proteeDisplay: proteeDisplayIndex >= 0 ? proteeDisplayIndex : 0,
+        postLaunchDelay: 3000
+      };
+      
+      console.log("Launching apps with config:", launchConfig);
+      const result = await window.electronAPI.runAppSequence(launchConfig);
       
       if (result.cancelled) {
         setAppLaunchStatus("Launch cancelled");
@@ -1017,13 +1041,24 @@ export default function BayController() {
               </div>
             )}
             <div className="flex gap-2 mt-4">
-              <Button onClick={turnOnPlugs} disabled={plugsStatus.monitor} className="flex-1">
+              <Button onClick={() => turnOnPlugs(true)} disabled={plugsStatus.monitor && plugsStatus.projector} className="flex-1">
                 <Power className="w-4 h-4 mr-2" /> Turn On
               </Button>
-              <Button onClick={turnOffPlugs} disabled={!plugsStatus.monitor} variant="outline" className="flex-1">
+              <Button onClick={() => turnOffPlugs(true)} disabled={!plugsStatus.monitor && !plugsStatus.projector} variant="outline" className="flex-1">
                 <Power className="w-4 h-4 mr-2" /> Turn Off
               </Button>
             </div>
+            {manualOverride && (
+              <p className="text-xs text-muted-foreground mt-2">
+                Manual override active - auto-control paused.{" "}
+                <button 
+                  className="text-primary underline" 
+                  onClick={() => setManualOverride(false)}
+                >
+                  Resume auto
+                </button>
+              </p>
+            )}
           </CardContent>
         </Card>
 
