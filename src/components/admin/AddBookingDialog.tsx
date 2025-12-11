@@ -52,7 +52,7 @@ interface AddBookingDialogProps {
 
 // Membership tier hourly rates
 const TIER_RATES: Record<string, number> = {
-  visitor: 15,
+  visitor: 30,
   par: 12,
   birdie: 10,
   eagle: 9,
