@@ -583,9 +583,23 @@ async function runAppLaunchSequence(config) {
     console.log('Protee Labs launch result:', proteeLaunch);
     results.push({ step: 'launch_protee', status: 'done', result: proteeLaunch });
     
-    // Step 3: Post-launch delay
-    console.log('Step 3: Post-launch delay...');
+    // Step 3: Post-launch delay then focus GSPro
+    console.log('Step 3: Post-launch delay before focusing GSPro...');
     await new Promise(resolve => setTimeout(resolve, postLaunchDelay));
+    
+    if (appLaunchCancelled) return { success: false, cancelled: true, results };
+    
+    // Step 4: Focus GSPro to bring it to front (covers API connector window)
+    console.log('Step 4: Focusing GSPro window...');
+    const gsproWindow = await findWindowByTitle('GSPro');
+    if (gsproWindow.success) {
+      await focusWindow(gsproWindow.hwnd);
+      console.log('GSPro focused successfully');
+      results.push({ step: 'focus_gspro', status: 'done' });
+    } else {
+      console.log('GSPro window not found for focusing');
+      results.push({ step: 'focus_gspro', status: 'warning', message: 'GSPro window not found' });
+    }
     
     return { success: true, results };
   } catch (error) {
