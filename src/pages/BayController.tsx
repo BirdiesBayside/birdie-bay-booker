@@ -445,17 +445,37 @@ export default function BayController() {
 
     setActiveBooking(currentBooking);
 
-    // Detect if a booking was cancelled/removed that was previously active
+    // Detect if a booking was cancelled/removed
     const prevBookingIds = previousBookingsRef.current.map(b => b.id);
     const currentBookingIds = bookings.map(b => b.id);
     const removedBookings = prevBookingIds.filter(id => !currentBookingIds.includes(id));
     
     if (removedBookings.length > 0) {
       console.log('Booking(s) removed/cancelled:', removedBookings);
-      // Recalculate and force plug control if needed
-      if (!shouldBeOn && (plugsStatus.monitor || plugsStatus.projector)) {
-        console.log('Cancelled booking detected - turning off plugs');
-        turnOffPlugs(false, false);
+      
+      // Check if ANY of the removed bookings was an active/current booking (not a future one)
+      // An active booking is one that was controlling the plugs (within pre-start to end time)
+      const removedActiveBookings = previousBookingsRef.current.filter(b => {
+        if (!removedBookings.includes(b.id)) return false;
+        if (b.booking_date !== today) return false;
+        
+        const startTime = parseISO(`${b.booking_date}T${b.start_time}`);
+        const endTime = parseISO(`${b.booking_date}T${b.end_time}`);
+        const preStartTime = addMinutes(startTime, -preStartMinutes);
+        
+        // Was this booking currently active (within pre-start to end)?
+        return isAfter(now, preStartTime) && isBefore(now, endTime);
+      });
+      
+      // Only turn off plugs if an ACTIVE booking was cancelled AND manual override is not on
+      if (removedActiveBookings.length > 0 && !manualOverride) {
+        console.log('Active booking(s) cancelled - checking if plugs should turn off');
+        if (!shouldBeOn && (plugsStatus.monitor || plugsStatus.projector)) {
+          console.log('No other active bookings - turning off plugs');
+          turnOffPlugs(false, false);
+        }
+      } else if (removedBookings.length > 0) {
+        console.log('Cancelled booking was in the future, not affecting plugs');
       }
     }
     
