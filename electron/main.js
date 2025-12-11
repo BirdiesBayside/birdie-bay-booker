@@ -307,22 +307,49 @@ async function getDisplayInfo() {
 // Launch an application using cmd start for reliable path handling with spaces
 async function launchApp(exePath) {
   return new Promise((resolve) => {
+    console.log(`=== LAUNCH APP CALLED ===`);
+    console.log(`Path received: "${exePath}"`);
+    console.log(`Path type: ${typeof exePath}`);
+    console.log(`Path length: ${exePath ? exePath.length : 'null/undefined'}`);
+    
+    if (!exePath || typeof exePath !== 'string' || exePath.trim() === '') {
+      console.error('ERROR: exePath is empty or invalid');
+      resolve({ success: false, error: 'Path is empty or invalid' });
+      return;
+    }
+    
+    const trimmedPath = exePath.trim();
+    
+    // Check if file exists
+    const pathExists = fs.existsSync(trimmedPath);
+    console.log(`Path exists check: ${pathExists}`);
+    
+    if (!pathExists) {
+      console.error(`ERROR: File does not exist at path: ${trimmedPath}`);
+      resolve({ success: false, error: `File not found: ${trimmedPath}` });
+      return;
+    }
+    
     try {
-      console.log(`Launching: ${exePath}`);
       // Use cmd /c start "" "path" for reliable handling of paths with spaces
-      const command = `cmd /c start "" "${exePath}"`;
-      console.log(`Executing: ${command}`);
+      const command = `cmd /c start "" "${trimmedPath}"`;
+      console.log(`Executing command: ${command}`);
+      
       exec(command, (error, stdout, stderr) => {
+        console.log(`Command completed for: ${trimmedPath}`);
+        console.log(`stdout: ${stdout}`);
+        console.log(`stderr: ${stderr}`);
+        
         if (error) {
           console.error(`Launch error: ${error.message}`);
           resolve({ success: false, error: error.message });
         } else {
-          console.log(`Launch successful for: ${exePath}`);
-          resolve({ success: true });
+          console.log(`Launch successful for: ${trimmedPath}`);
+          resolve({ success: true, path: trimmedPath });
         }
       });
     } catch (error) {
-      console.error(`Failed to launch ${exePath}:`, error.message);
+      console.error(`Exception launching ${trimmedPath}:`, error.message);
       resolve({ success: false, error: error.message });
     }
   });
