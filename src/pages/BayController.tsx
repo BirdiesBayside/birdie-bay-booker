@@ -425,9 +425,9 @@ export default function BayController() {
     // Control plugs based on booking state - ONLY if manual override is not active
     if (!manualOverride && (shouldPlugsBeOn !== plugsStatus.monitor || shouldPlugsBeOn !== plugsStatus.projector)) {
       if (shouldPlugsBeOn) {
-        turnOnPlugs();
+        turnOnPlugs(false, false); // Auto control, no toast
       } else {
-        turnOffPlugs();
+        turnOffPlugs(false, false); // Auto control, no toast
       }
     }
 
@@ -525,7 +525,7 @@ export default function BayController() {
     }
   };
 
-  const turnOnPlugs = async (isManual = false) => {
+  const turnOnPlugs = async (isManual = false, showToast = true) => {
     console.log("Turning ON plugs for bay:", selectedBay, isManual ? "(MANUAL)" : "(AUTO)");
     
     // Set manual override when manually controlling
@@ -539,13 +539,13 @@ export default function BayController() {
       
       if (bayPlugs.length === 0) {
         console.warn("No plugs assigned to this bay!");
-        toast.warning("No plugs assigned to this bay");
+        if (showToast) toast.warning("No plugs assigned to this bay");
         return;
       }
       
       // Validate credentials
       if (!tapoEmail || !tapoPassword) {
-        toast.error("TAPO credentials not configured");
+        if (showToast) toast.error("TAPO credentials not configured");
         return;
       }
       
@@ -555,7 +555,7 @@ export default function BayController() {
         // Validate plug data
         if (!plug.ip || typeof plug.ip !== 'string' || plug.ip.trim() === '') {
           console.error(`Invalid IP for plug ${plug.name}:`, plug);
-          toast.error(`Invalid IP address for ${plug.name || 'plug'}`);
+          if (showToast) toast.error(`Invalid IP address for ${plug.name || 'plug'}`);
           continue;
         }
         
@@ -567,14 +567,14 @@ export default function BayController() {
           const result = await window.electronAPI.controlPlug(tapoEmail, tapoPassword, cleanIp, 'on');
           console.log(`Control result for ${plug.name}:`, result);
           if (!result.success) {
-            toast.error(`Failed to turn on ${plug.name}: ${result.error}`);
+            if (showToast) toast.error(`Failed to turn on ${plug.name}: ${result.error}`);
           } else {
-            toast.success(`Turned ON: ${plug.name}`);
+            if (showToast) toast.success(`Turned ON: ${plug.name}`);
             newStatus[plug.type] = true;
           }
         } catch (error) {
           console.error(`Failed to turn on ${plug.name}:`, error);
-          toast.error(`Error controlling ${plug.name}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          if (showToast) toast.error(`Error controlling ${plug.name}: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
       }
       
@@ -585,7 +585,7 @@ export default function BayController() {
     }
   };
 
-  const turnOffPlugs = async (isManual = false) => {
+  const turnOffPlugs = async (isManual = false, showToast = true) => {
     console.log("Turning OFF plugs for bay:", selectedBay, isManual ? "(MANUAL)" : "(AUTO)");
     
     // Set manual override when manually controlling
@@ -610,15 +610,15 @@ export default function BayController() {
           const result = await window.electronAPI.controlPlug(tapoEmail, tapoPassword, plug.ip, 'off');
           console.log(`Control result for ${plug.name}:`, result);
           if (!result.success) {
-            toast.error(`Failed to turn off ${plug.name}: ${result.error}`);
+            if (showToast) toast.error(`Failed to turn off ${plug.name}: ${result.error}`);
             // Keep as on if failed
             newStatus[plug.type] = true;
           } else {
-            toast.success(`Turned OFF: ${plug.name}`);
+            if (showToast) toast.success(`Turned OFF: ${plug.name}`);
           }
         } catch (error) {
           console.error(`Failed to turn off ${plug.name}:`, error);
-          toast.error(`Error controlling ${plug.name}`);
+          if (showToast) toast.error(`Error controlling ${plug.name}`);
           newStatus[plug.type] = true;
         }
       }
