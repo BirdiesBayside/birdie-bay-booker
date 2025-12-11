@@ -85,6 +85,11 @@ declare global {
       runAppSequence: (config: { gsproPath: string; proteeLabsPath: string; gsproDisplay: number; proteeDisplay: number; postLaunchDelay?: number }) => Promise<{ success: boolean; cancelled?: boolean; results?: any[]; error?: string }>;
       cancelAppSequence: () => Promise<{ success: boolean }>;
       closeApps: (appNames: string[]) => Promise<{ success: boolean; results?: any[]; error?: string }>;
+      // Security / Quit control
+      confirmQuit: () => Promise<{ success: boolean }>;
+      setAuthenticated: (authenticated: boolean) => Promise<{ success: boolean }>;
+      onRequestLock: (callback: () => void) => () => void;
+      onRequestQuitPassword: (callback: () => void) => () => void;
     };
   }
 }
@@ -140,6 +145,11 @@ export default function BayController() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [password, setPassword] = useState("");
   const [passwordError, setPasswordError] = useState("");
+  
+  // Quit confirmation state
+  const [showQuitDialog, setShowQuitDialog] = useState(false);
+  const [quitPassword, setQuitPassword] = useState("");
+  const [quitPasswordError, setQuitPasswordError] = useState("");
   
   const [selectedBay, setSelectedBay] = useState<number | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -204,6 +214,28 @@ export default function BayController() {
       }).catch(err => {
         console.error("Failed to get displays:", err);
       });
+      
+      // Listen for lock request from main process (when window shown from tray)
+      const cleanupLock = window.electronAPI.onRequestLock(() => {
+        console.log("Lock requested from main process");
+        setIsAuthenticated(false);
+        setPassword("");
+        setPasswordError("");
+        setShowQuitDialog(false);
+      });
+      
+      // Listen for quit password request from main process
+      const cleanupQuit = window.electronAPI.onRequestQuitPassword(() => {
+        console.log("Quit password requested from main process");
+        setShowQuitDialog(true);
+        setQuitPassword("");
+        setQuitPasswordError("");
+      });
+      
+      return () => {
+        cleanupLock?.();
+        cleanupQuit?.();
+      };
     }
   }, []);
 
@@ -219,6 +251,8 @@ export default function BayController() {
     if (password === CORRECT_PASSWORD) {
       setIsAuthenticated(true);
       setPasswordError("");
+      // Notify main process of authentication
+      window.electronAPI?.setAuthenticated(true);
       // Load saved bay selection from localStorage
       const savedBay = localStorage.getItem("bayController_selectedBay");
       if (savedBay) {
@@ -241,6 +275,25 @@ export default function BayController() {
     } else {
       setPasswordError("Incorrect password");
     }
+  };
+
+  // Handle quit password submission
+  const handleQuitPasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (quitPassword === CORRECT_PASSWORD) {
+      setQuitPasswordError("");
+      // Confirm quit to main process - this will exit the app
+      await window.electronAPI?.confirmQuit();
+    } else {
+      setQuitPasswordError("Incorrect password");
+    }
+  };
+
+  // Cancel quit dialog
+  const handleCancelQuit = () => {
+    setShowQuitDialog(false);
+    setQuitPassword("");
+    setQuitPasswordError("");
   };
 
   // Track the previous bay to know when we're switching bays vs just refreshing
@@ -1495,6 +1548,54 @@ export default function BayController() {
           Bay Controller v{APP_VERSION}
         </p>
       </div>
+
+      {/* Quit Password Dialog */}
+      {showQuitDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <Card className="w-[350px]">
+            <CardHeader className="text-center">
+              <div className="w-12 h-12 mx-auto mb-2 rounded-full bg-destructive/10 flex items-center justify-center">
+                <Lock className="w-6 h-6 text-destructive" />
+              </div>
+              <CardTitle>Quit Bay Controller</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Enter password to exit the application
+              </p>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleQuitPasswordSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="quit-password">Password</Label>
+                  <Input
+                    id="quit-password"
+                    type="password"
+                    value={quitPassword}
+                    onChange={(e) => setQuitPassword(e.target.value)}
+                    placeholder="Enter password"
+                    autoFocus
+                  />
+                  {quitPasswordError && (
+                    <p className="text-sm text-destructive">{quitPasswordError}</p>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1"
+                    onClick={handleCancelQuit}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit" variant="destructive" className="flex-1">
+                    Quit App
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
