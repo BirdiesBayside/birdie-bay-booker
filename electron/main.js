@@ -293,9 +293,21 @@ async function controlTapoPlug(email, password, deviceIp, action) {
 // Get all connected displays with their info
 async function getDisplayInfo() {
   const displays = screen.getAllDisplays();
+  console.log('=== RAW DISPLAY INFO ===');
+  displays.forEach((d, i) => {
+    console.log(`Display ${i}:`, {
+      id: d.id,
+      label: d.label,
+      bounds: d.bounds,
+      size: d.size,
+      scaleFactor: d.scaleFactor
+    });
+  });
+  
   return displays.map((display, index) => ({
     id: display.id,
     index,
+    // Use label (monitor name like "SAMSUNG", "BENQ PJ") as primary identifier
     label: display.label || `Display ${index + 1}`,
     bounds: display.bounds,
     workArea: display.workArea,
@@ -356,7 +368,7 @@ async function launchApp(exePath) {
   });
 }
 
-// Find window by title using PowerShell
+// Find window by title using PowerShell - lists all windows and logs them
 async function findWindowByTitle(titlePattern) {
   const psScript = `
     Add-Type @"
@@ -394,9 +406,22 @@ async function findWindowByTitle(titlePattern) {
   try {
     const { stdout } = await execAsync(`powershell -Command "${psScript.replace(/"/g, '\\"').replace(/\n/g, ' ')}"`, { maxBuffer: 1024 * 1024 });
     const windows = JSON.parse(stdout || '[]');
-    const found = Array.isArray(windows) 
-      ? windows.find(w => w.title && w.title.toLowerCase().includes(titlePattern.toLowerCase()))
-      : (windows.title && windows.title.toLowerCase().includes(titlePattern.toLowerCase()) ? windows : null);
+    const windowList = Array.isArray(windows) ? windows : [windows];
+    
+    // Log all visible windows for debugging
+    console.log(`=== SEARCHING FOR: "${titlePattern}" ===`);
+    console.log(`Found ${windowList.length} visible windows:`);
+    windowList.forEach(w => {
+      if (w.title) console.log(`  - "${w.title}" (hwnd: ${w.hwnd})`);
+    });
+    
+    const found = windowList.find(w => w.title && w.title.toLowerCase().includes(titlePattern.toLowerCase()));
+    if (found) {
+      console.log(`MATCH FOUND: "${found.title}"`);
+    } else {
+      console.log(`NO MATCH for "${titlePattern}"`);
+    }
+    
     return found ? { success: true, hwnd: found.hwnd, title: found.title } : { success: false };
   } catch (error) {
     console.error('Find window failed:', error.message);

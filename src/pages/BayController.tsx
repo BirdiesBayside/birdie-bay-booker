@@ -51,20 +51,15 @@ interface DisplayInfo {
 interface AppLaunchConfig {
   gsproPath: string;
   proteeLabsPath: string;
-  gsproDisplaySignature: string; // Display signature (e.g., "1920x1080") for GSPRO
-  proteeDisplaySignature: string; // Display signature for Protee (touchscreen)
+  gsproDisplayLabel: string; // Display label (e.g., "SAMSUNG", "BENQ PJ") for GSPRO
+  proteeDisplayLabel: string; // Display label for Protee (touchscreen)
   appLaunchMinutes: number; // Minutes before booking to launch apps (after plugs are on)
   enabled: boolean;
 }
 
-// Helper to create display signature
-const getDisplaySignature = (display: DisplayInfo): string => {
-  return `${display.size?.width || display.bounds.width}x${display.size?.height || display.bounds.height}`;
-};
-
-// Helper to find display by signature
-const findDisplayBySignature = (displays: DisplayInfo[], signature: string): DisplayInfo | undefined => {
-  return displays.find(d => getDisplaySignature(d) === signature);
+// Helper to find display by label (name)
+const findDisplayByLabel = (displays: DisplayInfo[], label: string): DisplayInfo | undefined => {
+  return displays.find(d => d.label === label);
 };
 
 // Type for Electron API exposed via preload
@@ -185,8 +180,8 @@ export default function BayController() {
   const [appLaunchConfig, setAppLaunchConfig] = useState<AppLaunchConfig>({
     gsproPath: "C:\\Program Files\\GSPro\\GSPro.exe",
     proteeLabsPath: "C:\\Program Files\\ProTee Labs\\ProTee Labs.exe",
-    gsproDisplaySignature: "", // Will be set when display is selected
-    proteeDisplaySignature: "", // Will be set when display is selected
+    gsproDisplayLabel: "", // Will be set when display is selected (e.g., "SAMSUNG")
+    proteeDisplayLabel: "", // Will be set when display is selected (e.g., "BENQ PJ")
     appLaunchMinutes: 1, // 1 minute before booking (after plugs turn on at 3 mins)
     enabled: false
   });
@@ -900,9 +895,9 @@ export default function BayController() {
     setAppLaunchStatus("Starting app launch sequence...");
 
     try {
-      // Find display indices from signatures
-      const gsproDisplayIndex = displays.findIndex(d => getDisplaySignature(d) === appLaunchConfig.gsproDisplaySignature);
-      const proteeDisplayIndex = displays.findIndex(d => getDisplaySignature(d) === appLaunchConfig.proteeDisplaySignature);
+      // Find display indices from labels (monitor names)
+      const gsproDisplayIndex = displays.findIndex(d => d.label === appLaunchConfig.gsproDisplayLabel);
+      const proteeDisplayIndex = displays.findIndex(d => d.label === appLaunchConfig.proteeDisplayLabel);
       
       const launchConfig = {
         gsproPath: appLaunchConfig.gsproPath,
@@ -976,9 +971,9 @@ export default function BayController() {
     }
 
     try {
-      // Find display indices from signatures
-      const gsproDisplayIndex = displays.findIndex(d => getDisplaySignature(d) === appLaunchConfig.gsproDisplaySignature);
-      const proteeDisplayIndex = displays.findIndex(d => getDisplaySignature(d) === appLaunchConfig.proteeDisplaySignature);
+      // Find display indices from labels (monitor names)
+      const gsproDisplayIndex = displays.findIndex(d => d.label === appLaunchConfig.gsproDisplayLabel);
+      const proteeDisplayIndex = displays.findIndex(d => d.label === appLaunchConfig.proteeDisplayLabel);
       
       toast.info("Checking and fixing window positions...");
       
@@ -1503,27 +1498,24 @@ export default function BayController() {
               </div>
             </div>
 
-            {/* Display assignment - shows resolution for reliable matching */}
+            {/* Display assignment - uses monitor name for reliable matching */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">GSPRO Display</Label>
                 <Select 
-                  value={appLaunchConfig.gsproDisplaySignature} 
-                  onValueChange={(v) => updateAppConfig("gsproDisplaySignature", v)}
+                  value={appLaunchConfig.gsproDisplayLabel} 
+                  onValueChange={(v) => updateAppConfig("gsproDisplayLabel", v)}
                 >
                   <SelectTrigger className="text-xs">
-                    <SelectValue placeholder="Select by resolution" />
+                    <SelectValue placeholder="Select display" />
                   </SelectTrigger>
                   <SelectContent>
                     {displays.length > 0 ? (
-                      displays.map((d) => {
-                        const sig = getDisplaySignature(d);
-                        return (
-                          <SelectItem key={d.id} value={sig}>
-                            {sig} {d.isPrimary ? "(Primary)" : ""} - {d.label || `Display ${d.index + 1}`}
-                          </SelectItem>
-                        );
-                      })
+                      displays.map((d) => (
+                        <SelectItem key={d.id} value={d.label}>
+                          {d.label} {d.isPrimary ? "(Primary)" : ""}
+                        </SelectItem>
+                      ))
                     ) : (
                       <SelectItem value="" disabled>No displays detected</SelectItem>
                     )}
@@ -1534,22 +1526,19 @@ export default function BayController() {
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">Protee Display (Touchscreen)</Label>
                 <Select 
-                  value={appLaunchConfig.proteeDisplaySignature} 
-                  onValueChange={(v) => updateAppConfig("proteeDisplaySignature", v)}
+                  value={appLaunchConfig.proteeDisplayLabel} 
+                  onValueChange={(v) => updateAppConfig("proteeDisplayLabel", v)}
                 >
                   <SelectTrigger className="text-xs">
-                    <SelectValue placeholder="Select by resolution" />
+                    <SelectValue placeholder="Select display" />
                   </SelectTrigger>
                   <SelectContent>
                     {displays.length > 0 ? (
-                      displays.map((d) => {
-                        const sig = getDisplaySignature(d);
-                        return (
-                          <SelectItem key={d.id} value={sig}>
-                            {sig} {d.isPrimary ? "(Primary)" : ""} - {d.label || `Display ${d.index + 1}`}
-                          </SelectItem>
-                        );
-                      })
+                      displays.map((d) => (
+                        <SelectItem key={d.id} value={d.label}>
+                          {d.label} {d.isPrimary ? "(Primary)" : ""}
+                        </SelectItem>
+                      ))
                     ) : (
                       <SelectItem value="" disabled>No displays detected</SelectItem>
                     )}
@@ -1559,7 +1548,7 @@ export default function BayController() {
             </div>
 
             <p className="text-xs text-muted-foreground">
-              Displays are saved by resolution. At launch time, displays are re-detected and matched.
+              Displays are matched by name (e.g., SAMSUNG, BENQ PJ). At launch time, displays are re-detected.
             </p>
 
             {/* App launch timing */}
