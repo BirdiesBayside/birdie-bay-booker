@@ -56,7 +56,8 @@ import {
   KeyRound,
   DollarSign,
   Trash2,
-  X
+  X,
+  UserX
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -135,6 +136,11 @@ export default function AdminCustomers() {
   const [isAddingBulkDeposit, setIsAddingBulkDeposit] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Cancel membership state
+  const [showCancelMembershipConfirm, setShowCancelMembershipConfirm] = useState(false);
+  const [sendCancellationEmail, setSendCancellationEmail] = useState(true);
+  const [isCancellingMembership, setIsCancellingMembership] = useState(false);
 
   // Check for user query param to auto-select customer
   const highlightedUserId = searchParams.get("user");
@@ -605,6 +611,55 @@ export default function AdminCustomers() {
     setIsUpdatingCustomer(false);
   };
 
+  const cancelMembership = async () => {
+    if (!selectedCustomer) return;
+    
+    setIsCancellingMembership(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke("cancel-membership", {
+        body: {
+          user_id: selectedCustomer.user_id,
+          send_notification: sendCancellationEmail,
+        },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      toast({
+        title: "Membership cancelled",
+        description: `${selectedCustomer.first_name}'s membership has been cancelled.`,
+        duration: 4000,
+      });
+
+      // Update local state
+      setCustomers(prev =>
+        prev.map(c =>
+          c.id === selectedCustomer.id
+            ? { ...c, membership_tier: "visitor" }
+            : c
+        )
+      );
+      
+      setSelectedCustomer({
+        ...selectedCustomer,
+        membership_tier: "visitor",
+      });
+      
+      setShowCancelMembershipConfirm(false);
+    } catch (error: any) {
+      toast({
+        title: "Error cancelling membership",
+        description: error.message || "Failed to cancel membership.",
+        variant: "destructive",
+        duration: 4000,
+      });
+    }
+
+    setIsCancellingMembership(false);
+  };
+
   const visibleColumns = columns.filter(c => c.visible);
 
   if (authLoading) {
@@ -976,6 +1031,36 @@ export default function AdminCustomers() {
 
                 <hr className="border-border" />
 
+                {/* Cancel Membership - only show for members */}
+                {selectedCustomer.membership_tier && selectedCustomer.membership_tier !== "visitor" && (
+                  <>
+                    <div className="p-3 bg-destructive/5 border border-destructive/20 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-sm font-medium text-destructive">Cancel Membership</div>
+                          <div className="text-xs text-muted-foreground">
+                            Cancel subscription and revert to visitor
+                          </div>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-destructive/50 text-destructive hover:bg-destructive/10"
+                          onClick={() => {
+                            setSendCancellationEmail(true);
+                            setShowCancelMembershipConfirm(true);
+                          }}
+                        >
+                          <UserX className="h-4 w-4 mr-1" />
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+
+                    <hr className="border-border" />
+                  </>
+                )}
+
                 {/* Actions */}
                 <div className="flex flex-col sm:flex-row gap-2">
                   <Button 
@@ -1262,6 +1347,37 @@ export default function AdminCustomers() {
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
                 {isDeleting ? "Deleting..." : "Delete"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Cancel Membership Confirmation Dialog */}
+        <AlertDialog open={showCancelMembershipConfirm} onOpenChange={setShowCancelMembershipConfirm}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Cancel membership?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will cancel {selectedCustomer?.first_name}'s Stripe subscription and revert their account to visitor status.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="py-4">
+              <label className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  checked={sendCancellationEmail}
+                  onCheckedChange={(checked) => setSendCancellationEmail(!!checked)}
+                />
+                Send cancellation notification email
+              </label>
+            </div>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isCancellingMembership}>Keep Membership</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={cancelMembership}
+                disabled={isCancellingMembership}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {isCancellingMembership ? "Cancelling..." : "Cancel Membership"}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
