@@ -50,6 +50,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Close apps by process name
   closeApps: (appNames) => ipcRenderer.invoke('close-apps', { appNames }),
   
+  // Check and correct window positions
+  checkWindowPositions: (gsproDisplay, proteeDisplay) => 
+    ipcRenderer.invoke('check-window-positions', { gsproDisplay, proteeDisplay }),
+  
   // =====================================================
   // SECURITY / QUIT CONTROL APIs
   // =====================================================
