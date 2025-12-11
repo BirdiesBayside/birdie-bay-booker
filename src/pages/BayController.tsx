@@ -30,6 +30,7 @@ interface TapoPlug {
   ip: string;
   isOn: boolean;
   deviceId?: string;
+  type: 'monitor' | 'projector';
 }
 
 interface BayPlugAssignment {
@@ -437,6 +438,7 @@ export default function BayController() {
   // State for manual plug entry
   const [newPlugName, setNewPlugName] = useState("");
   const [newPlugIp, setNewPlugIp] = useState("");
+  const [newPlugType, setNewPlugType] = useState<'monitor' | 'projector'>('monitor');
 
   // Save TAPO credentials whenever they change
   useEffect(() => {
@@ -466,13 +468,15 @@ export default function BayController() {
       id: `manual-${Date.now()}`,
       name: newPlugName.trim(),
       ip: newPlugIp.trim(),
-      isOn: false
+      isOn: false,
+      type: newPlugType
     };
     
     setDiscoveredPlugs(prev => [...prev, newPlug]);
     setNewPlugName("");
     setNewPlugIp("");
-    toast.success(`Added plug: ${newPlug.name}`);
+    setNewPlugType('monitor');
+    toast.success(`Added ${newPlugType} plug: ${newPlug.name}`);
   };
 
   // Test TAPO login credentials
@@ -528,6 +532,8 @@ export default function BayController() {
         return;
       }
       
+      const newStatus = { monitor: false, projector: false };
+      
       for (const plug of bayPlugs) {
         // Validate plug data
         if (!plug.ip || typeof plug.ip !== 'string' || plug.ip.trim() === '') {
@@ -537,7 +543,7 @@ export default function BayController() {
         }
         
         const cleanIp = plug.ip.trim();
-        console.log(`Attempting to turn ON plug: ${plug.name} at ${cleanIp}`);
+        console.log(`Attempting to turn ON plug: ${plug.name} (${plug.type}) at ${cleanIp}`);
         console.log(`Using credentials: email=${tapoEmail}, password=${tapoPassword ? '***' : 'MISSING'}`);
         
         try {
@@ -547,17 +553,19 @@ export default function BayController() {
             toast.error(`Failed to turn on ${plug.name}: ${result.error}`);
           } else {
             toast.success(`Turned ON: ${plug.name}`);
+            newStatus[plug.type] = true;
           }
         } catch (error) {
           console.error(`Failed to turn on ${plug.name}:`, error);
           toast.error(`Error controlling ${plug.name}: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
       }
+      
+      setPlugsStatus(newStatus);
     } else {
       console.log("Not in Electron or no bay selected");
+      setPlugsStatus({ monitor: true, projector: true });
     }
-    
-    setPlugsStatus({ monitor: true, projector: true });
   };
 
   const turnOffPlugs = async () => {
@@ -572,24 +580,31 @@ export default function BayController() {
         return;
       }
       
+      const newStatus = { monitor: false, projector: false };
+      
       for (const plug of bayPlugs) {
-        console.log(`Attempting to turn OFF plug: ${plug.name} at ${plug.ip}`);
+        console.log(`Attempting to turn OFF plug: ${plug.name} (${plug.type}) at ${plug.ip}`);
         try {
           const result = await window.electronAPI.controlPlug(tapoEmail, tapoPassword, plug.ip, 'off');
           console.log(`Control result for ${plug.name}:`, result);
           if (!result.success) {
             toast.error(`Failed to turn off ${plug.name}: ${result.error}`);
+            // Keep as on if failed
+            newStatus[plug.type] = true;
           } else {
             toast.success(`Turned OFF: ${plug.name}`);
           }
         } catch (error) {
           console.error(`Failed to turn off ${plug.name}:`, error);
           toast.error(`Error controlling ${plug.name}`);
+          newStatus[plug.type] = true;
         }
       }
+      
+      setPlugsStatus(newStatus);
+    } else {
+      setPlugsStatus({ monitor: false, projector: false });
     }
-    
-    setPlugsStatus({ monitor: false, projector: false });
   };
 
   const showWarningNotification = (minutes: number) => {
@@ -996,7 +1011,10 @@ export default function BayController() {
               {getAssignedPlugsForBay(selectedBay).map((plug) => (
                 <div key={plug.id} className="flex items-center justify-between p-3 bg-primary/10 border border-primary/20 rounded-lg">
                   <div>
-                    <p className="font-medium">{plug.name}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium">{plug.name}</p>
+                      <Badge variant="outline" className="text-xs capitalize">{plug.type}</Badge>
+                    </div>
                     <p className="text-xs text-muted-foreground">{plug.ip}</p>
                   </div>
                   <Button 
@@ -1016,9 +1034,9 @@ export default function BayController() {
             <p className="text-xs text-muted-foreground">
               Find plug IPs in your router admin page or TAPO mobile app (Device Settings → Device Info)
             </p>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               <Input
-                placeholder="Name (e.g., Bay 1 (M))"
+                placeholder="Name (e.g., Bay 1)"
                 value={newPlugName}
                 onChange={(e) => setNewPlugName(e.target.value)}
               />
@@ -1027,6 +1045,15 @@ export default function BayController() {
                 value={newPlugIp}
                 onChange={(e) => setNewPlugIp(e.target.value)}
               />
+              <Select value={newPlugType} onValueChange={(v) => setNewPlugType(v as 'monitor' | 'projector')}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="monitor">Monitor</SelectItem>
+                  <SelectItem value="projector">Projector</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <Button onClick={addPlugManually} size="sm" variant="outline" className="w-full">
               Add Plug
@@ -1048,7 +1075,10 @@ export default function BayController() {
               {unassignedPlugs.map((plug) => (
                 <div key={plug.id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
                   <div>
-                    <p className="font-medium">{plug.name}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium">{plug.name}</p>
+                      <Badge variant="outline" className="text-xs capitalize">{plug.type}</Badge>
+                    </div>
                     <p className="text-xs text-muted-foreground">{plug.ip}</p>
                   </div>
                   <Select onValueChange={(value) => assignPlugToBay(plug, parseInt(value))}>
