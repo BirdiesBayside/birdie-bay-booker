@@ -28,6 +28,22 @@ const TIER_NAMES: Record<string, string> = {
   "albatross": "Albatross",
 };
 
+const TIER_WEEKLY_PRICES: Record<string, string> = {
+  "par": "$15.00",
+  "birdie": "$20.00",
+  "eagle": "$25.00",
+  "albatross": "$35.00",
+};
+
+// Replace template tags with actual values
+const replaceTemplateTags = (template: string, tags: Record<string, string>): string => {
+  let result = template;
+  for (const [tag, value] of Object.entries(tags)) {
+    result = result.replace(new RegExp(tag.replace(/[{}]/g, '\\$&'), 'g'), value);
+  }
+  return result;
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -107,6 +123,16 @@ serve(async (req) => {
         if (newTier) {
           logStep("Updating membership tier", { email, newTier });
 
+          // Get previous tier to check if this is a new subscription
+          const { data: profile } = await supabaseAdmin
+            .from("profiles")
+            .select("first_name, last_name, membership_tier")
+            .eq("email", email)
+            .maybeSingle();
+
+          const previousTier = profile?.membership_tier;
+          const isNewMembership = previousTier === "visitor" || !previousTier;
+
           const { error } = await supabaseAdmin
             .from("profiles")
             .update({ membership_tier: newTier })
@@ -118,6 +144,84 @@ serve(async (req) => {
           }
 
           logStep("Membership tier updated successfully");
+
+          // Send membership confirmation email for new memberships or upgrades
+          if (resend && (isNewMembership || event.type === "customer.subscription.created")) {
+            const firstName = profile?.first_name || customer.name?.split(" ")[0] || "there";
+            const lastName = profile?.last_name || "";
+            const tierName = TIER_NAMES[newTier] || newTier;
+            const weeklyPrice = TIER_WEEKLY_PRICES[newTier] || "";
+
+            // Fetch custom template
+            const { data: emailTemplate } = await supabaseAdmin
+              .from("email_templates")
+              .select("*")
+              .eq("template_key", "membership_activated")
+              .eq("is_active", true)
+              .single();
+
+            const templateTags: Record<string, string> = {
+              '{first_name}': firstName,
+              '{last_name}': lastName,
+              '{email}': email,
+              '{tier_name}': tierName,
+              '{weekly_price}': weeklyPrice,
+            };
+
+            let subject = emailTemplate?.subject || `Welcome to the ${tierName} Membership!`;
+            let htmlContent: string;
+
+            if (emailTemplate?.html_content) {
+              htmlContent = replaceTemplateTags(emailTemplate.html_content, templateTags);
+              subject = replaceTemplateTags(subject, templateTags);
+            } else {
+              htmlContent = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                  <meta charset="utf-8">
+                  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                </head>
+                <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+                  <div style="background-color: #1f4c25; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
+                    <h1 style="color: #fff5e4; margin: 0;">Welcome to ${tierName}!</h1>
+                  </div>
+                  <div style="background-color: #fff5e4; padding: 30px; border-radius: 0 0 8px 8px;">
+                    <p>Hi ${firstName},</p>
+                    <p>Congratulations! Your <strong>${tierName}</strong> membership is now active.</p>
+                    
+                    <div style="background-color: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ec622d;">
+                      <p style="margin: 5px 0;"><strong>Membership:</strong> ${tierName}</p>
+                      <p style="margin: 5px 0;"><strong>Weekly Price:</strong> ${weeklyPrice}</p>
+                    </div>
+                    
+                    <p>You now have access to discounted bay rates and exclusive member benefits including the Birdies League!</p>
+                    
+                    <p>Ready to play? Book your next session now!</p>
+                    
+                    <p>See you soon,<br><strong>The Birdies Team</strong></p>
+                  </div>
+                  <div style="text-align: center; padding: 20px; color: #666; font-size: 12px;">
+                    <p>Birdies Bayside Golf Simulators</p>
+                    <p>info@birdiesbayside.com.au</p>
+                  </div>
+                </body>
+                </html>
+              `;
+            }
+
+            try {
+              await resend.emails.send({
+                from: "Birdies Bayside <info@birdiesbayside.com.au>",
+                to: [email],
+                subject: subject,
+                html: htmlContent,
+              });
+              logStep("Membership confirmation email sent", { email, tier: tierName });
+            } catch (emailError) {
+              logStep("Failed to send membership confirmation email", { error: emailError });
+            }
+          }
         } else {
           logStep("Unknown price ID, not updating tier", { priceId });
         }
@@ -140,6 +244,17 @@ serve(async (req) => {
 
       const email = customer.email;
       if (email) {
+        // Get profile to find previous tier
+        const { data: profile } = await supabaseAdmin
+          .from("profiles")
+          .select("first_name, last_name, membership_tier")
+          .eq("email", email)
+          .maybeSingle();
+
+        const firstName = profile?.first_name || customer.name?.split(" ")[0] || "there";
+        const lastName = profile?.last_name || "";
+        const previousTier = profile?.membership_tier ? TIER_NAMES[profile.membership_tier] || profile.membership_tier : "Member";
+
         logStep("Resetting membership tier to visitor", { email });
 
         const { error } = await supabaseAdmin
@@ -153,6 +268,75 @@ serve(async (req) => {
         }
 
         logStep("Membership tier reset to visitor");
+
+        // Send membership cancellation email
+        if (resend) {
+          // Fetch custom template
+          const { data: emailTemplate } = await supabaseAdmin
+            .from("email_templates")
+            .select("*")
+            .eq("template_key", "membership_cancelled")
+            .eq("is_active", true)
+            .single();
+
+          const templateTags: Record<string, string> = {
+            '{first_name}': firstName,
+            '{last_name}': lastName,
+            '{email}': email,
+            '{tier_name}': previousTier,
+          };
+
+          let subject = emailTemplate?.subject || "Your Birdies Membership Has Been Cancelled";
+          let htmlContent: string;
+
+          if (emailTemplate?.html_content) {
+            htmlContent = replaceTemplateTags(emailTemplate.html_content, templateTags);
+            subject = replaceTemplateTags(subject, templateTags);
+          } else {
+            htmlContent = `
+              <!DOCTYPE html>
+              <html>
+              <head>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              </head>
+              <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+                <div style="background-color: #1f4c25; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
+                  <h1 style="color: #fff5e4; margin: 0;">Membership Cancelled</h1>
+                </div>
+                <div style="background-color: #fff5e4; padding: 30px; border-radius: 0 0 8px 8px;">
+                  <p>Hi ${firstName},</p>
+                  <p>Your <strong>${previousTier}</strong> membership has been cancelled.</p>
+                  
+                  <p>Your account has been reverted to Visitor status. You can still book sessions at our standard visitor rates.</p>
+                  
+                  <p>If you'd like to rejoin and enjoy member benefits again, you can resubscribe at any time through your account.</p>
+                  
+                  <p>We hope to see you back soon!</p>
+                  
+                  <p>Best regards,<br><strong>The Birdies Team</strong></p>
+                </div>
+                <div style="text-align: center; padding: 20px; color: #666; font-size: 12px;">
+                  <p>Birdies Bayside Golf Simulators</p>
+                  <p>info@birdiesbayside.com.au</p>
+                </div>
+              </body>
+              </html>
+            `;
+          }
+
+          try {
+            await resend.emails.send({
+              from: "Birdies Bayside <info@birdiesbayside.com.au>",
+              to: [email],
+              subject: subject,
+              html: htmlContent,
+            });
+            logStep("Membership cancellation email sent", { email });
+          } catch (emailError) {
+            logStep("Failed to send membership cancellation email", { error: emailError });
+          }
+        }
       }
     }
 
