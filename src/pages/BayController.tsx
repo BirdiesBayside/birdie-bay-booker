@@ -167,7 +167,7 @@ export default function BayController() {
   const [displays, setDisplays] = useState<DisplayInfo[]>([]);
   const [appLaunchConfig, setAppLaunchConfig] = useState<AppLaunchConfig>({
     gsproPath: "C:\\Program Files\\GSPro\\GSPro.exe",
-    proteeLabsPath: "C:\\Program Files\\Protee Labs\\ProteeLabs.exe",
+    proteeLabsPath: "C:\\Program Files\\ProTee Labs\\ProTee Labs.exe",
     gsproDisplaySignature: "", // Will be set when display is selected
     proteeDisplaySignature: "", // Will be set when display is selected
     appLaunchMinutes: 1, // 1 minute before booking (after plugs turn on at 3 mins)
