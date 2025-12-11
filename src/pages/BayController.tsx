@@ -156,9 +156,15 @@ export default function BayController() {
   const [isLoadingBookings, setIsLoadingBookings] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<"connected" | "disconnected" | "connecting">("disconnected");
   
-  const [discoveredPlugs, setDiscoveredPlugs] = useState<TapoPlug[]>([]);
-  const [bayPlugAssignments, setBayPlugAssignments] = useState<BayPlugAssignment[]>([]);
-  
+  const [discoveredPlugs, setDiscoveredPlugs] = useState<TapoPlug[]>(() => {
+    const saved = localStorage.getItem("bayController_discoveredPlugs");
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [bayPlugAssignments, setBayPlugAssignments] = useState<BayPlugAssignment[]>(() => {
+    const saved = localStorage.getItem("bayController_bayPlugAssignments");
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [plugAssignmentsLoaded, setPlugAssignmentsLoaded] = useState(false);
   const [preStartMinutes, setPreStartMinutes] = useState(3);
   const [warningMinutes, setWarningMinutes] = useState([5, 1]);
   const [showSettings, setShowSettings] = useState(false);
@@ -194,6 +200,9 @@ export default function BayController() {
     const electronCheck = !!window.electronAPI?.isElectron;
     setIsElectron(electronCheck);
     
+    // Mark plug assignments as loaded (they were loaded via useState initializer)
+    setPlugAssignmentsLoaded(true);
+    
     // Load saved TAPO credentials from localStorage
     const savedEmail = localStorage.getItem("bayController_tapoEmail");
     const savedPassword = localStorage.getItem("bayController_tapoPassword");
@@ -204,6 +213,18 @@ export default function BayController() {
     const savedAppConfig = localStorage.getItem("bayController_appLaunchConfig");
     if (savedAppConfig) {
       setAppLaunchConfig(JSON.parse(savedAppConfig));
+    }
+    
+    // Load saved bay selection
+    const savedBay = localStorage.getItem("bayController_selectedBay");
+    if (savedBay) {
+      setSelectedBay(parseInt(savedBay));
+    }
+    
+    // Load saved pre-start minutes
+    const savedPreStart = localStorage.getItem("bayController_preStartMinutes");
+    if (savedPreStart) {
+      setPreStartMinutes(parseInt(savedPreStart));
     }
     
     // Get display info if in Electron
@@ -253,25 +274,6 @@ export default function BayController() {
       setPasswordError("");
       // Notify main process of authentication
       window.electronAPI?.setAuthenticated(true);
-      // Load saved bay selection from localStorage
-      const savedBay = localStorage.getItem("bayController_selectedBay");
-      if (savedBay) {
-        setSelectedBay(parseInt(savedBay));
-      }
-      // Load saved plug assignments
-      const savedPlugAssignments = localStorage.getItem("bayController_bayPlugAssignments");
-      if (savedPlugAssignments) {
-        setBayPlugAssignments(JSON.parse(savedPlugAssignments));
-      }
-      // Load saved discovered plugs
-      const savedDiscoveredPlugs = localStorage.getItem("bayController_discoveredPlugs");
-      if (savedDiscoveredPlugs) {
-        setDiscoveredPlugs(JSON.parse(savedDiscoveredPlugs));
-      }
-      const savedPreStart = localStorage.getItem("bayController_preStartMinutes");
-      if (savedPreStart) {
-        setPreStartMinutes(parseInt(savedPreStart));
-      }
     } else {
       setPasswordError("Incorrect password");
     }
@@ -498,11 +500,14 @@ export default function BayController() {
       supabase.removeChannel(commandChannel);
     };
   }, [selectedBay]);
-
-  // Save plug assignments
+  // Save plug assignments and discovered plugs to localStorage
+  // Only save after initial load to prevent overwriting with empty arrays
   useEffect(() => {
-    localStorage.setItem("bayController_bayPlugAssignments", JSON.stringify(bayPlugAssignments));
-  }, [bayPlugAssignments]);
+    if (plugAssignmentsLoaded) {
+      localStorage.setItem("bayController_bayPlugAssignments", JSON.stringify(bayPlugAssignments));
+      localStorage.setItem("bayController_discoveredPlugs", JSON.stringify(discoveredPlugs));
+    }
+  }, [bayPlugAssignments, discoveredPlugs, plugAssignmentsLoaded]);
 
   // Save pre-start minutes
   useEffect(() => {
