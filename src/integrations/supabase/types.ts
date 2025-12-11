@@ -245,6 +245,111 @@ export type Database = {
         }
         Relationships: []
       }
+      marketing_campaigns: {
+        Row: {
+          clicks: number | null
+          created_at: string
+          created_by: string | null
+          html_content: string
+          id: string
+          name: string
+          opens: number | null
+          recipient_count: number | null
+          recipient_filter: Json | null
+          sent_at: string | null
+          status: string
+          subject: string
+          updated_at: string
+        }
+        Insert: {
+          clicks?: number | null
+          created_at?: string
+          created_by?: string | null
+          html_content: string
+          id?: string
+          name: string
+          opens?: number | null
+          recipient_count?: number | null
+          recipient_filter?: Json | null
+          sent_at?: string | null
+          status?: string
+          subject: string
+          updated_at?: string
+        }
+        Update: {
+          clicks?: number | null
+          created_at?: string
+          created_by?: string | null
+          html_content?: string
+          id?: string
+          name?: string
+          opens?: number | null
+          recipient_count?: number | null
+          recipient_filter?: Json | null
+          sent_at?: string | null
+          status?: string
+          subject?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      marketing_templates: {
+        Row: {
+          category: string | null
+          created_at: string
+          description: string | null
+          html_content: string
+          id: string
+          is_active: boolean | null
+          name: string
+          subject: string
+          updated_at: string
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          html_content: string
+          id?: string
+          is_active?: boolean | null
+          name: string
+          subject: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          html_content?: string
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          subject?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      marketing_unsubscribes: {
+        Row: {
+          email: string
+          id: string
+          reason: string | null
+          unsubscribed_at: string
+        }
+        Insert: {
+          email: string
+          id?: string
+          reason?: string | null
+          unsubscribed_at?: string
+        }
+        Update: {
+          email?: string
+          id?: string
+          reason?: string | null
+          unsubscribed_at?: string
+        }
+        Relationships: []
+      }
       pos_products: {
         Row: {
           created_at: string
@@ -324,6 +429,7 @@ export type Database = {
           first_name: string
           id: string
           last_name: string
+          marketing_opt_out: boolean | null
           membership_tier: Database["public"]["Enums"]["membership_tier"]
           phone: string | null
           sgt_user_id: number | null
@@ -339,6 +445,7 @@ export type Database = {
           first_name: string
           id?: string
           last_name: string
+          marketing_opt_out?: boolean | null
           membership_tier?: Database["public"]["Enums"]["membership_tier"]
           phone?: string | null
           sgt_user_id?: number | null
@@ -354,6 +461,7 @@ export type Database = {
           first_name?: string
           id?: string
           last_name?: string
+          marketing_opt_out?: boolean | null
           membership_tier?: Database["public"]["Enums"]["membership_tier"]
           phone?: string | null
           sgt_user_id?: number | null
