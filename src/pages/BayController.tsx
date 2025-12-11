@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -243,15 +243,25 @@ export default function BayController() {
     }
   };
 
+  // Track the previous bay to know when we're switching bays vs just refreshing
+  const previousBayRef = useRef<number | null>(null);
+
   // Fetch bookings for selected bay
   const fetchBookings = useCallback(async () => {
     if (!selectedBay) return;
     
+    const isSwitchingBays = previousBayRef.current !== null && previousBayRef.current !== selectedBay;
+    previousBayRef.current = selectedBay;
+    
     setIsLoadingBookings(true);
     setConnectionStatus("connecting");
-    setBookings([]); // Clear previous bookings when fetching new bay
-    setActiveBooking(null); // Clear active booking when switching bays
-    setPlugsStatus({ monitor: false, projector: false }); // Reset plug status
+    
+    // Only reset state when switching bays, not when refreshing due to real-time updates
+    if (isSwitchingBays) {
+      setBookings([]);
+      setActiveBooking(null);
+      setPlugsStatus({ monitor: false, projector: false });
+    }
     
     try {
       const { data, error } = await supabase.functions.invoke("bay-controller-api", {
