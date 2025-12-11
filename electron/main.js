@@ -1,5 +1,6 @@
 const { app, BrowserWindow, Tray, Menu, ipcMain, screen, dialog } = require('electron');
 const path = require('path');
+const fs = require('fs');
 const { exec, spawn } = require('child_process');
 const { promisify } = require('util');
 const execAsync = promisify(exec);
