@@ -304,7 +304,7 @@ export default function BayController() {
     }
   }, [selectedBay]);
 
-  // Set up real-time subscription for bookings and heartbeat
+  // Set up real-time subscription for bookings, heartbeat, and polling fallback
   useEffect(() => {
     if (!selectedBay) return;
 
@@ -359,8 +359,15 @@ export default function BayController() {
     // Heartbeat to keep device status updated
     const heartbeatInterval = setInterval(sendHeartbeat, 30000); // Every 30 seconds
 
+    // Polling fallback - refresh bookings every 20 seconds silently
+    const pollingInterval = setInterval(() => {
+      console.log('Polling for booking updates...');
+      fetchBookings();
+    }, 20000); // Every 20 seconds
+
     return () => {
       clearInterval(heartbeatInterval);
+      clearInterval(pollingInterval);
       if (realtimeChannel) {
         supabase.removeChannel(realtimeChannel);
       }
