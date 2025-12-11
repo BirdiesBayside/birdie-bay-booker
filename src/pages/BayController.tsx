@@ -82,7 +82,8 @@ declare global {
       moveWindow: (hwnd: number, displayIndex: number, fullscreen?: boolean) => Promise<{ success: boolean; error?: string }>;
       minimizeWindow: (hwnd: number) => Promise<{ success: boolean; error?: string }>;
       focusWindow: (hwnd: number) => Promise<{ success: boolean; error?: string }>;
-      runAppSequence: (config: AppLaunchConfig) => Promise<{ success: boolean; results?: any[]; error?: string }>;
+      runAppSequence: (config: AppLaunchConfig) => Promise<{ success: boolean; cancelled?: boolean; results?: any[]; error?: string }>;
+      cancelAppSequence: () => Promise<{ success: boolean }>;
       closeApps: (appNames: string[]) => Promise<{ success: boolean; results?: any[]; error?: string }>;
     };
   }
@@ -223,9 +224,14 @@ export default function BayController() {
         setSelectedBay(parseInt(savedBay));
       }
       // Load saved plug assignments
-      const savedPlugs = localStorage.getItem("bayController_bayPlugAssignments");
-      if (savedPlugs) {
-        setBayPlugAssignments(JSON.parse(savedPlugs));
+      const savedPlugAssignments = localStorage.getItem("bayController_bayPlugAssignments");
+      if (savedPlugAssignments) {
+        setBayPlugAssignments(JSON.parse(savedPlugAssignments));
+      }
+      // Load saved discovered plugs
+      const savedDiscoveredPlugs = localStorage.getItem("bayController_discoveredPlugs");
+      if (savedDiscoveredPlugs) {
+        setDiscoveredPlugs(JSON.parse(savedDiscoveredPlugs));
       }
       const savedPreStart = localStorage.getItem("bayController_preStartMinutes");
       if (savedPreStart) {
@@ -472,7 +478,12 @@ export default function BayController() {
       type: newPlugType
     };
     
-    setDiscoveredPlugs(prev => [...prev, newPlug]);
+    setDiscoveredPlugs(prev => {
+      const updated = [...prev, newPlug];
+      // Save to localStorage immediately
+      localStorage.setItem("bayController_discoveredPlugs", JSON.stringify(updated));
+      return updated;
+    });
     setNewPlugName("");
     setNewPlugIp("");
     setNewPlugType('monitor');
@@ -681,7 +692,10 @@ export default function BayController() {
     try {
       const result = await window.electronAPI.runAppSequence(appLaunchConfig);
       
-      if (result.success) {
+      if (result.cancelled) {
+        setAppLaunchStatus("Launch cancelled");
+        toast.info("App launch cancelled");
+      } else if (result.success) {
         setAppsRunning(true);
         setAppLaunchStatus("All apps launched successfully");
         toast.success("Apps launched successfully");
@@ -700,6 +714,17 @@ export default function BayController() {
       toast.error(`Launch error: ${errorMsg}`);
     } finally {
       setIsLaunchingApps(false);
+    }
+  };
+
+  const cancelAppLaunch = async () => {
+    if (!isElectron || !window.electronAPI) return;
+    
+    try {
+      await window.electronAPI.cancelAppSequence();
+      toast.info("Cancelling app launch...");
+    } catch (error) {
+      console.error("Failed to cancel:", error);
     }
   };
 
@@ -1136,17 +1161,23 @@ export default function BayController() {
 
           {/* Manual controls */}
           <div className="flex gap-2">
-            <Button 
-              onClick={launchApps} 
-              disabled={isLaunchingApps || appsRunning || !isElectron}
-              className="flex-1"
-            >
-              {isLaunchingApps ? (
-                <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Launching...</>
-              ) : (
-                <><Play className="w-4 h-4 mr-2" /> Launch Apps</>
-              )}
-            </Button>
+            {isLaunchingApps ? (
+              <Button 
+                onClick={cancelAppLaunch}
+                variant="destructive"
+                className="flex-1"
+              >
+                <XCircle className="w-4 h-4 mr-2" /> Cancel Launch
+              </Button>
+            ) : (
+              <Button 
+                onClick={launchApps} 
+                disabled={appsRunning || !isElectron}
+                className="flex-1"
+              >
+                <Play className="w-4 h-4 mr-2" /> Launch Apps
+              </Button>
+            )}
             <Button 
               onClick={closeApps} 
               disabled={!appsRunning || !isElectron}

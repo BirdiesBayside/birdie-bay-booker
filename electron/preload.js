@@ -41,8 +41,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Focus a window
   focusWindow: (hwnd) => ipcRenderer.invoke('focus-window', { hwnd }),
   
-  // Run the full app launch sequence (GSPRO -> API minimize -> Protee Labs -> refocus)
+  // Run the full app launch sequence (GSPRO -> Protee Labs -> minimize connector -> refocus)
   runAppSequence: (config) => ipcRenderer.invoke('run-app-sequence', config),
+  
+  // Cancel the app launch sequence
+  cancelAppSequence: () => ipcRenderer.invoke('cancel-app-sequence'),
   
   // Close apps by process name
   closeApps: (appNames) => ipcRenderer.invoke('close-apps', { appNames })

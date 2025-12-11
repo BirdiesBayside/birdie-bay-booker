@@ -458,29 +458,45 @@ async function waitForWindow(titlePattern, timeoutMs = 30000) {
   return { success: false, error: 'Timeout waiting for window' };
 }
 
+// Cancellation flag for app launch sequence
+let appLaunchCancelled = false;
+
+// Cancel the app launch sequence
+function cancelAppLaunch() {
+  appLaunchCancelled = true;
+  console.log('App launch sequence cancelled by user');
+}
+
 // Run the full app launch sequence
+// Order: 1) GSPRO, 2) Protee Labs immediately, 3) Minimize "Protee United VX" connector, 4) Refocus GSPRO
 async function runAppLaunchSequence(config) {
   const {
     gsproPath,
     proteeLabsPath,
     gsproDisplay, // Display index for GSPRO (Screen 2/3)
     proteeDisplay, // Display index for Protee (Screen 1 touchscreen)
-    apiWindowTimeout = 30000,
     postLaunchDelay = 5000
   } = config;
   
   const results = [];
+  appLaunchCancelled = false; // Reset cancellation flag
   
   try {
     // Step 1: Launch GSPRO
     console.log('Step 1: Launching GSPRO...');
     results.push({ step: 'launch_gspro', status: 'starting' });
+    
+    if (appLaunchCancelled) return { success: false, cancelled: true, results };
+    
     const gsproLaunch = await launchApp(gsproPath);
     results.push({ step: 'launch_gspro', status: 'done', result: gsproLaunch });
     
     // Wait for GSPRO window to appear
     console.log('Waiting for GSPRO window...');
     const gsproWindow = await waitForWindow('GSPro', 60000);
+    
+    if (appLaunchCancelled) return { success: false, cancelled: true, results };
+    
     if (gsproWindow.success) {
       console.log('GSPRO window found, moving to display', gsproDisplay);
       await moveWindowToDisplay(gsproWindow.hwnd, gsproDisplay, true);
@@ -489,28 +505,21 @@ async function runAppLaunchSequence(config) {
       results.push({ step: 'move_gspro', status: 'warning', message: 'GSPRO window not found' });
     }
     
-    // Step 2: Wait for and minimize API Window
-    console.log('Step 2: Waiting for API Window...');
-    results.push({ step: 'wait_api_window', status: 'starting' });
-    const apiWindow = await waitForWindow('API', apiWindowTimeout);
-    if (apiWindow.success) {
-      console.log('API Window found, minimizing...');
-      await minimizeWindow(apiWindow.hwnd);
-      results.push({ step: 'minimize_api', status: 'done', hwnd: apiWindow.hwnd });
-    } else {
-      results.push({ step: 'minimize_api', status: 'warning', message: 'API Window not found' });
-    }
-    
-    // Step 3: Launch Protee Labs
-    console.log('Step 3: Launching Protee Labs...');
-    await new Promise(resolve => setTimeout(resolve, 2000)); // Small delay
+    // Step 2: Launch Protee Labs IMMEDIATELY after GSPRO
+    console.log('Step 2: Launching Protee Labs...');
     results.push({ step: 'launch_protee', status: 'starting' });
+    
+    if (appLaunchCancelled) return { success: false, cancelled: true, results };
+    
     const proteeLaunch = await launchApp(proteeLabsPath);
     results.push({ step: 'launch_protee', status: 'done', result: proteeLaunch });
     
     // Wait for Protee Labs window
     console.log('Waiting for Protee Labs window...');
     const proteeWindow = await waitForWindow('Protee', 30000);
+    
+    if (appLaunchCancelled) return { success: false, cancelled: true, results };
+    
     if (proteeWindow.success) {
       console.log('Protee Labs window found, moving to display', proteeDisplay);
       await moveWindowToDisplay(proteeWindow.hwnd, proteeDisplay, true);
@@ -519,9 +528,27 @@ async function runAppLaunchSequence(config) {
       results.push({ step: 'move_protee', status: 'warning', message: 'Protee Labs window not found' });
     }
     
+    // Step 3: Wait for and minimize "Protee United VX" connector window
+    console.log('Step 3: Waiting for Protee United VX connector window...');
+    results.push({ step: 'wait_connector_window', status: 'starting' });
+    
+    if (appLaunchCancelled) return { success: false, cancelled: true, results };
+    
+    const connectorWindow = await waitForWindow('Protee United VX', 30000);
+    if (connectorWindow.success) {
+      console.log('Protee United VX window found, minimizing...');
+      await minimizeWindow(connectorWindow.hwnd);
+      results.push({ step: 'minimize_connector', status: 'done', hwnd: connectorWindow.hwnd });
+    } else {
+      results.push({ step: 'minimize_connector', status: 'warning', message: 'Protee United VX window not found' });
+    }
+    
     // Step 4: Refocus GSPRO
     console.log('Step 4: Refocusing GSPRO...');
     await new Promise(resolve => setTimeout(resolve, postLaunchDelay));
+    
+    if (appLaunchCancelled) return { success: false, cancelled: true, results };
+    
     if (gsproWindow.success) {
       await focusWindow(gsproWindow.hwnd);
       results.push({ step: 'focus_gspro', status: 'done' });
@@ -606,6 +633,11 @@ ipcMain.handle('focus-window', async (event, { hwnd }) => {
 
 ipcMain.handle('run-app-sequence', async (event, config) => {
   return await runAppLaunchSequence(config);
+});
+
+ipcMain.handle('cancel-app-sequence', async () => {
+  cancelAppLaunch();
+  return { success: true };
 });
 
 ipcMain.handle('close-apps', async (event, { appNames }) => {
