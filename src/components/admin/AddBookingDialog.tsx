@@ -141,10 +141,10 @@ export function AddBookingDialog({
       setPlayerCount("1");
       setSelectedCustomerId("");
       setCustomerSearch("");
+      setCustomers([]);
       setIsAddingNewCustomer(false);
       setBlockReason("");
       resetNewCustomerForm();
-      fetchCustomers();
     }
   }, [open, initialDate, initialTime, initialBayId]);
 
@@ -156,18 +156,21 @@ export function AddBookingDialog({
   };
 
   const fetchCustomers = async (search?: string) => {
-    setIsLoadingCustomers(true);
-    
-    let query = supabase
-      .from("profiles")
-      .select("user_id, first_name, last_name, email, phone, membership_tier")
-      .order("first_name");
-    
-    if (search && search.length >= 2) {
-      query = query.or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%,email.ilike.%${search}%`);
+    // Only fetch if there's a search term of at least 2 characters
+    if (!search || search.length < 2) {
+      setCustomers([]);
+      setIsLoadingCustomers(false);
+      return;
     }
     
-    const { data, error } = await query.limit(50);
+    setIsLoadingCustomers(true);
+    
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("user_id, first_name, last_name, email, phone, membership_tier")
+      .or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%,email.ilike.%${search}%`)
+      .order("first_name")
+      .limit(10);
     
     if (!error && data) {
       setCustomers(data);
@@ -180,8 +183,8 @@ export function AddBookingDialog({
     setCustomerSearch(value);
     if (value.length >= 2) {
       fetchCustomers(value);
-    } else if (value.length === 0) {
-      fetchCustomers();
+    } else {
+      setCustomers([]);
     }
   };
 
@@ -547,12 +550,13 @@ export function AddBookingDialog({
                     onChange={(e) => handleCustomerSearch(e.target.value)}
                   />
                   
-                  <div className="max-h-40 overflow-y-auto border rounded-md">
-                    {isLoadingCustomers ? (
-                      <div className="p-3 text-sm text-muted-foreground text-center">Loading...</div>
-                    ) : customers.length === 0 ? (
-                      <div className="p-3 text-sm text-muted-foreground text-center">No customers found</div>
-                    ) : (
+                  {customerSearch.length >= 2 && (
+                    <div className="max-h-40 overflow-y-auto border rounded-md">
+                      {isLoadingCustomers ? (
+                        <div className="p-3 text-sm text-muted-foreground text-center">Searching...</div>
+                      ) : customers.length === 0 ? (
+                        <div className="p-3 text-sm text-muted-foreground text-center">No customers found</div>
+                      ) : (
                       customers.map((customer) => (
                         <button
                           key={customer.user_id}
@@ -569,9 +573,10 @@ export function AddBookingDialog({
                             {customer.membership_tier}
                           </Badge>
                         </button>
-                      ))
-                    )}
-                  </div>
+                        ))
+                      )}
+                    </div>
+                  )}
 
                   <Button
                     type="button"
