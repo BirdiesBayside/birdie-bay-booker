@@ -419,6 +419,48 @@ export type Database = {
         }
         Relationships: []
       }
+      pricing_config: {
+        Row: {
+          created_at: string
+          display_name: string
+          display_order: number
+          hourly_rate: number
+          id: string
+          is_subscription: boolean
+          stripe_price_id: string | null
+          stripe_product_id: string | null
+          tier: string
+          updated_at: string
+          weekly_subscription_price: number | null
+        }
+        Insert: {
+          created_at?: string
+          display_name: string
+          display_order?: number
+          hourly_rate: number
+          id?: string
+          is_subscription?: boolean
+          stripe_price_id?: string | null
+          stripe_product_id?: string | null
+          tier: string
+          updated_at?: string
+          weekly_subscription_price?: number | null
+        }
+        Update: {
+          created_at?: string
+          display_name?: string
+          display_order?: number
+          hourly_rate?: number
+          id?: string
+          is_subscription?: boolean
+          stripe_price_id?: string | null
+          stripe_product_id?: string | null
+          tier?: string
+          updated_at?: string
+          weekly_subscription_price?: number | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
