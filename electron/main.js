@@ -567,7 +567,7 @@ async function watchForProteeConnector(durationMs = 120000) {
 }
 
 // Run the full app launch sequence
-// Order: 1) GSPRO, 2) Start background watcher for Protee United VX, 3) Wait 10s then launch Protee Labs, 4) Refocus GSPRO
+// Order: 1) GSPRO, 2) Wait for window then move to correct display, 3) Launch Protee Labs, 4) Move to display, 5) Refocus GSPRO
 async function runAppLaunchSequence(config) {
   const {
     gsproPath,
@@ -581,8 +581,8 @@ async function runAppLaunchSequence(config) {
   console.log('Full config received:', JSON.stringify(config, null, 2));
   console.log('GSPRO Path:', gsproPath);
   console.log('Protee Labs Path:', proteeLabsPath);
-  console.log('GSPRO Display:', gsproDisplay);
-  console.log('Protee Display:', proteeDisplay);
+  console.log('GSPRO Display Index:', gsproDisplay);
+  console.log('Protee Display Index:', proteeDisplay);
   
   const results = [];
   appLaunchCancelled = false; // Reset cancellation flag
@@ -598,30 +598,77 @@ async function runAppLaunchSequence(config) {
     console.log('GSPRO launch result:', gsproLaunch);
     results.push({ step: 'launch_gspro', status: 'done', result: gsproLaunch });
     
-    // Step 2: Brief delay then launch Protee Labs immediately
-    console.log('Step 2: Brief delay (3 seconds) then launching Protee Labs...');
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    // Step 2: Wait for GSPRO window then move to correct display
+    console.log('Step 2: Waiting for GSPRO window to appear...');
+    await new Promise(resolve => setTimeout(resolve, 5000)); // Give it 5 seconds to start
     
     if (appLaunchCancelled) return { success: false, cancelled: true, results };
     
-    console.log('Launching Protee Labs from path:', proteeLabsPath);
+    const gsproWindow = await waitForWindow('GSPro', 30000);
+    if (gsproWindow.success) {
+      console.log(`GSPRO window found (hwnd: ${gsproWindow.hwnd}), moving to display ${gsproDisplay}...`);
+      const moveResult = await moveWindowToDisplay(gsproWindow.hwnd, gsproDisplay, true);
+      console.log('GSPRO move result:', moveResult);
+      results.push({ step: 'move_gspro', status: moveResult.success ? 'done' : 'failed', result: moveResult });
+    } else {
+      console.log('GSPRO window not found for positioning');
+      results.push({ step: 'move_gspro', status: 'warning', message: 'GSPRO window not found' });
+    }
+    
+    // Step 3: Launch Protee Labs
+    console.log('Step 3: Launching Protee Labs from path:', proteeLabsPath);
     results.push({ step: 'launch_protee', status: 'starting' });
+    
+    if (appLaunchCancelled) return { success: false, cancelled: true, results };
+    
+    // More detailed logging for Protee Labs launch
+    console.log('Protee Labs path details:');
+    console.log('  - Path:', proteeLabsPath);
+    console.log('  - Exists:', fs.existsSync(proteeLabsPath));
     
     const proteeLaunch = await launchApp(proteeLabsPath);
     console.log('Protee Labs launch result:', proteeLaunch);
-    results.push({ step: 'launch_protee', status: 'done', result: proteeLaunch });
+    results.push({ step: 'launch_protee', status: proteeLaunch.success ? 'done' : 'failed', result: proteeLaunch });
     
-    // Step 3: Post-launch delay then focus GSPro
-    console.log('Step 3: Post-launch delay before focusing GSPro...');
+    // Step 4: Wait for Protee Labs window then move to correct display
+    if (proteeLaunch.success) {
+      console.log('Step 4: Waiting for Protee Labs window...');
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      
+      // Try multiple window title patterns for Protee Labs
+      const proteeSearchTerms = ['ProTee', 'Protee', 'protee', 'Labs', 'ProteeLabs'];
+      let proteeWindow = null;
+      
+      for (const term of proteeSearchTerms) {
+        proteeWindow = await findWindowByTitle(term);
+        if (proteeWindow.success) {
+          console.log(`Protee window found with term "${term}" (hwnd: ${proteeWindow.hwnd})`);
+          break;
+        }
+      }
+      
+      if (proteeWindow && proteeWindow.success) {
+        console.log(`Moving Protee to display ${proteeDisplay}...`);
+        const moveResult = await moveWindowToDisplay(proteeWindow.hwnd, proteeDisplay, true);
+        console.log('Protee move result:', moveResult);
+        results.push({ step: 'move_protee', status: moveResult.success ? 'done' : 'failed', result: moveResult });
+      } else {
+        console.log('Protee Labs window not found for positioning');
+        results.push({ step: 'move_protee', status: 'warning', message: 'Protee window not found' });
+      }
+    }
+    
+    // Step 5: Post-launch delay then focus GSPro
+    console.log('Step 5: Post-launch delay before focusing GSPro...');
     await new Promise(resolve => setTimeout(resolve, postLaunchDelay));
     
     if (appLaunchCancelled) return { success: false, cancelled: true, results };
     
-    // Step 4: Focus GSPro to bring it to front (covers API connector window)
-    console.log('Step 4: Focusing GSPro window...');
-    const gsproWindow = await findWindowByTitle('GSPro');
-    if (gsproWindow.success) {
-      await focusWindow(gsproWindow.hwnd);
+    // Focus GSPro to bring it to front
+    console.log('Step 6: Focusing GSPro window...');
+    const gsproWindowFinal = await findWindowByTitle('GSPro');
+    if (gsproWindowFinal.success) {
+      await focusWindow(gsproWindowFinal.hwnd);
       console.log('GSPro focused successfully');
       results.push({ step: 'focus_gspro', status: 'done' });
     } else {
@@ -634,6 +681,48 @@ async function runAppLaunchSequence(config) {
     console.error('App launch sequence failed:', error.message);
     return { success: false, error: error.message, results };
   }
+}
+
+// Check window positions and move to correct displays if needed
+async function checkAndCorrectWindowPositions(gsproDisplay, proteeDisplay) {
+  const results = [];
+  
+  console.log('=== CHECKING WINDOW POSITIONS ===');
+  console.log('Expected GSPRO display:', gsproDisplay);
+  console.log('Expected Protee display:', proteeDisplay);
+  
+  const displays = screen.getAllDisplays();
+  
+  // Check GSPRO
+  const gsproWindow = await findWindowByTitle('GSPro');
+  if (gsproWindow.success) {
+    console.log(`Found GSPRO window (hwnd: ${gsproWindow.hwnd}), moving to display ${gsproDisplay}...`);
+    const moveResult = await moveWindowToDisplay(gsproWindow.hwnd, gsproDisplay, true);
+    results.push({ app: 'GSPRO', found: true, moved: moveResult.success, display: gsproDisplay });
+  } else {
+    console.log('GSPRO window not found');
+    results.push({ app: 'GSPRO', found: false });
+  }
+  
+  // Check Protee Labs
+  const proteeSearchTerms = ['ProTee', 'Protee', 'protee', 'Labs'];
+  let proteeWindow = null;
+  
+  for (const term of proteeSearchTerms) {
+    proteeWindow = await findWindowByTitle(term);
+    if (proteeWindow.success) break;
+  }
+  
+  if (proteeWindow && proteeWindow.success) {
+    console.log(`Found Protee window (hwnd: ${proteeWindow.hwnd}), moving to display ${proteeDisplay}...`);
+    const moveResult = await moveWindowToDisplay(proteeWindow.hwnd, proteeDisplay, true);
+    results.push({ app: 'Protee', found: true, moved: moveResult.success, display: proteeDisplay });
+  } else {
+    console.log('Protee window not found');
+    results.push({ app: 'Protee', found: false });
+  }
+  
+  return { success: true, results };
 }
 
 // Close apps gracefully
@@ -708,4 +797,8 @@ ipcMain.handle('cancel-app-sequence', async () => {
 
 ipcMain.handle('close-apps', async (event, { appNames }) => {
   return await closeApps(appNames);
+});
+
+ipcMain.handle('check-window-positions', async (event, { gsproDisplay, proteeDisplay }) => {
+  return await checkAndCorrectWindowPositions(gsproDisplay, proteeDisplay);
 });

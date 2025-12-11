@@ -85,6 +85,7 @@ declare global {
       runAppSequence: (config: { gsproPath: string; proteeLabsPath: string; gsproDisplay: number; proteeDisplay: number; postLaunchDelay?: number }) => Promise<{ success: boolean; cancelled?: boolean; results?: any[]; error?: string }>;
       cancelAppSequence: () => Promise<{ success: boolean }>;
       closeApps: (appNames: string[]) => Promise<{ success: boolean; results?: any[]; error?: string }>;
+      checkWindowPositions: (gsproDisplay: number, proteeDisplay: number) => Promise<{ success: boolean; results?: { app: string; found: boolean; moved?: boolean; display?: number }[]; error?: string }>;
       // Security / Quit control
       confirmQuit: () => Promise<{ success: boolean }>;
       setAuthenticated: (authenticated: boolean) => Promise<{ success: boolean }>;
@@ -968,6 +969,39 @@ export default function BayController() {
     }
   };
 
+  const fixWindowPositions = async () => {
+    if (!isElectron || !window.electronAPI) {
+      toast.error("Window control requires desktop app");
+      return;
+    }
+
+    try {
+      // Find display indices from signatures
+      const gsproDisplayIndex = displays.findIndex(d => getDisplaySignature(d) === appLaunchConfig.gsproDisplaySignature);
+      const proteeDisplayIndex = displays.findIndex(d => getDisplaySignature(d) === appLaunchConfig.proteeDisplaySignature);
+      
+      toast.info("Checking and fixing window positions...");
+      
+      const result = await window.electronAPI.checkWindowPositions(
+        gsproDisplayIndex >= 0 ? gsproDisplayIndex : 0,
+        proteeDisplayIndex >= 0 ? proteeDisplayIndex : 0
+      );
+      
+      if (result.success && result.results) {
+        const messages = result.results.map(r => {
+          if (!r.found) return `${r.app}: Not found`;
+          if (r.moved) return `${r.app}: Moved to display ${(r.display || 0) + 1}`;
+          return `${r.app}: Already correct`;
+        });
+        toast.success(messages.join(', '));
+      } else {
+        toast.error(`Failed: ${result.error}`);
+      }
+    } catch (error) {
+      toast.error("Failed to fix window positions");
+    }
+  };
+
   const updateAppConfig = (key: keyof AppLaunchConfig, value: any) => {
     setAppLaunchConfig(prev => ({ ...prev, [key]: value }));
   };
@@ -1421,6 +1455,15 @@ export default function BayController() {
             </Button>
           </div>
 
+          {/* Fix window positions button */}
+          <Button 
+            onClick={fixWindowPositions}
+            disabled={!isElectron}
+            variant="secondary"
+            className="w-full"
+          >
+            <Monitor className="w-4 h-4 mr-2" /> Fix Window Positions
+          </Button>
 
           {!isElectron && (
             <p className="text-xs text-amber-500 text-center">
