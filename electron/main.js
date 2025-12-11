@@ -549,17 +549,25 @@ async function runAppLaunchSequence(config) {
     postLaunchDelay = 5000
   } = config;
   
+  console.log('=== APP LAUNCH SEQUENCE STARTED ===');
+  console.log('Full config received:', JSON.stringify(config, null, 2));
+  console.log('GSPRO Path:', gsproPath);
+  console.log('Protee Labs Path:', proteeLabsPath);
+  console.log('GSPRO Display:', gsproDisplay);
+  console.log('Protee Display:', proteeDisplay);
+  
   const results = [];
   appLaunchCancelled = false; // Reset cancellation flag
   
   try {
     // Step 1: Launch GSPRO
-    console.log('Step 1: Launching GSPRO...');
+    console.log('Step 1: Launching GSPRO from path:', gsproPath);
     results.push({ step: 'launch_gspro', status: 'starting' });
     
     if (appLaunchCancelled) return { success: false, cancelled: true, results };
     
     const gsproLaunch = await launchApp(gsproPath);
+    console.log('GSPRO launch result:', gsproLaunch);
     results.push({ step: 'launch_gspro', status: 'done', result: gsproLaunch });
     
     // Wait for GSPRO window to appear
@@ -575,6 +583,7 @@ async function runAppLaunchSequence(config) {
       gsproHwnd = gsproWindow.hwnd;
       results.push({ step: 'move_gspro', status: 'done', hwnd: gsproWindow.hwnd });
     } else {
+      console.log('GSPRO window NOT found after 60 seconds');
       results.push({ step: 'move_gspro', status: 'warning', message: 'GSPRO window not found' });
     }
     
@@ -595,14 +604,19 @@ async function runAppLaunchSequence(config) {
     
     // Step 3: Wait 10 seconds then launch Protee Labs
     console.log('Step 3: Waiting 10 seconds before launching Protee Labs...');
+    console.log('>>> Protee Labs path that will be used:', proteeLabsPath);
     await new Promise(resolve => setTimeout(resolve, 10000));
     
-    if (appLaunchCancelled) return { success: false, cancelled: true, results };
+    if (appLaunchCancelled) {
+      console.log('Launch cancelled during wait');
+      return { success: false, cancelled: true, results };
+    }
     
-    console.log('Launching Protee Labs...');
+    console.log('>>> NOW LAUNCHING PROTEE LABS from path:', proteeLabsPath);
     results.push({ step: 'launch_protee', status: 'starting' });
     
     const proteeLaunch = await launchApp(proteeLabsPath);
+    console.log('>>> Protee Labs launch result:', proteeLaunch);
     results.push({ step: 'launch_protee', status: 'done', result: proteeLaunch });
     
     // Wait for Protee Labs window
