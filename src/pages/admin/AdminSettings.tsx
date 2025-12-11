@@ -61,6 +61,24 @@ const TEMPLATE_TAGS: Record<string, { tag: string; description: string }[]> = {
     { tag: "{new_balance}", description: "New total credit balance (e.g. $75.00)" },
     { tag: "{previous_balance}", description: "Previous credit balance (e.g. $25.00)" },
   ],
+  welcome: [
+    { tag: "{first_name}", description: "Customer's first name" },
+    { tag: "{last_name}", description: "Customer's last name" },
+    { tag: "{email}", description: "Customer's email address" },
+  ],
+  membership_activated: [
+    { tag: "{first_name}", description: "Customer's first name" },
+    { tag: "{last_name}", description: "Customer's last name" },
+    { tag: "{email}", description: "Customer's email address" },
+    { tag: "{tier_name}", description: "Membership tier name (e.g. Birdie)" },
+    { tag: "{weekly_price}", description: "Weekly subscription price (e.g. $20.00)" },
+  ],
+  membership_cancelled: [
+    { tag: "{first_name}", description: "Customer's first name" },
+    { tag: "{last_name}", description: "Customer's last name" },
+    { tag: "{email}", description: "Customer's email address" },
+    { tag: "{tier_name}", description: "Previous membership tier name" },
+  ],
 };
 
 interface EmailTemplateDB {

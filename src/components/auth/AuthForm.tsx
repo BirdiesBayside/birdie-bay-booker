@@ -118,7 +118,7 @@ export function AuthForm() {
           return;
         }
 
-        const { error } = await supabase.auth.signUp({
+        const { data: signUpData, error } = await supabase.auth.signUp({
           email: formData.email.trim(),
           password: formData.password,
           options: {
@@ -146,6 +146,20 @@ export function AuthForm() {
             });
           }
         } else {
+          // Send welcome email
+          if (signUpData.user) {
+            supabase.functions.invoke("send-welcome-email", {
+              body: {
+                user_id: signUpData.user.id,
+                email: formData.email.trim(),
+                first_name: formData.firstName.trim(),
+                last_name: formData.lastName.trim(),
+              },
+            }).catch((err) => {
+              console.error("Failed to send welcome email:", err);
+            });
+          }
+          
           toast({
             title: "Welcome to Birdies!",
             description: "Your account has been created successfully.",
