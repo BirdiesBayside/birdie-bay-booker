@@ -55,6 +55,36 @@ export type Database = {
           },
         ]
       }
+      bay_commands: {
+        Row: {
+          bay_number: number
+          command: string
+          created_at: string
+          created_by: string | null
+          executed_at: string | null
+          id: string
+          status: string
+        }
+        Insert: {
+          bay_number: number
+          command: string
+          created_at?: string
+          created_by?: string | null
+          executed_at?: string | null
+          id?: string
+          status?: string
+        }
+        Update: {
+          bay_number?: number
+          command?: string
+          created_at?: string
+          created_by?: string | null
+          executed_at?: string | null
+          id?: string
+          status?: string
+        }
+        Relationships: []
+      }
       bay_devices: {
         Row: {
           app_version: string | null

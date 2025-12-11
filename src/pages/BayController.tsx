@@ -434,6 +434,71 @@ export default function BayController() {
     }
   }, [selectedBay]);
 
+  // Subscribe to admin commands from bay_commands table
+  useEffect(() => {
+    if (!selectedBay) return;
+
+    console.log(`Setting up admin command subscription for bay ${selectedBay}`);
+
+    // Subscribe to new commands for this bay
+    const commandChannel = supabase
+      .channel(`bay-${selectedBay}-commands`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'bay_commands',
+          filter: `bay_number=eq.${selectedBay}`
+        },
+        async (payload) => {
+          const command = payload.new as { id: string; command: string; status: string };
+          console.log('Received admin command:', command);
+
+          if (command.status !== 'pending') {
+            console.log('Command already processed, ignoring');
+            return;
+          }
+
+          // Execute the command
+          if (command.command === 'on') {
+            console.log('Admin command: Turn ON plugs');
+            setManualOverride(true); // Set manual override so it doesn't auto-switch back
+            // Use a slight delay to ensure state is set
+            setTimeout(async () => {
+              await turnOnPlugs(true, true);
+              // Update command status to executed
+              await supabase
+                .from('bay_commands')
+                .update({ status: 'executed', executed_at: new Date().toISOString() })
+                .eq('id', command.id);
+            }, 100);
+          } else if (command.command === 'off') {
+            console.log('Admin command: Turn OFF plugs');
+            setManualOverride(true); // Set manual override so it doesn't auto-switch back
+            setTimeout(async () => {
+              await turnOffPlugs(true, true);
+              // Update command status to executed
+              await supabase
+                .from('bay_commands')
+                .update({ status: 'executed', executed_at: new Date().toISOString() })
+                .eq('id', command.id);
+            }, 100);
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('Admin command subscription status:', status);
+        if (status === 'SUBSCRIBED') {
+          console.log('Successfully subscribed to admin commands');
+        }
+      });
+
+    return () => {
+      supabase.removeChannel(commandChannel);
+    };
+  }, [selectedBay]);
+
   // Save plug assignments
   useEffect(() => {
     localStorage.setItem("bayController_bayPlugAssignments", JSON.stringify(bayPlugAssignments));

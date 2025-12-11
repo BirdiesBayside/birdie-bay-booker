@@ -238,13 +238,27 @@ export default function AdminBayControl() {
   };
 
   const toggleBayPower = async (bayNumber: number, turnOn: boolean) => {
-    // This would integrate with the bay controller API or TAPO plugs
-    // For now, show a toast indicating the action
-    toast.info(`Bay ${bayNumber} plugs ${turnOn ? "turning ON" : "turning OFF"}...`);
-    
-    // TODO: Integrate with actual plug control
-    // This could call an edge function that communicates with the bay controller
-    // or directly controls TAPO plugs via cloud API
+    try {
+      // Insert command into bay_commands table for bay controller to pick up
+      const { error } = await supabase
+        .from("bay_commands")
+        .insert({
+          bay_number: bayNumber,
+          command: turnOn ? "on" : "off",
+          status: "pending"
+        });
+
+      if (error) {
+        console.error("Error sending bay command:", error);
+        toast.error(`Failed to send command to Bay ${bayNumber}`);
+        return;
+      }
+
+      toast.success(`Command sent: Bay ${bayNumber} plugs ${turnOn ? "ON" : "OFF"}`);
+    } catch (err) {
+      console.error("Error sending bay command:", err);
+      toast.error(`Failed to send command to Bay ${bayNumber}`);
+    }
   };
 
   const formatTime = (time: string) => {
