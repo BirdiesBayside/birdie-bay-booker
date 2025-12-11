@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Tray, Menu, ipcMain, screen } = require('electron');
+const { app, BrowserWindow, Tray, Menu, ipcMain, screen, dialog } = require('electron');
 const path = require('path');
 const { exec, spawn } = require('child_process');
 const { promisify } = require('util');
@@ -7,6 +7,7 @@ const execAsync = promisify(exec);
 let mainWindow;
 let tray;
 let tapoClient = null;
+let isAppAuthenticated = false; // Track if user has entered correct password
 
 const isDev = process.env.NODE_ENV === 'development';
 
@@ -27,7 +28,9 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js')
     },
     autoHideMenuBar: true,
-    show: false
+    show: false,
+    // Prevent closing via keyboard shortcuts
+    closable: true
   });
 
   // Load the app
@@ -54,11 +57,14 @@ function createWindow() {
     mainWindow.show();
   });
 
-  // Minimize to tray instead of closing
+  // Minimize to tray instead of closing - ALWAYS prevent close
   mainWindow.on('close', (event) => {
     if (!app.isQuitting) {
       event.preventDefault();
       mainWindow.hide();
+      // Reset authentication when hiding - forces re-auth on next show
+      isAppAuthenticated = false;
+      mainWindow.webContents.send('request-lock');
     }
     return false;
   });
@@ -70,14 +76,20 @@ function createTray() {
   const contextMenu = Menu.buildFromTemplate([
     { 
       label: 'Show Bay Controller', 
-      click: () => mainWindow.show() 
+      click: () => {
+        // Always reset auth and show - password will be required
+        isAppAuthenticated = false;
+        mainWindow.webContents.send('request-lock');
+        mainWindow.show();
+      }
     },
     { type: 'separator' },
     { 
       label: 'Quit', 
       click: () => {
-        app.isQuitting = true;
-        app.quit();
+        // Request password verification before quit
+        mainWindow.webContents.send('request-quit-password');
+        mainWindow.show();
       }
     }
   ]);
@@ -86,6 +98,9 @@ function createTray() {
   tray.setContextMenu(contextMenu);
   
   tray.on('double-click', () => {
+    // Always reset auth and show - password will be required
+    isAppAuthenticated = false;
+    mainWindow.webContents.send('request-lock');
     mainWindow.show();
   });
 }
@@ -102,15 +117,27 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
+  // Do nothing - prevent app from closing
+  // App should only quit via authenticated quit
 });
 
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow();
   }
+});
+
+// Handle authenticated quit from renderer
+ipcMain.handle('confirm-quit', async () => {
+  app.isQuitting = true;
+  app.quit();
+  return { success: true };
+});
+
+// Handle authentication state update from renderer
+ipcMain.handle('set-authenticated', async (event, authenticated) => {
+  isAppAuthenticated = authenticated;
+  return { success: true };
 });
 
 // Initialize TAPO connection

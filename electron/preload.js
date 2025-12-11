@@ -48,5 +48,29 @@ contextBridge.exposeInMainWorld('electronAPI', {
   cancelAppSequence: () => ipcRenderer.invoke('cancel-app-sequence'),
   
   // Close apps by process name
-  closeApps: (appNames) => ipcRenderer.invoke('close-apps', { appNames })
+  closeApps: (appNames) => ipcRenderer.invoke('close-apps', { appNames }),
+  
+  // =====================================================
+  // SECURITY / QUIT CONTROL APIs
+  // =====================================================
+  
+  // Confirm quit (after password verification)
+  confirmQuit: () => ipcRenderer.invoke('confirm-quit'),
+  
+  // Update authentication state in main process
+  setAuthenticated: (authenticated) => ipcRenderer.invoke('set-authenticated', authenticated),
+  
+  // Listen for lock request from main process (when window shown from tray)
+  onRequestLock: (callback) => {
+    ipcRenderer.on('request-lock', () => callback());
+    // Return cleanup function
+    return () => ipcRenderer.removeAllListeners('request-lock');
+  },
+  
+  // Listen for quit password request from main process
+  onRequestQuitPassword: (callback) => {
+    ipcRenderer.on('request-quit-password', () => callback());
+    // Return cleanup function
+    return () => ipcRenderer.removeAllListeners('request-quit-password');
+  }
 });
