@@ -67,7 +67,7 @@ interface CustomerFilter {
 }
 
 const MEMBERSHIP_OPTIONS = [
-  { value: "all", label: "All Members" },
+  { value: "all", label: "All Customers" },
   { value: "visitor", label: "Visitor" },
   { value: "par", label: "Par" },
   { value: "birdie", label: "Birdie" },
