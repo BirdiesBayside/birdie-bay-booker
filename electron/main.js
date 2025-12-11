@@ -277,23 +277,26 @@ async function getDisplayInfo() {
   }));
 }
 
-// Launch an application
+// Launch an application using cmd start for reliable path handling with spaces
 async function launchApp(exePath) {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     try {
       console.log(`Launching: ${exePath}`);
-      // Quote the path to handle spaces in directory/file names
-      const quotedPath = `"${exePath}"`;
-      const child = spawn(quotedPath, [], { 
-        detached: true, 
-        stdio: 'ignore',
-        shell: true
+      // Use cmd /c start "" "path" for reliable handling of paths with spaces
+      const command = `cmd /c start "" "${exePath}"`;
+      console.log(`Executing: ${command}`);
+      exec(command, (error, stdout, stderr) => {
+        if (error) {
+          console.error(`Launch error: ${error.message}`);
+          resolve({ success: false, error: error.message });
+        } else {
+          console.log(`Launch successful for: ${exePath}`);
+          resolve({ success: true });
+        }
       });
-      child.unref();
-      resolve({ success: true, pid: child.pid });
     } catch (error) {
       console.error(`Failed to launch ${exePath}:`, error.message);
-      reject({ success: false, error: error.message });
+      resolve({ success: false, error: error.message });
     }
   });
 }
@@ -469,30 +472,42 @@ function cancelAppLaunch() {
   console.log('App launch sequence cancelled by user');
 }
 
-// Background watcher for Protee United VX - runs independently
+// Background watcher for ProTee United VX - runs independently
+// Searches for multiple title variations to handle case differences
 async function watchForProteeConnector(durationMs = 120000) {
   const startTime = Date.now();
-  console.log('Starting background watcher for Protee United VX (2 minute window)...');
+  const searchTerms = ['ProTee United VX', 'Protee United VX', 'protee united vx', 'United VX'];
+  console.log('Starting background watcher for ProTee United VX (2 minute window)...');
+  console.log('Will search for any of:', searchTerms);
   
   while (Date.now() - startTime < durationMs) {
     if (appLaunchCancelled) {
-      console.log('Protee United VX watcher cancelled');
+      console.log('ProTee United VX watcher cancelled');
       return { success: false, cancelled: true };
     }
     
-    const result = await findWindowByTitle('Protee United VX');
-    if (result.success) {
-      console.log('Protee United VX window found, minimizing...');
-      await minimizeWindow(result.hwnd);
-      console.log('Protee United VX minimized successfully');
-      return { success: true, hwnd: result.hwnd };
+    // Try each search term
+    for (const term of searchTerms) {
+      const result = await findWindowByTitle(term);
+      if (result.success) {
+        console.log(`ProTee United VX window found (matched: "${term}"), title: "${result.title}", minimizing...`);
+        await minimizeWindow(result.hwnd);
+        console.log('ProTee United VX minimized successfully');
+        return { success: true, hwnd: result.hwnd };
+      }
+    }
+    
+    // Log visible windows periodically for debugging
+    const elapsed = Date.now() - startTime;
+    if (elapsed % 10000 < 2000) { // Every ~10 seconds
+      console.log(`ProTee United VX watcher: ${Math.round(elapsed/1000)}s elapsed, still searching...`);
     }
     
     // Poll every 2 seconds
     await new Promise(resolve => setTimeout(resolve, 2000));
   }
   
-  console.log('Protee United VX watcher timed out after 2 minutes');
+  console.log('ProTee United VX watcher timed out after 2 minutes');
   return { success: false, error: 'Timeout - window not found' };
 }
 
