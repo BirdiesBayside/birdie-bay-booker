@@ -317,14 +317,15 @@ async function getDisplayInfo() {
   }));
 }
 
-// Launch an application - TRUE fire-and-forget using spawn with detached
-async function launchApp(exePath) {
+// Launch an application - use cmd /c start for reliable Windows path handling
+// Returns immediately without waiting for the process to complete
+function launchApp(exePath) {
   console.log(`=== LAUNCH APP CALLED ===`);
   console.log(`Path received: "${exePath}"`);
   
   if (!exePath || typeof exePath !== 'string' || exePath.trim() === '') {
     console.error('ERROR: exePath is empty or invalid');
-    return { success: false, error: 'Path is empty or invalid' };
+    return Promise.resolve({ success: false, error: 'Path is empty or invalid' });
   }
   
   const trimmedPath = exePath.trim();
@@ -332,27 +333,31 @@ async function launchApp(exePath) {
   // Check if file exists
   if (!fs.existsSync(trimmedPath)) {
     console.error(`ERROR: File does not exist at path: ${trimmedPath}`);
-    return { success: false, error: `File not found: ${trimmedPath}` };
+    return Promise.resolve({ success: false, error: `File not found: ${trimmedPath}` });
   }
   
   try {
-    // Use spawn with detached:true and unref() for TRUE fire-and-forget
-    // This spawns the process completely independently of our Node process
-    const child = spawn(trimmedPath, [], {
-      detached: true,     // Run in its own process group
-      stdio: 'ignore',    // Don't pipe any I/O
-      shell: true,        // Use shell to handle the path
-      windowsHide: false  // Show the window
+    // Use cmd /c start "" "path" - this is the most reliable way on Windows
+    // The start command returns immediately and the app runs independently
+    const command = `cmd /c start "" "${trimmedPath}"`;
+    console.log(`Executing: ${command}`);
+    
+    // exec but don't wait for callback - fire and forget
+    exec(command, (error, stdout, stderr) => {
+      // This callback fires later but we don't wait for it
+      if (error) {
+        console.error(`Background exec error for ${trimmedPath}:`, error.message);
+      } else {
+        console.log(`Background exec completed for ${trimmedPath}`);
+      }
     });
     
-    // Unref so our process doesn't wait for this child
-    child.unref();
-    
-    console.log(`Launch successful (detached) for: ${trimmedPath}, PID: ${child.pid}`);
-    return { success: true, path: trimmedPath, pid: child.pid };
+    // Return success immediately without waiting
+    console.log(`Launch initiated (fire-and-forget) for: ${trimmedPath}`);
+    return Promise.resolve({ success: true, path: trimmedPath });
   } catch (error) {
     console.error(`Exception launching ${trimmedPath}:`, error.message);
-    return { success: false, error: error.message };
+    return Promise.resolve({ success: false, error: error.message });
   }
 }
 
@@ -651,15 +656,18 @@ async function runAppLaunchSequence(config) {
     
     if (appLaunchCancelled) return { success: false, cancelled: true, results };
     
-    // Step 2: Wait 3 seconds before launching Protee Labs
-    console.log('Step 2: Waiting 3 seconds...');
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    // Step 2: Wait 5 seconds before launching Protee Labs (longer to ensure GSPRO is fully loaded)
+    console.log('Step 2: Waiting 5 seconds for GSPRO to initialize...');
+    await new Promise(resolve => setTimeout(resolve, 5000));
     
     if (appLaunchCancelled) return { success: false, cancelled: true, results };
     
     // Step 3: Launch Protee Labs (using the exact same launchApp function)
     console.log('Step 3: Launching Protee Labs...');
+    console.log('Protee Labs path is:', JSON.stringify(proteeLabsPath));
+    
     if (proteeLabsPath && proteeLabsPath.trim() !== '') {
+      console.log(`About to call launchApp with: "${proteeLabsPath}"`);
       const proteeLaunch = await launchApp(proteeLabsPath);
       console.log('Protee Labs launch result:', JSON.stringify(proteeLaunch));
       results.push({ step: 'launch_protee_labs', ...proteeLaunch });
@@ -667,15 +675,19 @@ async function runAppLaunchSequence(config) {
       if (!proteeLaunch.success) {
         // Don't fail the whole sequence, just report the error
         console.error('Protee Labs launch failed:', proteeLaunch.error);
+      } else {
+        // Wait a moment to let Labs start
+        console.log('Waiting 3 seconds for Protee Labs to start...');
+        await new Promise(resolve => setTimeout(resolve, 3000));
       }
     } else {
-      console.log('Skipping Protee Labs - path not configured');
+      console.log('Skipping Protee Labs - path is empty or not configured');
+      console.log('Path value was:', JSON.stringify(proteeLabsPath));
       results.push({ step: 'launch_protee_labs', skipped: true, reason: 'Path not configured' });
     }
     
-    // Step 4: Wait 2 seconds then focus GSPRO
-    console.log('Step 4: Waiting 2 seconds then focusing GSPRO...');
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    // Step 4: Focus GSPRO
+    console.log('Step 4: Focusing GSPRO...');
     
     const gsproWindow = await findGsproWindow();
     if (gsproWindow.success) {
