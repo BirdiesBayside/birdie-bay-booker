@@ -665,8 +665,27 @@ async function runAppLaunchSequence(config) {
       return { success: false, error: 'Failed to launch GSPRO', results };
     }
     
-    // Step 2: Launch Protee Labs immediately 
-    console.log('Step 2: Launching Protee Labs...');
+    // Step 2: Wait for GSPRO to spawn the ProTee United VX API window, then minimize it
+    console.log('Step 2: Waiting 5 seconds for ProTee United VX API window to spawn...');
+    await new Promise(resolve => setTimeout(resolve, 5000));
+    
+    if (appLaunchCancelled) return { success: false, cancelled: true, results };
+    
+    // Try to find and minimize ProTee United VX before launching Protee Labs
+    const windowListPreLabs = await getAllVisibleWindows();
+    const unitedVxPreLabs = windowListPreLabs.find(w => 
+      w.title && w.title.toLowerCase().includes('united vx')
+    );
+    if (unitedVxPreLabs) {
+      console.log('Step 2b: Found ProTee United VX API window BEFORE Protee Labs launch, minimizing...');
+      await minimizeWindow(unitedVxPreLabs.hwnd);
+      results.push({ step: 'minimize_united_vx_early', success: true, hwnd: unitedVxPreLabs.hwnd });
+    } else {
+      console.log('Step 2b: ProTee United VX not found yet (will check again later)');
+    }
+    
+    // Step 3: Launch Protee Labs
+    console.log('Step 3: Launching Protee Labs...');
     console.log('  proteeLabsPath raw:', JSON.stringify(proteeLabsPath));
     console.log('  proteeLabsPath type:', typeof proteeLabsPath);
     console.log('  proteeLabsPath length:', proteeLabsPath ? proteeLabsPath.length : 'null/undefined');
@@ -692,9 +711,9 @@ async function runAppLaunchSequence(config) {
       results.push({ step: 'launch_protee_labs', skipped: true, reason: `hasPath:${hasPath} isString:${isString} notEmpty:${notEmpty} fileExists:${fileExists}` });
     }
     
-    // Step 3: Wait for windows to appear then use the SAME logic as Fix Windows
-    console.log('Step 3: Waiting 8 seconds for windows to appear...');
-    await new Promise(resolve => setTimeout(resolve, 8000));
+    // Step 4: Wait for windows to appear then use the SAME logic as Fix Windows
+    console.log('Step 4: Waiting 5 seconds for windows to appear...');
+    await new Promise(resolve => setTimeout(resolve, 5000));
     
     if (appLaunchCancelled) return { success: false, cancelled: true, results };
     
