@@ -317,55 +317,43 @@ async function getDisplayInfo() {
   }));
 }
 
-// Launch an application using cmd start for reliable path handling with spaces
+// Launch an application - TRUE fire-and-forget using spawn with detached
 async function launchApp(exePath) {
-  return new Promise((resolve) => {
-    console.log(`=== LAUNCH APP CALLED ===`);
-    console.log(`Path received: "${exePath}"`);
-    console.log(`Path type: ${typeof exePath}`);
-    console.log(`Path length: ${exePath ? exePath.length : 'null/undefined'}`);
+  console.log(`=== LAUNCH APP CALLED ===`);
+  console.log(`Path received: "${exePath}"`);
+  
+  if (!exePath || typeof exePath !== 'string' || exePath.trim() === '') {
+    console.error('ERROR: exePath is empty or invalid');
+    return { success: false, error: 'Path is empty or invalid' };
+  }
+  
+  const trimmedPath = exePath.trim();
+  
+  // Check if file exists
+  if (!fs.existsSync(trimmedPath)) {
+    console.error(`ERROR: File does not exist at path: ${trimmedPath}`);
+    return { success: false, error: `File not found: ${trimmedPath}` };
+  }
+  
+  try {
+    // Use spawn with detached:true and unref() for TRUE fire-and-forget
+    // This spawns the process completely independently of our Node process
+    const child = spawn(trimmedPath, [], {
+      detached: true,     // Run in its own process group
+      stdio: 'ignore',    // Don't pipe any I/O
+      shell: true,        // Use shell to handle the path
+      windowsHide: false  // Show the window
+    });
     
-    if (!exePath || typeof exePath !== 'string' || exePath.trim() === '') {
-      console.error('ERROR: exePath is empty or invalid');
-      resolve({ success: false, error: 'Path is empty or invalid' });
-      return;
-    }
+    // Unref so our process doesn't wait for this child
+    child.unref();
     
-    const trimmedPath = exePath.trim();
-    
-    // Check if file exists
-    const pathExists = fs.existsSync(trimmedPath);
-    console.log(`Path exists check: ${pathExists}`);
-    
-    if (!pathExists) {
-      console.error(`ERROR: File does not exist at path: ${trimmedPath}`);
-      resolve({ success: false, error: `File not found: ${trimmedPath}` });
-      return;
-    }
-    
-    try {
-      // Use cmd /c start "" "path" for reliable handling of paths with spaces
-      const command = `cmd /c start "" "${trimmedPath}"`;
-      console.log(`Executing command: ${command}`);
-      
-      exec(command, (error, stdout, stderr) => {
-        console.log(`Command completed for: ${trimmedPath}`);
-        console.log(`stdout: ${stdout}`);
-        console.log(`stderr: ${stderr}`);
-        
-        if (error) {
-          console.error(`Launch error: ${error.message}`);
-          resolve({ success: false, error: error.message });
-        } else {
-          console.log(`Launch successful for: ${trimmedPath}`);
-          resolve({ success: true, path: trimmedPath });
-        }
-      });
-    } catch (error) {
-      console.error(`Exception launching ${trimmedPath}:`, error.message);
-      resolve({ success: false, error: error.message });
-    }
-  });
+    console.log(`Launch successful (detached) for: ${trimmedPath}, PID: ${child.pid}`);
+    return { success: true, path: trimmedPath, pid: child.pid };
+  } catch (error) {
+    console.error(`Exception launching ${trimmedPath}:`, error.message);
+    return { success: false, error: error.message };
+  }
 }
 
 // Get ALL visible windows using simple Get-Process approach
