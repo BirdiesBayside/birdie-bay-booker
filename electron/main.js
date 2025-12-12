@@ -761,19 +761,31 @@ async function checkAndCorrectWindowPositions(gsproDisplay, proteeDisplay) {
   return { success: true, results };
 }
 
-// Close apps gracefully
+// Close apps by sending Alt+F4 repeatedly
 async function closeApps(appNames) {
   const results = [];
   
-  for (const appName of appNames) {
+  console.log('=== CLOSING APPS WITH ALT+F4 ===');
+  
+  // Send Alt+F4 multiple times to close all open windows
+  const maxAttempts = 10;
+  
+  for (let i = 0; i < maxAttempts; i++) {
     try {
-      await execAsync(`taskkill /IM "${appName}" /F`, { timeout: 5000 });
-      results.push({ app: appName, status: 'closed' });
+      // Use PowerShell to send Alt+F4 to the active window
+      await execAsync(`powershell -command "$wshell = New-Object -ComObject wscript.shell; $wshell.SendKeys('%{F4}')"`, { timeout: 3000 });
+      console.log(`Alt+F4 sent (attempt ${i + 1}/${maxAttempts})`);
+      results.push({ attempt: i + 1, status: 'sent' });
+      
+      // Small delay between keypresses
+      await new Promise(resolve => setTimeout(resolve, 500));
     } catch (error) {
-      results.push({ app: appName, status: 'not_running_or_error' });
+      console.log(`Alt+F4 attempt ${i + 1} error:`, error.message);
+      results.push({ attempt: i + 1, status: 'error', error: error.message });
     }
   }
   
+  console.log('=== CLOSE APPS COMPLETE ===');
   return { success: true, results };
 }
 
