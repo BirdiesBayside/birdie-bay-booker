@@ -222,10 +222,11 @@ export default function BayController() {
     if (savedEmail) setTapoEmail(savedEmail);
     if (savedPassword) setTapoPassword(savedPassword);
     
-    // Load saved app launch config
+    // Load saved app launch config - merge with defaults to handle new fields
     const savedAppConfig = localStorage.getItem("bayController_appLaunchConfig");
     if (savedAppConfig) {
-      setAppLaunchConfig(JSON.parse(savedAppConfig));
+      const parsed = JSON.parse(savedAppConfig);
+      setAppLaunchConfig(prev => ({ ...prev, ...parsed }));
     }
     
     // Load saved bay selection
