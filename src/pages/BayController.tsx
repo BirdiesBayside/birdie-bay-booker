@@ -81,6 +81,7 @@ declare global {
       cancelAppSequence: () => Promise<{ success: boolean }>;
       closeApps: (appNames: string[]) => Promise<{ success: boolean; results?: any[]; error?: string }>;
       checkWindowPositions: (gsproDisplay: number, proteeDisplay: number) => Promise<{ success: boolean; results?: { app: string; found: boolean; moved?: boolean; display?: number }[]; error?: string }>;
+      listWindows: () => Promise<{ success: boolean; windows?: { title: string; hwnd: number }[]; error?: string }>;
       // Security / Quit control
       confirmQuit: () => Promise<{ success: boolean }>;
       setAuthenticated: (authenticated: boolean) => Promise<{ success: boolean }>;
@@ -997,6 +998,38 @@ export default function BayController() {
     }
   };
 
+  // Debug: List all visible windows
+  const listAllWindows = async () => {
+    if (!isElectron || !window.electronAPI) {
+      toast.error("Window listing requires desktop app");
+      return;
+    }
+
+    try {
+      toast.info("Getting window list...");
+      const result = await window.electronAPI.listWindows();
+      
+      if (result.success && result.windows) {
+        const windowTitles = result.windows.map(w => w.title).slice(0, 20); // Show first 20
+        console.log("All visible windows:", result.windows);
+        
+        if (windowTitles.length === 0) {
+          toast.warning("No visible windows found");
+        } else {
+          // Show windows in a toast
+          toast.success(`Found ${result.windows.length} windows. Check console for full list.`, {
+            description: windowTitles.slice(0, 5).join(", ") + (windowTitles.length > 5 ? "..." : ""),
+            duration: 10000
+          });
+        }
+      } else {
+        toast.error(`Failed: ${result.error}`);
+      }
+    } catch (error) {
+      toast.error("Failed to list windows");
+    }
+  };
+
   const updateAppConfig = (key: keyof AppLaunchConfig, value: any) => {
     setAppLaunchConfig(prev => ({ ...prev, [key]: value }));
   };
@@ -1451,14 +1484,24 @@ export default function BayController() {
           </div>
 
           {/* Fix window positions button */}
-          <Button 
-            onClick={fixWindowPositions}
-            disabled={!isElectron}
-            variant="secondary"
-            className="w-full"
-          >
-            <Monitor className="w-4 h-4 mr-2" /> Fix Window Positions
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              onClick={fixWindowPositions}
+              disabled={!isElectron}
+              variant="secondary"
+              className="flex-1"
+            >
+              <Monitor className="w-4 h-4 mr-2" /> Fix Window Positions
+            </Button>
+            <Button 
+              onClick={listAllWindows}
+              disabled={!isElectron}
+              variant="outline"
+              className="flex-1"
+            >
+              <Settings className="w-4 h-4 mr-2" /> List Windows
+            </Button>
+          </div>
 
           {!isElectron && (
             <p className="text-xs text-amber-500 text-center">

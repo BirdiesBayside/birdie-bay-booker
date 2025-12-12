@@ -54,6 +54,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   checkWindowPositions: (gsproDisplay, proteeDisplay) => 
     ipcRenderer.invoke('check-window-positions', { gsproDisplay, proteeDisplay }),
   
+  // Debug: List all visible windows
+  listWindows: () => ipcRenderer.invoke('list-windows'),
+  
   // =====================================================
   // SECURITY / QUIT CONTROL APIs
   // =====================================================
