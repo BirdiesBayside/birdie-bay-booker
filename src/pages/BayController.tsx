@@ -194,6 +194,11 @@ export default function BayController() {
   const [isTestingLogin, setIsTestingLogin] = useState(false);
   const [loginTestResult, setLoginTestResult] = useState<{ success: boolean; message: string } | null>(null);
   
+  // State for manual plug entry
+  const [newPlugName, setNewPlugName] = useState("");
+  const [newPlugIp, setNewPlugIp] = useState("");
+  const [newPlugType, setNewPlugType] = useState<'monitor' | 'projector'>('monitor');
+  
   // Debug log state for in-app viewing
   const [debugLogs, setDebugLogs] = useState<{ time: string; message: string; type: 'info' | 'error' | 'success' }[]>([]);
   
@@ -647,11 +652,6 @@ export default function BayController() {
       turnOffPlugs(false, true); // Auto control, show toast
     }
   }, [calculateShouldPlugsBeOn]);
-
-  // State for manual plug entry
-  const [newPlugName, setNewPlugName] = useState("");
-  const [newPlugIp, setNewPlugIp] = useState("");
-  const [newPlugType, setNewPlugType] = useState<'monitor' | 'projector'>('monitor');
 
   // Save TAPO credentials whenever they change
   useEffect(() => {
