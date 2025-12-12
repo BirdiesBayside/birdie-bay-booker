@@ -58,6 +58,13 @@ function createWindow() {
     mainWindow.show();
   });
 
+  // Enable DevTools shortcut (Ctrl+Shift+I or F12)
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if ((input.control && input.shift && input.key.toLowerCase() === 'i') || input.key === 'F12') {
+      mainWindow.webContents.toggleDevTools();
+    }
+  });
+
   // Minimize to tray instead of closing - ALWAYS prevent close
   mainWindow.on('close', (event) => {
     if (!app.isQuitting) {
