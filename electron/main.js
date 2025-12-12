@@ -636,55 +636,66 @@ async function findProteeLabsWindow() {
 }
 
 // Run the full app launch sequence
-// Simple approach: Launch both apps immediately, wait 20 seconds, fix positions
+// SIMPLE approach: Just launch both apps with cmd /c start, same as the working GSPRO launch
 async function runAppLaunchSequence(config) {
   const {
     gsproPath,
     proteeLabsPath,
-    gsproDisplay,
-    proteeDisplay,
   } = config;
   
   console.log('=== APP LAUNCH SEQUENCE STARTED ===');
-  console.log('Config:', JSON.stringify(config, null, 2));
+  console.log('GSPRO Path:', gsproPath);
+  console.log('Protee Labs Path:', proteeLabsPath);
   
   const results = [];
   appLaunchCancelled = false;
   
   try {
-    // Step 1: Launch GSPRO
+    // Step 1: Launch GSPRO (using the exact same launchApp function that works)
     console.log('Step 1: Launching GSPRO...');
     const gsproLaunch = await launchApp(gsproPath);
     console.log('GSPRO launch result:', JSON.stringify(gsproLaunch));
     results.push({ step: 'launch_gspro', ...gsproLaunch });
     
     if (!gsproLaunch.success) {
-      return { success: false, error: 'Failed to launch GSPRO', results };
+      return { success: false, error: 'Failed to launch GSPRO: ' + gsproLaunch.error, results };
     }
     
-    // Step 2: Launch Protee Labs immediately (no waiting)
-    console.log('Step 2: Launching Protee Labs...');
-    if (proteeLabsPath && proteeLabsPath.trim() !== '' && fs.existsSync(proteeLabsPath)) {
+    if (appLaunchCancelled) return { success: false, cancelled: true, results };
+    
+    // Step 2: Wait 3 seconds before launching Protee Labs
+    console.log('Step 2: Waiting 3 seconds...');
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    
+    if (appLaunchCancelled) return { success: false, cancelled: true, results };
+    
+    // Step 3: Launch Protee Labs (using the exact same launchApp function)
+    console.log('Step 3: Launching Protee Labs...');
+    if (proteeLabsPath && proteeLabsPath.trim() !== '') {
       const proteeLaunch = await launchApp(proteeLabsPath);
       console.log('Protee Labs launch result:', JSON.stringify(proteeLaunch));
       results.push({ step: 'launch_protee_labs', ...proteeLaunch });
+      
+      if (!proteeLaunch.success) {
+        // Don't fail the whole sequence, just report the error
+        console.error('Protee Labs launch failed:', proteeLaunch.error);
+      }
     } else {
-      console.log('Skipping Protee Labs - path not configured or file not found');
-      results.push({ step: 'launch_protee_labs', skipped: true });
+      console.log('Skipping Protee Labs - path not configured');
+      results.push({ step: 'launch_protee_labs', skipped: true, reason: 'Path not configured' });
     }
     
-    if (appLaunchCancelled) return { success: false, cancelled: true, results };
+    // Step 4: Wait 2 seconds then focus GSPRO
+    console.log('Step 4: Waiting 2 seconds then focusing GSPRO...');
+    await new Promise(resolve => setTimeout(resolve, 2000));
     
-    // Step 3: Wait 20 seconds for everything to load
-    console.log('Step 3: Waiting 20 seconds for apps to fully load...');
-    await new Promise(resolve => setTimeout(resolve, 20000));
-    
-    if (appLaunchCancelled) return { success: false, cancelled: true, results };
-    
-    // Step 4: Fix window positions (moves windows, minimizes API window, focuses GSPRO)
-    console.log('Step 4: Fixing window positions...');
-    const positionResult = await checkAndCorrectWindowPositions(gsproDisplay, proteeDisplay);
-    results.push({ step: 'fix_positions', ...positionResult });
+    const gsproWindow = await findGsproWindow();
+    if (gsproWindow.success) {
+      await focusWindow(gsproWindow.hwnd);
+      results.push({ step: 'focus_gspro', success: true });
+    } else {
+      results.push({ step: 'focus_gspro', success: false, error: 'Window not found' });
+    }
     
     console.log('=== APP LAUNCH SEQUENCE COMPLETE ===');
     return { success: true, results };
