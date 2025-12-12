@@ -368,73 +368,62 @@ async function launchApp(exePath) {
   });
 }
 
-// Get ALL visible windows for debugging
+// Get ALL visible windows using simple Get-Process approach
 async function getAllVisibleWindows() {
-  const psScript = `
-    Add-Type @"
-    using System;
-    using System.Runtime.InteropServices;
-    using System.Text;
-    public class WindowHelper {
-        [DllImport("user32.dll")]
-        public static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
-        public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
-        
-        [DllImport("user32.dll", CharSet = CharSet.Auto)]
-        public static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
-        
-        [DllImport("user32.dll")]
-        public static extern bool IsWindowVisible(IntPtr hWnd);
-    }
-"@
-
-    $windows = @()
-    $callback = {
-        param([IntPtr]$hwnd, [IntPtr]$lparam)
-        $title = New-Object System.Text.StringBuilder 256
-        [WindowHelper]::GetWindowText($hwnd, $title, 256) | Out-Null
-        $titleStr = $title.ToString()
-        if ($titleStr -and [WindowHelper]::IsWindowVisible($hwnd)) {
-            $script:windows += @{hwnd = $hwnd.ToInt64(); title = $titleStr}
-        }
-        return $true
-    }
-    [WindowHelper]::EnumWindows($callback, [IntPtr]::Zero) | Out-Null
-    $windows | ConvertTo-Json -Compress
-  `;
-  
   try {
-    const { stdout } = await execAsync(`powershell -Command "${psScript.replace(/"/g, '\\"').replace(/\n/g, ' ')}"`, { maxBuffer: 1024 * 1024 });
-    const windows = JSON.parse(stdout || '[]');
-    return Array.isArray(windows) ? windows : [windows];
+    // Use Get-Process which is reliable and doesn't need Add-Type
+    const psScript = `Get-Process | Where-Object { $_.MainWindowTitle -ne '' } | Select-Object Id, MainWindowTitle, MainWindowHandle | ForEach-Object { @{ hwnd = $_.MainWindowHandle.ToInt64(); title = $_.MainWindowTitle; pid = $_.Id } } | ConvertTo-Json -Compress`;
+    
+    const { stdout, stderr } = await execAsync(`powershell -NoProfile -Command "${psScript}"`, { 
+      maxBuffer: 1024 * 1024,
+      timeout: 10000 
+    });
+    
+    if (stderr) {
+      console.error('PowerShell stderr:', stderr);
+    }
+    
+    console.log('PowerShell stdout:', stdout);
+    
+    if (!stdout || stdout.trim() === '') {
+      console.log('No windows found (empty output)');
+      return [];
+    }
+    
+    const parsed = JSON.parse(stdout.trim());
+    const windows = Array.isArray(parsed) ? parsed : [parsed];
+    console.log(`Found ${windows.length} windows with titles`);
+    return windows;
   } catch (error) {
     console.error('Get windows failed:', error.message);
+    console.error('Error details:', error);
     return [];
   }
 }
 
-// Find window by title using PowerShell - more flexible matching
+// Find window by title - simple reliable approach
 async function findWindowByTitle(titlePattern) {
   try {
     const windowList = await getAllVisibleWindows();
     
-    // Log all visible windows for debugging
     console.log(`=== SEARCHING FOR: "${titlePattern}" ===`);
-    console.log(`Found ${windowList.length} visible windows:`);
+    console.log(`Found ${windowList.length} windows with titles:`);
     windowList.forEach(w => {
       if (w.title) console.log(`  - "${w.title}" (hwnd: ${w.hwnd})`);
     });
     
-    // Try exact match first, then partial match
     const searchLower = titlePattern.toLowerCase();
+    
+    // Try exact match first
     let found = windowList.find(w => w.title && w.title.toLowerCase() === searchLower);
     
+    // Then try contains match
     if (!found) {
       found = windowList.find(w => w.title && w.title.toLowerCase().includes(searchLower));
     }
     
     if (found) {
-      console.log(`MATCH FOUND: "${found.title}"`);
+      console.log(`MATCH FOUND: "${found.title}" (hwnd: ${found.hwnd})`);
       return { success: true, hwnd: found.hwnd, title: found.title };
     }
     
@@ -446,7 +435,7 @@ async function findWindowByTitle(titlePattern) {
   }
 }
 
-// Move window to specific display and position
+// Move window to specific display and position using nircmd (more reliable) or PowerShell fallback
 async function moveWindowToDisplay(hwnd, displayIndex, fullscreen = false) {
   const displays = screen.getAllDisplays();
   if (displayIndex >= displays.length) {
@@ -456,93 +445,92 @@ async function moveWindowToDisplay(hwnd, displayIndex, fullscreen = false) {
   const display = displays[displayIndex];
   const { x, y, width, height } = display.bounds;
   
-  const psScript = `
-    Add-Type @"
-    using System;
-    using System.Runtime.InteropServices;
-    public class WindowMover {
-        [DllImport("user32.dll")]
-        public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
-        
-        [DllImport("user32.dll")]
-        public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
-        
-        [DllImport("user32.dll")]
-        public static extern bool SetForegroundWindow(IntPtr hWnd);
-        
-        public const int SW_MAXIMIZE = 3;
-        public const int SW_RESTORE = 9;
-    }
+  console.log(`Moving window ${hwnd} to display ${displayIndex} at ${x},${y} size ${width}x${height}`);
+  
+  // Create a temporary .ps1 file for more reliable execution
+  const tempScript = path.join(app.getPath('temp'), 'move_window.ps1');
+  const scriptContent = `
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public class WinAPI {
+    [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+    [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+    [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
+}
 "@
-    
-    $hwnd = [IntPtr]${hwnd}
-    [WindowMover]::ShowWindow($hwnd, [WindowMover]::SW_RESTORE) | Out-Null
-    Start-Sleep -Milliseconds 100
-    [WindowMover]::SetWindowPos($hwnd, [IntPtr]::Zero, ${x}, ${y}, ${width}, ${height}, 0x0040) | Out-Null
-    ${fullscreen ? '[WindowMover]::ShowWindow($hwnd, [WindowMover]::SW_MAXIMIZE) | Out-Null' : ''}
-    [WindowMover]::SetForegroundWindow($hwnd) | Out-Null
-    Write-Output "success"
-  `;
+$h = [IntPtr]${hwnd}
+[WinAPI]::ShowWindow($h, 9)
+Start-Sleep -Milliseconds 200
+[WinAPI]::SetWindowPos($h, [IntPtr]::Zero, ${x}, ${y}, ${width}, ${height}, 0x0040)
+${fullscreen ? '[WinAPI]::ShowWindow($h, 3)' : ''}
+[WinAPI]::SetForegroundWindow($h)
+Write-Output "done"
+`;
   
   try {
-    await execAsync(`powershell -Command "${psScript.replace(/"/g, '\\"').replace(/\n/g, ' ')}"`, { timeout: 5000 });
+    fs.writeFileSync(tempScript, scriptContent);
+    const { stdout, stderr } = await execAsync(`powershell -NoProfile -ExecutionPolicy Bypass -File "${tempScript}"`, { timeout: 10000 });
+    console.log('Move window stdout:', stdout);
+    if (stderr) console.log('Move window stderr:', stderr);
+    fs.unlinkSync(tempScript);
     return { success: true };
   } catch (error) {
     console.error('Move window failed:', error.message);
+    try { fs.unlinkSync(tempScript); } catch {}
     return { success: false, error: error.message };
   }
 }
 
 // Minimize a window
 async function minimizeWindow(hwnd) {
-  const psScript = `
-    Add-Type @"
-    using System;
-    using System.Runtime.InteropServices;
-    public class WindowMin {
-        [DllImport("user32.dll")]
-        public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
-        public const int SW_MINIMIZE = 6;
-    }
+  const tempScript = path.join(app.getPath('temp'), 'min_window.ps1');
+  const scriptContent = `
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public class WinAPI { [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow); }
 "@
-    [WindowMin]::ShowWindow([IntPtr]${hwnd}, [WindowMin]::SW_MINIMIZE) | Out-Null
-    Write-Output "success"
-  `;
+[WinAPI]::ShowWindow([IntPtr]${hwnd}, 6)
+`;
   
   try {
-    await execAsync(`powershell -Command "${psScript.replace(/"/g, '\\"').replace(/\n/g, ' ')}"`, { timeout: 5000 });
+    fs.writeFileSync(tempScript, scriptContent);
+    await execAsync(`powershell -NoProfile -ExecutionPolicy Bypass -File "${tempScript}"`, { timeout: 5000 });
+    fs.unlinkSync(tempScript);
     return { success: true };
   } catch (error) {
     console.error('Minimize window failed:', error.message);
+    try { fs.unlinkSync(tempScript); } catch {}
     return { success: false, error: error.message };
   }
 }
 
 // Focus a window
 async function focusWindow(hwnd) {
-  const psScript = `
-    Add-Type @"
-    using System;
-    using System.Runtime.InteropServices;
-    public class WindowFocus {
-        [DllImport("user32.dll")]
-        public static extern bool SetForegroundWindow(IntPtr hWnd);
-        [DllImport("user32.dll")]
-        public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
-        public const int SW_RESTORE = 9;
-    }
+  const tempScript = path.join(app.getPath('temp'), 'focus_window.ps1');
+  const scriptContent = `
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public class WinAPI {
+    [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
+    [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+}
 "@
-    $hwnd = [IntPtr]${hwnd}
-    [WindowFocus]::ShowWindow($hwnd, [WindowFocus]::SW_RESTORE) | Out-Null
-    [WindowFocus]::SetForegroundWindow($hwnd) | Out-Null
-    Write-Output "success"
-  `;
+$h = [IntPtr]${hwnd}
+[WinAPI]::ShowWindow($h, 9)
+[WinAPI]::SetForegroundWindow($h)
+`;
   
   try {
-    await execAsync(`powershell -Command "${psScript.replace(/"/g, '\\"').replace(/\n/g, ' ')}"`, { timeout: 5000 });
+    fs.writeFileSync(tempScript, scriptContent);
+    await execAsync(`powershell -NoProfile -ExecutionPolicy Bypass -File "${tempScript}"`, { timeout: 5000 });
+    fs.unlinkSync(tempScript);
     return { success: true };
   } catch (error) {
     console.error('Focus window failed:', error.message);
+    try { fs.unlinkSync(tempScript); } catch {}
     return { success: false, error: error.message };
   }
 }
