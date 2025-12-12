@@ -767,17 +767,26 @@ async function closeApps(appNames) {
   
   console.log('=== CLOSING APPS ===');
   
-  // Known process names for our apps
+  // Known process names for our apps - include many variations
   const processesToKill = [
     'GSPro.exe',
     'GSPRO.exe', 
     'GSProLauncher.exe',
+    'gspro.exe',
     'Protee Labs.exe',
     'ProteeLabs.exe',
+    'protee labs.exe',
+    'proteelabs.exe',
+    // ProTee United VX - try many name variations
     'ProTee United VX.exe',
     'ProTeeUnitedVX.exe',
     'United VX.exe',
-    'UnitedVX.exe'
+    'UnitedVX.exe',
+    'unitedvx.exe',
+    'ProTee_United_VX.exe',
+    'ProTeeUnited.exe',
+    'proteeunited.exe',
+    'protee united vx.exe'
   ];
   
   for (const processName of processesToKill) {
@@ -789,6 +798,15 @@ async function closeApps(appNames) {
       // Process not running - that's fine
       console.log(`${processName}: not running or already closed`);
     }
+  }
+  
+  // Also try to close any window with "United" in the title using PowerShell
+  try {
+    await execAsync(`powershell -command "Get-Process | Where-Object {$_.MainWindowTitle -like '*United*'} | Stop-Process -Force"`, { timeout: 5000 });
+    console.log('Closed windows with United in title');
+    results.push({ app: 'United*', status: 'closed' });
+  } catch (error) {
+    console.log('No United windows found or already closed');
   }
   
   console.log('=== CLOSE APPS COMPLETE ===');
