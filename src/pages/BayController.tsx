@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Lock, Wifi, Power, Clock, AlertTriangle, CheckCircle, XCircle, Settings, RefreshCw, Monitor, Play, Square, FolderOpen, ChevronDown, ChevronUp, TestTube } from "lucide-react";
+import { Lock, Wifi, Power, Clock, AlertTriangle, CheckCircle, XCircle, Settings, RefreshCw, Monitor, Play, Square, FolderOpen, ChevronDown, ChevronUp, Bell, X, Trash2, TestTube } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format, addMinutes, isBefore, isAfter, parseISO } from "date-fns";
@@ -56,6 +56,24 @@ interface AppLaunchConfig {
   appLaunchMinutes: number; // Minutes before booking to launch apps (after plugs are on)
   appCloseSeconds: number; // Seconds before booking end to close apps (before plugs turn off)
   enabled: boolean;
+}
+
+interface NotificationConfig {
+  enabled: boolean;
+  displayLabel: string; // Which display to show notification on
+  notifications: {
+    id: string;
+    minutesBefore: number;
+    message: string;
+    enabled: boolean;
+  }[];
+}
+
+interface ActiveNotification {
+  id: string;
+  message: string;
+  customerName: string;
+  expiresAt: Date;
 }
 
 // Helper to find display by label (name)
@@ -201,6 +219,21 @@ export default function BayController() {
   
   // Debug log state for in-app viewing
   const [debugLogs, setDebugLogs] = useState<{ time: string; message: string; type: 'info' | 'error' | 'success' }[]>([]);
+  
+  // Notification state
+  const [notificationConfig, setNotificationConfig] = useState<NotificationConfig>(() => {
+    const saved = localStorage.getItem("bayController_notificationConfig");
+    return saved ? JSON.parse(saved) : {
+      enabled: true,
+      displayLabel: "",
+      notifications: [
+        { id: "5min", minutesBefore: 5, message: "Hi {firstName}, your session ends in 5 minutes. Please book more time now if needed.", enabled: true },
+        { id: "1min", minutesBefore: 1, message: "Hi {firstName}, your session will shutdown in 1 minute.", enabled: true }
+      ]
+    };
+  });
+  const [activeNotification, setActiveNotification] = useState<ActiveNotification | null>(null);
+  const [shownNotifications, setShownNotifications] = useState<Set<string>>(new Set());
   
   // Helper to add debug log
   const addLog = useCallback((message: string, type: 'info' | 'error' | 'success' = 'info') => {
@@ -539,6 +572,87 @@ export default function BayController() {
   useEffect(() => {
     localStorage.setItem("bayController_appLaunchConfig", JSON.stringify(appLaunchConfig));
   }, [appLaunchConfig]);
+
+  // Save notification config
+  useEffect(() => {
+    localStorage.setItem("bayController_notificationConfig", JSON.stringify(notificationConfig));
+  }, [notificationConfig]);
+
+  // Check for customer notifications based on booking end time
+  useEffect(() => {
+    if (!notificationConfig.enabled || !activeBooking) {
+      return;
+    }
+
+    const checkNotifications = () => {
+      const now = new Date();
+      const endTime = parseISO(`${activeBooking.booking_date}T${activeBooking.end_time}`);
+      const minutesRemaining = (endTime.getTime() - now.getTime()) / (1000 * 60);
+
+      // Check each notification trigger
+      for (const notification of notificationConfig.notifications) {
+        if (!notification.enabled) continue;
+
+        const notificationKey = `${activeBooking.id}-${notification.id}`;
+        
+        // Check if we should show this notification (within 30 seconds of the trigger time)
+        if (minutesRemaining <= notification.minutesBefore && 
+            minutesRemaining > notification.minutesBefore - 0.5 &&
+            !shownNotifications.has(notificationKey)) {
+          
+          // Get customer first name from booking
+          const firstName = activeBooking.customer_name?.split(' ')[0] || 'Guest';
+          const message = notification.message.replace('{firstName}', firstName);
+          
+          setActiveNotification({
+            id: notificationKey,
+            message,
+            customerName: firstName,
+            expiresAt: addMinutes(now, 1) // Show for 1 minute
+          });
+          
+          setShownNotifications(prev => new Set([...prev, notificationKey]));
+          console.log(`Showing notification: ${notification.id} for booking ${activeBooking.id}`);
+        }
+      }
+    };
+
+    // Check every 5 seconds
+    const interval = setInterval(checkNotifications, 5000);
+    checkNotifications(); // Check immediately
+
+    return () => clearInterval(interval);
+  }, [activeBooking, notificationConfig, shownNotifications]);
+
+  // Auto-dismiss notification after expiry
+  useEffect(() => {
+    if (!activeNotification) return;
+
+    const checkExpiry = () => {
+      if (new Date() >= activeNotification.expiresAt) {
+        setActiveNotification(null);
+      }
+    };
+
+    const interval = setInterval(checkExpiry, 1000);
+    return () => clearInterval(interval);
+  }, [activeNotification]);
+
+  // Reset shown notifications when booking changes
+  useEffect(() => {
+    if (activeBooking) {
+      // Only clear notifications that aren't for the current booking
+      setShownNotifications(prev => {
+        const currentBookingNotifications = new Set<string>();
+        prev.forEach(key => {
+          if (key.startsWith(activeBooking.id)) {
+            currentBookingNotifications.add(key);
+          }
+        });
+        return currentBookingNotifications;
+      });
+    }
+  }, [activeBooking?.id]);
 
   // Helper function to calculate if plugs should be on based on bookings
   const calculateShouldPlugsBeOn = useCallback(() => {
@@ -893,17 +1007,6 @@ export default function BayController() {
   const unassignedPlugs = discoveredPlugs.filter(p => !isPlugAssigned(p.id));
 
   // App Launch Functions
-  const refreshDisplays = async () => {
-    if (isElectron && window.electronAPI) {
-      try {
-        const displayList = await window.electronAPI.getDisplays();
-        setDisplays(displayList);
-        toast.success(`Detected ${displayList.length} displays`);
-      } catch (error) {
-        toast.error("Failed to detect displays");
-      }
-    }
-  };
 
   const launchApps = async () => {
     if (!isElectron || !window.electronAPI) {
@@ -996,70 +1099,7 @@ export default function BayController() {
     }
   };
 
-  const fixWindowPositions = async () => {
-    if (!isElectron || !window.electronAPI) {
-      toast.error("Window control requires desktop app");
-      return;
-    }
-
-    try {
-      // Find display indices from labels (monitor names)
-      const gsproDisplayIndex = displays.findIndex(d => d.label === appLaunchConfig.gsproDisplayLabel);
-      const proteeDisplayIndex = displays.findIndex(d => d.label === appLaunchConfig.proteeDisplayLabel);
-      
-      toast.info("Checking and fixing window positions...");
-      
-      const result = await window.electronAPI.checkWindowPositions(
-        gsproDisplayIndex >= 0 ? gsproDisplayIndex : 0,
-        proteeDisplayIndex >= 0 ? proteeDisplayIndex : 0
-      );
-      
-      if (result.success && result.results) {
-        const messages = result.results.map(r => {
-          if (!r.found) return `${r.app}: Not found`;
-          if (r.moved) return `${r.app}: Moved to display ${(r.display || 0) + 1}`;
-          return `${r.app}: Already correct`;
-        });
-        toast.success(messages.join(', '));
-      } else {
-        toast.error(`Failed: ${result.error}`);
-      }
-    } catch (error) {
-      toast.error("Failed to fix window positions");
-    }
-  };
-
-  // Debug: List all visible windows
-  const listAllWindows = async () => {
-    if (!isElectron || !window.electronAPI) {
-      toast.error("Window listing requires desktop app");
-      return;
-    }
-
-    try {
-      toast.info("Getting window list...");
-      const result = await window.electronAPI.listWindows();
-      
-      if (result.success && result.windows) {
-        const windowTitles = result.windows.map(w => w.title).slice(0, 20); // Show first 20
-        console.log("All visible windows:", result.windows);
-        
-        if (windowTitles.length === 0) {
-          toast.warning("No visible windows found");
-        } else {
-          // Show windows in a toast
-          toast.success(`Found ${result.windows.length} windows. Check console for full list.`, {
-            description: windowTitles.slice(0, 5).join(", ") + (windowTitles.length > 5 ? "..." : ""),
-            duration: 10000
-          });
-        }
-      } else {
-        toast.error(`Failed: ${result.error}`);
-      }
-    } catch (error) {
-      toast.error("Failed to list windows");
-    }
-  };
+  // Removed fixWindowPositions and listAllWindows - no longer needed
 
   const updateAppConfig = (key: keyof AppLaunchConfig, value: any) => {
     setAppLaunchConfig(prev => ({ ...prev, [key]: value }));
@@ -1533,58 +1573,6 @@ export default function BayController() {
             </Button>
           </div>
 
-          {/* Test App Launch button */}
-          <Button 
-            onClick={launchApps}
-            disabled={!isElectron || isLaunchingApps}
-            variant="outline"
-            className="w-full border-amber-500 text-amber-500 hover:bg-amber-500/10"
-          >
-            <TestTube className="w-4 h-4 mr-2" /> Test App Launch
-          </Button>
-
-          {/* Fix window positions button */}
-          <div className="flex gap-2">
-            <Button 
-              onClick={fixWindowPositions}
-              disabled={!isElectron}
-              variant="secondary"
-              className="flex-1"
-            >
-              <Monitor className="w-4 h-4 mr-2" /> Fix Window Positions
-            </Button>
-            <Button 
-              onClick={listAllWindows}
-              disabled={!isElectron}
-              variant="outline"
-              className="flex-1"
-            >
-              <Settings className="w-4 h-4 mr-2" /> List Windows
-            </Button>
-          </div>
-
-          {/* Clear saved config button */}
-          <Button 
-            onClick={() => {
-              localStorage.removeItem("bayController_appLaunchConfig");
-              setAppLaunchConfig({
-                gsproPath: "C:\\Program Files\\GSPro\\GSPro.exe",
-                proteeLabsPath: "C:\\Program Files\\Protee Labs\\ProTee Labs.exe",
-                gsproDisplayLabel: "",
-                proteeDisplayLabel: "",
-                appLaunchMinutes: 1,
-                appCloseSeconds: 15,
-                enabled: false
-              });
-              toast.success("App launch config reset");
-            }}
-            variant="ghost"
-            size="sm"
-            className="w-full text-xs text-muted-foreground"
-          >
-            Reset App Launch Config
-          </Button>
-
           {!isElectron && (
             <p className="text-xs text-amber-500 text-center">
               App launch requires the desktop application
@@ -1716,16 +1704,6 @@ export default function BayController() {
               </Select>
             </div>
 
-            {/* Refresh displays button */}
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={refreshDisplays}
-              disabled={!isElectron}
-              className="w-full"
-            >
-              <RefreshCw className="w-4 h-4 mr-2" /> Refresh Displays ({displays.length} detected)
-            </Button>
           </div>
 
           {/* Display info */}
@@ -1742,7 +1720,158 @@ export default function BayController() {
           )}
         </CollapsibleSettingsCard>
 
-        {/* Upcoming Bookings */}
+        {/* Customer Notifications - Collapsible */}
+        <CollapsibleSettingsCard title="Notifications" icon={<Bell className="w-5 h-5" />} defaultOpen={false}>
+          {/* Enable/Disable toggle */}
+          <div className="flex items-center justify-between">
+            <div>
+              <Label>Session end warnings</Label>
+              <p className="text-sm text-muted-foreground">
+                Show popup messages before session ends
+              </p>
+            </div>
+            <Switch
+              checked={notificationConfig.enabled}
+              onCheckedChange={(checked) => setNotificationConfig(prev => ({ ...prev, enabled: checked }))}
+            />
+          </div>
+
+          <Separator />
+
+          {/* Display selector */}
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Show notifications on</Label>
+            <Select 
+              value={notificationConfig.displayLabel} 
+              onValueChange={(v) => setNotificationConfig(prev => ({ ...prev, displayLabel: v }))}
+            >
+              <SelectTrigger className="text-xs">
+                <SelectValue placeholder="Select display" />
+              </SelectTrigger>
+              <SelectContent>
+                {displays.length > 0 ? (
+                  displays.map((d) => (
+                    <SelectItem key={d.id} value={d.label}>
+                      {d.label} {d.isPrimary ? "(Primary)" : ""}
+                    </SelectItem>
+                  ))
+                ) : (
+                  <SelectItem value="" disabled>No displays detected</SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <Separator />
+
+          {/* Notification list */}
+          <div className="space-y-3">
+            <Label>Warning Messages</Label>
+            {notificationConfig.notifications.map((notification, index) => (
+              <div key={notification.id} className="p-3 bg-muted rounded-lg space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={notification.enabled}
+                      onCheckedChange={(checked) => {
+                        setNotificationConfig(prev => ({
+                          ...prev,
+                          notifications: prev.notifications.map((n, i) => 
+                            i === index ? { ...n, enabled: checked } : n
+                          )
+                        }));
+                      }}
+                    />
+                    <Label className="text-sm">{notification.minutesBefore} min before end</Label>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setNotificationConfig(prev => ({
+                        ...prev,
+                        notifications: prev.notifications.filter((_, i) => i !== index)
+                      }));
+                    }}
+                  >
+                    <Trash2 className="w-4 h-4 text-muted-foreground" />
+                  </Button>
+                </div>
+                
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Time before session ends</Label>
+                  <Select 
+                    value={notification.minutesBefore.toString()}
+                    onValueChange={(v) => {
+                      setNotificationConfig(prev => ({
+                        ...prev,
+                        notifications: prev.notifications.map((n, i) => 
+                          i === index ? { ...n, minutesBefore: parseInt(v), id: `${v}min` } : n
+                        )
+                      }));
+                    }}
+                  >
+                    <SelectTrigger className="text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[1, 2, 3, 5, 10, 15].map((min) => (
+                        <SelectItem key={min} value={min.toString()}>{min} minute{min > 1 ? 's' : ''}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">
+                    Message (use {'{firstName}'} for customer name)
+                  </Label>
+                  <Input
+                    value={notification.message}
+                    onChange={(e) => {
+                      setNotificationConfig(prev => ({
+                        ...prev,
+                        notifications: prev.notifications.map((n, i) => 
+                          i === index ? { ...n, message: e.target.value } : n
+                        )
+                      }));
+                    }}
+                    className="text-xs"
+                    placeholder="Enter notification message..."
+                  />
+                </div>
+              </div>
+            ))}
+
+            {/* Add new notification button */}
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full"
+              onClick={() => {
+                const existingMinutes = notificationConfig.notifications.map(n => n.minutesBefore);
+                const availableMinutes = [1, 2, 3, 5, 10, 15].filter(m => !existingMinutes.includes(m));
+                const newMinutes = availableMinutes[0] || 5;
+                
+                setNotificationConfig(prev => ({
+                  ...prev,
+                  notifications: [
+                    ...prev.notifications,
+                    {
+                      id: `${newMinutes}min`,
+                      minutesBefore: newMinutes,
+                      message: `Hi {firstName}, your session ends in ${newMinutes} minute${newMinutes > 1 ? 's' : ''}.`,
+                      enabled: true
+                    }
+                  ]
+                }));
+              }}
+            >
+              + Add Notification
+            </Button>
+          </div>
+        </CollapsibleSettingsCard>
+
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -1790,36 +1919,41 @@ export default function BayController() {
           </CardContent>
         </Card>
 
-        {/* Debug Log Panel */}
-        <CollapsibleSettingsCard title="Debug Log" icon={<TestTube className="w-5 h-5" />} defaultOpen={false}>
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-sm text-muted-foreground">{debugLogs.length} entries</span>
-            <Button variant="ghost" size="sm" onClick={() => setDebugLogs([])}>
-              Clear
-            </Button>
-          </div>
-          <div className="bg-black text-xs font-mono p-3 rounded-lg max-h-48 overflow-y-auto space-y-1">
-            {debugLogs.length === 0 ? (
-              <span className="text-gray-500">No logs yet. Click "Test App Launch" to see logs.</span>
-            ) : (
-              debugLogs.map((log, i) => (
-                <div key={i} className={`${
-                  log.type === 'error' ? 'text-red-400' : 
-                  log.type === 'success' ? 'text-green-400' : 
-                  'text-gray-300'
-                }`}>
-                  <span className="text-gray-500">[{log.time}]</span> {log.message}
-                </div>
-              ))
-            )}
-          </div>
-        </CollapsibleSettingsCard>
 
         {/* Footer */}
         <p className="text-xs text-muted-foreground text-center">
           Bay Controller v{APP_VERSION}
         </p>
       </div>
+
+      {/* Customer Notification Popup - Bottom Right */}
+      {activeNotification && (
+        <div className="fixed bottom-6 right-6 z-50 max-w-md animate-fade-in">
+          <Card className="bg-primary border-primary shadow-2xl">
+            <CardContent className="p-6">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Bell className="w-6 h-6 text-primary-foreground" />
+                    <span className="font-bold text-lg text-primary-foreground">Session Ending Soon</span>
+                  </div>
+                  <p className="text-primary-foreground text-lg leading-relaxed">
+                    {activeNotification.message}
+                  </p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-primary-foreground hover:bg-primary-foreground/20 flex-shrink-0"
+                  onClick={() => setActiveNotification(null)}
+                >
+                  <X className="w-5 h-5" />
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Quit Password Dialog */}
       {showQuitDialog && (
