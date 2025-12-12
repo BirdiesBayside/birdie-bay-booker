@@ -191,6 +191,15 @@ export default function BayController() {
   const [appsRunning, setAppsRunning] = useState(false);
   const [isTestingLogin, setIsTestingLogin] = useState(false);
   const [loginTestResult, setLoginTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  
+  // Debug log state for in-app viewing
+  const [debugLogs, setDebugLogs] = useState<{ time: string; message: string; type: 'info' | 'error' | 'success' }[]>([]);
+  
+  // Helper to add debug log
+  const addLog = useCallback((message: string, type: 'info' | 'error' | 'success' = 'info') => {
+    const time = new Date().toLocaleTimeString();
+    setDebugLogs(prev => [...prev.slice(-49), { time, message, type }]); // Keep last 50 logs
+  }, []);
 
   // Check if running in Electron and load saved credentials/config
   useEffect(() => {
@@ -894,6 +903,7 @@ export default function BayController() {
 
     setIsLaunchingApps(true);
     setAppLaunchStatus("Starting app launch sequence...");
+    addLog("Starting app launch sequence...", 'info');
 
     try {
       // Find display indices from labels (monitor names)
@@ -908,43 +918,40 @@ export default function BayController() {
         postLaunchDelay: 3000
       };
       
-      console.log("=== FRONTEND LAUNCH CONFIG ===");
-      console.log("Current appLaunchConfig state:", JSON.stringify(appLaunchConfig, null, 2));
-      console.log("gsproPath:", launchConfig.gsproPath);
-      console.log("proteeLabsPath:", launchConfig.proteeLabsPath);
-      console.log("gsproDisplay:", launchConfig.gsproDisplay);
-      console.log("proteeDisplay:", launchConfig.proteeDisplay);
-      
-      // Show what we're sending
-      toast.info(`Launching GSPRO: ${launchConfig.gsproPath?.substring(0, 30)}...`);
+      addLog(`GSPRO Path: ${launchConfig.gsproPath}`, 'info');
+      addLog(`Protee Path: ${launchConfig.proteeLabsPath || 'NOT SET'}`, launchConfig.proteeLabsPath ? 'info' : 'error');
+      addLog(`GSPRO Display: ${gsproDisplayIndex >= 0 ? appLaunchConfig.gsproDisplayLabel : 'default (0)'}`, 'info');
+      addLog(`Protee Display: ${proteeDisplayIndex >= 0 ? appLaunchConfig.proteeDisplayLabel : 'default (0)'}`, 'info');
       
       const result = await window.electronAPI.runAppSequence(launchConfig);
       
-      console.log("=== LAUNCH RESULT ===");
-      console.log(JSON.stringify(result, null, 2));
-      
       if (result.cancelled) {
         setAppLaunchStatus("Launch cancelled");
+        addLog("Launch cancelled by user", 'info');
         toast.info("App launch cancelled");
       } else if (result.success) {
         setAppsRunning(true);
         setAppLaunchStatus("All apps launched successfully");
+        addLog("All apps launched successfully!", 'success');
         toast.success("Apps launched successfully");
         
         // Log results
         result.results?.forEach(r => {
-          console.log(`${r.step}:`, r);
+          addLog(`${r.step}: ${r.status || 'complete'}`, r.status === 'error' ? 'error' : 'success');
         });
       } else {
         setAppLaunchStatus(`Launch failed: ${result.error}`);
+        addLog(`Launch failed: ${result.error}`, 'error');
+        result.results?.forEach(r => {
+          addLog(`${r.step}: ${r.status || r.error || 'unknown'}`, 'error');
+        });
         toast.error(`Launch failed: ${result.error}`);
-        console.error("Launch failed with results:", result.results);
       }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : "Unknown error";
       setAppLaunchStatus(`Error: ${errorMsg}`);
+      addLog(`Exception: ${errorMsg}`, 'error');
       toast.error(`Launch error: ${errorMsg}`);
-      console.error("Launch exception:", error);
     } finally {
       setIsLaunchingApps(false);
     }
@@ -1732,6 +1739,31 @@ export default function BayController() {
             )}
           </CardContent>
         </Card>
+
+        {/* Debug Log Panel */}
+        <CollapsibleSettingsCard title="Debug Log" icon={<TestTube className="w-5 h-5" />} defaultOpen={false}>
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-sm text-muted-foreground">{debugLogs.length} entries</span>
+            <Button variant="ghost" size="sm" onClick={() => setDebugLogs([])}>
+              Clear
+            </Button>
+          </div>
+          <div className="bg-black text-xs font-mono p-3 rounded-lg max-h-48 overflow-y-auto space-y-1">
+            {debugLogs.length === 0 ? (
+              <span className="text-gray-500">No logs yet. Click "Test App Launch" to see logs.</span>
+            ) : (
+              debugLogs.map((log, i) => (
+                <div key={i} className={`${
+                  log.type === 'error' ? 'text-red-400' : 
+                  log.type === 'success' ? 'text-green-400' : 
+                  'text-gray-300'
+                }`}>
+                  <span className="text-gray-500">[{log.time}]</span> {log.message}
+                </div>
+              ))
+            )}
+          </div>
+        </CollapsibleSettingsCard>
 
         {/* Footer */}
         <p className="text-xs text-muted-foreground text-center">
