@@ -909,10 +909,19 @@ export default function BayController() {
       };
       
       console.log("=== FRONTEND LAUNCH CONFIG ===");
-      console.log("gsproPath:", JSON.stringify(appLaunchConfig.gsproPath));
-      console.log("proteeLabsPath:", JSON.stringify(appLaunchConfig.proteeLabsPath));
-      console.log("Full config:", JSON.stringify(launchConfig, null, 2));
+      console.log("Current appLaunchConfig state:", JSON.stringify(appLaunchConfig, null, 2));
+      console.log("gsproPath:", launchConfig.gsproPath);
+      console.log("proteeLabsPath:", launchConfig.proteeLabsPath);
+      console.log("gsproDisplay:", launchConfig.gsproDisplay);
+      console.log("proteeDisplay:", launchConfig.proteeDisplay);
+      
+      // Show what we're sending
+      toast.info(`Launching GSPRO: ${launchConfig.gsproPath?.substring(0, 30)}...`);
+      
       const result = await window.electronAPI.runAppSequence(launchConfig);
+      
+      console.log("=== LAUNCH RESULT ===");
+      console.log(JSON.stringify(result, null, 2));
       
       if (result.cancelled) {
         setAppLaunchStatus("Launch cancelled");
@@ -924,16 +933,18 @@ export default function BayController() {
         
         // Log results
         result.results?.forEach(r => {
-          console.log(`${r.step}: ${r.status}`, r);
+          console.log(`${r.step}:`, r);
         });
       } else {
         setAppLaunchStatus(`Launch failed: ${result.error}`);
         toast.error(`Launch failed: ${result.error}`);
+        console.error("Launch failed with results:", result.results);
       }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : "Unknown error";
       setAppLaunchStatus(`Error: ${errorMsg}`);
       toast.error(`Launch error: ${errorMsg}`);
+      console.error("Launch exception:", error);
     } finally {
       setIsLaunchingApps(false);
     }
