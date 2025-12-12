@@ -654,29 +654,42 @@ async function runAppLaunchSequence(config) {
   try {
     // Step 1: Launch GSPRO
     console.log('Step 1: Launching GSPRO...');
-    console.log('  GSPRO Path:', gsproPath);
+    console.log('  GSPRO Path:', JSON.stringify(gsproPath));
     console.log('  GSPRO Path exists:', fs.existsSync(gsproPath));
     
     const gsproLaunch = await launchApp(gsproPath);
-    console.log('GSPRO launch result:', gsproLaunch);
+    console.log('GSPRO launch result:', JSON.stringify(gsproLaunch));
     results.push({ step: 'launch_gspro', ...gsproLaunch });
     
     if (!gsproLaunch.success) {
       return { success: false, error: 'Failed to launch GSPRO', results };
     }
     
-    // Step 2: Launch Protee Labs immediately (don't wait)
+    // Step 2: Launch Protee Labs immediately 
     console.log('Step 2: Launching Protee Labs...');
-    console.log('  Protee Labs Path:', proteeLabsPath);
-    console.log('  Protee Labs Path exists:', fs.existsSync(proteeLabsPath));
+    console.log('  proteeLabsPath raw:', JSON.stringify(proteeLabsPath));
+    console.log('  proteeLabsPath type:', typeof proteeLabsPath);
+    console.log('  proteeLabsPath length:', proteeLabsPath ? proteeLabsPath.length : 'null/undefined');
     
-    if (proteeLabsPath && proteeLabsPath.trim() !== '' && fs.existsSync(proteeLabsPath)) {
+    // Check conditions one by one
+    const hasPath = !!proteeLabsPath;
+    const isString = typeof proteeLabsPath === 'string';
+    const notEmpty = proteeLabsPath && proteeLabsPath.trim() !== '';
+    const fileExists = proteeLabsPath && fs.existsSync(proteeLabsPath);
+    
+    console.log('  hasPath:', hasPath);
+    console.log('  isString:', isString);
+    console.log('  notEmpty:', notEmpty);
+    console.log('  fileExists:', fileExists);
+    
+    if (hasPath && isString && notEmpty && fileExists) {
+      console.log('  ALL CHECKS PASSED - Launching Protee Labs...');
       const proteeLaunch = await launchApp(proteeLabsPath);
-      console.log('Protee Labs launch result:', proteeLaunch);
+      console.log('Protee Labs launch result:', JSON.stringify(proteeLaunch));
       results.push({ step: 'launch_protee_labs', ...proteeLaunch });
     } else {
-      console.log('Protee Labs path is empty or file does not exist, skipping...');
-      results.push({ step: 'launch_protee_labs', skipped: true, reason: 'Path empty or file not found' });
+      console.log('  SKIPPING Protee Labs - one or more checks failed');
+      results.push({ step: 'launch_protee_labs', skipped: true, reason: `hasPath:${hasPath} isString:${isString} notEmpty:${notEmpty} fileExists:${fileExists}` });
     }
     
     // Step 3: Wait for windows to appear then use the SAME logic as Fix Windows

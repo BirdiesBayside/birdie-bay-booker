@@ -908,7 +908,10 @@ export default function BayController() {
         postLaunchDelay: 3000
       };
       
-      console.log("Launching apps with config:", launchConfig);
+      console.log("=== FRONTEND LAUNCH CONFIG ===");
+      console.log("gsproPath:", JSON.stringify(appLaunchConfig.gsproPath));
+      console.log("proteeLabsPath:", JSON.stringify(appLaunchConfig.proteeLabsPath));
+      console.log("Full config:", JSON.stringify(launchConfig, null, 2));
       const result = await window.electronAPI.runAppSequence(launchConfig);
       
       if (result.cancelled) {
