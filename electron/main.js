@@ -761,27 +761,33 @@ async function checkAndCorrectWindowPositions(gsproDisplay, proteeDisplay) {
   return { success: true, results };
 }
 
-// Close apps by sending Alt+F4 repeatedly
+// Close GSPRO, Protee Labs, and ProTee United VX
 async function closeApps(appNames) {
   const results = [];
   
-  console.log('=== CLOSING APPS WITH ALT+F4 ===');
+  console.log('=== CLOSING APPS ===');
   
-  // Send Alt+F4 multiple times to close all open windows
-  const maxAttempts = 10;
+  // Known process names for our apps
+  const processesToKill = [
+    'GSPro.exe',
+    'GSPRO.exe', 
+    'GSProLauncher.exe',
+    'Protee Labs.exe',
+    'ProteeLabs.exe',
+    'ProTee United VX.exe',
+    'ProTeeUnitedVX.exe',
+    'United VX.exe',
+    'UnitedVX.exe'
+  ];
   
-  for (let i = 0; i < maxAttempts; i++) {
+  for (const processName of processesToKill) {
     try {
-      // Use PowerShell to send Alt+F4 to the active window
-      await execAsync(`powershell -command "$wshell = New-Object -ComObject wscript.shell; $wshell.SendKeys('%{F4}')"`, { timeout: 3000 });
-      console.log(`Alt+F4 sent (attempt ${i + 1}/${maxAttempts})`);
-      results.push({ attempt: i + 1, status: 'sent' });
-      
-      // Small delay between keypresses
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await execAsync(`taskkill /IM "${processName}" /F`, { timeout: 5000 });
+      console.log(`Closed: ${processName}`);
+      results.push({ app: processName, status: 'closed' });
     } catch (error) {
-      console.log(`Alt+F4 attempt ${i + 1} error:`, error.message);
-      results.push({ attempt: i + 1, status: 'error', error: error.message });
+      // Process not running - that's fine
+      console.log(`${processName}: not running or already closed`);
     }
   }
   
