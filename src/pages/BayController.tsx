@@ -54,6 +54,7 @@ interface AppLaunchConfig {
   gsproDisplayLabel: string; // Display label (e.g., "SAMSUNG", "BENQ PJ") for GSPRO
   proteeDisplayLabel: string; // Display label for Protee (touchscreen)
   appLaunchMinutes: number; // Minutes before booking to launch apps (after plugs are on)
+  appCloseSeconds: number; // Seconds before booking end to close apps (before plugs turn off)
   enabled: boolean;
 }
 
@@ -184,6 +185,7 @@ export default function BayController() {
     gsproDisplayLabel: "", // Will be set when display is selected (e.g., "SAMSUNG")
     proteeDisplayLabel: "", // Will be set when display is selected (e.g., "BENQ PJ")
     appLaunchMinutes: 1, // 1 minute before booking (after plugs turn on at 3 mins)
+    appCloseSeconds: 15, // 15 seconds before booking end to close apps (before plugs turn off)
     enabled: false
   });
   const [isLaunchingApps, setIsLaunchingApps] = useState(false);
@@ -1056,40 +1058,59 @@ export default function BayController() {
   };
 
   // Auto-launch apps based on booking time (separate effect after functions are defined)
+  // CRITICAL: Apps close X seconds BEFORE booking ends to ensure they close while screens are still on
   useEffect(() => {
     if (!appLaunchConfig.enabled || !isElectron || bookings.length === 0) return;
 
     const now = currentTime;
     const today = format(now, "yyyy-MM-dd");
-    const todaysBookings = bookings.filter(b => b.booking_date === today);
+    const todaysBookings = bookings.filter(b => b.booking_date === today && b.status === 'confirmed');
     
     let shouldLaunchApps = false;
+    let shouldCloseApps = false;
 
     for (const booking of todaysBookings) {
       const startTime = parseISO(`${booking.booking_date}T${booking.start_time}`);
       const endTime = parseISO(`${booking.booking_date}T${booking.end_time}`);
       const appLaunchTime = addMinutes(startTime, -appLaunchConfig.appLaunchMinutes);
+      
+      // Close apps X seconds before booking ends (while screens are still on)
+      const appCloseTime = new Date(endTime.getTime() - (appLaunchConfig.appCloseSeconds * 1000));
 
-      if (isAfter(now, appLaunchTime) && isBefore(now, endTime)) {
+      // Should launch if we're past launch time but before close time
+      if (isAfter(now, appLaunchTime) && isBefore(now, appCloseTime)) {
         shouldLaunchApps = true;
       }
+      
+      // Should close if we're past close time but still before end time (plugs still on)
+      if (isAfter(now, appCloseTime) && isBefore(now, endTime)) {
+        shouldCloseApps = true;
+      }
 
-      // Check for back-to-back
+      // Check for back-to-back - keep apps running through consecutive bookings
       const nextBooking = todaysBookings.find(b => b.id !== booking.id && b.start_time === booking.end_time);
       if (nextBooking) {
         const nextEndTime = parseISO(`${nextBooking.booking_date}T${nextBooking.end_time}`);
-        if (isBefore(now, nextEndTime)) {
+        const nextAppCloseTime = new Date(nextEndTime.getTime() - (appLaunchConfig.appCloseSeconds * 1000));
+        
+        // If there's a back-to-back, don't close until the last booking's close time
+        if (isBefore(now, nextAppCloseTime)) {
           shouldLaunchApps = true;
+          shouldCloseApps = false; // Override close since there's a next booking
         }
       }
     }
 
     if (shouldLaunchApps && !appsRunning && !isLaunchingApps) {
       launchApps();
-    } else if (!shouldLaunchApps && appsRunning) {
+    } else if (shouldCloseApps && appsRunning) {
+      console.log(`Closing apps ${appLaunchConfig.appCloseSeconds}s before booking ends (while screens still on)`);
+      closeApps();
+    } else if (!shouldLaunchApps && !shouldCloseApps && appsRunning) {
+      // Fallback: close apps if no active booking window at all
       closeApps();
     }
-  }, [currentTime, bookings, appLaunchConfig.enabled, appLaunchConfig.appLaunchMinutes, appsRunning, isLaunchingApps, isElectron]);
+  }, [currentTime, bookings, appLaunchConfig.enabled, appLaunchConfig.appLaunchMinutes, appLaunchConfig.appCloseSeconds, appsRunning, isLaunchingApps, isElectron]);
 
   // Password screen
   if (!isAuthenticated) {
@@ -1451,7 +1472,7 @@ export default function BayController() {
             <div>
               <Label>Auto-launch apps</Label>
               <p className="text-sm text-muted-foreground">
-                Automatically launch apps {appLaunchConfig.appLaunchMinutes} min before booking
+                Launch {appLaunchConfig.appLaunchMinutes}min before, close {appLaunchConfig.appCloseSeconds}s before end
               </p>
             </div>
             <Switch
@@ -1544,6 +1565,7 @@ export default function BayController() {
                 gsproDisplayLabel: "",
                 proteeDisplayLabel: "",
                 appLaunchMinutes: 1,
+                appCloseSeconds: 15,
                 enabled: false
               });
               toast.success("App launch config reset");
@@ -1661,6 +1683,26 @@ export default function BayController() {
                 <SelectContent>
                   {[1, 2, 3].map((min) => (
                     <SelectItem key={min} value={min.toString()}>{min} min</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* App close timing - close before plugs turn off */}
+            <div className="flex items-center justify-between">
+              <div>
+                <Label className="text-xs text-muted-foreground">Close apps before booking ends</Label>
+              </div>
+              <Select 
+                value={appLaunchConfig.appCloseSeconds.toString()} 
+                onValueChange={(v) => updateAppConfig("appCloseSeconds", parseInt(v))}
+              >
+                <SelectTrigger className="w-24 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {[10, 15, 20, 30].map((sec) => (
+                    <SelectItem key={sec} value={sec.toString()}>{sec} sec</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
