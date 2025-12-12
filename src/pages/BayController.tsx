@@ -282,16 +282,23 @@ export default function BayController() {
   // Handle password submission
   const handlePasswordSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    console.log("[BayController] Password form submitted");
     if (password === CORRECT_PASSWORD) {
+      console.log("[BayController] Password correct, authenticating...");
       setIsAuthenticated(true);
       setPasswordError("");
       // Notify main process of authentication
-      window.electronAPI?.setAuthenticated(true);
+      try {
+        window.electronAPI?.setAuthenticated(true);
+        console.log("[BayController] Notified main process of authentication");
+      } catch (err) {
+        console.error("[BayController] Error notifying main process:", err);
+      }
     } else {
+      console.log("[BayController] Incorrect password entered");
       setPasswordError("Incorrect password");
     }
   };
-
   // Handle quit password submission
   const handleQuitPasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
