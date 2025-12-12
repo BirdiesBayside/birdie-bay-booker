@@ -1486,6 +1486,16 @@ export default function BayController() {
             </Button>
           </div>
 
+          {/* Test App Launch button */}
+          <Button 
+            onClick={launchApps}
+            disabled={!isElectron || isLaunchingApps}
+            variant="outline"
+            className="w-full border-amber-500 text-amber-500 hover:bg-amber-500/10"
+          >
+            <TestTube className="w-4 h-4 mr-2" /> Test App Launch
+          </Button>
+
           {/* Fix window positions button */}
           <div className="flex gap-2">
             <Button 
@@ -1505,6 +1515,27 @@ export default function BayController() {
               <Settings className="w-4 h-4 mr-2" /> List Windows
             </Button>
           </div>
+
+          {/* Clear saved config button */}
+          <Button 
+            onClick={() => {
+              localStorage.removeItem("bayController_appLaunchConfig");
+              setAppLaunchConfig({
+                gsproPath: "C:\\Program Files\\GSPro\\GSPro.exe",
+                proteeLabsPath: "C:\\Program Files\\Protee Labs\\ProTee Labs.exe",
+                gsproDisplayLabel: "",
+                proteeDisplayLabel: "",
+                appLaunchMinutes: 1,
+                enabled: false
+              });
+              toast.success("App launch config reset");
+            }}
+            variant="ghost"
+            size="sm"
+            className="w-full text-xs text-muted-foreground"
+          >
+            Reset App Launch Config
+          </Button>
 
           {!isElectron && (
             <p className="text-xs text-amber-500 text-center">
