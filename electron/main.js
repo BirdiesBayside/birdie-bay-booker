@@ -368,8 +368,8 @@ async function launchApp(exePath) {
   });
 }
 
-// Find window by title using PowerShell - lists all windows and logs them
-async function findWindowByTitle(titlePattern) {
+// Get ALL visible windows for debugging
+async function getAllVisibleWindows() {
   const psScript = `
     Add-Type @"
     using System;
@@ -406,7 +406,17 @@ async function findWindowByTitle(titlePattern) {
   try {
     const { stdout } = await execAsync(`powershell -Command "${psScript.replace(/"/g, '\\"').replace(/\n/g, ' ')}"`, { maxBuffer: 1024 * 1024 });
     const windows = JSON.parse(stdout || '[]');
-    const windowList = Array.isArray(windows) ? windows : [windows];
+    return Array.isArray(windows) ? windows : [windows];
+  } catch (error) {
+    console.error('Get windows failed:', error.message);
+    return [];
+  }
+}
+
+// Find window by title using PowerShell - more flexible matching
+async function findWindowByTitle(titlePattern) {
+  try {
+    const windowList = await getAllVisibleWindows();
     
     // Log all visible windows for debugging
     console.log(`=== SEARCHING FOR: "${titlePattern}" ===`);
@@ -415,14 +425,21 @@ async function findWindowByTitle(titlePattern) {
       if (w.title) console.log(`  - "${w.title}" (hwnd: ${w.hwnd})`);
     });
     
-    const found = windowList.find(w => w.title && w.title.toLowerCase().includes(titlePattern.toLowerCase()));
-    if (found) {
-      console.log(`MATCH FOUND: "${found.title}"`);
-    } else {
-      console.log(`NO MATCH for "${titlePattern}"`);
+    // Try exact match first, then partial match
+    const searchLower = titlePattern.toLowerCase();
+    let found = windowList.find(w => w.title && w.title.toLowerCase() === searchLower);
+    
+    if (!found) {
+      found = windowList.find(w => w.title && w.title.toLowerCase().includes(searchLower));
     }
     
-    return found ? { success: true, hwnd: found.hwnd, title: found.title } : { success: false };
+    if (found) {
+      console.log(`MATCH FOUND: "${found.title}"`);
+      return { success: true, hwnd: found.hwnd, title: found.title };
+    }
+    
+    console.log(`NO MATCH for "${titlePattern}"`);
+    return { success: false, windows: windowList.map(w => w.title).filter(Boolean) };
   } catch (error) {
     console.error('Find window failed:', error.message);
     return { success: false, error: error.message };
@@ -826,4 +843,13 @@ ipcMain.handle('close-apps', async (event, { appNames }) => {
 
 ipcMain.handle('check-window-positions', async (event, { gsproDisplay, proteeDisplay }) => {
   return await checkAndCorrectWindowPositions(gsproDisplay, proteeDisplay);
+});
+
+// Debug: List all visible windows
+ipcMain.handle('list-windows', async () => {
+  const windows = await getAllVisibleWindows();
+  return { 
+    success: true, 
+    windows: windows.map(w => ({ title: w.title, hwnd: w.hwnd })).filter(w => w.title)
+  };
 });
