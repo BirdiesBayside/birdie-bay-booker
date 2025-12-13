@@ -283,6 +283,36 @@ export default function BayController() {
         console.error("Failed to get displays:", err);
       });
       
+      // Set up continuous display monitoring (check every 5 seconds for new/removed displays)
+      const displayMonitorInterval = setInterval(async () => {
+        try {
+          const currentDisplays = await window.electronAPI!.getDisplays();
+          setDisplays(prevDisplays => {
+            // Check for new displays
+            const prevLabels = new Set(prevDisplays.map(d => d.label));
+            const currentLabels = new Set(currentDisplays.map(d => d.label));
+            
+            // Find new displays
+            const newDisplays = currentDisplays.filter(d => !prevLabels.has(d.label));
+            if (newDisplays.length > 0) {
+              console.log("New display(s) detected:", newDisplays);
+              toast.success(`New display detected: ${newDisplays.map(d => d.label).join(", ")}`);
+            }
+            
+            // Find removed displays
+            const removedDisplays = prevDisplays.filter(d => !currentLabels.has(d.label));
+            if (removedDisplays.length > 0) {
+              console.log("Display(s) removed:", removedDisplays);
+              toast.warning(`Display disconnected: ${removedDisplays.map(d => d.label).join(", ")}`);
+            }
+            
+            return currentDisplays;
+          });
+        } catch (err) {
+          console.error("Display monitor check failed:", err);
+        }
+      }, 5000); // Check every 5 seconds
+      
       // Listen for lock request from main process (when window shown from tray)
       const cleanupLock = window.electronAPI.onRequestLock(() => {
         console.log("Lock requested from main process");
@@ -301,6 +331,7 @@ export default function BayController() {
       });
       
       return () => {
+        clearInterval(displayMonitorInterval);
         cleanupLock?.();
         cleanupQuit?.();
       };
