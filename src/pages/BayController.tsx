@@ -288,28 +288,26 @@ export default function BayController() {
         try {
           const currentDisplays = await window.electronAPI!.getDisplays();
           setDisplays(prevDisplays => {
-            // Check for new displays
+            // Check for changes silently
             const prevLabels = new Set(prevDisplays.map(d => d.label));
             const currentLabels = new Set(currentDisplays.map(d => d.label));
             
-            // Find new displays
+            // Log new displays silently
             const newDisplays = currentDisplays.filter(d => !prevLabels.has(d.label));
             if (newDisplays.length > 0) {
-              console.log("New display(s) detected:", newDisplays);
-              toast.success(`New display detected: ${newDisplays.map(d => d.label).join(", ")}`);
+              console.log("New display(s) detected:", newDisplays.map(d => d.label));
             }
             
-            // Find removed displays
+            // Log removed displays silently
             const removedDisplays = prevDisplays.filter(d => !currentLabels.has(d.label));
             if (removedDisplays.length > 0) {
-              console.log("Display(s) removed:", removedDisplays);
-              toast.warning(`Display disconnected: ${removedDisplays.map(d => d.label).join(", ")}`);
+              console.log("Display(s) disconnected:", removedDisplays.map(d => d.label));
             }
             
             return currentDisplays;
           });
         } catch (err) {
-          console.error("Display monitor check failed:", err);
+          // Silent failure - don't log errors to avoid console noise
         }
       }, 5000); // Check every 5 seconds
       
