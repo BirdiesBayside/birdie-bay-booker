@@ -77,7 +77,8 @@ serve(async (req) => {
         const { data: tours, error } = await supabase
           .from("sgt_tours")
           .select("*")
-          .order("active", { ascending: false });
+          .order("active", { ascending: false })
+          .order("start_date", { ascending: false });
         
         if (error) throw error;
         
@@ -145,7 +146,7 @@ serve(async (req) => {
           .from("sgt_tournaments")
           .select("*")
           .eq("tour_id", parseInt(params.tourId))
-          .order("end_date", { ascending: false });
+          .order("start_date", { ascending: false });
         
         if (error) throw error;
         
