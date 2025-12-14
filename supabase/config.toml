@@ -1,5 +1,8 @@
 project_id = "hltrcuypuxhetcjyvedl"
 
+[functions.sgt-auto-register]
+verify_jwt = false
+
 [functions.create-setup-intent]
 verify_jwt = false
 
