@@ -52,6 +52,7 @@ import {
   Calendar,
   Columns,
   Download,
+  Upload,
   UserPlus,
   KeyRound,
   DollarSign,
@@ -692,6 +693,10 @@ export default function AdminCustomers() {
           </div>
 
           <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => navigate('/admin/customer-import')}>
+              <Upload className="h-4 w-4 mr-2" />
+              Import CSV
+            </Button>
             <Button onClick={() => setShowAddCustomerDialog(true)}>
               <UserPlus className="h-4 w-4 mr-2" />
               Add Customer
