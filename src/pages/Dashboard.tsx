@@ -170,10 +170,9 @@ const Dashboard = () => {
                   <div className="flex gap-2">
                     <Button 
                       className="flex-1 bg-league-primary text-league-foreground hover:bg-league-primary-dark"
-                      onClick={() => window.open("https://birdiesbayside.com.au/pages/birdies-league-sign-up", "_blank")}
+                      onClick={() => navigate("/league/register")}
                     >
                       Register
-                      <ExternalLink className="h-3 w-3 ml-1" />
                     </Button>
                     <Button 
                       className="flex-1 bg-league-primary text-league-foreground hover:bg-league-primary-dark"
