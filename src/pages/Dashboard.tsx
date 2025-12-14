@@ -12,6 +12,7 @@ const Dashboard = () => {
   const { user, isAuthenticated, isLoading, signOut } = useAuth();
   const navigate = useNavigate();
   const [membershipTier, setMembershipTier] = useState<MembershipTier>("visitor");
+  const [hasSgtAccount, setHasSgtAccount] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
@@ -21,18 +22,19 @@ const Dashboard = () => {
   }, [isAuthenticated, isLoading, navigate]);
 
   useEffect(() => {
-    const fetchMembership = async () => {
+    const fetchProfile = async () => {
       if (!user) return;
       const { data } = await supabase
         .from("profiles")
-        .select("membership_tier")
+        .select("membership_tier, sgt_user_id")
         .eq("user_id", user.id)
         .single();
       if (data?.membership_tier) {
         setMembershipTier(data.membership_tier as MembershipTier);
       }
+      setHasSgtAccount(!!data?.sgt_user_id);
     };
-    fetchMembership();
+    fetchProfile();
   }, [user]);
 
   useEffect(() => {
@@ -168,14 +170,16 @@ const Dashboard = () => {
                     Compete in weekly leagues and track your progress.
                   </p>
                   <div className="flex gap-2">
+                    {!hasSgtAccount && (
+                      <Button 
+                        className="flex-1 bg-league-primary text-league-foreground hover:bg-league-primary-dark"
+                        onClick={() => navigate("/league/register")}
+                      >
+                        Register
+                      </Button>
+                    )}
                     <Button 
-                      className="flex-1 bg-league-primary text-league-foreground hover:bg-league-primary-dark"
-                      onClick={() => navigate("/league/register")}
-                    >
-                      Register
-                    </Button>
-                    <Button 
-                      className="flex-1 bg-league-primary text-league-foreground hover:bg-league-primary-dark"
+                      className={`${hasSgtAccount ? 'w-full' : 'flex-1'} bg-league-primary text-league-foreground hover:bg-league-primary-dark`}
                       onClick={() => navigate("/league")}
                     >
                       View League
