@@ -1121,40 +1121,71 @@ export default function BayController() {
           addLog(`${r.step}: ${r.status || 'complete'}`, r.status === 'error' ? 'error' : 'success');
         });
         
-        // Schedule automatic window position fix after 15 seconds
-        addLog("Scheduling window position fix in 15 seconds...", 'info');
+        // Fix GSPRO position 5 seconds after launch (opens fullscreen immediately)
+        addLog("Scheduling GSPRO position fix in 5 seconds...", 'info');
         setTimeout(async () => {
           try {
-            addLog("Running automatic window position fix...", 'info');
+            addLog("Fixing GSPRO window position...", 'info');
             
-            // Get fresh display list
             const currentDisplays = await window.electronAPI!.getDisplays();
             const gsproIdx = currentDisplays.findIndex(d => d.label === appLaunchConfig.gsproDisplayLabel);
-            const proteeIdx = currentDisplays.findIndex(d => d.label === appLaunchConfig.proteeDisplayLabel);
             
-            if (gsproIdx < 0 || proteeIdx < 0) {
-              addLog("Window position fix skipped - displays no longer available", 'error');
+            if (gsproIdx < 0) {
+              addLog("GSPRO position fix skipped - display not available", 'error');
               return;
             }
             
-            const posResult = await window.electronAPI!.checkWindowPositions(gsproIdx, proteeIdx);
+            // Only fix GSPRO (pass -1 for protee to skip it)
+            const posResult = await window.electronAPI!.checkWindowPositions(gsproIdx, -1);
             
             if (posResult.success && posResult.results) {
-              posResult.results.forEach(r => {
-                if (r.found && r.moved) {
-                  addLog(`Moved ${r.app} to display ${r.display}`, 'success');
-                } else if (r.found) {
-                  addLog(`${r.app} already on correct display`, 'info');
-                } else {
-                  addLog(`${r.app} window not found`, 'error');
-                }
-              });
-              toast.success("Window positions verified");
+              const gsproResult = posResult.results.find(r => r.app === 'GSPRO');
+              if (gsproResult?.found && gsproResult?.moved) {
+                addLog(`Moved GSPRO to display ${gsproResult.display}`, 'success');
+                toast.success("GSPRO positioned");
+              } else if (gsproResult?.found) {
+                addLog("GSPRO already on correct display", 'info');
+              } else {
+                addLog("GSPRO window not found yet", 'error');
+              }
             }
           } catch (err) {
-            addLog(`Window position fix failed: ${err}`, 'error');
+            addLog(`GSPRO position fix failed: ${err}`, 'error');
           }
-        }, 15000);
+        }, 5000);
+
+        // Fix Protee Labs position 20 seconds after launch (takes longer to open)
+        addLog("Scheduling Protee Labs position fix in 20 seconds...", 'info');
+        setTimeout(async () => {
+          try {
+            addLog("Fixing Protee Labs window position...", 'info');
+            
+            const currentDisplays = await window.electronAPI!.getDisplays();
+            const proteeIdx = currentDisplays.findIndex(d => d.label === appLaunchConfig.proteeDisplayLabel);
+            
+            if (proteeIdx < 0) {
+              addLog("Protee Labs position fix skipped - display not available", 'error');
+              return;
+            }
+            
+            // Only fix Protee Labs (pass -1 for gspro to skip it)
+            const posResult = await window.electronAPI!.checkWindowPositions(-1, proteeIdx);
+            
+            if (posResult.success && posResult.results) {
+              const proteeResult = posResult.results.find(r => r.app === 'ProteeLabs');
+              if (proteeResult?.found && proteeResult?.moved) {
+                addLog(`Moved Protee Labs to display ${proteeResult.display}`, 'success');
+                toast.success("Protee Labs positioned");
+              } else if (proteeResult?.found) {
+                addLog("Protee Labs already on correct display", 'info');
+              } else {
+                addLog("Protee Labs window not found yet", 'error');
+              }
+            }
+          } catch (err) {
+            addLog(`Protee Labs position fix failed: ${err}`, 'error');
+          }
+        }, 20000);
       } else {
         setAppLaunchStatus(`Launch failed: ${result.error}`);
         addLog(`Launch failed: ${result.error}`, 'error');
