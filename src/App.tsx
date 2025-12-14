@@ -13,6 +13,7 @@ import LeagueHub from "./pages/LeagueHub";
 import LeagueRounds from "./pages/LeagueRounds";
 import LeagueLeaderboard from "./pages/LeagueLeaderboard";
 import LeagueProfile from "./pages/LeagueProfile";
+import LeagueRegister from "./pages/LeagueRegister";
 import NotFound from "./pages/NotFound";
 import ResetPassword from "./pages/ResetPassword";
 import AdminDashboard from "./pages/admin/AdminDashboard";
@@ -48,6 +49,7 @@ const App = () => (
           <Route path="/league/rounds" element={<LeagueRounds />} />
           <Route path="/league/leaderboard" element={<LeagueLeaderboard />} />
           <Route path="/league/profile" element={<LeagueProfile />} />
+          <Route path="/league/register" element={<LeagueRegister />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/bay-controller" element={<BayController />} />
           {/* Admin Routes */}

@@ -50,3 +50,6 @@ verify_jwt = false
 
 [functions.send-password-reset]
 verify_jwt = false
+
+[functions.sgt-register]
+verify_jwt = false

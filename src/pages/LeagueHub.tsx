@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { LeagueLayout } from "@/components/league/LeagueLayout";
+import { LeagueRegistrationPrompt } from "@/components/league/LeagueRegistrationPrompt";
 import { StatCard } from "@/components/league/StatCard";
 import { sgtClient, MemberStats, PlayerRound } from "@/lib/sgt-api";
 import {
@@ -21,6 +22,7 @@ export default function LeagueHub() {
   const { user, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [displayName, setDisplayName] = useState<string>("");
+  const [sgtUserId, setSgtUserId] = useState<number | null>(null);
   const [stats, setStats] = useState<MemberStats | null>(null);
   const [recentRounds, setRecentRounds] = useState<PlayerRound[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -44,19 +46,23 @@ export default function LeagueHub() {
       try {
         const { data: profile } = await supabase
           .from("profiles")
-          .select("display_name, first_name, email")
+          .select("display_name, first_name, email, sgt_user_id")
           .eq("user_id", user.id)
           .maybeSingle();
 
         setDisplayName(profile?.display_name || profile?.first_name || user.email?.split("@")[0] || "Golfer");
+        setSgtUserId(profile?.sgt_user_id || null);
 
-        const [statsData, roundsData] = await Promise.all([
-          sgtClient.getMemberStats().catch(() => null),
-          sgtClient.getPlayerRounds().catch(() => []),
-        ]);
+        // Only fetch SGT data if user has linked account
+        if (profile?.sgt_user_id) {
+          const [statsData, roundsData] = await Promise.all([
+            sgtClient.getMemberStats().catch(() => null),
+            sgtClient.getPlayerRounds().catch(() => []),
+          ]);
 
-        setStats(statsData);
-        setRecentRounds(roundsData.slice(0, 5));
+          setStats(statsData);
+          setRecentRounds(roundsData.slice(0, 5));
+        }
       } catch (error) {
         console.error("Failed to load dashboard:", error);
       } finally {
@@ -91,6 +97,9 @@ export default function LeagueHub() {
         <div className="flex items-center justify-center py-20">
           <Loader2 className="h-8 w-8 text-birdies-orange animate-spin" />
         </div>
+      ) : !sgtUserId ? (
+        // Show registration prompt if user doesn't have SGT account
+        <LeagueRegistrationPrompt />
       ) : (
         <>
           {/* Stats Grid */}
