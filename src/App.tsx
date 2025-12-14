@@ -24,6 +24,7 @@ import AdminSettings from "./pages/admin/AdminSettings";
 import AdminBulkEmail from "./pages/admin/AdminBulkEmail";
 import AdminBayControl from "./pages/admin/AdminBayControl";
 import AdminMarketing from "./pages/admin/AdminMarketing";
+import AdminCustomerImport from "./pages/admin/AdminCustomerImport";
 import BayController from "./pages/BayController";
 
 const queryClient = new QueryClient();
@@ -61,6 +62,7 @@ const App = () => (
           <Route path="/admin/marketing" element={<AdminMarketing />} />
           <Route path="/admin/settings" element={<AdminSettings />} />
           <Route path="/admin/bulk-email" element={<AdminBulkEmail />} />
+          <Route path="/admin/customer-import" element={<AdminCustomerImport />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
