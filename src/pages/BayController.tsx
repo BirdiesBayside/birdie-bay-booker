@@ -1046,29 +1046,33 @@ export default function BayController() {
     // Perform a fresh display check before launching
     try {
       const currentDisplays = await window.electronAPI.getDisplays();
-      const prevLabels = new Set(displays.map(d => d.label));
       const currentLabels = new Set(currentDisplays.map(d => d.label));
       
-      // Check for any display changes
-      const newDisplays = currentDisplays.filter(d => !prevLabels.has(d.label));
-      const removedDisplays = displays.filter(d => !currentLabels.has(d.label));
+      // Update our display state with the fresh list
+      setDisplays(currentDisplays);
       
-      if (newDisplays.length > 0 || removedDisplays.length > 0) {
-        // Display configuration has changed - update state and cancel launch
-        setDisplays(currentDisplays);
-        
-        const changeMessages = [];
-        if (newDisplays.length > 0) {
-          changeMessages.push(`New: ${newDisplays.map(d => d.label).join(', ')}`);
-        }
-        if (removedDisplays.length > 0) {
-          changeMessages.push(`Removed: ${removedDisplays.map(d => d.label).join(', ')}`);
-        }
-        
-        toast.error(`Display change detected - launch cancelled. ${changeMessages.join('. ')}`);
-        addLog(`Display change detected: ${changeMessages.join('. ')}`, 'error');
+      // CRITICAL: Verify configured displays actually exist
+      const gsproConfigured = appLaunchConfig.gsproDisplayLabel;
+      const proteeConfigured = appLaunchConfig.proteeDisplayLabel;
+      
+      const missingDisplays: string[] = [];
+      
+      if (gsproConfigured && !currentLabels.has(gsproConfigured)) {
+        missingDisplays.push(`GSPRO display "${gsproConfigured}"`);
+      }
+      
+      if (proteeConfigured && !currentLabels.has(proteeConfigured)) {
+        missingDisplays.push(`Protee display "${proteeConfigured}"`);
+      }
+      
+      if (missingDisplays.length > 0) {
+        toast.error(`Launch cancelled - Missing: ${missingDisplays.join(', ')}`);
+        addLog(`Launch cancelled - configured displays not found: ${missingDisplays.join(', ')}`, 'error');
+        addLog(`Available displays: ${Array.from(currentLabels).join(', ')}`, 'info');
         return;
       }
+      
+      addLog(`Display check passed. Available: ${Array.from(currentLabels).join(', ')}`, 'success');
     } catch (err) {
       console.error("Failed to check displays before launch:", err);
       toast.error("Failed to verify displays - launch cancelled");
@@ -1080,9 +1084,12 @@ export default function BayController() {
     addLog("Starting app launch sequence...", 'info');
 
     try {
+      // Re-fetch displays to get fresh indices after state update
+      const freshDisplays = await window.electronAPI.getDisplays();
+      
       // Find display indices from labels (monitor names)
-      const gsproDisplayIndex = displays.findIndex(d => d.label === appLaunchConfig.gsproDisplayLabel);
-      const proteeDisplayIndex = displays.findIndex(d => d.label === appLaunchConfig.proteeDisplayLabel);
+      const gsproDisplayIndex = freshDisplays.findIndex(d => d.label === appLaunchConfig.gsproDisplayLabel);
+      const proteeDisplayIndex = freshDisplays.findIndex(d => d.label === appLaunchConfig.proteeDisplayLabel);
       
       const launchConfig = {
         gsproPath: appLaunchConfig.gsproPath,
@@ -1113,6 +1120,41 @@ export default function BayController() {
         result.results?.forEach(r => {
           addLog(`${r.step}: ${r.status || 'complete'}`, r.status === 'error' ? 'error' : 'success');
         });
+        
+        // Schedule automatic window position fix after 15 seconds
+        addLog("Scheduling window position fix in 15 seconds...", 'info');
+        setTimeout(async () => {
+          try {
+            addLog("Running automatic window position fix...", 'info');
+            
+            // Get fresh display list
+            const currentDisplays = await window.electronAPI!.getDisplays();
+            const gsproIdx = currentDisplays.findIndex(d => d.label === appLaunchConfig.gsproDisplayLabel);
+            const proteeIdx = currentDisplays.findIndex(d => d.label === appLaunchConfig.proteeDisplayLabel);
+            
+            if (gsproIdx < 0 || proteeIdx < 0) {
+              addLog("Window position fix skipped - displays no longer available", 'error');
+              return;
+            }
+            
+            const posResult = await window.electronAPI!.checkWindowPositions(gsproIdx, proteeIdx);
+            
+            if (posResult.success && posResult.results) {
+              posResult.results.forEach(r => {
+                if (r.found && r.moved) {
+                  addLog(`Moved ${r.app} to display ${r.display}`, 'success');
+                } else if (r.found) {
+                  addLog(`${r.app} already on correct display`, 'info');
+                } else {
+                  addLog(`${r.app} window not found`, 'error');
+                }
+              });
+              toast.success("Window positions verified");
+            }
+          } catch (err) {
+            addLog(`Window position fix failed: ${err}`, 'error');
+          }
+        }, 15000);
       } else {
         setAppLaunchStatus(`Launch failed: ${result.error}`);
         addLog(`Launch failed: ${result.error}`, 'error');
