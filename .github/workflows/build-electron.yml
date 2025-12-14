@@ -4,6 +4,12 @@ name: Build Windows Installer
 on:
   push:
     branches: [main]
+    paths:
+      - 'electron/**'
+      - 'src/pages/BayController.tsx'
+      - 'src/bay-controller-main.tsx'
+      - 'bay-controller.html'
+      - 'vite.config.electron.ts'
   workflow_dispatch:
 
 permissions:
