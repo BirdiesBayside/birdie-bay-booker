@@ -1043,6 +1043,38 @@ export default function BayController() {
       return;
     }
 
+    // Perform a fresh display check before launching
+    try {
+      const currentDisplays = await window.electronAPI.getDisplays();
+      const prevLabels = new Set(displays.map(d => d.label));
+      const currentLabels = new Set(currentDisplays.map(d => d.label));
+      
+      // Check for any display changes
+      const newDisplays = currentDisplays.filter(d => !prevLabels.has(d.label));
+      const removedDisplays = displays.filter(d => !currentLabels.has(d.label));
+      
+      if (newDisplays.length > 0 || removedDisplays.length > 0) {
+        // Display configuration has changed - update state and cancel launch
+        setDisplays(currentDisplays);
+        
+        const changeMessages = [];
+        if (newDisplays.length > 0) {
+          changeMessages.push(`New: ${newDisplays.map(d => d.label).join(', ')}`);
+        }
+        if (removedDisplays.length > 0) {
+          changeMessages.push(`Removed: ${removedDisplays.map(d => d.label).join(', ')}`);
+        }
+        
+        toast.error(`Display change detected - launch cancelled. ${changeMessages.join('. ')}`);
+        addLog(`Display change detected: ${changeMessages.join('. ')}`, 'error');
+        return;
+      }
+    } catch (err) {
+      console.error("Failed to check displays before launch:", err);
+      toast.error("Failed to verify displays - launch cancelled");
+      return;
+    }
+
     setIsLaunchingApps(true);
     setAppLaunchStatus("Starting app launch sequence...");
     addLog("Starting app launch sequence...", 'info');
