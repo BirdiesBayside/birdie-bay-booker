@@ -81,8 +81,10 @@ serve(async (req) => {
             app_version: appVersion,
           }, { onConflict: "bay_id" });
 
-        // Get today's date in YYYY-MM-DD format
-        const today = new Date().toISOString().split("T")[0];
+        // Get current date and time
+        const now = new Date();
+        const today = now.toISOString().split("T")[0];
+        const currentTime = now.toTimeString().slice(0, 8); // "HH:MM:SS"
 
         // Fetch bookings for this bay from today onwards
         const { data: bookings, error: bookingsError } = await supabase
@@ -103,6 +105,16 @@ serve(async (req) => {
           .order("booking_date", { ascending: true })
           .order("start_time", { ascending: true });
 
+        // Filter out past bookings for today (only keep bookings that haven't ended yet)
+        const filteredBookings = (bookings || []).filter((booking: any) => {
+          if (booking.booking_date > today) {
+            // Future date - always include
+            return true;
+          }
+          // Today's date - only include if booking hasn't ended yet
+          return booking.end_time > currentTime;
+        });
+
         if (bookingsError) {
           console.error("Bookings fetch error:", bookingsError);
           return new Response(
@@ -112,7 +124,7 @@ serve(async (req) => {
         }
 
         // Fetch customer names for each booking
-        const userIds = [...new Set((bookings || []).map((b: any) => b.user_id))];
+        const userIds = [...new Set(filteredBookings.map((b: any) => b.user_id))];
         let profilesMap: Record<string, { first_name: string; last_name: string }> = {};
         
         if (userIds.length > 0) {
@@ -129,7 +141,7 @@ serve(async (req) => {
         }
 
         // Transform bookings to include customer_name
-        const bookingsWithNames = (bookings || []).map((booking: any) => {
+        const bookingsWithNames = filteredBookings.map((booking: any) => {
           const profile = profilesMap[booking.user_id];
           return {
             id: booking.id,
@@ -145,7 +157,7 @@ serve(async (req) => {
           };
         });
 
-        console.log(`Returning ${bookings?.length || 0} bookings for bay ${bayNumber}`);
+        console.log(`Returning ${filteredBookings.length} bookings for bay ${bayNumber} (filtered from ${bookings?.length || 0})`);
 
         return new Response(
           JSON.stringify({
