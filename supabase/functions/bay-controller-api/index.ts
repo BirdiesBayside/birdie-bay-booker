@@ -81,10 +81,13 @@ serve(async (req) => {
             app_version: appVersion,
           }, { onConflict: "bay_id" });
 
-        // Get current date and time
+        // Get current date and time in Australia/Sydney timezone
         const now = new Date();
-        const today = now.toISOString().split("T")[0];
-        const currentTime = now.toTimeString().slice(0, 8); // "HH:MM:SS"
+        const sydneyOptions = { timeZone: 'Australia/Sydney' };
+        const sydneyDateStr = now.toLocaleDateString('en-CA', sydneyOptions); // "YYYY-MM-DD"
+        const sydneyTimeStr = now.toLocaleTimeString('en-GB', { ...sydneyOptions, hour12: false }); // "HH:MM:SS"
+        
+        console.log(`Server UTC time: ${now.toISOString()}, Sydney date: ${sydneyDateStr}, Sydney time: ${sydneyTimeStr}`);
 
         // Fetch bookings for this bay from today onwards
         const { data: bookings, error: bookingsError } = await supabase
@@ -101,18 +104,18 @@ serve(async (req) => {
           `)
           .eq("bay_id", bay.id)
           .eq("status", "confirmed")
-          .gte("booking_date", today)
+          .gte("booking_date", sydneyDateStr)
           .order("booking_date", { ascending: true })
           .order("start_time", { ascending: true });
 
         // Filter out past bookings for today (only keep bookings that haven't ended yet)
         const filteredBookings = (bookings || []).filter((booking: any) => {
-          if (booking.booking_date > today) {
+          if (booking.booking_date > sydneyDateStr) {
             // Future date - always include
             return true;
           }
           // Today's date - only include if booking hasn't ended yet
-          return booking.end_time > currentTime;
+          return booking.end_time > sydneyTimeStr;
         });
 
         if (bookingsError) {
