@@ -69,12 +69,7 @@ interface NotificationConfig {
   }[];
 }
 
-interface ActiveNotification {
-  id: string;
-  message: string;
-  customerName: string;
-  expiresAt: Date;
-}
+// ActiveNotification interface removed - now using Electron popup windows
 
 // Helper to find display by label (name)
 const findDisplayByLabel = (displays: DisplayInfo[], label: string): DisplayInfo | undefined => {
@@ -101,6 +96,9 @@ declare global {
       closeApps: (appNames: string[]) => Promise<{ success: boolean; results?: any[]; error?: string }>;
       checkWindowPositions: (gsproDisplay: number, proteeDisplay: number) => Promise<{ success: boolean; results?: { app: string; found: boolean; moved?: boolean; display?: number }[]; error?: string }>;
       listWindows: () => Promise<{ success: boolean; windows?: { title: string; hwnd: number }[]; error?: string }>;
+      // Notification popup
+      showNotificationPopup: (message: string, displayLabel: string, durationMs: number) => Promise<{ success: boolean; error?: string }>;
+      closeNotificationPopup: () => Promise<{ success: boolean; error?: string }>;
       // Security / Quit control
       confirmQuit: () => Promise<{ success: boolean }>;
       setAuthenticated: (authenticated: boolean) => Promise<{ success: boolean }>;
@@ -232,7 +230,7 @@ export default function BayController() {
       ]
     };
   });
-  const [activeNotification, setActiveNotification] = useState<ActiveNotification | null>(null);
+  // activeNotification state removed - now using Electron popup windows
   const [shownNotifications, setShownNotifications] = useState<Set<string>>(new Set());
   
   // Helper to add debug log
@@ -684,11 +682,11 @@ export default function BayController() {
 
   // Check for customer notifications based on booking end time
   useEffect(() => {
-    if (!notificationConfig.enabled || !activeBooking) {
+    if (!notificationConfig.enabled || !activeBooking || !isElectron) {
       return;
     }
 
-    const checkNotifications = () => {
+    const checkNotifications = async () => {
       const now = new Date();
       const endTime = parseISO(`${activeBooking.booking_date}T${activeBooking.end_time}`);
       const minutesRemaining = (endTime.getTime() - now.getTime()) / (1000 * 60);
@@ -708,15 +706,21 @@ export default function BayController() {
           const firstName = activeBooking.customer_name?.split(' ')[0] || 'Guest';
           const message = notification.message.replace('{firstName}', firstName);
           
-          setActiveNotification({
-            id: notificationKey,
-            message,
-            customerName: firstName,
-            expiresAt: addMinutes(now, 1) // Show for 1 minute
-          });
+          // Show notification popup on configured display using Electron API
+          if (window.electronAPI && notificationConfig.displayLabel) {
+            try {
+              await window.electronAPI.showNotificationPopup(
+                message,
+                notificationConfig.displayLabel,
+                60000 // 1 minute duration
+              );
+              console.log(`Showing notification popup: ${notification.id} for booking ${activeBooking.id} on display ${notificationConfig.displayLabel}`);
+            } catch (err) {
+              console.error('Failed to show notification popup:', err);
+            }
+          }
           
           setShownNotifications(prev => new Set([...prev, notificationKey]));
-          console.log(`Showing notification: ${notification.id} for booking ${activeBooking.id}`);
         }
       }
     };
@@ -726,21 +730,7 @@ export default function BayController() {
     checkNotifications(); // Check immediately
 
     return () => clearInterval(interval);
-  }, [activeBooking, notificationConfig, shownNotifications]);
-
-  // Auto-dismiss notification after expiry
-  useEffect(() => {
-    if (!activeNotification) return;
-
-    const checkExpiry = () => {
-      if (new Date() >= activeNotification.expiresAt) {
-        setActiveNotification(null);
-      }
-    };
-
-    const interval = setInterval(checkExpiry, 1000);
-    return () => clearInterval(interval);
-  }, [activeNotification]);
+  }, [activeBooking, notificationConfig, shownNotifications, isElectron]);
 
   // Reset shown notifications when booking changes
   useEffect(() => {
@@ -2135,34 +2125,7 @@ export default function BayController() {
         </p>
       </div>
 
-      {/* Customer Notification Popup - Bottom Right */}
-      {activeNotification && (
-        <div className="fixed bottom-6 right-6 z-50 max-w-md animate-fade-in">
-          <Card className="bg-primary border-primary shadow-2xl">
-            <CardContent className="p-6">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Bell className="w-6 h-6 text-primary-foreground" />
-                    <span className="font-bold text-lg text-primary-foreground">Session Ending Soon</span>
-                  </div>
-                  <p className="text-primary-foreground text-lg leading-relaxed">
-                    {activeNotification.message}
-                  </p>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="text-primary-foreground hover:bg-primary-foreground/20 flex-shrink-0"
-                  onClick={() => setActiveNotification(null)}
-                >
-                  <X className="w-5 h-5" />
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+      {/* Customer notifications now shown via Electron popup windows on configured display */}
 
       {/* Quit Password Dialog */}
       {showQuitDialog && (

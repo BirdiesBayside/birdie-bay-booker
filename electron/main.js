@@ -883,3 +883,154 @@ ipcMain.handle('list-windows', async () => {
     windows: windows.map(w => ({ title: w.title, hwnd: w.hwnd })).filter(w => w.title)
   };
 });
+
+// =====================================================
+// NOTIFICATION POPUP
+// =====================================================
+
+let notificationWindow = null;
+
+ipcMain.handle('show-notification-popup', async (event, { message, displayLabel, durationMs }) => {
+  try {
+    console.log(`Showing notification popup on display: ${displayLabel}`);
+    
+    // Close existing notification if any
+    if (notificationWindow && !notificationWindow.isDestroyed()) {
+      notificationWindow.close();
+      notificationWindow = null;
+    }
+    
+    // Find the target display by label
+    const displays = screen.getAllDisplays();
+    let targetDisplay = displays[0]; // Default to primary
+    
+    for (const display of displays) {
+      // Get display label similar to getDisplayInfo function
+      const label = display.label || `Display ${displays.indexOf(display) + 1}`;
+      if (label === displayLabel) {
+        targetDisplay = display;
+        break;
+      }
+    }
+    
+    const { x, y, width, height } = targetDisplay.bounds;
+    
+    // Calculate popup size and position (bottom-right of the target display)
+    const popupWidth = 500;
+    const popupHeight = 200;
+    const margin = 40;
+    const popupX = x + width - popupWidth - margin;
+    const popupY = y + height - popupHeight - margin;
+    
+    // Create a frameless, always-on-top popup window
+    notificationWindow = new BrowserWindow({
+      width: popupWidth,
+      height: popupHeight,
+      x: popupX,
+      y: popupY,
+      frame: false,
+      transparent: true,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      resizable: false,
+      movable: false,
+      focusable: false,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true
+      }
+    });
+    
+    // Generate HTML content for the notification
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: transparent;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            padding: 20px;
+          }
+          .notification {
+            background: linear-gradient(135deg, #ec622d, #d55627);
+            color: white;
+            padding: 30px 40px;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            max-width: 100%;
+            text-align: center;
+            animation: slideIn 0.3s ease-out;
+          }
+          @keyframes slideIn {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+          }
+          .title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+          }
+          .message {
+            font-size: 22px;
+            font-weight: 500;
+            line-height: 1.4;
+          }
+          .bell-icon {
+            width: 24px;
+            height: 24px;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="notification">
+          <div class="title">
+            <svg class="bell-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+            </svg>
+            Session Ending Soon
+          </div>
+          <div class="message">${message.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
+        </div>
+      </body>
+      </html>
+    `;
+    
+    notificationWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
+    
+    // Auto-close after duration
+    setTimeout(() => {
+      if (notificationWindow && !notificationWindow.isDestroyed()) {
+        notificationWindow.close();
+        notificationWindow = null;
+      }
+    }, durationMs || 60000);
+    
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to show notification popup:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('close-notification-popup', async () => {
+  try {
+    if (notificationWindow && !notificationWindow.isDestroyed()) {
+      notificationWindow.close();
+      notificationWindow = null;
+    }
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
