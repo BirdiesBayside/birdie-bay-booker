@@ -1811,24 +1811,41 @@ export default function BayController() {
             </div>
 
             {/* Display assignment - uses monitor name for reliable matching */}
+            {/* Shows saved config + availability status, auto-resolves when displays reconnect */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">GSPRO Display</Label>
+                <Label className="text-xs text-muted-foreground flex items-center gap-2">
+                  GSPRO Display
+                  {appLaunchConfig.gsproDisplayLabel && (
+                    displays.some(d => d.label === appLaunchConfig.gsproDisplayLabel) 
+                      ? <Badge variant="default" className="text-[10px] px-1 py-0">Available</Badge>
+                      : <Badge variant="destructive" className="text-[10px] px-1 py-0">Offline</Badge>
+                  )}
+                </Label>
                 <Select 
                   value={appLaunchConfig.gsproDisplayLabel} 
                   onValueChange={(v) => updateAppConfig("gsproDisplayLabel", v)}
                 >
                   <SelectTrigger className="text-xs">
-                    <SelectValue placeholder="Select display" />
+                    <SelectValue placeholder="Select display">
+                      {appLaunchConfig.gsproDisplayLabel || "Select display"}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    {displays.length > 0 ? (
-                      displays.map((d) => (
-                        <SelectItem key={d.id} value={d.label}>
-                          {d.label} {d.isPrimary ? "(Primary)" : ""}
-                        </SelectItem>
-                      ))
-                    ) : (
+                    {/* Show currently detected displays */}
+                    {displays.map((d) => (
+                      <SelectItem key={d.id} value={d.label}>
+                        {d.label} {d.isPrimary ? "(Primary)" : ""}
+                      </SelectItem>
+                    ))}
+                    {/* Show saved config if not in current displays list */}
+                    {appLaunchConfig.gsproDisplayLabel && 
+                     !displays.some(d => d.label === appLaunchConfig.gsproDisplayLabel) && (
+                      <SelectItem value={appLaunchConfig.gsproDisplayLabel} className="text-muted-foreground">
+                        {appLaunchConfig.gsproDisplayLabel} (Saved - Offline)
+                      </SelectItem>
+                    )}
+                    {displays.length === 0 && !appLaunchConfig.gsproDisplayLabel && (
                       <SelectItem value="" disabled>No displays detected</SelectItem>
                     )}
                   </SelectContent>
@@ -1836,22 +1853,38 @@ export default function BayController() {
               </div>
               
               <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Protee Display (Touchscreen)</Label>
+                <Label className="text-xs text-muted-foreground flex items-center gap-2">
+                  Protee Display (Touchscreen)
+                  {appLaunchConfig.proteeDisplayLabel && (
+                    displays.some(d => d.label === appLaunchConfig.proteeDisplayLabel) 
+                      ? <Badge variant="default" className="text-[10px] px-1 py-0">Available</Badge>
+                      : <Badge variant="destructive" className="text-[10px] px-1 py-0">Offline</Badge>
+                  )}
+                </Label>
                 <Select 
                   value={appLaunchConfig.proteeDisplayLabel} 
                   onValueChange={(v) => updateAppConfig("proteeDisplayLabel", v)}
                 >
                   <SelectTrigger className="text-xs">
-                    <SelectValue placeholder="Select display" />
+                    <SelectValue placeholder="Select display">
+                      {appLaunchConfig.proteeDisplayLabel || "Select display"}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    {displays.length > 0 ? (
-                      displays.map((d) => (
-                        <SelectItem key={d.id} value={d.label}>
-                          {d.label} {d.isPrimary ? "(Primary)" : ""}
-                        </SelectItem>
-                      ))
-                    ) : (
+                    {/* Show currently detected displays */}
+                    {displays.map((d) => (
+                      <SelectItem key={d.id} value={d.label}>
+                        {d.label} {d.isPrimary ? "(Primary)" : ""}
+                      </SelectItem>
+                    ))}
+                    {/* Show saved config if not in current displays list */}
+                    {appLaunchConfig.proteeDisplayLabel && 
+                     !displays.some(d => d.label === appLaunchConfig.proteeDisplayLabel) && (
+                      <SelectItem value={appLaunchConfig.proteeDisplayLabel} className="text-muted-foreground">
+                        {appLaunchConfig.proteeDisplayLabel} (Saved - Offline)
+                      </SelectItem>
+                    )}
+                    {displays.length === 0 && !appLaunchConfig.proteeDisplayLabel && (
                       <SelectItem value="" disabled>No displays detected</SelectItem>
                     )}
                   </SelectContent>
@@ -1860,7 +1893,7 @@ export default function BayController() {
             </div>
 
             <p className="text-xs text-muted-foreground">
-              Displays are matched by name (e.g., SAMSUNG, BENQ PJ). At launch time, displays are re-detected.
+              Saved display config persists when screens are off. Apps launch automatically when configured displays come online.
             </p>
 
             {/* App launch timing */}
@@ -1939,22 +1972,38 @@ export default function BayController() {
 
           {/* Display selector */}
           <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Show notifications on</Label>
+            <Label className="text-xs text-muted-foreground flex items-center gap-2">
+              Show notifications on
+              {notificationConfig.displayLabel && (
+                displays.some(d => d.label === notificationConfig.displayLabel) 
+                  ? <Badge variant="default" className="text-[10px] px-1 py-0">Available</Badge>
+                  : <Badge variant="destructive" className="text-[10px] px-1 py-0">Offline</Badge>
+              )}
+            </Label>
             <Select 
               value={notificationConfig.displayLabel} 
               onValueChange={(v) => setNotificationConfig(prev => ({ ...prev, displayLabel: v }))}
             >
               <SelectTrigger className="text-xs">
-                <SelectValue placeholder="Select display" />
+                <SelectValue placeholder="Select display">
+                  {notificationConfig.displayLabel || "Select display"}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
-                {displays.length > 0 ? (
-                  displays.map((d) => (
-                    <SelectItem key={d.id} value={d.label}>
-                      {d.label} {d.isPrimary ? "(Primary)" : ""}
-                    </SelectItem>
-                  ))
-                ) : (
+                {/* Show currently detected displays */}
+                {displays.map((d) => (
+                  <SelectItem key={d.id} value={d.label}>
+                    {d.label} {d.isPrimary ? "(Primary)" : ""}
+                  </SelectItem>
+                ))}
+                {/* Show saved config if not in current displays list */}
+                {notificationConfig.displayLabel && 
+                 !displays.some(d => d.label === notificationConfig.displayLabel) && (
+                  <SelectItem value={notificationConfig.displayLabel} className="text-muted-foreground">
+                    {notificationConfig.displayLabel} (Saved - Offline)
+                  </SelectItem>
+                )}
+                {displays.length === 0 && !notificationConfig.displayLabel && (
                   <SelectItem value="" disabled>No displays detected</SelectItem>
                 )}
               </SelectContent>
