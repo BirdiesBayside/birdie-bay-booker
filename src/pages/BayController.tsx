@@ -519,11 +519,104 @@ export default function BayController() {
     }
   }, [selectedBay]);
 
+  // Refs to hold current state for admin command callbacks
+  const bayPlugAssignmentsRef = useRef(bayPlugAssignments);
+  const tapoEmailRef = useRef(tapoEmail);
+  const tapoPasswordRef = useRef(tapoPassword);
+  const isElectronRef = useRef(isElectron);
+  
+  // Keep refs in sync with state
+  useEffect(() => {
+    bayPlugAssignmentsRef.current = bayPlugAssignments;
+  }, [bayPlugAssignments]);
+  
+  useEffect(() => {
+    tapoEmailRef.current = tapoEmail;
+  }, [tapoEmail]);
+  
+  useEffect(() => {
+    tapoPasswordRef.current = tapoPassword;
+  }, [tapoPassword]);
+  
+  useEffect(() => {
+    isElectronRef.current = isElectron;
+  }, [isElectron]);
+
   // Subscribe to admin commands from bay_commands table
   useEffect(() => {
     if (!selectedBay) return;
 
     console.log(`Setting up admin command subscription for bay ${selectedBay}`);
+
+    // Helper to get plugs for this bay using refs (avoids stale closure)
+    const getPlugsForCommand = (): TapoPlug[] => {
+      return bayPlugAssignmentsRef.current.find(a => a.bayNumber === selectedBay)?.plugs || [];
+    };
+
+    // Execute plug control directly in callback using refs
+    const executePlugControl = async (action: 'on' | 'off', commandId: string) => {
+      console.log(`Admin command: Turn ${action.toUpperCase()} plugs for bay ${selectedBay}`);
+      
+      const bayPlugs = getPlugsForCommand();
+      console.log("Plugs for command:", JSON.stringify(bayPlugs, null, 2));
+      
+      if (bayPlugs.length === 0) {
+        console.warn("No plugs assigned to this bay!");
+        toast.warning("No plugs assigned to this bay");
+        return;
+      }
+      
+      if (!tapoEmailRef.current || !tapoPasswordRef.current) {
+        console.error("TAPO credentials not configured");
+        toast.error("TAPO credentials not configured");
+        return;
+      }
+      
+      if (!isElectronRef.current || !window.electronAPI) {
+        console.error("Not running in Electron");
+        return;
+      }
+      
+      const newStatus = { monitor: false, projector: false };
+      
+      for (const plug of bayPlugs) {
+        if (!plug.ip || typeof plug.ip !== 'string' || plug.ip.trim() === '') {
+          console.error(`Invalid IP for plug ${plug.name}:`, plug);
+          toast.error(`Invalid IP address for ${plug.name || 'plug'}`);
+          continue;
+        }
+        
+        const cleanIp = plug.ip.trim();
+        console.log(`Attempting to turn ${action.toUpperCase()} plug: ${plug.name} (${plug.type}) at ${cleanIp}`);
+        
+        try {
+          const result = await window.electronAPI.controlPlug(
+            tapoEmailRef.current, 
+            tapoPasswordRef.current, 
+            cleanIp, 
+            action
+          );
+          console.log(`Control result for ${plug.name}:`, result);
+          if (!result.success) {
+            toast.error(`Failed to turn ${action} ${plug.name}: ${result.error}`);
+          } else {
+            toast.success(`Turned ${action.toUpperCase()}: ${plug.name}`);
+            newStatus[plug.type] = action === 'on';
+          }
+        } catch (error) {
+          console.error(`Failed to turn ${action} ${plug.name}:`, error);
+          toast.error(`Error controlling ${plug.name}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+      
+      setPlugsStatus(newStatus);
+      
+      // Update command status to executed
+      await supabase
+        .from('bay_commands')
+        .update({ status: 'executed', executed_at: new Date().toISOString() })
+        .eq('id', commandId);
+    };
 
     // Subscribe to new commands for this bay
     const commandChannel = supabase
@@ -545,31 +638,13 @@ export default function BayController() {
             return;
           }
 
-          // Execute the command
-          if (command.command === 'on') {
-            console.log('Admin command: Turn ON plugs');
-            setManualOverride(true); // Set manual override so it doesn't auto-switch back
-            // Use a slight delay to ensure state is set
-            setTimeout(async () => {
-              await turnOnPlugs(true, true);
-              // Update command status to executed
-              await supabase
-                .from('bay_commands')
-                .update({ status: 'executed', executed_at: new Date().toISOString() })
-                .eq('id', command.id);
-            }, 100);
-          } else if (command.command === 'off') {
-            console.log('Admin command: Turn OFF plugs');
-            setManualOverride(true); // Set manual override so it doesn't auto-switch back
-            setTimeout(async () => {
-              await turnOffPlugs(true, true);
-              // Update command status to executed
-              await supabase
-                .from('bay_commands')
-                .update({ status: 'executed', executed_at: new Date().toISOString() })
-                .eq('id', command.id);
-            }, 100);
-          }
+          // Execute the command with manual override
+          setManualOverride(true);
+          
+          // Small delay to ensure state is updated
+          setTimeout(() => {
+            executePlugControl(command.command as 'on' | 'off', command.id);
+          }, 100);
         }
       )
       .subscribe((status) => {
