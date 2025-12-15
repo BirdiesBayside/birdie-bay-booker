@@ -849,7 +849,15 @@ export default function BayController() {
       const minutesRemaining = Math.floor((endTime.getTime() - now.getTime()) / 60000);
 
       if (warningMinutes.includes(minutesRemaining)) {
-        showWarningNotification(minutesRemaining);
+        const key = `${currentBooking.id}-${minutesRemaining}`;
+        if (!shownNotifications.has(key)) {
+          setShownNotifications(prev => {
+            const next = new Set(prev);
+            next.add(key);
+            return next;
+          });
+          showWarningNotification(minutesRemaining, currentBooking);
+        }
       }
     }
   }, [currentTime, bookings, preStartMinutes, manualOverride, calculateShouldPlugsBeOn]);
@@ -1051,11 +1059,25 @@ export default function BayController() {
     }
   };
 
-  const showWarningNotification = (minutes: number) => {
-    if (minutes === 5) {
-      toast.warning("5 minutes remaining in your session", { duration: 10000 });
-    } else if (minutes === 1) {
-      toast.warning("1 minute remaining - session ending soon!", { duration: 10000 });
+  const showWarningNotification = (minutes: number, booking: Booking) => {
+    if (!notificationConfig.enabled) return;
+
+    const matchingConfig = notificationConfig.notifications.find(
+      (n) => n.enabled && n.minutesBefore === minutes
+    );
+    if (!matchingConfig) return;
+
+    const firstName = booking.customer_name?.split(" ")[0] || "there";
+    const message = matchingConfig.message.replace("{firstName}", firstName);
+
+    if (isElectron && window.electronAPI) {
+      window.electronAPI
+        .showNotificationPopup(message, notificationConfig.displayLabel, 60_000)
+        .catch((err) => {
+          console.error("Failed to show notification popup:", err);
+        });
+    } else {
+      console.log(`[Notification] ${minutes} minute warning:`, message);
     }
   };
 
