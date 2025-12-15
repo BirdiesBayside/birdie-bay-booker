@@ -79,5 +79,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('request-quit-password', () => callback());
     // Return cleanup function
     return () => ipcRenderer.removeAllListeners('request-quit-password');
-  }
+  },
+  
+  // =====================================================
+  // NOTIFICATION POPUP APIs
+  // =====================================================
+  
+  // Show a notification popup on a specific display
+  showNotificationPopup: (message, displayLabel, durationMs) => 
+    ipcRenderer.invoke('show-notification-popup', { message, displayLabel, durationMs }),
+  
+  // Close the notification popup
+  closeNotificationPopup: () => ipcRenderer.invoke('close-notification-popup')
 });
