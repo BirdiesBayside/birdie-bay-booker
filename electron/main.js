@@ -663,9 +663,9 @@ async function runAppLaunchSequence(config) {
     
     if (appLaunchCancelled) return { success: false, cancelled: true, results };
     
-    // Step 2: Wait 5 seconds before launching Protee Labs (longer to ensure GSPRO is fully loaded)
-    console.log('Step 2: Waiting 5 seconds for GSPRO to initialize...');
-    await new Promise(resolve => setTimeout(resolve, 5000));
+    // Step 2: Wait 10 seconds before launching Protee Labs (ensure GSPRO and its API window are fully loaded)
+    console.log('Step 2: Waiting 10 seconds for GSPRO and API window to initialize...');
+    await new Promise(resolve => setTimeout(resolve, 10000));
     
     if (appLaunchCancelled) return { success: false, cancelled: true, results };
     
