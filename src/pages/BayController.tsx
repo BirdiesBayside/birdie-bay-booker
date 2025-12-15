@@ -1892,9 +1892,64 @@ export default function BayController() {
               </div>
             </div>
 
-            <p className="text-xs text-muted-foreground">
-              Saved display config persists when screens are off. Apps launch automatically when configured displays come online.
-            </p>
+            {/* Saved Configuration Summary */}
+            <div className="p-3 bg-muted/50 border rounded-lg space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-medium">Saved Display Config</Label>
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={() => {
+                    // Config is already auto-saved via useEffect, but this provides user confirmation
+                    localStorage.setItem("bayController_appLaunchConfig", JSON.stringify(appLaunchConfig));
+                    toast.success("Display configuration saved!");
+                    addLog(`Config saved: GSPRO→${appLaunchConfig.gsproDisplayLabel}, Protee→${appLaunchConfig.proteeDisplayLabel}`, 'success');
+                  }}
+                  disabled={!appLaunchConfig.gsproDisplayLabel && !appLaunchConfig.proteeDisplayLabel}
+                >
+                  <CheckCircle className="w-3 h-3 mr-1" /> Save Config
+                </Button>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground">GSPRO:</span>
+                  {appLaunchConfig.gsproDisplayLabel ? (
+                    <span className="font-medium flex items-center gap-1">
+                      {appLaunchConfig.gsproDisplayLabel}
+                      {displays.some(d => d.label === appLaunchConfig.gsproDisplayLabel) 
+                        ? <CheckCircle className="w-3 h-3 text-green-500" />
+                        : <XCircle className="w-3 h-3 text-destructive" />
+                      }
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground italic">Not set</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground">Protee:</span>
+                  {appLaunchConfig.proteeDisplayLabel ? (
+                    <span className="font-medium flex items-center gap-1">
+                      {appLaunchConfig.proteeDisplayLabel}
+                      {displays.some(d => d.label === appLaunchConfig.proteeDisplayLabel) 
+                        ? <CheckCircle className="w-3 h-3 text-green-500" />
+                        : <XCircle className="w-3 h-3 text-destructive" />
+                      }
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground italic">Not set</span>
+                  )}
+                </div>
+              </div>
+              
+              <p className="text-[10px] text-muted-foreground">
+                {displays.some(d => d.label === appLaunchConfig.gsproDisplayLabel) && 
+                 displays.some(d => d.label === appLaunchConfig.proteeDisplayLabel)
+                  ? "✓ All configured displays are online - ready to launch"
+                  : "⚠ Some configured displays are offline - apps will launch when all displays reconnect"
+                }
+              </p>
+            </div>
 
             {/* App launch timing */}
             <div className="flex items-center justify-between">
@@ -1938,18 +1993,23 @@ export default function BayController() {
 
           </div>
 
-          {/* Display info */}
-          {displays.length > 0 && (
-            <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground">Detected Displays</Label>
+          {/* Detected displays - collapsed by default since config is saved */}
+          <details className="text-xs">
+            <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+              Currently detected displays ({displays.length})
+            </summary>
+            <div className="mt-2 space-y-1">
               {displays.map((d) => (
-                <div key={d.id} className="text-xs p-2 bg-muted rounded flex justify-between">
+                <div key={d.id} className="p-2 bg-muted rounded flex justify-between">
                   <span>{d.label || `Display ${d.index + 1}`}</span>
                   <span className="text-muted-foreground">{d.bounds.width}x{d.bounds.height}</span>
                 </div>
               ))}
+              {displays.length === 0 && (
+                <p className="text-muted-foreground italic p-2">No displays detected (screens may be powered off)</p>
+              )}
             </div>
-          )}
+          </details>
         </CollapsibleSettingsCard>
 
         {/* Customer Notifications - Collapsible */}
