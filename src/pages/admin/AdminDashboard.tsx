@@ -1,68 +1,170 @@
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar, DollarSign, TrendingUp, Users, UserCheck, Repeat } from "lucide-react";
+import { Calendar, DollarSign, TrendingUp, Users, UserCheck, Repeat, ChevronDown } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { format } from "date-fns";
+import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, subDays } from "date-fns";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
+
+type TimeFilter = "today" | "week" | "month" | "quarter";
+type MemberTierFilter = "all" | "par" | "birdie" | "eagle" | "albatross";
+type MemberRevenueFilter = "weekly" | "monthly" | "quarterly";
 
 interface DashboardStats {
-  todaysBookings: number;
-  todaysRevenue: number;
-  todaysOccupancy: number;
+  bookings: number;
+  revenue: number;
+  occupancy: number;
   memberCount: number;
   memberRevenue: number;
   momGrowth: number;
 }
 
+const timeFilterLabels: Record<TimeFilter, string> = {
+  today: "Today",
+  week: "This Week",
+  month: "This Month",
+  quarter: "This Quarter",
+};
+
+const memberTierLabels: Record<MemberTierFilter, string> = {
+  all: "All Members",
+  par: "Par",
+  birdie: "Birdie",
+  eagle: "Eagle",
+  albatross: "Albatross",
+};
+
+const memberRevenueLabels: Record<MemberRevenueFilter, string> = {
+  weekly: "Weekly",
+  monthly: "Monthly",
+  quarterly: "Quarterly",
+};
+
 export default function AdminDashboard() {
   const { isAdmin, isLoading } = useAdminAuth();
   const [stats, setStats] = useState<DashboardStats>({
-    todaysBookings: 0,
-    todaysRevenue: 0,
-    todaysOccupancy: 0,
+    bookings: 0,
+    revenue: 0,
+    occupancy: 0,
     memberCount: 0,
     memberRevenue: 0,
     momGrowth: 0,
   });
   const [loadingStats, setLoadingStats] = useState(true);
+  
+  // Filter states
+  const [bookingsFilter, setBookingsFilter] = useState<TimeFilter>("today");
+  const [revenueFilter, setRevenueFilter] = useState<TimeFilter>("today");
+  const [occupancyFilter, setOccupancyFilter] = useState<TimeFilter>("today");
+  const [memberTierFilter, setMemberTierFilter] = useState<MemberTierFilter>("all");
+  const [memberRevenueFilter, setMemberRevenueFilter] = useState<MemberRevenueFilter>("weekly");
+
+  const getDateRange = (filter: TimeFilter): { start: string; end: string } => {
+    const today = new Date();
+    const todayStr = format(today, 'yyyy-MM-dd');
+    
+    switch (filter) {
+      case "today":
+        return { start: todayStr, end: todayStr };
+      case "week":
+        return {
+          start: format(startOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd'),
+          end: format(endOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd'),
+        };
+      case "month":
+        return {
+          start: format(startOfMonth(today), 'yyyy-MM-dd'),
+          end: format(endOfMonth(today), 'yyyy-MM-dd'),
+        };
+      case "quarter":
+        return {
+          start: format(startOfQuarter(today), 'yyyy-MM-dd'),
+          end: format(endOfQuarter(today), 'yyyy-MM-dd'),
+        };
+    }
+  };
+
+  const getDaysInRange = (filter: TimeFilter): number => {
+    const today = new Date();
+    switch (filter) {
+      case "today":
+        return 1;
+      case "week":
+        return 7;
+      case "month":
+        return new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+      case "quarter":
+        const qStart = startOfQuarter(today);
+        const qEnd = endOfQuarter(today);
+        return Math.ceil((qEnd.getTime() - qStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    }
+  };
 
   useEffect(() => {
     const fetchStats = async () => {
-      const today = new Date();
-      const todayStr = format(today, 'yyyy-MM-dd');
+      setLoadingStats(true);
       
-      // Fetch today's bookings
-      const { data: bookings, error } = await supabase
+      // Fetch bookings based on filter
+      const bookingsRange = getDateRange(bookingsFilter);
+      const { data: bookingsData } = await supabase
         .from('bookings')
         .select('total_price, duration_hours, status')
-        .eq('booking_date', todayStr)
+        .gte('booking_date', bookingsRange.start)
+        .lte('booking_date', bookingsRange.end)
         .neq('status', 'cancelled');
 
-      if (error) {
-        console.error('Error fetching stats:', error);
-        setLoadingStats(false);
-        return;
-      }
+      const bookings = bookingsData?.length || 0;
 
-      const todaysBookings = bookings?.length || 0;
-      const todaysRevenue = bookings?.reduce((sum, b) => sum + Number(b.total_price), 0) || 0;
-      
-      // Calculate occupancy: 6 bays * 18 hours (5am-11pm) = 108 total hours available
-      const totalHoursAvailable = 6 * 18;
-      const bookedHours = bookings?.reduce((sum, b) => sum + b.duration_hours, 0) || 0;
-      const todaysOccupancy = Math.round((bookedHours / totalHoursAvailable) * 100);
+      // Fetch revenue based on filter
+      const revenueRange = getDateRange(revenueFilter);
+      const { data: revenueData } = await supabase
+        .from('bookings')
+        .select('total_price')
+        .gte('booking_date', revenueRange.start)
+        .lte('booking_date', revenueRange.end)
+        .neq('status', 'cancelled');
 
-      // Fetch member count (non-visitor tiers)
-      const { data: members, error: membersError } = await supabase
+      const revenue = revenueData?.reduce((sum, b) => sum + Number(b.total_price), 0) || 0;
+
+      // Fetch occupancy based on filter
+      const occupancyRange = getDateRange(occupancyFilter);
+      const { data: occupancyData } = await supabase
+        .from('bookings')
+        .select('duration_hours')
+        .gte('booking_date', occupancyRange.start)
+        .lte('booking_date', occupancyRange.end)
+        .neq('status', 'cancelled');
+
+      const days = getDaysInRange(occupancyFilter);
+      const totalHoursAvailable = 6 * 18 * days; // 6 bays * 18 hours * days
+      const bookedHours = occupancyData?.reduce((sum, b) => sum + b.duration_hours, 0) || 0;
+      const occupancy = totalHoursAvailable > 0 ? Math.round((bookedHours / totalHoursAvailable) * 100) : 0;
+
+      // Fetch member count based on tier filter
+      let membersQuery = supabase
         .from('profiles')
         .select('membership_tier')
         .neq('membership_tier', 'visitor');
       
+      if (memberTierFilter !== "all") {
+        membersQuery = supabase
+          .from('profiles')
+          .select('membership_tier')
+          .eq('membership_tier', memberTierFilter);
+      }
+      
+      const { data: members } = await membersQuery;
       const memberCount = members?.length || 0;
 
-      // Calculate member revenue (weekly subscription fees per tier)
+      // Calculate member revenue based on filter
       const weeklyFees: Record<string, number> = {
         par: 15,
         birdie: 20,
@@ -70,18 +172,31 @@ export default function AdminDashboard() {
         albatross: 35,
       };
       
-      const memberRevenue = members?.reduce((sum, m) => {
+      const { data: allMembers } = await supabase
+        .from('profiles')
+        .select('membership_tier')
+        .neq('membership_tier', 'visitor');
+
+      const weeklyTotal = allMembers?.reduce((sum, m) => {
         const fee = weeklyFees[m.membership_tier as string] || 0;
         return sum + fee;
       }, 0) || 0;
 
-      // Calculate MoM growth (compare current month period to same period last month)
+      let memberRevenue = weeklyTotal;
+      if (memberRevenueFilter === "monthly") {
+        memberRevenue = weeklyTotal * 4;
+      } else if (memberRevenueFilter === "quarterly") {
+        memberRevenue = weeklyTotal * 13;
+      }
+
+      // Calculate MoM growth
+      const today = new Date();
+      const todayStr = format(today, 'yyyy-MM-dd');
       const currentDay = today.getDate();
       const currentMonthStart = format(new Date(today.getFullYear(), today.getMonth(), 1), 'yyyy-MM-dd');
       const lastMonthStart = format(new Date(today.getFullYear(), today.getMonth() - 1, 1), 'yyyy-MM-dd');
       const lastMonthSameDay = format(new Date(today.getFullYear(), today.getMonth() - 1, currentDay), 'yyyy-MM-dd');
 
-      // Current month bookings (1st to today)
       const { data: currentMonthBookings } = await supabase
         .from('bookings')
         .select('duration_hours')
@@ -89,7 +204,6 @@ export default function AdminDashboard() {
         .lte('booking_date', todayStr)
         .neq('status', 'cancelled');
 
-      // Last month bookings (1st to same day)
       const { data: lastMonthBookings } = await supabase
         .from('bookings')
         .select('duration_hours')
@@ -108,9 +222,9 @@ export default function AdminDashboard() {
       }
 
       setStats({
-        todaysBookings,
-        todaysRevenue,
-        todaysOccupancy,
+        bookings,
+        revenue,
+        occupancy,
         memberCount,
         memberRevenue,
         momGrowth,
@@ -121,7 +235,7 @@ export default function AdminDashboard() {
     if (isAdmin) {
       fetchStats();
     }
-  }, [isAdmin]);
+  }, [isAdmin, bookingsFilter, revenueFilter, occupancyFilter, memberTierFilter, memberRevenueFilter]);
 
   if (isLoading) {
     return (
@@ -142,6 +256,49 @@ export default function AdminDashboard() {
     return null;
   }
 
+  const FilterDropdown = <T extends string>({
+    value,
+    onChange,
+    options,
+    labels,
+  }: {
+    value: T;
+    onChange: (value: T) => void;
+    options: T[];
+    labels: Record<T, string>;
+  }) => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="sm" className="h-6 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground">
+          {labels[value]}
+          <ChevronDown className="h-3 w-3" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="bg-background">
+        {options.map((option) => (
+          <DropdownMenuItem
+            key={option}
+            onClick={() => onChange(option)}
+            className={value === option ? "bg-muted" : ""}
+          >
+            {labels[option]}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
+  const getMemberRevenueLabel = () => {
+    switch (memberRevenueFilter) {
+      case "weekly":
+        return "/wk";
+      case "monthly":
+        return "/mo";
+      case "quarterly":
+        return "/qtr";
+    }
+  };
+
   return (
     <AdminLayout>
       <div className="p-6 space-y-6">
@@ -158,57 +315,89 @@ export default function AdminDashboard() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Today's Bookings
-              </CardTitle>
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Bookings
+                </CardTitle>
+                <FilterDropdown
+                  value={bookingsFilter}
+                  onChange={setBookingsFilter}
+                  options={["today", "week", "month", "quarter"]}
+                  labels={timeFilterLabels}
+                />
+              </div>
               <Calendar className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               {loadingStats ? (
                 <Skeleton className="h-8 w-12" />
               ) : (
-                <div className="text-2xl font-display">{stats.todaysBookings}</div>
+                <div className="text-2xl font-display">{stats.bookings}</div>
               )}
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Today's Revenue
-              </CardTitle>
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Revenue
+                </CardTitle>
+                <FilterDropdown
+                  value={revenueFilter}
+                  onChange={setRevenueFilter}
+                  options={["today", "week", "month", "quarter"]}
+                  labels={timeFilterLabels}
+                />
+              </div>
               <DollarSign className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               {loadingStats ? (
                 <Skeleton className="h-8 w-20" />
               ) : (
-                <div className="text-2xl font-display">${stats.todaysRevenue.toFixed(0)}</div>
+                <div className="text-2xl font-display">${stats.revenue.toFixed(0)}</div>
               )}
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Today's Occupancy
-              </CardTitle>
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Occupancy
+                </CardTitle>
+                <FilterDropdown
+                  value={occupancyFilter}
+                  onChange={setOccupancyFilter}
+                  options={["today", "week", "month", "quarter"]}
+                  labels={timeFilterLabels}
+                />
+              </div>
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               {loadingStats ? (
                 <Skeleton className="h-8 w-16" />
               ) : (
-                <div className="text-2xl font-display">{stats.todaysOccupancy}%</div>
+                <div className="text-2xl font-display">{stats.occupancy}%</div>
               )}
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Member Count
-              </CardTitle>
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Member Count
+                </CardTitle>
+                <FilterDropdown
+                  value={memberTierFilter}
+                  onChange={setMemberTierFilter}
+                  options={["all", "par", "birdie", "eagle", "albatross"]}
+                  labels={memberTierLabels}
+                />
+              </div>
               <UserCheck className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
@@ -222,16 +411,24 @@ export default function AdminDashboard() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Member Revenue
-              </CardTitle>
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Member Revenue
+                </CardTitle>
+                <FilterDropdown
+                  value={memberRevenueFilter}
+                  onChange={setMemberRevenueFilter}
+                  options={["weekly", "monthly", "quarterly"]}
+                  labels={memberRevenueLabels}
+                />
+              </div>
               <DollarSign className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               {loadingStats ? (
                 <Skeleton className="h-8 w-20" />
               ) : (
-                <div className="text-2xl font-display">${stats.memberRevenue}/wk</div>
+                <div className="text-2xl font-display">${stats.memberRevenue}{getMemberRevenueLabel()}</div>
               )}
             </CardContent>
           </Card>
