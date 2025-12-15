@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Pencil, Trash2, Settings, ShoppingCart, Bell, DollarSign, X, Copy, Check } from "lucide-react";
+import { Plus, Pencil, Trash2, Settings, ShoppingCart, Bell, DollarSign, X, Copy, Check, Eye } from "lucide-react";
 
 // Template types and their available placeholder tags
 const TEMPLATE_TAGS: Record<string, { tag: string; description: string }[]> = {
@@ -188,6 +188,8 @@ export default function AdminSettings() {
   const [templateSubject, setTemplateSubject] = useState("");
   const [copiedTag, setCopiedTag] = useState<string | null>(null);
   const [isSavingTemplate, setIsSavingTemplate] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewHtml, setPreviewHtml] = useState("");
 
   const copyTag = (tag: string) => {
     navigator.clipboard.writeText(tag);
@@ -847,10 +849,9 @@ export default function AdminSettings() {
                   <p className="text-sm text-muted-foreground">No templates found.</p>
                 ) : (
                   emailTemplates.map((template) => (
-                    <button
+                    <div
                       key={template.id}
-                      onClick={() => openTemplateEditor(template)}
-                      className="w-full border rounded-lg p-4 text-left hover:bg-muted/50 transition-colors"
+                      className="w-full border rounded-lg p-4 hover:bg-muted/50 transition-colors"
                     >
                       <div className="flex items-center justify-between">
                         <div>
@@ -863,10 +864,29 @@ export default function AdminSettings() {
                           ) : (
                             <Badge variant="secondary">Default</Badge>
                           )}
-                          <Pencil className="h-4 w-4 text-muted-foreground" />
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              setPreviewHtml(template.html_content || "<p>No custom template set. Using default template.</p>");
+                              setPreviewOpen(true);
+                            }}
+                            disabled={!template.html_content}
+                            className="h-8 w-8"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => openTemplateEditor(template)}
+                            className="h-8 w-8"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
                         </div>
                       </div>
-                    </button>
+                    </div>
                   ))
                 )}
               </CardContent>
@@ -976,6 +996,22 @@ export default function AdminSettings() {
                 </div>
               </div>
             )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Email Template Preview Dialog */}
+        <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+          <DialogContent className="max-w-2xl max-h-[90vh]">
+            <DialogHeader>
+              <DialogTitle>Email Preview</DialogTitle>
+            </DialogHeader>
+            <div className="border rounded-lg overflow-hidden bg-white">
+              <iframe
+                srcDoc={previewHtml}
+                className="w-full h-[500px] border-0"
+                title="Email Preview"
+              />
+            </div>
           </DialogContent>
         </Dialog>
 
