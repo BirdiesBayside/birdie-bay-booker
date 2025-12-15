@@ -206,7 +206,10 @@ export default function BayController() {
   });
   const [isLaunchingApps, setIsLaunchingApps] = useState(false);
   const [appLaunchStatus, setAppLaunchStatus] = useState<string | null>(null);
-  const [appsRunning, setAppsRunning] = useState(false);
+  const [appsRunning, setAppsRunning] = useState(() => {
+    const saved = localStorage.getItem("bayController_appsRunning");
+    return saved === "true";
+  });
   const [isTestingLogin, setIsTestingLogin] = useState(false);
   const [loginTestResult, setLoginTestResult] = useState<{ success: boolean; message: string } | null>(null);
   
@@ -886,6 +889,11 @@ export default function BayController() {
       localStorage.setItem("bayController_tapoPassword", tapoPassword);
     }
   }, [tapoEmail, tapoPassword]);
+
+  // Persist appsRunning state so auto-close works after page refresh
+  useEffect(() => {
+    localStorage.setItem("bayController_appsRunning", appsRunning.toString());
+  }, [appsRunning]);
 
   // Add a plug manually
   const addPlugManually = () => {
