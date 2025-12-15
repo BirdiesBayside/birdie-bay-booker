@@ -285,6 +285,7 @@ export default function BayController() {
       });
       
       // Set up continuous display monitoring (check every 5 seconds for new/removed displays)
+      // Also auto-fix window positions when saved config displays come back online
       const displayMonitorInterval = setInterval(async () => {
         try {
           const currentDisplays = await window.electronAPI!.getDisplays();
@@ -297,6 +298,38 @@ export default function BayController() {
             const newDisplays = currentDisplays.filter(d => !prevLabels.has(d.label));
             if (newDisplays.length > 0) {
               console.log("New display(s) detected:", newDisplays.map(d => d.label));
+              
+              // FAILSAFE: Auto-fix window positions when saved config displays come back online
+              const savedConfig = localStorage.getItem("bayController_appLaunchConfig");
+              const savedAppsRunning = localStorage.getItem("bayController_appsRunning") === "true";
+              
+              if (savedConfig && savedAppsRunning) {
+                const config = JSON.parse(savedConfig);
+                const gsproBack = newDisplays.some(d => d.label === config.gsproDisplayLabel);
+                const proteeBack = newDisplays.some(d => d.label === config.proteeDisplayLabel);
+                
+                if (gsproBack || proteeBack) {
+                  console.log("Saved config display(s) came back online - auto-fixing window positions");
+                  
+                  // Delay to allow displays to fully initialize
+                  setTimeout(async () => {
+                    try {
+                      const freshDisplays = await window.electronAPI!.getDisplays();
+                      const gsproIdx = freshDisplays.findIndex(d => d.label === config.gsproDisplayLabel);
+                      const proteeIdx = freshDisplays.findIndex(d => d.label === config.proteeDisplayLabel);
+                      
+                      if (gsproIdx >= 0 || proteeIdx >= 0) {
+                        const result = await window.electronAPI!.checkWindowPositions(gsproIdx, proteeIdx);
+                        if (result.success) {
+                          console.log("Auto window position fix completed:", result.results);
+                        }
+                      }
+                    } catch (err) {
+                      console.error("Auto window fix failed:", err);
+                    }
+                  }, 3000); // 3 second delay for display initialization
+                }
+              }
             }
             
             // Log removed displays silently
