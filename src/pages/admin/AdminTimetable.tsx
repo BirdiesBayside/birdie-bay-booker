@@ -322,7 +322,13 @@ export default function AdminTimetable() {
     // Calculate position: each 30-min slot is SLOT_HEIGHT pixels
     // Total minutes since operating hours started
     const minutesSinceStart = (hours - OPERATING_START_HOUR) * 60 + minutes;
-    const position = (minutesSinceStart / 30) * SLOT_HEIGHT;
+    
+    // Account for the extra border-t added at each full hour (slot.minute === 0)
+    // Border width is 1px, and there's one at each full hour from start
+    const fullHoursPassed = hours - OPERATING_START_HOUR;
+    const borderOffset = fullHoursPassed; // 1px per full hour
+    
+    const position = (minutesSinceStart / 30) * SLOT_HEIGHT + borderOffset;
     
     return position;
   };
