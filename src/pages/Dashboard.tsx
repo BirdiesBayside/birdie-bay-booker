@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { LogOut, Calendar, Settings, ClipboardList, Trophy, Lock, ExternalLink, Shield, Users } from "lucide-react";
 import birdiesLogo from "@/assets/birdies-logo.png";
 import { supabase } from "@/integrations/supabase/client";
+import { NotificationBell } from "@/components/NotificationBell";
 
 type MembershipTier = "visitor" | "par" | "birdie" | "eagle" | "albatross";
 
@@ -82,6 +83,7 @@ const Dashboard = () => {
           <span className="text-primary-foreground/80 text-sm hidden sm:block">
             Welcome, {firstName}
           </span>
+          <NotificationBell />
           {isAdmin && (
             <Button
               size="sm"

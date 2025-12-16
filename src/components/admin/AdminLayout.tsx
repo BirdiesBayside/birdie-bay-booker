@@ -11,7 +11,8 @@ import {
   ShoppingCart,
   Settings,
   Zap,
-  Mail
+  Mail,
+  Bell
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -28,6 +29,7 @@ const navItems = [
   { path: "/admin/pos", label: "POS", icon: ShoppingCart },
   { path: "/admin/customers", label: "Customers", icon: Users },
   { path: "/admin/bay-control", label: "Bay Control", icon: Zap },
+  { path: "/admin/announcements", label: "Announcements", icon: Bell },
   { path: "/admin/marketing", label: "Marketing", icon: Mail },
   { path: "/admin/settings", label: "Settings", icon: Settings },
 ];
