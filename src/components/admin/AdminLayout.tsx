@@ -29,8 +29,8 @@ const navItems = [
   { path: "/admin/pos", label: "POS", icon: ShoppingCart },
   { path: "/admin/customers", label: "Customers", icon: Users },
   { path: "/admin/bay-control", label: "Bay Control", icon: Zap },
-  { path: "/admin/announcements", label: "Announcements", icon: Bell },
   { path: "/admin/marketing", label: "Marketing", icon: Mail },
+  { path: "/admin/announcements", label: "Announcements", icon: Bell },
   { path: "/admin/settings", label: "Settings", icon: Settings },
 ];
 
