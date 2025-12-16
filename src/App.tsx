@@ -16,6 +16,7 @@ import LeagueProfile from "./pages/LeagueProfile";
 import LeagueRegister from "./pages/LeagueRegister";
 import NotFound from "./pages/NotFound";
 import ResetPassword from "./pages/ResetPassword";
+import Clubhouse from "./pages/Clubhouse";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminTimetable from "./pages/admin/AdminTimetable";
 import AdminCustomers from "./pages/admin/AdminCustomers";
@@ -52,6 +53,7 @@ const App = () => (
           <Route path="/league/profile" element={<LeagueProfile />} />
           <Route path="/league/register" element={<LeagueRegister />} />
           <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/clubhouse" element={<Clubhouse />} />
           <Route path="/bay-controller" element={<BayController />} />
           {/* Admin Routes */}
           <Route path="/admin" element={<AdminDashboard />} />
