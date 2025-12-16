@@ -2,7 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
-import { LogOut, Calendar, Settings, ClipboardList, Trophy, Lock, ExternalLink, Shield } from "lucide-react";
+import { LogOut, Calendar, Settings, ClipboardList, Trophy, Lock, ExternalLink, Shield, Users } from "lucide-react";
 import birdiesLogo from "@/assets/birdies-logo.png";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -218,6 +218,50 @@ const Dashboard = () => {
               >
                 Account Settings
               </Button>
+            </div>
+
+            {/* Birdies Clubhouse Section */}
+            <div className={`bg-card rounded-lg p-6 shadow-md border relative md:col-span-2 ${membershipTier === "visitor" ? "border-border opacity-60" : "border-primary/30"}`}>
+              {membershipTier === "visitor" && (
+                <div className="absolute top-3 right-3">
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full">
+                    <Lock className="h-3 w-3" />
+                    <span>Members Only</span>
+                  </div>
+                </div>
+              )}
+              <div className="flex items-center gap-3 mb-4">
+                <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${membershipTier !== "visitor" ? "bg-primary/15" : "bg-muted"}`}>
+                  <Users className={`h-5 w-5 ${membershipTier !== "visitor" ? "text-primary" : "text-muted-foreground"}`} />
+                </div>
+                <h2 className="font-semibold text-lg">Birdies Clubhouse</h2>
+              </div>
+              {membershipTier !== "visitor" ? (
+                <>
+                  <p className="text-muted-foreground mb-4">
+                    Connect with fellow members, share your experiences, and stay updated on community news.
+                  </p>
+                  <Button 
+                    className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+                    onClick={() => navigate("/clubhouse")}
+                  >
+                    Enter Clubhouse
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <p className="text-muted-foreground mb-4">
+                    Upgrade to any membership tier to access the Birdies Clubhouse community.
+                  </p>
+                  <Button 
+                    className="w-full"
+                    variant="secondary"
+                    onClick={() => navigate("/membership")}
+                  >
+                    View Memberships
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         </div>
