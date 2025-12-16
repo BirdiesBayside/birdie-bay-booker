@@ -663,7 +663,7 @@ export default function AdminTimetable() {
                   {isSameDay(selectedDate, new Date()) && getCurrentTimePosition() !== null && (
                     <div 
                       ref={currentTimeIndicatorRef}
-                      className="absolute left-0 right-0 z-20 pointer-events-none flex items-center"
+                      className="absolute left-0 right-0 z-20 pointer-events-none flex items-center -translate-y-1/2"
                       style={{ top: getCurrentTimePosition()! }}
                     >
                       <div className="w-2 h-2 rounded-full bg-accent -ml-1" />
@@ -675,10 +675,21 @@ export default function AdminTimetable() {
                   {OPERATING_SLOTS.map((slot, slotIndex) => (
                     <div 
                       key={`${slot.hour}-${slot.minute}`} 
-                      className={`grid border-b border-border/50 last:border-b-0 ${slot.minute === 0 ? "border-t border-border" : ""}`}
-                      style={{ gridTemplateColumns: `80px repeat(${bays.length}, 1fr)` }}
+                      className={`grid relative before:pointer-events-none after:pointer-events-none ${
+                        slot.minute === 0
+                          ? "before:content-[''] before:absolute before:inset-x-0 before:top-0 before:border-t before:border-border"
+                          : ""
+                      } ${
+                        slotIndex !== OPERATING_SLOTS.length - 1
+                          ? "after:content-[''] after:absolute after:inset-x-0 after:bottom-0 after:border-b after:border-border/50"
+                          : ""
+                      }`}
+                      style={{ 
+                        gridTemplateColumns: `80px repeat(${bays.length}, 1fr)`,
+                        height: SLOT_HEIGHT,
+                      }}
                     >
-                      <div className={`text-[10px] text-muted-foreground border-r border-border flex items-center justify-center ${slot.minute === 0 ? "font-medium" : "text-muted-foreground/60"}`} style={{ height: SLOT_HEIGHT }}>
+                      <div className={`h-full text-[10px] text-muted-foreground border-r border-border flex items-center justify-center ${slot.minute === 0 ? "font-medium" : "text-muted-foreground/60"}`}>
                         {formatSlotTime(slot)}
                       </div>
                       {bays.map((bay) => {
@@ -693,8 +704,7 @@ export default function AdminTimetable() {
                         return (
                           <div 
                             key={bay.id} 
-                            className={`border-r border-border last:border-r-0 relative ${isSlotEmpty ? "hover:bg-muted/50 cursor-pointer" : ""}`}
-                            style={{ height: SLOT_HEIGHT }}
+                            className={`h-full border-r border-border last:border-r-0 relative ${isSlotEmpty ? "hover:bg-muted/50 cursor-pointer" : ""}`}
                             onClick={() => {
                               if (isSlotEmpty) {
                                 openAddBookingDialog(slot, bay.id);
