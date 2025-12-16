@@ -15,10 +15,10 @@ const logStep = (step: string, details?: any) => {
 
 // Map Stripe price IDs to membership tiers
 const PRICE_TO_TIER: Record<string, string> = {
-  "price_1RXVg3AzMTsMp66Qx0LdLDIQ": "par",
-  "price_1RXVgjAzMTsMp66Qp9fXfMy0": "birdie",
-  "price_1RXVh5AzMTsMp66Q3J5swNbH": "eagle",
-  "price_1RXVhQAzMTsMp66QpAGoLHYn": "albatross",
+  "price_1SbVrRLpXZPXTNVBUcGdyz8u": "par",
+  "price_1SbVrcLpXZPXTNVB5WUvDHZt": "birdie",
+  "price_1SbVroLpXZPXTNVBEwRcbDn7": "eagle",
+  "price_1SbVsELpXZPXTNVBTsNhk1H2": "albatross",
 };
 
 const TIER_NAMES: Record<string, string> = {
