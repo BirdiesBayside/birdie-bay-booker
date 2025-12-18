@@ -674,11 +674,10 @@ export default function AdminTimetable() {
                   {OPERATING_SLOTS.map((slot, slotIndex) => (
                     <div 
                       key={`${slot.hour}-${slot.minute}`} 
-                      className="grid"
+                      className={`grid ${slot.minute === 0 ? 'border-t border-border' : 'border-t border-border/30'}`}
                       style={{ 
                         gridTemplateColumns: `80px repeat(${bays.length}, 1fr)`,
                         height: SLOT_HEIGHT,
-                        boxShadow: slot.minute === 0 ? 'inset 0 1px 0 0 hsl(var(--border))' : 'inset 0 1px 0 0 hsl(var(--border) / 0.5)',
                       }}
                     >
                       <div className={`h-full text-[10px] text-muted-foreground border-r border-border flex items-center justify-center ${slot.minute === 0 ? "font-medium" : "text-muted-foreground/60"}`}>
