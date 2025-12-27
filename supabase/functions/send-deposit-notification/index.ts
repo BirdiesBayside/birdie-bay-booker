@@ -164,7 +164,24 @@ serve(async (req) => {
     if (templateError) {
       logStep("Template fetch error (using default)", { error: templateError.message });
     } else {
-      logStep("Template fetched", { hasCustomHtml: !!emailTemplate?.html_content });
+      logStep("Template fetched", { hasCustomHtml: !!emailTemplate?.html_content, isActive: emailTemplate?.is_active });
+    }
+
+    // Check if template is disabled - skip sending if so
+    if (emailTemplate && emailTemplate.is_active === false) {
+      logStep("Template is disabled, skipping email notification");
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          email_sent: false,
+          sms_sent: false,
+          message: "Credit notification skipped - template disabled" 
+        }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
     }
 
     // Calculate previous balance
