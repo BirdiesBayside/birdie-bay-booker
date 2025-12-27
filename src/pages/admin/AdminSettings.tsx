@@ -221,6 +221,32 @@ export default function AdminSettings() {
     setTemplateSubject(template.subject || "");
   };
 
+  const toggleTemplateActive = async (template: EmailTemplateDB) => {
+    try {
+      const { error } = await supabase
+        .from("email_templates")
+        .update({ is_active: !template.is_active })
+        .eq("id", template.id);
+
+      if (error) throw error;
+
+      toast({
+        title: template.is_active ? "Template disabled" : "Template enabled",
+        description: `${template.name} email notifications are now ${template.is_active ? "off" : "on"}.`,
+        duration: 3000,
+      });
+
+      fetchEmailTemplates();
+    } catch (error: any) {
+      toast({
+        title: "Error updating template",
+        description: error.message || "Failed to update template status.",
+        variant: "destructive",
+        duration: 4000,
+      });
+    }
+  };
+
   const saveTemplate = async () => {
     if (!selectedTemplate) return;
     
@@ -851,38 +877,53 @@ export default function AdminSettings() {
                   emailTemplates.map((template) => (
                     <div
                       key={template.id}
-                      className="w-full border rounded-lg p-4 hover:bg-muted/50 transition-colors"
+                      className={`w-full border rounded-lg p-4 transition-colors ${template.is_active ? 'hover:bg-muted/50' : 'opacity-60 bg-muted/20'}`}
                     >
                       <div className="flex items-center justify-between">
-                        <div>
-                          <h4 className="font-medium">{template.name}</h4>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-medium">{template.name}</h4>
+                            {!template.is_active && (
+                              <Badge variant="outline" className="text-muted-foreground">Disabled</Badge>
+                            )}
+                          </div>
                           <p className="text-sm text-muted-foreground">{template.description}</p>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-3">
                           {template.html_content ? (
                             <Badge variant="default" className="bg-green-600">Custom</Badge>
                           ) : (
                             <Badge variant="secondary">Default</Badge>
                           )}
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                setPreviewHtml(template.html_content || "<p>No custom template set. Using default template.</p>");
+                                setPreviewOpen(true);
+                              }}
+                              disabled={!template.html_content}
+                              className="h-8 w-8"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => openTemplateEditor(template)}
+                              className="h-8 w-8"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                          </div>
                           <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => {
-                              setPreviewHtml(template.html_content || "<p>No custom template set. Using default template.</p>");
-                              setPreviewOpen(true);
-                            }}
-                            disabled={!template.html_content}
-                            className="h-8 w-8"
+                            variant={template.is_active ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => toggleTemplateActive(template)}
+                            className={template.is_active ? "bg-green-600 hover:bg-green-700" : ""}
                           >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => openTemplateEditor(template)}
-                            className="h-8 w-8"
-                          >
-                            <Pencil className="h-4 w-4" />
+                            {template.is_active ? "On" : "Off"}
                           </Button>
                         </div>
                       </div>
