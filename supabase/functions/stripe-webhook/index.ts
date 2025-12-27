@@ -365,7 +365,7 @@ serve(async (req) => {
           // Get the current profile to find their tier
           const { data: profile } = await supabaseAdmin
             .from("profiles")
-            .select("first_name, membership_tier")
+            .select("first_name, last_name, membership_tier")
             .eq("email", email)
             .maybeSingle();
 
@@ -384,14 +384,35 @@ serve(async (req) => {
             logStep("Error resetting profile", { error: error.message });
           }
 
-          // Send payment failed notification email
+          // Send payment failed notification email using customizable template
           if (resend) {
-            try {
-              await resend.emails.send({
-                from: "Birdies <info@birdiesbayside.com.au>",
-                to: [email],
-                subject: "Payment Failed - Membership Update",
-                html: `
+            // Fetch custom template
+            const { data: emailTemplate } = await supabaseAdmin
+              .from("email_templates")
+              .select("*")
+              .eq("template_key", "payment_failed")
+              .eq("is_active", true)
+              .single();
+
+            // If template is disabled, skip sending
+            if (!emailTemplate) {
+              logStep("Payment failed template disabled or not found, skipping email");
+            } else {
+              const templateTags: Record<string, string> = {
+                '{first_name}': firstName,
+                '{last_name}': profile?.last_name || '',
+                '{email}': email,
+                '{tier_name}': previousTier,
+              };
+
+              let subject = emailTemplate?.subject || "Payment Failed - Membership Update";
+              let htmlContent: string;
+
+              if (emailTemplate?.html_content) {
+                htmlContent = replaceTemplateTags(emailTemplate.html_content, templateTags);
+                subject = replaceTemplateTags(subject, templateTags);
+              } else {
+                htmlContent = `
                   <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
                     <h2 style="color: #1f4c25;">Hi ${firstName},</h2>
                     
@@ -407,11 +428,20 @@ serve(async (req) => {
                     
                     <p>Best regards,<br>The Birdies Team</p>
                   </div>
-                `,
-              });
-              logStep("Payment failed notification email sent", { email });
-            } catch (emailError) {
-              logStep("Failed to send payment failed email", { error: emailError });
+                `;
+              }
+
+              try {
+                await resend.emails.send({
+                  from: "Birdies Bayside <info@birdiesbayside.com.au>",
+                  to: [email],
+                  subject: subject,
+                  html: htmlContent,
+                });
+                logStep("Payment failed notification email sent", { email });
+              } catch (emailError) {
+                logStep("Failed to send payment failed email", { error: emailError });
+              }
             }
           }
         }

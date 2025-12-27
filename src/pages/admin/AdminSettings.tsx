@@ -79,11 +79,11 @@ const TEMPLATE_TAGS: Record<string, { tag: string; description: string }[]> = {
     { tag: "{email}", description: "Customer's email address" },
     { tag: "{tier_name}", description: "Previous membership tier name" },
   ],
-  membership_cancelled_admin: [
+  payment_failed: [
     { tag: "{first_name}", description: "Customer's first name" },
     { tag: "{last_name}", description: "Customer's last name" },
     { tag: "{email}", description: "Customer's email address" },
-    { tag: "{previous_tier}", description: "Previous membership tier name" },
+    { tag: "{tier_name}", description: "Previous membership tier name" },
   ],
 };
 
