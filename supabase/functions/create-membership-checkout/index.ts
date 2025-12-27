@@ -47,6 +47,11 @@ serve(async (req) => {
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
 
+    // Generate idempotency key based on user ID and tier to prevent duplicate subscriptions
+    // This key is valid for 24 hours in Stripe
+    const idempotencyKey = `membership_${user.id}_${tierKey}_${new Date().toISOString().split('T')[0]}`;
+    logStep("Using idempotency key", { idempotencyKey });
+
     // Check if customer already exists
     const customers = await stripe.customers.list({ email: user.email, limit: 1 });
     let customerId: string | undefined;
@@ -54,6 +59,29 @@ serve(async (req) => {
     if (customers.data.length > 0) {
       customerId = customers.data[0].id;
       logStep("Existing customer found", { customerId });
+
+      // Check for existing active subscription with the SAME price
+      const existingSubscriptions = await stripe.subscriptions.list({
+        customer: customerId,
+        status: "active",
+      });
+
+      // Check if already subscribed to the requested tier
+      for (const sub of existingSubscriptions.data) {
+        const existingPriceId = sub.items.data[0]?.price?.id;
+        if (existingPriceId === priceId) {
+          logStep("Already subscribed to this tier", { subscriptionId: sub.id, priceId });
+          return new Response(JSON.stringify({ 
+            success: true, 
+            subscriptionId: sub.id,
+            tierKey: tierKey,
+            message: "Already subscribed to this tier"
+          }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            status: 200,
+          });
+        }
+      }
 
       // Check if customer has a saved payment method
       const paymentMethods = await stripe.paymentMethods.list({
@@ -66,21 +94,15 @@ serve(async (req) => {
         const defaultPaymentMethod = paymentMethods.data[0].id;
         logStep("Using saved payment method", { paymentMethodId: defaultPaymentMethod });
 
-        // Check for existing active subscription and cancel it first
-        const existingSubscriptions = await stripe.subscriptions.list({
-          customer: customerId,
-          status: "active",
-        });
-
+        // Cancel existing subscriptions first
         if (existingSubscriptions.data.length > 0) {
-          // Cancel existing subscription at period end (or immediately based on business logic)
           for (const sub of existingSubscriptions.data) {
             await stripe.subscriptions.cancel(sub.id, { prorate: true });
             logStep("Cancelled existing subscription", { subscriptionId: sub.id });
           }
         }
 
-        // Create subscription directly using saved payment method
+        // Create subscription directly using saved payment method with idempotency key
         const subscription = await stripe.subscriptions.create({
           customer: customerId,
           items: [{ price: priceId }],
@@ -89,6 +111,8 @@ serve(async (req) => {
             user_id: user.id,
             tier_key: tierKey,
           },
+        }, {
+          idempotencyKey: idempotencyKey,
         });
 
         logStep("Subscription created directly", { subscriptionId: subscription.id });
@@ -131,6 +155,8 @@ serve(async (req) => {
           tier_key: tierKey,
         },
       },
+    }, {
+      idempotencyKey: `checkout_${idempotencyKey}`,
     });
 
     logStep("Checkout session created", { sessionId: session.id });
