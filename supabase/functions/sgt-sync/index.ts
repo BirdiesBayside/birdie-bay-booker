@@ -95,21 +95,56 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Validate sync secret
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const supabase = createClient(supabaseUrl, supabaseKey);
+
+  // Check for sync secret OR admin user
   const syncSecret = req.headers.get("x-sync-secret");
   const expectedSecret = Deno.env.get("SYNC_SECRET");
   
-  if (!expectedSecret || syncSecret !== expectedSecret) {
-    console.error("[SGT-SYNC] Unauthorized sync attempt - invalid or missing secret");
+  let authorized = false;
+  
+  // Option 1: Valid sync secret (for cron/automated calls)
+  if (expectedSecret && syncSecret === expectedSecret) {
+    authorized = true;
+  }
+  
+  // Option 2: Authenticated admin user
+  if (!authorized) {
+    const authHeader = req.headers.get("Authorization");
+    if (authHeader) {
+      const token = authHeader.replace("Bearer ", "");
+      const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
+        global: { headers: { Authorization: `Bearer ${token}` } }
+      });
+      
+      const { data: { user } } = await userClient.auth.getUser(token);
+      if (user) {
+        // Check if user is admin
+        const { data: roles } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", user.id)
+          .eq("role", "admin");
+        
+        if (roles && roles.length > 0) {
+          authorized = true;
+          console.log(`[SGT-SYNC] Triggered by admin user: ${user.email}`);
+        }
+      }
+    }
+  }
+  
+  if (!authorized) {
+    console.error("[SGT-SYNC] Unauthorized sync attempt - invalid secret or not admin");
     return new Response(
       JSON.stringify({ error: "Unauthorized" }),
       { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const supabase = createClient(supabaseUrl, supabaseKey);
+  // supabase client already created above
 
   let totalRecords = 0;
 
