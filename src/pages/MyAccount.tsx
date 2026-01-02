@@ -30,10 +30,12 @@ interface Profile {
 
 interface PaymentMethod {
   id: string;
+  type?: string;
   brand: string;
   last4: string;
-  expMonth: number;
-  expYear: number;
+  expMonth?: number;
+  expYear?: number;
+  email?: string;
 }
 
 const MyAccount = () => {
@@ -218,12 +220,15 @@ const MyAccount = () => {
     }
   };
 
-  const getCardBrandIcon = (brand: string) => {
-    const brandLower = brand.toLowerCase();
-    if (brandLower === "visa") return "💳 Visa";
-    if (brandLower === "mastercard") return "💳 Mastercard";
-    if (brandLower === "amex") return "💳 Amex";
-    return `💳 ${brand.charAt(0).toUpperCase() + brand.slice(1)}`;
+  const getPaymentMethodDisplay = (method: PaymentMethod) => {
+    if (method.type === "link" || method.brand === "link") {
+      return { icon: "🔗 Link", label: method.email || `•••• ${method.last4}` };
+    }
+    const brandLower = method.brand.toLowerCase();
+    if (brandLower === "visa") return { icon: "💳 Visa", label: `•••• ${method.last4}` };
+    if (brandLower === "mastercard") return { icon: "💳 Mastercard", label: `•••• ${method.last4}` };
+    if (brandLower === "amex") return { icon: "💳 Amex", label: `•••• ${method.last4}` };
+    return { icon: `💳 ${method.brand.charAt(0).toUpperCase() + method.brand.slice(1)}`, label: `•••• ${method.last4}` };
   };
 
   const membershipInfo = profile?.membership_tier 
@@ -482,12 +487,14 @@ const MyAccount = () => {
                       className="flex items-center justify-between p-3 bg-muted rounded-lg"
                     >
                       <div className="flex items-center gap-3">
-                        <span className="text-lg">{getCardBrandIcon(method.brand)}</span>
+                        <span className="text-lg">{getPaymentMethodDisplay(method).icon}</span>
                         <div>
-                          <p className="font-medium">•••• {method.last4}</p>
-                          <p className="text-sm text-muted-foreground">
-                            Expires {method.expMonth}/{method.expYear}
-                          </p>
+                          <p className="font-medium">{getPaymentMethodDisplay(method).label}</p>
+                          {method.expMonth && method.expYear && (
+                            <p className="text-sm text-muted-foreground">
+                              Expires {method.expMonth}/{method.expYear}
+                            </p>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">

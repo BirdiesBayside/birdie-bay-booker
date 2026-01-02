@@ -55,20 +55,43 @@ serve(async (req) => {
     const customerId = customers.data[0].id;
     logStep("Found customer", { customerId });
 
-    // Get payment methods
-    const paymentMethods = await stripe.paymentMethods.list({
+    // Get all payment methods (cards and link)
+    const cardMethods = await stripe.paymentMethods.list({
       customer: customerId,
       type: "card",
     });
-    logStep("Retrieved payment methods", { count: paymentMethods.data.length });
+    
+    const linkMethods = await stripe.paymentMethods.list({
+      customer: customerId,
+      type: "link",
+    });
+    
+    const allMethods = [...cardMethods.data, ...linkMethods.data];
+    logStep("Retrieved payment methods", { 
+      cards: cardMethods.data.length, 
+      link: linkMethods.data.length,
+      total: allMethods.length 
+    });
 
-    const formattedMethods = paymentMethods.data.map((pm: Stripe.PaymentMethod) => ({
-      id: pm.id,
-      brand: pm.card?.brand || "unknown",
-      last4: pm.card?.last4 || "****",
-      expMonth: pm.card?.exp_month,
-      expYear: pm.card?.exp_year,
-    }));
+    const formattedMethods = allMethods.map((pm: Stripe.PaymentMethod) => {
+      if (pm.type === "link") {
+        return {
+          id: pm.id,
+          type: "link",
+          brand: "link",
+          last4: pm.link?.email?.slice(-4) || "****",
+          email: pm.link?.email,
+        };
+      }
+      return {
+        id: pm.id,
+        type: "card",
+        brand: pm.card?.brand || "unknown",
+        last4: pm.card?.last4 || "****",
+        expMonth: pm.card?.exp_month,
+        expYear: pm.card?.exp_year,
+      };
+    });
 
     return new Response(
       JSON.stringify({
