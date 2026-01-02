@@ -516,6 +516,86 @@ serve(async (req) => {
         break;
       }
 
+      case "create-tour": {
+        // Create a new tour
+        const { tourname, startdate, enddate, active, tourtype, tourpublic } = params;
+        if (!tourname || !startdate || !enddate) {
+          throw new Error("tourname, startdate, and enddate are required");
+        }
+
+        const response = await sgtRequest(clubUrl, "/tours/create", "POST", {
+          tourname: tourname,
+          startdate: startdate,
+          enddate: enddate,
+          active: (active ?? 1).toString(),
+          tourtype: (tourtype ?? 0).toString(),
+          tourpublic: (tourpublic ?? 0).toString(),
+        }) as { success?: boolean; feedback?: string; tourId?: number };
+
+        if (response.success && response.tourId) {
+          // Add the tour to our local database
+          await adminClient
+            .from("sgt_tours")
+            .insert({
+              tour_id: response.tourId,
+              name: tourname,
+              start_date: startdate,
+              end_date: enddate,
+              active: active ?? 1,
+              team_tour: tourtype ?? 0,
+            });
+          
+          console.log(`[SGT-MEMBER-MGMT] Created tour: ${tourname} (ID: ${response.tourId})`);
+        }
+
+        result = { 
+          success: response.success ?? false, 
+          feedback: response.feedback,
+          tourId: response.tourId 
+        };
+        break;
+      }
+
+      case "edit-tour": {
+        // Edit an existing tour
+        const { tourId, tourname, startdate, enddate, active, tourtype, tourpublic } = params;
+        if (!tourId || !tourname || !startdate || !enddate) {
+          throw new Error("tourId, tourname, startdate, and enddate are required");
+        }
+
+        const response = await sgtRequest(clubUrl, "/tours/edit", "POST", {
+          tourId: tourId.toString(),
+          tourname: tourname,
+          startdate: startdate,
+          enddate: enddate,
+          active: (active ?? 1).toString(),
+          tourtype: (tourtype ?? 0).toString(),
+          tourpublic: (tourpublic ?? 0).toString(),
+        }) as { success?: boolean; feedback?: string };
+
+        if (response.success) {
+          // Update our local database
+          await adminClient
+            .from("sgt_tours")
+            .update({
+              name: tourname,
+              start_date: startdate,
+              end_date: enddate,
+              active: active ?? 1,
+              team_tour: tourtype ?? 0,
+            })
+            .eq("tour_id", tourId);
+          
+          console.log(`[SGT-MEMBER-MGMT] Updated tour: ${tourname} (ID: ${tourId})`);
+        }
+
+        result = { 
+          success: response.success ?? false, 
+          feedback: response.feedback 
+        };
+        break;
+      }
+
       default:
         throw new Error(`Unknown action: ${action}`);
     }
