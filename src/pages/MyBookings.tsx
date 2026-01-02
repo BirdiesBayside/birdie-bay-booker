@@ -30,6 +30,8 @@ interface Booking {
   bay_id: string;
   bay_name?: string;
   bay_number?: number;
+  payment_method?: string;
+  stripe_payment_intent_id?: string;
 }
 
 const MyBookings = () => {
@@ -37,6 +39,7 @@ const MyBookings = () => {
   const navigate = useNavigate();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -66,6 +69,8 @@ const MyBookings = () => {
           total_price,
           status,
           bay_id,
+          payment_method,
+          stripe_payment_intent_id,
           bays (name, bay_number)
         `)
         .eq("user_id", user.id)
@@ -78,6 +83,8 @@ const MyBookings = () => {
         ...booking,
         bay_name: booking.bays?.name,
         bay_number: booking.bays?.bay_number,
+        payment_method: booking.payment_method,
+        stripe_payment_intent_id: booking.stripe_payment_intent_id,
       }));
 
       setBookings(formattedBookings);
@@ -90,19 +97,31 @@ const MyBookings = () => {
   };
 
   const handleCancelBooking = async (bookingId: string) => {
+    setCancellingId(bookingId);
     try {
-      const { error } = await supabase
-        .from("bookings")
-        .update({ status: "cancelled" })
-        .eq("id", bookingId);
+      const { data, error } = await supabase.functions.invoke("cancel-booking", {
+        body: { booking_id: bookingId },
+      });
 
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
 
-      toast.success("Booking cancelled successfully");
+      if (data?.refund) {
+        if (data.refund.type === "balance") {
+          toast.success(`Booking cancelled. $${data.refund.amount.toFixed(2)} refunded to your deposit balance.`);
+        } else {
+          toast.success("Booking cancelled. Refund is being processed to your card.");
+        }
+      } else {
+        toast.success("Booking cancelled successfully");
+      }
+      
       fetchBookings();
     } catch (error) {
       console.error("Error cancelling booking:", error);
-      toast.error("Failed to cancel booking");
+      toast.error(error instanceof Error ? error.message : "Failed to cancel booking");
+    } finally {
+      setCancellingId(null);
     }
   };
 
@@ -236,16 +255,27 @@ const MyBookings = () => {
                             <AlertDialogDescription>
                               Are you sure you want to cancel your booking for Bay {booking.bay_number} on{" "}
                               {format(parseISO(booking.booking_date), "MMMM d, yyyy")} at{" "}
-                              {formatTime(booking.start_time)}? This action cannot be undone.
+                              {formatTime(booking.start_time)}?
+                              {booking.payment_method === "stripe" && booking.stripe_payment_intent_id && (
+                                <span className="block mt-2 font-medium">
+                                  Your payment of ${booking.total_price.toFixed(2)} will be refunded to your card.
+                                </span>
+                              )}
+                              {booking.payment_method === "balance" && (
+                                <span className="block mt-2 font-medium">
+                                  ${booking.total_price.toFixed(2)} will be refunded to your deposit balance.
+                                </span>
+                              )}
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
                             <AlertDialogCancel>Keep Booking</AlertDialogCancel>
                             <AlertDialogAction
                               onClick={() => handleCancelBooking(booking.id)}
+                              disabled={cancellingId === booking.id}
                               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                             >
-                              Cancel Booking
+                              {cancellingId === booking.id ? "Processing..." : "Cancel & Refund"}
                             </AlertDialogAction>
                           </AlertDialogFooter>
                         </AlertDialogContent>
