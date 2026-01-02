@@ -56,16 +56,32 @@ export function CourseSelector({
   const [searchQuery, setSearchQuery] = useState("");
   const [countryFilter, setCountryFilter] = useState("all");
 
-  // Fetch courses
+  // Fetch courses - need to fetch all since Supabase has 1000 row default limit
   const { data: courses, isLoading } = useQuery({
     queryKey: ["sgt-courses"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("sgt_courses")
-        .select("id, course_id, name, par, difficulty, course_designer, city, state, country, thumbnail_url")
-        .order("name");
-      if (error) throw error;
-      return data as Course[];
+      // Fetch in batches to get all courses (over 2000)
+      const allCourses: Course[] = [];
+      let offset = 0;
+      const batchSize = 1000;
+      
+      while (true) {
+        const { data, error } = await supabase
+          .from("sgt_courses")
+          .select("id, course_id, name, par, difficulty, course_designer, city, state, country, thumbnail_url")
+          .order("name")
+          .range(offset, offset + batchSize - 1);
+        
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        
+        allCourses.push(...(data as Course[]));
+        
+        if (data.length < batchSize) break;
+        offset += batchSize;
+      }
+      
+      return allCourses;
     },
   });
 
