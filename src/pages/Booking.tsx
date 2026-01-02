@@ -264,7 +264,7 @@ export default function Booking() {
           depositBalance={depositBalance}
           onPayWithBalance={() => handleConfirmBooking("balance")}
           onPayWithSavedCard={() => handleConfirmBooking("card")}
-          onPayWithNewCard={(paymentMethodId) => handleConfirmBooking("card", paymentMethodId)}
+          onPayWithNewCard={() => handleConfirmBooking("card")}
           isProcessing={isSubmitting}
         />
       </main>
