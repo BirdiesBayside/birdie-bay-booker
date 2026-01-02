@@ -34,6 +34,7 @@ export default function Booking() {
     isLoading,
     userMembershipTier,
     depositBalance,
+    savedCard,
     getHourlyRate,
     fetchBookingsForDate,
     checkBayAvailability,
@@ -119,10 +120,17 @@ export default function Booking() {
     setShowPaymentDialog(false);
     setIsSubmitting(true);
     try {
-      await createBooking(selectedBayId, selectedDate, selectedTime, selectedDuration, selectedPlayers, paymentMethod);
+      const result = await createBooking(selectedBayId, selectedDate, selectedTime, selectedDuration, selectedPlayers, paymentMethod);
+      
+      // If checkout is required (no saved card), redirect to Stripe
+      if (result.requiresCheckout && result.checkoutUrl) {
+        window.location.href = result.checkoutUrl;
+        return;
+      }
+      
       toast({
         title: "Booking confirmed!",
-        description: `Your bay is booked for ${format(selectedDate, "PPP")} at ${selectedTime}.${paymentMethod === "balance" ? " Balance deducted." : ""}`,
+        description: `Your bay is booked for ${format(selectedDate, "PPP")} at ${selectedTime}.${paymentMethod === "balance" ? " Balance deducted." : savedCard ? ` Charged to card ending ${savedCard.last4}.` : ""}`,
       });
       navigate("/dashboard");
     } catch (error: any) {
@@ -229,20 +237,30 @@ export default function Booking() {
         </Card>
 
         {/* Confirm Button */}
-        <Button
-          className="w-full py-6 text-lg font-display gradient-orange text-accent-foreground"
-          disabled={!canConfirm || isSubmitting}
-          onClick={handleConfirmClick}
-        >
-          {isSubmitting ? (
-            <>
-              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-              Confirming...
-            </>
-          ) : (
-            `Confirm Booking${canConfirm ? ` - $${hourlyRate * selectedDuration}` : ""}`
+        {/* Confirm Button */}
+        <div className="space-y-2">
+          <Button
+            className="w-full py-6 text-lg font-display gradient-orange text-accent-foreground"
+            disabled={!canConfirm || isSubmitting}
+            onClick={handleConfirmClick}
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                {savedCard ? "Charging Card..." : "Processing..."}
+              </>
+            ) : (
+              `Confirm Booking${canConfirm ? ` - $${hourlyRate * selectedDuration}` : ""}`
+            )}
+          </Button>
+          {canConfirm && depositBalance === 0 && (
+            <p className="text-center text-sm text-muted-foreground">
+              {savedCard 
+                ? `Will charge your ${savedCard.brand} card ending in ${savedCard.last4}`
+                : "You'll be redirected to enter payment details"}
+            </p>
           )}
-        </Button>
+        </div>
 
         {/* Payment Method Dialog */}
         <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
@@ -280,9 +298,13 @@ export default function Booking() {
               >
                 <CreditCard className="h-5 w-5 mr-3 text-primary" />
                 <div className="text-left">
-                  <div className="font-medium">Pay by Card</div>
+                  <div className="font-medium">
+                    {savedCard ? `Pay with Card •••• ${savedCard.last4}` : "Pay by Card"}
+                  </div>
                   <div className="text-sm text-muted-foreground">
-                    Charge to saved card
+                    {savedCard 
+                      ? `Charge to your saved ${savedCard.brand} card` 
+                      : "You'll be redirected to enter card details"}
                   </div>
                 </div>
               </Button>
