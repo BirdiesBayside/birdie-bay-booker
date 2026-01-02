@@ -71,6 +71,10 @@ serve(async (req) => {
           },
         ],
         mode: "payment",
+        // Save card for future bookings
+        payment_intent_data: {
+          setup_future_usage: "off_session",
+        },
         success_url: `${origin}/booking-success?booking_id=${bookingId}`,
         cancel_url: `${origin}/booking?booking_cancelled=true&booking_id=${bookingId}`,
         metadata: {
@@ -122,6 +126,10 @@ serve(async (req) => {
           },
         ],
         mode: "payment",
+        // Save card for future bookings
+        payment_intent_data: {
+          setup_future_usage: "off_session",
+        },
         success_url: `${origin}/booking-success?booking_id=${bookingId}`,
         cancel_url: `${origin}/booking?booking_cancelled=true&booking_id=${bookingId}`,
         metadata: {
