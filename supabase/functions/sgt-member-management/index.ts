@@ -596,6 +596,137 @@ serve(async (req) => {
         break;
       }
 
+      case "create-tournament": {
+        // Create a new tournament
+        const { tournamentname, courseId, startdate, enddate, tourId } = params;
+        if (!tournamentname || !courseId || !startdate || !enddate || !tourId) {
+          throw new Error("tournamentname, courseId, startdate, enddate, and tourId are required");
+        }
+
+        const response = await sgtRequest(clubUrl, "/tournaments/create", "POST", {
+          tournamentname: tournamentname,
+          course_id: courseId.toString(),
+          startdate: startdate,
+          enddate: enddate,
+          tour_id: tourId.toString(),
+        }) as { success?: boolean; feedback?: string; tournamentId?: number };
+
+        if (response.success && response.tournamentId) {
+          // Get course name from our database
+          const { data: courseData } = await adminClient
+            .from("sgt_courses")
+            .select("name")
+            .eq("course_id", courseId)
+            .single();
+
+          // Add the tournament to our local database
+          await adminClient
+            .from("sgt_tournaments")
+            .insert({
+              tournament_id: response.tournamentId,
+              tour_id: tourId,
+              name: tournamentname,
+              course_name: courseData?.name || null,
+              start_date: startdate,
+              end_date: enddate,
+              status: "Upcoming",
+            });
+          
+          console.log(`[SGT-MEMBER-MGMT] Created tournament: ${tournamentname} (ID: ${response.tournamentId})`);
+        }
+
+        result = { 
+          success: response.success ?? false, 
+          feedback: response.feedback,
+          tournamentId: response.tournamentId 
+        };
+        break;
+      }
+
+      case "edit-tournament": {
+        // Edit an existing tournament
+        const { tournamentId, tournamentname, courseId, startdate, enddate, tourId } = params;
+        if (!tournamentId || !tournamentname || !startdate || !enddate) {
+          throw new Error("tournamentId, tournamentname, startdate, and enddate are required");
+        }
+
+        const body: Record<string, string> = {
+          tournament_id: tournamentId.toString(),
+          tournamentname: tournamentname,
+          startdate: startdate,
+          enddate: enddate,
+        };
+
+        if (courseId) {
+          body.course_id = courseId.toString();
+        }
+
+        const response = await sgtRequest(clubUrl, "/tournaments/edit", "POST", body) as { success?: boolean; feedback?: string };
+
+        if (response.success) {
+          // Get course name if courseId provided
+          let courseName = null;
+          if (courseId) {
+            const { data: courseData } = await adminClient
+              .from("sgt_courses")
+              .select("name")
+              .eq("course_id", courseId)
+              .single();
+            courseName = courseData?.name;
+          }
+
+          // Update our local database
+          const updateData: Record<string, unknown> = {
+            name: tournamentname,
+            start_date: startdate,
+            end_date: enddate,
+          };
+          
+          if (courseName) {
+            updateData.course_name = courseName;
+          }
+
+          await adminClient
+            .from("sgt_tournaments")
+            .update(updateData)
+            .eq("tournament_id", tournamentId);
+          
+          console.log(`[SGT-MEMBER-MGMT] Updated tournament: ${tournamentname} (ID: ${tournamentId})`);
+        }
+
+        result = { 
+          success: response.success ?? false, 
+          feedback: response.feedback 
+        };
+        break;
+      }
+
+      case "close-tournament": {
+        // Close/complete a tournament
+        const { tournamentId } = params;
+        if (!tournamentId) throw new Error("tournamentId is required");
+
+        const response = await sgtRequest(clubUrl, "/tournaments/close", "POST", {
+          tournament_id: tournamentId.toString(),
+        }) as { success?: boolean; feedback?: string };
+
+        if (response.success) {
+          // Update our local database
+          await adminClient
+            .from("sgt_tournaments")
+            .update({ status: "Completed" })
+            .eq("tournament_id", tournamentId);
+          
+          console.log(`[SGT-MEMBER-MGMT] Closed tournament ID: ${tournamentId}`);
+        }
+
+        result = { 
+          success: response.success ?? false, 
+          feedback: response.feedback 
+        };
+        break;
+      }
+
       default:
         throw new Error(`Unknown action: ${action}`);
     }
