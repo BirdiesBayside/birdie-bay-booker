@@ -85,15 +85,14 @@ export default function Booking() {
       return;
     }
 
-    const totalPrice = hourlyRate * selectedDuration;
-    
-    // If customer has balance, show payment options
-    if (depositBalance > 0) {
-      setShowPaymentDialog(true);
-    } else {
-      // No balance, proceed with card payment
+    // If customer has a saved card, charge directly without dialog
+    if (savedCard && depositBalance === 0) {
       handleConfirmBooking("card");
+      return;
     }
+    
+    // Show payment dialog for balance/new card options
+    setShowPaymentDialog(true);
   };
 
   const handleConfirmBooking = async (paymentMethod: PaymentMethod, newPaymentMethodId?: string) => {
