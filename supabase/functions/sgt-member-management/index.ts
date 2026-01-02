@@ -398,6 +398,124 @@ serve(async (req) => {
         break;
       }
 
+      case "register-all-to-tour": {
+        // Register all active SGT members to a tour
+        const { tourId, useComboHandicap } = params;
+        if (!tourId) throw new Error("tourId is required");
+
+        // Get all active members from our database
+        const { data: members, error: membersError } = await adminClient
+          .from("sgt_members")
+          .select("user_id, user_name")
+          .eq("user_active", 1);
+
+        if (membersError) throw membersError;
+
+        // Get existing tour members to skip
+        const { data: existingMembers } = await adminClient
+          .from("sgt_tour_members")
+          .select("user_id")
+          .eq("tour_id", tourId);
+
+        const existingUserIds = new Set(existingMembers?.map(m => m.user_id) || []);
+
+        const results = [];
+        let successCount = 0;
+        let skipCount = 0;
+        let errorCount = 0;
+
+        for (const member of members || []) {
+          // Skip if already registered
+          if (existingUserIds.has(member.user_id)) {
+            skipCount++;
+            results.push({ userId: member.user_id, skipped: true });
+            continue;
+          }
+
+          try {
+            const body: Record<string, string> = {
+              user_id: member.user_id.toString(),
+              tour_id: tourId.toString(),
+            };
+            
+            // Add combo handicap parameter if enabled
+            if (useComboHandicap) {
+              body.useComboCapstring = "true";
+            }
+
+            const response = await sgtRequest(clubUrl, "/tours/add-member", "POST", body);
+            results.push({ userId: member.user_id, success: true, response });
+            successCount++;
+          } catch (error) {
+            results.push({ 
+              userId: member.user_id, 
+              success: false, 
+              error: error instanceof Error ? error.message : "Unknown error" 
+            });
+            errorCount++;
+          }
+        }
+
+        console.log(`[SGT-MEMBER-MGMT] Register all to tour ${tourId}: ${successCount} success, ${skipCount} skipped, ${errorCount} errors`);
+        
+        result = { 
+          success: true, 
+          successCount, 
+          skipCount, 
+          errorCount, 
+          totalMembers: members?.length || 0,
+          results 
+        };
+        break;
+      }
+
+      case "register-all-to-tournament": {
+        // Register all tour members to a specific tournament
+        const { tournamentId, tourId } = params;
+        if (!tournamentId || !tourId) throw new Error("tournamentId and tourId are required");
+
+        // Get all tour members
+        const { data: tourMembers, error: tmError } = await adminClient
+          .from("sgt_tour_members")
+          .select("user_id, user_name")
+          .eq("tour_id", tourId);
+
+        if (tmError) throw tmError;
+
+        const results = [];
+        let successCount = 0;
+        let errorCount = 0;
+
+        for (const member of tourMembers || []) {
+          try {
+            const response = await sgtRequest(clubUrl, "/tournaments/add-member", "POST", {
+              user_id: member.user_id.toString(),
+              tournament_id: tournamentId.toString(),
+            });
+            results.push({ userId: member.user_id, success: true, response });
+            successCount++;
+          } catch (error) {
+            results.push({ 
+              userId: member.user_id, 
+              success: false, 
+              error: error instanceof Error ? error.message : "Unknown error" 
+            });
+            errorCount++;
+          }
+        }
+
+        console.log(`[SGT-MEMBER-MGMT] Register all to tournament ${tournamentId}: ${successCount} success, ${errorCount} errors`);
+        
+        result = { 
+          success: true, 
+          successCount, 
+          errorCount, 
+          totalMembers: tourMembers?.length || 0,
+          results 
+        };
+        break;
+      }
+
       default:
         throw new Error(`Unknown action: ${action}`);
     }

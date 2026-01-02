@@ -166,115 +166,162 @@ serve(async (req) => {
 
     console.log(`[SGT-AUTO-REG] Starting auto-registration for SGT user ${sgt_user_id}`);
 
-    // 1. Get all tours and find the most recent active tour
-    const toursResponse = await sgtGetRequest("/tours/list");
-    const tours = extractArray(toursResponse, ['tours', 'results']) as { tourId: number; name: string; active: number; start_date?: string }[];
-    
-    // Find active tours and sort by start_date to get most recent
-    const activeTours = tours
-      .filter(t => t.active === 1)
-      .sort((a, b) => {
-        const dateA = a.start_date ? new Date(a.start_date).getTime() : 0;
-        const dateB = b.start_date ? new Date(b.start_date).getTime() : 0;
-        return dateB - dateA; // Most recent first
-      });
+    // 1. Get tours with auto-registration enabled from our settings
+    const { data: autoRegTours } = await supabase
+      .from("sgt_tour_settings")
+      .select("tour_id, auto_register_members, auto_register_tournaments, use_combo_handicap")
+      .eq("auto_register_members", true);
 
-    if (activeTours.length === 0) {
-      console.log("[SGT-AUTO-REG] No active tours found");
+    // If no tours have auto-registration enabled, fallback to most recent active tour
+    let toursToRegister: { tour_id: number; auto_register_tournaments: boolean; use_combo_handicap: boolean }[] = [];
+    
+    if (autoRegTours && autoRegTours.length > 0) {
+      console.log(`[SGT-AUTO-REG] Found ${autoRegTours.length} tours with auto-registration enabled`);
+      toursToRegister = autoRegTours.map(t => ({
+        tour_id: t.tour_id,
+        auto_register_tournaments: t.auto_register_tournaments,
+        use_combo_handicap: t.use_combo_handicap,
+      }));
+    } else {
+      // Fallback: Get all tours and find the most recent active tour
+      console.log("[SGT-AUTO-REG] No auto-reg tours configured, using most recent active tour");
+      const toursResponse = await sgtGetRequest("/tours/list");
+      const tours = extractArray(toursResponse, ['tours', 'results']) as { tourId: number; name: string; active: number; start_date?: string }[];
+      
+      // Find active tours and sort by start_date to get most recent
+      const activeTours = tours
+        .filter(t => t.active === 1)
+        .sort((a, b) => {
+          const dateA = a.start_date ? new Date(a.start_date).getTime() : 0;
+          const dateB = b.start_date ? new Date(b.start_date).getTime() : 0;
+          return dateB - dateA; // Most recent first
+        });
+
+      if (activeTours.length > 0) {
+        toursToRegister = [{ 
+          tour_id: activeTours[0].tourId, 
+          auto_register_tournaments: true,
+          use_combo_handicap: true 
+        }];
+      }
+    }
+
+    if (toursToRegister.length === 0) {
+      console.log("[SGT-AUTO-REG] No tours found for auto-registration");
       return new Response(
-        JSON.stringify({ success: false, message: "No active tours found" }),
+        JSON.stringify({ success: false, message: "No tours configured for auto-registration" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const activeTour = activeTours[0];
-    console.log(`[SGT-AUTO-REG] Found active tour: ${activeTour.name} (ID: ${activeTour.tourId})`);
+    let totalTourRegistrations = 0;
+    let totalTournamentRegistrations = 0;
+    const allErrors: string[] = [];
 
-    // 2. Check if user is already a member of this tour
-    const tourMembersResponse = await sgtGetRequest("/tours/members", { tourId: activeTour.tourId.toString() });
-    const tourMembers = extractArray(tourMembersResponse, ['members', 'results']) as { user_id: number }[];
-    
-    const isAlreadyMember = tourMembers.some(m => m.user_id === sgt_user_id);
+    // Process each tour with auto-registration
+    for (const tourConfig of toursToRegister) {
+      const tourId = tourConfig.tour_id;
+      console.log(`[SGT-AUTO-REG] Processing tour ${tourId}`);
 
-    if (!isAlreadyMember) {
-      // 3. Add user to the tour
-      console.log(`[SGT-AUTO-REG] Adding user ${sgt_user_id} to tour ${activeTour.tourId}`);
-      const addMemberResult = await sgtPostRequest("/tours/add-member", {
-        tourId: activeTour.tourId,
-        user_id: sgt_user_id,
-      });
-      console.log(`[SGT-AUTO-REG] Add member result:`, addMemberResult);
-    } else {
-      console.log(`[SGT-AUTO-REG] User ${sgt_user_id} is already a member of tour ${activeTour.tourId}`);
-    }
+      // Check if user is already a member of this tour
+      const tourMembersResponse = await sgtGetRequest("/tours/members", { tourId: tourId.toString() });
+      const tourMembers = extractArray(tourMembersResponse, ['members', 'results']) as { user_id: number }[];
+      
+      const isAlreadyMember = tourMembers.some(m => m.user_id === sgt_user_id);
 
-    // 4. Get all tournaments for this tour
-    const tournamentsResponse = await sgtGetRequest("/tournaments/list", { tourId: activeTour.tourId.toString() });
-    const tournaments = extractArray(tournamentsResponse, ['results', 'tournaments']) as { 
-      tournamentId: number; 
-      name: string; 
-      status?: string;
-      start_date?: string;
-      end_date?: string;
-    }[];
-
-    // Filter for upcoming tournaments (status !== 'Closed' and end_date is in the future or today)
-    const today = new Date().toISOString().split('T')[0];
-    const upcomingTournaments = tournaments.filter(t => {
-      const isNotClosed = t.status !== 'Closed';
-      const endDate = t.end_date || '';
-      const isFutureOrToday = !endDate || endDate >= today;
-      return isNotClosed && isFutureOrToday;
-    });
-
-    console.log(`[SGT-AUTO-REG] Found ${upcomingTournaments.length} upcoming tournaments`);
-
-    let registeredCount = 0;
-    let alreadyRegisteredCount = 0;
-    const errors: string[] = [];
-
-    // 5. Register user for each upcoming tournament
-    for (const tournament of upcomingTournaments) {
-      try {
-        // Check if already registered
-        const registrationsResponse = await sgtGetRequest("/registrations/view", { 
-          tournamentId: tournament.tournamentId.toString() 
-        });
-        const registrations = extractArray(registrationsResponse, ['registrations', 'results']) as { user_id: number }[];
-        
-        const isAlreadyRegistered = registrations.some(r => r.user_id === sgt_user_id);
-
-        if (isAlreadyRegistered) {
-          console.log(`[SGT-AUTO-REG] User already registered for tournament ${tournament.name}`);
-          alreadyRegisteredCount++;
-          continue;
-        }
-
-        // Register for tournament using Club Combo handicap
-        console.log(`[SGT-AUTO-REG] Registering user for tournament ${tournament.name} (ID: ${tournament.tournamentId})`);
-        
-        const registerResult = await sgtPostRequestWithRegistrationList(
-          "/registrations/register-members",
-          tournament.tournamentId,
-          activeTour.tourId,
-          [{
+      if (!isAlreadyMember) {
+        // Add user to the tour with combo handicap if enabled
+        console.log(`[SGT-AUTO-REG] Adding user ${sgt_user_id} to tour ${tourId}`);
+        try {
+          const addMemberBody: Record<string, string | number> = {
+            tourId: tourId,
             user_id: sgt_user_id,
-            useComboCap: "true",  // Use Club Combo handicap
-            useCustomCap: "false",
-            teeType: "White"  // Default tee type
-          }]
-        );
+          };
+          
+          if (tourConfig.use_combo_handicap) {
+            addMemberBody.useComboCapstring = "true";
+          }
+          
+          const addMemberResult = await sgtPostRequest("/tours/add-member", addMemberBody);
+          console.log(`[SGT-AUTO-REG] Add member result:`, addMemberResult);
+          totalTourRegistrations++;
+        } catch (error) {
+          const errorMsg = `Failed to add to tour ${tourId}: ${error instanceof Error ? error.message : 'Unknown error'}`;
+          console.error(`[SGT-AUTO-REG] ${errorMsg}`);
+          allErrors.push(errorMsg);
+          continue; // Skip tournament registration if tour registration failed
+        }
+      } else {
+        console.log(`[SGT-AUTO-REG] User ${sgt_user_id} is already a member of tour ${tourId}`);
+      }
 
-        console.log(`[SGT-AUTO-REG] Registration result for ${tournament.name}:`, registerResult);
-        registeredCount++;
-      } catch (error) {
-        const errorMsg = `Failed to register for ${tournament.name}: ${error instanceof Error ? error.message : 'Unknown error'}`;
-        console.error(`[SGT-AUTO-REG] ${errorMsg}`);
-        errors.push(errorMsg);
+      // Only register for tournaments if auto_register_tournaments is enabled
+      if (!tourConfig.auto_register_tournaments) {
+        console.log(`[SGT-AUTO-REG] Tournament auto-registration disabled for tour ${tourId}`);
+        continue;
+      }
+
+      // Get all tournaments for this tour
+      const tournamentsResponse = await sgtGetRequest("/tournaments/list", { tourId: tourId.toString() });
+      const tournaments = extractArray(tournamentsResponse, ['results', 'tournaments']) as { 
+        tournamentId: number; 
+        name: string; 
+        status?: string;
+        start_date?: string;
+        end_date?: string;
+      }[];
+
+      // Filter for upcoming tournaments
+      const today = new Date().toISOString().split('T')[0];
+      const upcomingTournaments = tournaments.filter(t => {
+        const isNotClosed = t.status !== 'Closed' && t.status !== 'Completed';
+        const endDate = t.end_date || '';
+        const isFutureOrToday = !endDate || endDate >= today;
+        return isNotClosed && isFutureOrToday;
+      });
+
+      console.log(`[SGT-AUTO-REG] Found ${upcomingTournaments.length} upcoming tournaments for tour ${tourId}`);
+
+      // Register user for each upcoming tournament
+      for (const tournament of upcomingTournaments) {
+        try {
+          // Check if already registered
+          const registrationsResponse = await sgtGetRequest("/registrations/view", { 
+            tournamentId: tournament.tournamentId.toString() 
+          });
+          const registrations = extractArray(registrationsResponse, ['registrations', 'results']) as { user_id: number }[];
+          
+          if (registrations.some(r => r.user_id === sgt_user_id)) {
+            console.log(`[SGT-AUTO-REG] User already registered for tournament ${tournament.name}`);
+            continue;
+          }
+
+          // Register for tournament
+          console.log(`[SGT-AUTO-REG] Registering user for tournament ${tournament.name} (ID: ${tournament.tournamentId})`);
+          
+          const registerResult = await sgtPostRequestWithRegistrationList(
+            "/registrations/register-members",
+            tournament.tournamentId,
+            tourId,
+            [{
+              user_id: sgt_user_id,
+              useComboCap: tourConfig.use_combo_handicap ? "true" : "false",
+              useCustomCap: "false",
+              teeType: "White"
+            }]
+          );
+
+          console.log(`[SGT-AUTO-REG] Registration result for ${tournament.name}:`, registerResult);
+          totalTournamentRegistrations++;
+        } catch (error) {
+          const errorMsg = `Failed to register for ${tournament.name}: ${error instanceof Error ? error.message : 'Unknown error'}`;
+          console.error(`[SGT-AUTO-REG] ${errorMsg}`);
+          allErrors.push(errorMsg);
+        }
       }
     }
 
-    // 6. Trigger a sync to update local cache
+    // Trigger a sync to update local cache
     try {
       const syncSecret = Deno.env.get("SYNC_SECRET");
       if (syncSecret) {
@@ -293,12 +340,9 @@ serve(async (req) => {
 
     const result = {
       success: true,
-      tourId: activeTour.tourId,
-      tourName: activeTour.name,
-      addedToTour: !isAlreadyMember,
-      tournamentsRegistered: registeredCount,
-      tournamentsAlreadyRegistered: alreadyRegisteredCount,
-      errors: errors.length > 0 ? errors : undefined,
+      toursRegistered: totalTourRegistrations,
+      tournamentsRegistered: totalTournamentRegistrations,
+      errors: allErrors.length > 0 ? allErrors : undefined,
     };
 
     console.log(`[SGT-AUTO-REG] Completed:`, result);
