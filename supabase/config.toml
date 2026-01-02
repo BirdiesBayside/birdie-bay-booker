@@ -56,3 +56,6 @@ verify_jwt = false
 
 [functions.sgt-course-sync]
 verify_jwt = false
+
+[functions.sgt-member-management]
+verify_jwt = false
