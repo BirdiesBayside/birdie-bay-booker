@@ -269,8 +269,16 @@ serve(async (req) => {
             const scorecardsResponse = await sgtRequest("/tournaments/scorecards", { tournamentId: tourn.tournamentId.toString() });
             const scorecards = extractArray(scorecardsResponse, ['scorecards', 'results']);
             
+            // Track which scorecards exist in SGT for this tournament
+            const sgtScorecardKeys = new Set<string>();
+            
             for (const scorecard of scorecards) {
               const sc = scorecard as Record<string, unknown>;
+              const playerId = sc.playerId as number;
+              const round = (sc.round as number) ?? 1;
+              
+              // Create a unique key for this scorecard
+              sgtScorecardKeys.add(`${playerId}-${round}`);
               
               // Extract ALL hole-related fields (h1_Par, h1_index, hole1_gross, hole1_net, etc.)
               const holeData: Record<string, unknown> = {};
@@ -283,10 +291,10 @@ serve(async (req) => {
 
               await supabase.from("sgt_scorecards").upsert({
                 tournament_id: tourn.tournamentId,
-                player_id: sc.playerId as number,
+                player_id: playerId,
                 player_name: sc.player_name as string,
                 hcp_index: sc.hcp_index as number,
-                round: (sc.round as number) ?? 1,
+                round: round,
                 course_name: sc.courseName as string,
                 teetype: sc.teetype as string,
                 rating: sc.rating as number,
@@ -304,6 +312,28 @@ serve(async (req) => {
               }, { onConflict: 'tournament_id,player_id,round' });
               totalRecords++;
             }
+            
+            // Delete scorecards that no longer exist in SGT for this tournament
+            const { data: existingScorecards } = await supabase
+              .from("sgt_scorecards")
+              .select("player_id, round")
+              .eq("tournament_id", tourn.tournamentId);
+            
+            if (existingScorecards) {
+              for (const existing of existingScorecards) {
+                const key = `${existing.player_id}-${existing.round}`;
+                if (!sgtScorecardKeys.has(key)) {
+                  await supabase
+                    .from("sgt_scorecards")
+                    .delete()
+                    .eq("tournament_id", tourn.tournamentId)
+                    .eq("player_id", existing.player_id)
+                    .eq("round", existing.round);
+                  console.log(`[SGT-SYNC] Deleted scorecard: tournament ${tourn.tournamentId}, player ${existing.player_id}, round ${existing.round}`);
+                }
+              }
+            }
+            
             console.log(`[SGT-SYNC] Synced ${scorecards.length} scorecards for tournament ${tourn.tournamentId}`);
           } catch (e) {
             console.error(`[SGT-SYNC] Error syncing scorecards for tournament ${tourn.tournamentId}:`, e);
