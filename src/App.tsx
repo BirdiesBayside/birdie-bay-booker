@@ -6,6 +6,7 @@ import { BrowserRouter, HashRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import Booking from "./pages/Booking";
+import BookingSuccess from "./pages/BookingSuccess";
 import MyBookings from "./pages/MyBookings";
 import MyAccount from "./pages/MyAccount";
 import Membership from "./pages/Membership";
@@ -46,6 +47,7 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/booking" element={<Booking />} />
+          <Route path="/booking-success" element={<BookingSuccess />} />
           <Route path="/my-bookings" element={<MyBookings />} />
           <Route path="/my-account" element={<MyAccount />} />
           <Route path="/membership" element={<Membership />} />

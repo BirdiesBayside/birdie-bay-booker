@@ -71,7 +71,7 @@ serve(async (req) => {
           },
         ],
         mode: "payment",
-        success_url: `${origin}/dashboard?booking_success=true&booking_id=${bookingId}`,
+        success_url: `${origin}/booking-success?booking_id=${bookingId}`,
         cancel_url: `${origin}/booking?booking_cancelled=true&booking_id=${bookingId}`,
         metadata: {
           booking_id: bookingId,
@@ -122,7 +122,7 @@ serve(async (req) => {
           },
         ],
         mode: "payment",
-        success_url: `${origin}/dashboard?booking_success=true&booking_id=${bookingId}`,
+        success_url: `${origin}/booking-success?booking_id=${bookingId}`,
         cancel_url: `${origin}/booking?booking_cancelled=true&booking_id=${bookingId}`,
         metadata: {
           booking_id: bookingId,
