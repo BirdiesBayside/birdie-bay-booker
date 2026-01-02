@@ -698,6 +698,63 @@ export type Database = {
         }
         Relationships: []
       }
+      sgt_courses: {
+        Row: {
+          city: string | null
+          country: string | null
+          course_designer: string | null
+          course_id: number
+          course_key: string | null
+          course_location: string | null
+          created_at: string
+          description: string | null
+          difficulty: number | null
+          elevation_in_feet: number | null
+          id: string
+          name: string
+          par: number | null
+          state: string | null
+          thumbnail_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          city?: string | null
+          country?: string | null
+          course_designer?: string | null
+          course_id: number
+          course_key?: string | null
+          course_location?: string | null
+          created_at?: string
+          description?: string | null
+          difficulty?: number | null
+          elevation_in_feet?: number | null
+          id?: string
+          name: string
+          par?: number | null
+          state?: string | null
+          thumbnail_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          city?: string | null
+          country?: string | null
+          course_designer?: string | null
+          course_id?: number
+          course_key?: string | null
+          course_location?: string | null
+          created_at?: string
+          description?: string | null
+          difficulty?: number | null
+          elevation_in_feet?: number | null
+          id?: string
+          name?: string
+          par?: number | null
+          state?: string | null
+          thumbnail_url?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       sgt_members: {
         Row: {
           created_at: string
