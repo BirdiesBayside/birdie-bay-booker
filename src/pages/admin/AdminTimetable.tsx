@@ -151,7 +151,8 @@ export default function AdminTimetable() {
 
   useEffect(() => {
     if (isAdmin) {
-      fetchBays();
+      // Fetch bays and initial bookings in parallel
+      Promise.all([fetchBays(), fetchBookings()]);
     }
   }, [isAdmin]);
 
@@ -175,11 +176,17 @@ export default function AdminTimetable() {
     }
   }, [isLoading, selectedDate]);
 
+  // Refetch bookings when date changes (but not on initial load)
+  const isInitialMount = useRef(true);
   useEffect(() => {
-    if (isAdmin && bays.length > 0) {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    if (isAdmin) {
       fetchBookings();
     }
-  }, [isAdmin, selectedDate, bays]);
+  }, [selectedDate]);
 
   // Realtime subscription to auto-refresh when bookings change
   useEffect(() => {
@@ -194,12 +201,9 @@ export default function AdminTimetable() {
           schema: 'public',
           table: 'bookings',
         },
-        (payload) => {
-          console.log('[Timetable] Booking change detected:', payload.eventType);
+        () => {
           // Refetch bookings when any change happens
-          if (bays.length > 0) {
-            fetchBookings();
-          }
+          fetchBookings();
         }
       )
       .subscribe();
@@ -207,7 +211,7 @@ export default function AdminTimetable() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [isAdmin, bays.length, selectedDate]);
+  }, [isAdmin]); // Only recreate subscription when admin status changes
 
   const fetchBays = async () => {
     const { data, error } = await supabase
@@ -226,41 +230,45 @@ export default function AdminTimetable() {
     
     const dateStr = format(selectedDate, "yyyy-MM-dd");
 
-    // Fetch bookings - exclude cancelled ones at database level for reliability
-    const { data, error } = await supabase
-      .from("bookings")
-      .select("*")
-      .eq("booking_date", dateStr)
-      .neq("status", "cancelled")
-      .order("start_time");
+    // Fetch bookings and blocks in parallel
+    const [bookingsResult, blocksResult] = await Promise.all([
+      supabase
+        .from("bookings")
+        .select("*")
+        .eq("booking_date", dateStr)
+        .neq("status", "cancelled")
+        .order("start_time"),
+      supabase
+        .from("bay_blocks")
+        .select("*")
+        .eq("block_date", dateStr)
+    ]);
 
-    if (!error && data) {
-      // Fetch profiles for all bookings
-      const userIds = [...new Set(data.map(b => b.user_id))];
-      const { data: profiles } = userIds.length > 0 
-        ? await supabase
-            .from("profiles")
-            .select("user_id, first_name, last_name, email, phone, membership_tier")
-            .in("user_id", userIds)
-        : { data: [] as any[] };
-
-      const profileMap = new Map((profiles || []).map(p => [p.user_id, p]));
-      
-      const transformedData = data.map((booking: any) => ({
-        ...booking,
-        profile: profileMap.get(booking.user_id)
-      }));
-      setBookings(transformedData);
+    if (!blocksResult.error && blocksResult.data) {
+      setBlocks(blocksResult.data);
     }
 
-    // Fetch blocks
-    const { data: blocksData, error: blocksError } = await supabase
-      .from("bay_blocks")
-      .select("*")
-      .eq("block_date", dateStr);
+    if (!bookingsResult.error && bookingsResult.data) {
+      const data = bookingsResult.data;
+      
+      // Fetch profiles if there are bookings
+      if (data.length > 0) {
+        const userIds = [...new Set(data.map(b => b.user_id))];
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("user_id, first_name, last_name, email, phone, membership_tier")
+          .in("user_id", userIds);
 
-    if (!blocksError && blocksData) {
-      setBlocks(blocksData);
+        const profileMap = new Map((profiles || []).map(p => [p.user_id, p]));
+        
+        const transformedData = data.map((booking: any) => ({
+          ...booking,
+          profile: profileMap.get(booking.user_id)
+        }));
+        setBookings(transformedData);
+      } else {
+        setBookings([]);
+      }
     }
     
     setIsLoading(false);
