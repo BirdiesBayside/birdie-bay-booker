@@ -296,9 +296,12 @@ export default function AdminTimetable() {
 
   const isBookingPaid = (booking: Booking) => {
     // A booking is paid if:
-    // 1. It has a stripe_payment_intent_id and payment_method is not 'pending', OR
-    // 2. It was paid via cash
-    return (booking.stripe_payment_intent_id && booking.payment_method !== 'pending') 
+    // 1. It has a stripe_payment_intent_id (paid via Stripe), OR
+    // 2. payment_method is 'card', 'balance', or 'cash'
+    // Unpaid bookings have payment_method as 'pending' (phone bookings)
+    return booking.stripe_payment_intent_id 
+      || booking.payment_method === 'card'
+      || booking.payment_method === 'balance'
       || booking.payment_method === 'cash';
   };
 
