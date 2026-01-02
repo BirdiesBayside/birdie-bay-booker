@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Loader2, CreditCard, Wallet } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import { useBooking, PaymentMethod } from "@/hooks/useBooking";
@@ -8,13 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DateTimePicker } from "@/components/booking/DateTimePicker";
 import { BayAvailabilityGrid } from "@/components/booking/BayAvailabilityGrid";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
+import { PaymentConfirmationDialog } from "@/components/booking/PaymentConfirmationDialog";
 import { toast } from "@/hooks/use-toast";
 import birdiesLogo from "@/assets/birdies-logo.png";
 
@@ -102,7 +96,7 @@ export default function Booking() {
     }
   };
 
-  const handleConfirmBooking = async (paymentMethod: PaymentMethod) => {
+  const handleConfirmBooking = async (paymentMethod: PaymentMethod, newPaymentMethodId?: string) => {
     if (!selectedDate || !selectedTime || !selectedBayId) return;
 
     const totalPrice = hourlyRate * selectedDuration;
@@ -120,7 +114,7 @@ export default function Booking() {
     setShowPaymentDialog(false);
     setIsSubmitting(true);
     try {
-      const result = await createBooking(selectedBayId, selectedDate, selectedTime, selectedDuration, selectedPlayers, paymentMethod);
+      const result = await createBooking(selectedBayId, selectedDate, selectedTime, selectedDuration, selectedPlayers, paymentMethod, newPaymentMethodId);
       
       // If checkout is required (no saved card), redirect to Stripe
       if (result.requiresCheckout && result.checkoutUrl) {
@@ -263,54 +257,17 @@ export default function Booking() {
         </div>
 
         {/* Payment Method Dialog */}
-        <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
-          <DialogContent className="max-w-sm">
-            <DialogHeader>
-              <DialogTitle className="font-display text-xl">Choose Payment Method</DialogTitle>
-              <DialogDescription>
-                Total: ${(hourlyRate * selectedDuration).toFixed(2)}
-              </DialogDescription>
-            </DialogHeader>
-            
-            <div className="space-y-3 pt-2">
-              <Button
-                variant="outline"
-                className="w-full h-auto py-4 justify-start"
-                onClick={() => handleConfirmBooking("balance")}
-                disabled={depositBalance < hourlyRate * selectedDuration}
-              >
-                <Wallet className="h-5 w-5 mr-3 text-primary" />
-                <div className="text-left">
-                  <div className="font-medium">Use Balance</div>
-                  <div className="text-sm text-muted-foreground">
-                    Available: ${depositBalance.toFixed(2)}
-                    {depositBalance < hourlyRate * selectedDuration && (
-                      <span className="text-destructive ml-2">(Insufficient)</span>
-                    )}
-                  </div>
-                </div>
-              </Button>
-              
-              <Button
-                variant="outline"
-                className="w-full h-auto py-4 justify-start"
-                onClick={() => handleConfirmBooking("card")}
-              >
-                <CreditCard className="h-5 w-5 mr-3 text-primary" />
-                <div className="text-left">
-                  <div className="font-medium">
-                    {savedCard ? `Pay with Card •••• ${savedCard.last4}` : "Pay by Card"}
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    {savedCard 
-                      ? `Charge to your saved ${savedCard.brand} card` 
-                      : "You'll be redirected to enter card details"}
-                  </div>
-                </div>
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+        <PaymentConfirmationDialog
+          open={showPaymentDialog}
+          onOpenChange={setShowPaymentDialog}
+          totalPrice={hourlyRate * selectedDuration}
+          savedCard={savedCard}
+          depositBalance={depositBalance}
+          onPayWithBalance={() => handleConfirmBooking("balance")}
+          onPayWithSavedCard={() => handleConfirmBooking("card")}
+          onPayWithNewCard={(paymentMethodId) => handleConfirmBooking("card", paymentMethodId)}
+          isProcessing={isSubmitting}
+        />
       </main>
     </div>
   );
