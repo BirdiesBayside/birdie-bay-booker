@@ -41,10 +41,13 @@ import {
   Settings,
   UserPlus,
   Loader2,
-  CheckCircle2
+  CheckCircle2,
+  Plus,
+  Pencil,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { TourFormDialog } from "./TourFormDialog";
 
 interface TourStanding {
   id: string;
@@ -84,6 +87,8 @@ export function SGTTours() {
   const [standingsOpen, setStandingsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [confirmRegisterAll, setConfirmRegisterAll] = useState(false);
+  const [tourFormOpen, setTourFormOpen] = useState(false);
+  const [editingTour, setEditingTour] = useState<Tour | null>(null);
 
   // Fetch tours
   const { data: tours, isLoading } = useQuery({
@@ -278,9 +283,19 @@ export function SGTTours() {
 
   const currentSettings = selectedTour ? getSettings(selectedTour.tour_id) : undefined;
 
+  const handleCreateTour = () => {
+    setEditingTour(null);
+    setTourFormOpen(true);
+  };
+
+  const handleEditTour = (tour: Tour) => {
+    setEditingTour(tour);
+    setTourFormOpen(true);
+  };
+
   return (
     <div className="space-y-6">
-      {/* Search */}
+      {/* Search and Create */}
       <div className="flex items-center gap-4">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -291,6 +306,10 @@ export function SGTTours() {
             className="pl-10"
           />
         </div>
+        <Button onClick={handleCreateTour} className="gap-2">
+          <Plus className="h-4 w-4" />
+          Create Tour
+        </Button>
       </div>
 
       {/* Tours Grid */}
@@ -361,6 +380,13 @@ export function SGTTours() {
                     >
                       Standings
                       <ChevronRight className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleEditTour(tour)}
+                    >
+                      <Pencil className="h-4 w-4" />
                     </Button>
                     <Button
                       variant="outline"
@@ -545,6 +571,13 @@ export function SGTTours() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Tour Form Dialog (Create/Edit) */}
+      <TourFormDialog
+        open={tourFormOpen}
+        onOpenChange={setTourFormOpen}
+        tour={editingTour}
+      />
     </div>
   );
 }
