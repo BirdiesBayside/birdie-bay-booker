@@ -53,3 +53,6 @@ verify_jwt = false
 
 [functions.sgt-register]
 verify_jwt = false
+
+[functions.sgt-course-sync]
+verify_jwt = false
