@@ -51,6 +51,7 @@ const MyAccount = () => {
   const [deletingPaymentMethodId, setDeletingPaymentMethodId] = useState<string | null>(null);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [isOpeningPortal, setIsOpeningPortal] = useState(false);
   const [editForm, setEditForm] = useState({
     first_name: "",
     last_name: "",
@@ -220,6 +221,25 @@ const MyAccount = () => {
     }
   };
 
+  const handleOpenCustomerPortal = async () => {
+    setIsOpeningPortal(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("customer-portal");
+      
+      if (error) throw error;
+      if (data.error) throw new Error(data.error);
+      
+      if (data.url) {
+        window.open(data.url, "_blank");
+      }
+    } catch (error: any) {
+      console.error("Error opening customer portal:", error);
+      toast.error(error.message || "Failed to open billing portal");
+    } finally {
+      setIsOpeningPortal(false);
+    }
+  };
+
   const getPaymentMethodDisplay = (method: PaymentMethod) => {
     if (method.type === "link" || method.brand === "link") {
       return { icon: "🔗 Link", label: method.email || `•••• ${method.last4}` };
@@ -288,18 +308,46 @@ const MyAccount = () => {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div>
-                  <Badge className={`${membershipInfo.color} text-sm px-3 py-1`}>
-                    {membershipInfo.name}
-                  </Badge>
-                  <p className="text-sm text-muted-foreground mt-2">
-                    Your hourly rate: <span className="font-semibold text-foreground">${membershipInfo.rate}/hour</span>
-                  </p>
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <div>
+                    <Badge className={`${membershipInfo.color} text-sm px-3 py-1`}>
+                      {membershipInfo.name}
+                    </Badge>
+                    <p className="text-sm text-muted-foreground mt-2">
+                      Your hourly rate: <span className="font-semibold text-foreground">${membershipInfo.rate}/hour</span>
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button variant="outline" onClick={() => navigate("/membership")}>
+                      {profile?.membership_tier === "visitor" ? "Become a Member" : "View Plans"}
+                    </Button>
+                    {profile?.membership_tier !== "visitor" && (
+                      <Button 
+                        variant="secondary" 
+                        onClick={handleOpenCustomerPortal}
+                        disabled={isOpeningPortal}
+                      >
+                        {isOpeningPortal ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Opening...
+                          </>
+                        ) : (
+                          <>
+                            <CreditCard className="h-4 w-4 mr-2" />
+                            Manage Billing
+                          </>
+                        )}
+                      </Button>
+                    )}
+                  </div>
                 </div>
-                <Button variant="outline" onClick={() => navigate("/membership")}>
-                  {profile?.membership_tier === "visitor" ? "Become a Member" : "Manage Membership"}
-                </Button>
+                {profile?.membership_tier !== "visitor" && (
+                  <p className="text-xs text-muted-foreground">
+                    To cancel your membership, please contact us.
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>
