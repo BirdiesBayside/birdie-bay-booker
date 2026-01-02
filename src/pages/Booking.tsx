@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DateTimePicker } from "@/components/booking/DateTimePicker";
 import { BayAvailabilityGrid } from "@/components/booking/BayAvailabilityGrid";
-import { PaymentConfirmationDialog } from "@/components/booking/PaymentConfirmationDialog";
 import { toast } from "@/hooks/use-toast";
 import birdiesLogo from "@/assets/birdies-logo.png";
 
@@ -41,7 +40,6 @@ export default function Booking() {
   const [selectedPlayers, setSelectedPlayers] = useState<number>(1);
   const [selectedBayId, setSelectedBayId] = useState<string | undefined>();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -85,35 +83,25 @@ export default function Booking() {
       return;
     }
 
-    // If customer has a saved card, charge directly without dialog
-    if (savedCard && depositBalance === 0) {
+    const totalPrice = hourlyRate * selectedDuration;
+
+    // Priority: 1) Balance if sufficient, 2) Saved card, 3) Redirect to Stripe
+    if (depositBalance >= totalPrice) {
+      handleConfirmBooking("balance");
+    } else if (savedCard) {
       handleConfirmBooking("card");
-      return;
+    } else {
+      // No saved card - redirect to Stripe Checkout
+      handleConfirmBooking("card");
     }
-    
-    // Show payment dialog for balance/new card options
-    setShowPaymentDialog(true);
   };
 
-  const handleConfirmBooking = async (paymentMethod: PaymentMethod, newPaymentMethodId?: string) => {
+  const handleConfirmBooking = async (paymentMethod: PaymentMethod) => {
     if (!selectedDate || !selectedTime || !selectedBayId) return;
 
-    const totalPrice = hourlyRate * selectedDuration;
-    
-    // Check if balance is sufficient when using balance
-    if (paymentMethod === "balance" && depositBalance < totalPrice) {
-      toast({
-        title: "Insufficient balance",
-        description: `Your balance ($${depositBalance.toFixed(2)}) is less than the booking cost ($${totalPrice.toFixed(2)}).`,
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setShowPaymentDialog(false);
     setIsSubmitting(true);
     try {
-      const result = await createBooking(selectedBayId, selectedDate, selectedTime, selectedDuration, selectedPlayers, paymentMethod, newPaymentMethodId);
+      const result = await createBooking(selectedBayId, selectedDate, selectedTime, selectedDuration, selectedPlayers, paymentMethod);
       
       // If checkout is required (no saved card), redirect to Stripe
       if (result.requiresCheckout && result.checkoutUrl) {
@@ -255,18 +243,6 @@ export default function Booking() {
           )}
         </div>
 
-        {/* Payment Method Dialog */}
-        <PaymentConfirmationDialog
-          open={showPaymentDialog}
-          onOpenChange={setShowPaymentDialog}
-          totalPrice={hourlyRate * selectedDuration}
-          savedCard={savedCard}
-          depositBalance={depositBalance}
-          onPayWithBalance={() => handleConfirmBooking("balance")}
-          onPayWithSavedCard={() => handleConfirmBooking("card")}
-          onPayWithNewCard={() => handleConfirmBooking("card")}
-          isProcessing={isSubmitting}
-        />
       </main>
     </div>
   );
