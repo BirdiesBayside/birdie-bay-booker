@@ -181,6 +181,34 @@ export default function AdminTimetable() {
     }
   }, [isAdmin, selectedDate, bays]);
 
+  // Realtime subscription to auto-refresh when bookings change
+  useEffect(() => {
+    if (!isAdmin) return;
+
+    const channel = supabase
+      .channel('timetable-bookings')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'bookings',
+        },
+        (payload) => {
+          console.log('[Timetable] Booking change detected:', payload.eventType);
+          // Refetch bookings when any change happens
+          if (bays.length > 0) {
+            fetchBookings();
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [isAdmin, bays.length, selectedDate]);
+
   const fetchBays = async () => {
     const { data, error } = await supabase
       .from("bays")
@@ -198,22 +226,25 @@ export default function AdminTimetable() {
     
     const dateStr = format(selectedDate, "yyyy-MM-dd");
 
-    // Fetch bookings
+    // Fetch bookings - exclude cancelled ones at database level for reliability
     const { data, error } = await supabase
       .from("bookings")
       .select("*")
       .eq("booking_date", dateStr)
+      .neq("status", "cancelled")
       .order("start_time");
 
     if (!error && data) {
       // Fetch profiles for all bookings
       const userIds = [...new Set(data.map(b => b.user_id))];
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, first_name, last_name, email, phone, membership_tier")
-        .in("user_id", userIds);
+      const { data: profiles } = userIds.length > 0 
+        ? await supabase
+            .from("profiles")
+            .select("user_id, first_name, last_name, email, phone, membership_tier")
+            .in("user_id", userIds)
+        : { data: [] as any[] };
 
-      const profileMap = new Map(profiles?.map(p => [p.user_id, p]) || []);
+      const profileMap = new Map((profiles || []).map(p => [p.user_id, p]));
       
       const transformedData = data.map((booking: any) => ({
         ...booking,
