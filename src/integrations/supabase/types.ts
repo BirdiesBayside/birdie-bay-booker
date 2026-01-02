@@ -912,6 +912,36 @@ export type Database = {
           },
         ]
       }
+      sgt_tour_settings: {
+        Row: {
+          auto_register_members: boolean
+          auto_register_tournaments: boolean
+          created_at: string
+          id: string
+          tour_id: number
+          updated_at: string
+          use_combo_handicap: boolean
+        }
+        Insert: {
+          auto_register_members?: boolean
+          auto_register_tournaments?: boolean
+          created_at?: string
+          id?: string
+          tour_id: number
+          updated_at?: string
+          use_combo_handicap?: boolean
+        }
+        Update: {
+          auto_register_members?: boolean
+          auto_register_tournaments?: boolean
+          created_at?: string
+          id?: string
+          tour_id?: number
+          updated_at?: string
+          use_combo_handicap?: boolean
+        }
+        Relationships: []
+      }
       sgt_tour_standings: {
         Row: {
           country_code: string | null
