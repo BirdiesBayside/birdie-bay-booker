@@ -27,6 +27,8 @@ export interface MembershipPricing {
 export interface SavedCard {
   brand: string;
   last4: string;
+  expMonth?: number;
+  expYear?: number;
 }
 
 // Fallback pricing in case database fetch fails
@@ -104,7 +106,12 @@ export function useBooking() {
       if (!error && data?.paymentMethods?.length > 0) {
         const card = data.paymentMethods.find((pm: any) => pm.type === "card");
         if (card) {
-          setSavedCard({ brand: card.brand, last4: card.last4 });
+          setSavedCard({ 
+            brand: card.brand, 
+            last4: card.last4,
+            expMonth: card.expMonth,
+            expYear: card.expYear,
+          });
         }
       }
     } catch (error) {
@@ -183,7 +190,8 @@ export function useBooking() {
     startTime: string,
     durationHours: number,
     playerCount: number = 1,
-    paymentMethod: PaymentMethod = "card"
+    paymentMethod: PaymentMethod = "card",
+    newPaymentMethodId?: string
   ): Promise<{ booking: any; requiresCheckout?: boolean; checkoutUrl?: string }> => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
@@ -244,6 +252,7 @@ export function useBooking() {
           bookingId: bookingData.id,
           amount: totalPrice,
           description,
+          paymentMethodId: newPaymentMethodId,
         },
       });
 

@@ -39,16 +39,90 @@ serve(async (req) => {
     if (!user?.email) throw new Error("User not authenticated");
     logStep("User authenticated", { userId: user.id, email: user.email });
 
-    const { bookingId, amount, description } = await req.json();
+    const { bookingId, amount, description, paymentMethodId } = await req.json();
     if (!bookingId || !amount) throw new Error("Missing bookingId or amount");
-    logStep("Request parsed", { bookingId, amount, description });
+    logStep("Request parsed", { bookingId, amount, description, paymentMethodId });
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
 
     // Check if customer exists in Stripe
     const customers = await stripe.customers.list({ email: user.email, limit: 1 });
+    let customerId: string | undefined;
     
-    if (customers.data.length === 0) {
+    if (customers.data.length > 0) {
+      customerId = customers.data[0].id;
+      logStep("Found existing customer", { customerId });
+    }
+
+    // If a new payment method was provided (from Stripe Elements), use it
+    if (paymentMethodId) {
+      logStep("Using provided payment method", { paymentMethodId });
+      
+      // Create customer if doesn't exist
+      if (!customerId) {
+        const customer = await stripe.customers.create({
+          email: user.email,
+          metadata: { supabase_user_id: user.id },
+        });
+        customerId = customer.id;
+        logStep("Created new customer", { customerId });
+      }
+
+      // Attach the payment method to customer
+      await stripe.paymentMethods.attach(paymentMethodId, { customer: customerId });
+      
+      // Set as default payment method
+      await stripe.customers.update(customerId, {
+        invoice_settings: { default_payment_method: paymentMethodId },
+      });
+      logStep("Attached and set default payment method");
+
+      // Charge using the new payment method
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: Math.round(amount * 100),
+        currency: "aud",
+        customer: customerId,
+        payment_method: paymentMethodId,
+        off_session: true,
+        confirm: true,
+        description: description || "Bay booking payment",
+        metadata: {
+          booking_id: bookingId,
+          user_id: user.id,
+        },
+      });
+
+      logStep("Payment successful with new card", { 
+        paymentIntentId: paymentIntent.id, 
+        status: paymentIntent.status 
+      });
+
+      // Get card details for response
+      const pm = await stripe.paymentMethods.retrieve(paymentMethodId);
+
+      // Update booking with payment info
+      await supabaseClient
+        .from("bookings")
+        .update({
+          payment_method: "card",
+          stripe_payment_intent_id: paymentIntent.id,
+          status: "confirmed",
+        })
+        .eq("id", bookingId);
+
+      return new Response(JSON.stringify({ 
+        success: true, 
+        paymentIntentId: paymentIntent.id,
+        cardBrand: pm.card?.brand,
+        cardLast4: pm.card?.last4,
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      });
+    }
+    
+    // No new payment method - check for existing customer/cards
+    if (!customerId) {
       // No Stripe customer - redirect to checkout
       logStep("No Stripe customer found, creating checkout session");
       
@@ -65,13 +139,12 @@ serve(async (req) => {
                 name: "Bay Booking",
                 description: description || "Golf simulator bay booking",
               },
-              unit_amount: Math.round(amount * 100), // Convert to cents
+              unit_amount: Math.round(amount * 100),
             },
             quantity: 1,
           },
         ],
         mode: "payment",
-        // Save card for future bookings
         payment_intent_data: {
           setup_future_usage: "off_session",
         },
@@ -94,7 +167,6 @@ serve(async (req) => {
       });
     }
 
-    const customerId = customers.data[0].id;
     logStep("Found Stripe customer", { customerId });
 
     // Check for saved payment methods
@@ -126,7 +198,6 @@ serve(async (req) => {
           },
         ],
         mode: "payment",
-        // Save card for future bookings
         payment_intent_data: {
           setup_future_usage: "off_session",
         },
