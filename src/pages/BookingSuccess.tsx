@@ -31,45 +31,64 @@ const BookingSuccess = () => {
   const bookingId = searchParams.get("booking_id");
 
   useEffect(() => {
-    const fetchBooking = async () => {
+    const verifyAndFetchBooking = async () => {
       if (!bookingId) {
         setError("No booking ID provided");
         setIsLoading(false);
         return;
       }
 
-      // Wait a moment for webhook to process
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      try {
+        // First, verify the payment and confirm the booking
+        const { data: verifyResult, error: verifyError } = await supabase.functions.invoke(
+          "verify-booking-payment",
+          { body: { bookingId } }
+        );
 
-      const { data, error: fetchError } = await supabase
-        .from("bookings")
-        .select(`
-          id,
-          booking_date,
-          start_time,
-          end_time,
-          duration_hours,
-          total_price,
-          status,
-          bay:bays(name, bay_number)
-        `)
-        .eq("id", bookingId)
-        .maybeSingle();
+        if (verifyError) {
+          console.error("Verification error:", verifyError);
+        } else {
+          console.log("Verification result:", verifyResult);
+        }
 
-      if (fetchError || !data) {
-        setError("Unable to load booking details");
+        // Wait a moment for the update to propagate
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+
+        // Then fetch the booking details
+        const { data, error: fetchError } = await supabase
+          .from("bookings")
+          .select(`
+            id,
+            booking_date,
+            start_time,
+            end_time,
+            duration_hours,
+            total_price,
+            status,
+            bay:bays(name, bay_number)
+          `)
+          .eq("id", bookingId)
+          .maybeSingle();
+
+        if (fetchError || !data) {
+          setError("Unable to load booking details");
+          setIsLoading(false);
+          return;
+        }
+
+        setBooking({
+          ...data,
+          bay: Array.isArray(data.bay) ? data.bay[0] : data.bay,
+        } as BookingDetails);
         setIsLoading(false);
-        return;
+      } catch (err) {
+        console.error("Error:", err);
+        setError("An error occurred while loading your booking");
+        setIsLoading(false);
       }
-
-      setBooking({
-        ...data,
-        bay: Array.isArray(data.bay) ? data.bay[0] : data.bay,
-      } as BookingDetails);
-      setIsLoading(false);
     };
 
-    fetchBooking();
+    verifyAndFetchBooking();
   }, [bookingId]);
 
   const formatTime = (time: string) => {
