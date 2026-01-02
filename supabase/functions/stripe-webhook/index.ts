@@ -340,6 +340,54 @@ serve(async (req) => {
       }
     }
 
+    // Handle checkout session completed (for booking payments)
+    if (event.type === "checkout.session.completed") {
+      const session = event.data.object as Stripe.Checkout.Session;
+      const bookingId = session.metadata?.booking_id;
+      const paymentIntentId = session.payment_intent as string;
+
+      logStep("Checkout session completed", { sessionId: session.id, bookingId, paymentIntentId });
+
+      if (bookingId) {
+        // Update booking to confirmed
+        const { error: updateError } = await supabaseAdmin
+          .from("bookings")
+          .update({
+            status: "confirmed",
+            payment_method: "card",
+            stripe_payment_intent_id: paymentIntentId,
+          })
+          .eq("id", bookingId);
+
+        if (updateError) {
+          logStep("Error updating booking", { error: updateError.message });
+        } else {
+          logStep("Booking confirmed successfully", { bookingId });
+
+          // Send booking confirmation notification
+          try {
+            const supabaseUrl = Deno.env.get("SUPABASE_URL");
+            const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+            
+            await fetch(`${supabaseUrl}/functions/v1/send-booking-notification`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${supabaseKey}`,
+              },
+              body: JSON.stringify({
+                booking_id: bookingId,
+                notification_type: "confirmation",
+              }),
+            });
+            logStep("Booking notification sent");
+          } catch (notificationError) {
+            logStep("Failed to send booking notification", { error: notificationError });
+          }
+        }
+      }
+    }
+
     // Handle failed payment for subscriptions
     if (event.type === "invoice.payment_failed") {
       const invoice = event.data.object as Stripe.Invoice;
