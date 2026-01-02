@@ -131,6 +131,11 @@ serve(async (req) => {
       const session = await stripe.checkout.sessions.create({
         customer_email: user.email,
         payment_method_types: ["card"],
+        payment_method_options: {
+          card: {
+            request_three_d_secure: "automatic",
+          },
+        },
         line_items: [
           {
             price_data: {
@@ -184,6 +189,11 @@ serve(async (req) => {
       const session = await stripe.checkout.sessions.create({
         customer: customerId,
         payment_method_types: ["card"],
+        payment_method_options: {
+          card: {
+            request_three_d_secure: "automatic",
+          },
+        },
         line_items: [
           {
             price_data: {
