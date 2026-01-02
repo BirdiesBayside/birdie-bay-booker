@@ -37,6 +37,18 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Verify sync secret for cron jobs, or allow authenticated requests
+  const syncSecret = req.headers.get("x-sync-secret");
+  const authHeader = req.headers.get("authorization");
+  const expectedSecret = Deno.env.get("SYNC_SECRET");
+  
+  if (!authHeader && syncSecret !== expectedSecret) {
+    return new Response(
+      JSON.stringify({ error: "Unauthorized" }),
+      { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
   try {
     log("Starting course manifest sync...");
 
