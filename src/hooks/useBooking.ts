@@ -24,6 +24,11 @@ export interface MembershipPricing {
   hourlyRate: number;
 }
 
+export interface SavedCard {
+  brand: string;
+  last4: string;
+}
+
 // Fallback pricing in case database fetch fails
 const FALLBACK_PRICING: Record<string, number> = {
   visitor: 30,
@@ -43,6 +48,8 @@ export function useBooking() {
   const [customHourlyRate, setCustomHourlyRate] = useState<number | null>(null);
   const [depositBalance, setDepositBalance] = useState<number>(0);
   const [tierPricing, setTierPricing] = useState<Record<string, number>>(FALLBACK_PRICING);
+  const [savedCard, setSavedCard] = useState<SavedCard | null>(null);
+  const [isLoadingSavedCard, setIsLoadingSavedCard] = useState(true);
 
   const fetchPricing = async () => {
     const { data, error } = await supabase
@@ -87,6 +94,23 @@ export function useBooking() {
       if (data?.deposit_balance !== undefined) {
         setDepositBalance(Number(data.deposit_balance) || 0);
       }
+    }
+  };
+
+  const fetchSavedCard = async () => {
+    setIsLoadingSavedCard(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("get-payment-methods");
+      if (!error && data?.paymentMethods?.length > 0) {
+        const card = data.paymentMethods.find((pm: any) => pm.type === "card");
+        if (card) {
+          setSavedCard({ brand: card.brand, last4: card.last4 });
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching saved card:", error);
+    } finally {
+      setIsLoadingSavedCard(false);
     }
   };
 
@@ -160,7 +184,7 @@ export function useBooking() {
     durationHours: number,
     playerCount: number = 1,
     paymentMethod: PaymentMethod = "card"
-  ) => {
+  ): Promise<{ booking: any; requiresCheckout?: boolean; checkoutUrl?: string }> => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
 
@@ -189,7 +213,8 @@ export function useBooking() {
     const endHour = startHour + durationHours;
     const endTime = `${endHour.toString().padStart(2, "0")}:${startMinute.toString().padStart(2, "0")}`;
 
-    const { data, error } = await supabase
+    // Create booking record first
+    const { data: bookingData, error } = await supabase
       .from("bookings")
       .insert({
         user_id: user.id,
@@ -202,32 +227,67 @@ export function useBooking() {
         total_price: totalPrice,
         player_count: playerCount,
         payment_method: paymentMethod === "balance" ? "balance" : "pending",
+        status: paymentMethod === "balance" ? "confirmed" : "pending",
       })
       .select()
       .single();
 
     if (error) throw error;
 
+    // If paying by card, charge via Stripe
+    if (paymentMethod === "card") {
+      const bayName = bays.find(b => b.id === bayId)?.name || "Bay";
+      const description = `${bayName} - ${format(date, "PPP")} at ${startTime} (${durationHours}hr)`;
+      
+      const { data: chargeResult, error: chargeError } = await supabase.functions.invoke("charge-booking", {
+        body: {
+          bookingId: bookingData.id,
+          amount: totalPrice,
+          description,
+        },
+      });
+
+      if (chargeError) {
+        // Delete the pending booking if charge failed
+        await supabase.from("bookings").delete().eq("id", bookingData.id);
+        throw new Error(chargeError.message || "Payment failed");
+      }
+
+      if (chargeResult.error) {
+        await supabase.from("bookings").delete().eq("id", bookingData.id);
+        throw new Error(chargeResult.error);
+      }
+
+      // If requires checkout redirect
+      if (chargeResult.requiresCheckout) {
+        return { 
+          booking: bookingData, 
+          requiresCheckout: true, 
+          checkoutUrl: chargeResult.checkoutUrl 
+        };
+      }
+    }
+
     // Send booking confirmation notification
     try {
       await supabase.functions.invoke("send-booking-notification", {
         body: {
-          booking_id: data.id,
+          booking_id: bookingData.id,
           notification_type: "confirmation",
         },
       });
     } catch (notificationError) {
       console.error("Failed to send booking notification:", notificationError);
-      // Don't throw - booking was successful, notification is secondary
     }
 
-    return data;
+    return { booking: bookingData };
   };
 
   useEffect(() => {
     fetchBays();
     fetchUserProfile();
     fetchPricing();
+    fetchSavedCard();
   }, []);
 
   return {
@@ -236,6 +296,8 @@ export function useBooking() {
     isLoading,
     userMembershipTier,
     depositBalance,
+    savedCard,
+    isLoadingSavedCard,
     getHourlyRate,
     fetchBookingsForDate,
     checkBayAvailability,
