@@ -407,6 +407,48 @@ export type Database = {
         }
         Relationships: []
       }
+      gift_cards: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          issued_at: string
+          issued_by: string | null
+          recipient_email: string
+          redeemed_at: string | null
+          redeemed_by_user_id: string | null
+          status: string
+          token: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: string
+          issued_at?: string
+          issued_by?: string | null
+          recipient_email: string
+          redeemed_at?: string | null
+          redeemed_by_user_id?: string | null
+          status?: string
+          token?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          issued_at?: string
+          issued_by?: string | null
+          recipient_email?: string
+          redeemed_at?: string | null
+          redeemed_by_user_id?: string | null
+          status?: string
+          token?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       marketing_campaigns: {
         Row: {
           clicks: number | null
