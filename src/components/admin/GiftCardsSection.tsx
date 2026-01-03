@@ -242,28 +242,6 @@ export function GiftCardsSection() {
 
   return (
     <div className="space-y-6">
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Total Issued</CardDescription>
-            <CardTitle className="text-2xl">${totalIssued.toFixed(2)}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Total Redeemed</CardDescription>
-            <CardTitle className="text-2xl">${totalRedeemed.toFixed(2)}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Pending Redemption</CardDescription>
-            <CardTitle className="text-2xl">{pendingCards} cards</CardTitle>
-          </CardHeader>
-        </Card>
-      </div>
-
       {/* Issue Button & Dialog */}
       <div className="flex justify-between items-center">
         <h2 className="text-lg font-semibold">Issued Gift Cards</h2>
