@@ -51,13 +51,25 @@ export default function LeagueLeaderboard() {
       
       setDisplayName(profile?.display_name || "");
 
-      // Load tours
+      // Load tours - include finished tours for historical viewing
       try {
         const data = await sgtClient.getTours();
-        const activeTours = data.filter(t => t.active === 1);
-        setTours(activeTours);
-        if (activeTours.length > 0) {
-          setSelectedTour(activeTours[0].tourId);
+        // Sort tours: active first, then by start date (most recent first)
+        const sortedTours = data.sort((a, b) => {
+          // Active tours first
+          if (a.active !== b.active) return b.active - a.active;
+          // Then by start date descending (most recent first)
+          const dateA = a.start_date ? new Date(a.start_date).getTime() : 0;
+          const dateB = b.start_date ? new Date(b.start_date).getTime() : 0;
+          return dateB - dateA;
+        });
+        setTours(sortedTours);
+        // Default to first active tour, or first tour if none active
+        const activeTour = sortedTours.find(t => t.active === 1);
+        if (activeTour) {
+          setSelectedTour(activeTour.tourId);
+        } else if (sortedTours.length > 0) {
+          setSelectedTour(sortedTours[0].tourId);
         }
       } catch (error) {
         console.error("Failed to load tours:", error);
@@ -189,13 +201,24 @@ export default function LeagueLeaderboard() {
           value={selectedTour?.toString()}
           onValueChange={(val) => setSelectedTour(parseInt(val))}
         >
-          <SelectTrigger className="w-full sm:w-[250px] font-inter">
+          <SelectTrigger className="w-full sm:w-[280px] font-inter">
             <SelectValue placeholder="Select tour" />
           </SelectTrigger>
           <SelectContent>
             {tours.map((tour) => (
               <SelectItem key={tour.tourId} value={tour.tourId.toString()}>
-                {tour.name}
+                <div className="flex items-center gap-2">
+                  <span>{tour.name}</span>
+                  {tour.active === 1 ? (
+                    <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-green-500/20 text-green-600 rounded">
+                      ACTIVE
+                    </span>
+                  ) : (
+                    <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-muted text-muted-foreground rounded">
+                      FINISHED
+                    </span>
+                  )}
+                </div>
               </SelectItem>
             ))}
           </SelectContent>
