@@ -97,7 +97,8 @@ export function SGTTournaments() {
       case "Completed":
         return <Badge variant="default" className="bg-green-600">Completed</Badge>;
       case "Active":
-        return <Badge variant="default" className="bg-blue-600">Active</Badge>;
+      case "In Progress":
+        return <Badge variant="default" className="bg-blue-600">In Progress</Badge>;
       case "Upcoming":
         return <Badge variant="secondary">Upcoming</Badge>;
       default:

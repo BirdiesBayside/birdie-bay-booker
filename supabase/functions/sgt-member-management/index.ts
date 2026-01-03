@@ -601,7 +601,7 @@ serve(async (req) => {
         const { 
           tournamentname, tourId, 
           // Tournament settings
-          numberrounds, registrationon, statson, clubcombo, points, gameplay,
+          numberrounds, registrationon, statson, clubcombo, clubwgr, points, gameplay,
           stableford, numberholes, gimmes, puttingmode, head2head, hideleaderboard,
           skins, mulligans, attempts,
           // Dates
@@ -629,6 +629,7 @@ serve(async (req) => {
           registrationon: (registrationon ?? 1).toString(),
           statson: (statson ?? 1).toString(),
           clubcombo: (clubcombo ?? 1).toString(),
+          clubwgr: (clubwgr ?? 1).toString(), // Include in Club WGR
           points: points ?? "Tour",
           gameplay: gameplay ?? "Normal",
           stableford: (stableford ?? 0).toString(),
@@ -781,7 +782,7 @@ serve(async (req) => {
           tournamentId,
           tournamentname, tourId, 
           // Tournament settings
-          numberrounds, registrationon, statson, clubcombo, points, gameplay,
+          numberrounds, registrationon, statson, clubcombo, clubwgr, points, gameplay,
           stableford, numberholes, gimmes, puttingmode, head2head, hideleaderboard,
           skins, mulligans, attempts,
           // Dates
@@ -810,6 +811,7 @@ serve(async (req) => {
           registrationon: (registrationon ?? 1).toString(),
           statson: (statson ?? 1).toString(),
           clubcombo: (clubcombo ?? 1).toString(),
+          clubwgr: (clubwgr ?? 1).toString(), // Include in Club WGR
           points: points ?? "Tour",
           gameplay: gameplay ?? "Normal",
           stableford: (stableford ?? 0).toString(),

@@ -81,6 +81,7 @@ const tournamentFormSchema = z.object({
   registrationon: z.boolean().default(true),
   statson: z.boolean().default(true),
   clubcombo: z.boolean().default(true),
+  clubwgr: z.boolean().default(true), // Include in Club WGR rankings
   points: z.enum(POINTS_OPTIONS).default("Tour"),
   gameplay: z.enum(GAMEPLAY_OPTIONS).default("Normal"),
   stableford: z.boolean().default(false),
@@ -338,6 +339,7 @@ export function TournamentFormDialog({
       registrationon: true,
       statson: true,
       clubcombo: true,
+      clubwgr: true,
       points: "Tour",
       gameplay: "Normal",
       stableford: false,
@@ -412,6 +414,7 @@ export function TournamentFormDialog({
           registrationon: true,
           statson: true,
           clubcombo: true,
+          clubwgr: true,
           points: "Tour",
           gameplay: "Normal",
           stableford: false,
@@ -440,6 +443,7 @@ export function TournamentFormDialog({
               registrationon: details.registrationon === 1 || details.registration_on === 1 || details.registrationon === "1",
               statson: details.statson === 1 || details.stats_on === 1 || details.statson === "1",
               clubcombo: details.clubcombo === 1 || details.club_combo === 1 || details.clubcombo === "1",
+              clubwgr: details.clubwgr === 1 || details.club_wgr === 1 || details.clubwgr === "1" || details.clubwgr === undefined, // Default to true if not present
               points: (details.points || "Tour") as typeof POINTS_OPTIONS[number],
               gameplay: (details.gameplay || "Normal") as typeof GAMEPLAY_OPTIONS[number],
               stableford: details.stableford === 1 || details.stableford === "1",
@@ -485,6 +489,7 @@ export function TournamentFormDialog({
           registrationon: true,
           statson: true,
           clubcombo: true,
+          clubwgr: true,
           points: "Tour",
           gameplay: "Normal",
           stableford: false,
@@ -523,6 +528,7 @@ export function TournamentFormDialog({
         registrationon: values.registrationon ? 1 : 0,
         statson: values.statson ? 1 : 0,
         clubcombo: values.clubcombo ? 1 : 0,
+        clubwgr: values.clubwgr ? 1 : 0,
         points: values.points,
         gameplay: values.gameplay,
         stableford: values.stableford ? 1 : 0,
@@ -938,6 +944,22 @@ export function TournamentFormDialog({
                           <div className="space-y-0.5">
                             <FormLabel>Combo Handicap</FormLabel>
                             <FormDescription className="text-xs">Include in club combo</FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch checked={field.value} onCheckedChange={field.onChange} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="clubwgr"
+                      render={({ field }) => (
+                        <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                          <div className="space-y-0.5">
+                            <FormLabel>Include in Club WGR</FormLabel>
+                            <FormDescription className="text-xs">Count towards Club World Golf Ranking</FormDescription>
                           </div>
                           <FormControl>
                             <Switch checked={field.value} onCheckedChange={field.onChange} />
