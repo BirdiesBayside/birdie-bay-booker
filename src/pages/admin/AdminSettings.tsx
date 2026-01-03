@@ -122,15 +122,6 @@ interface CustomerProfile {
   custom_hourly_rate: number | null;
 }
 
-interface PricingTier {
-  id: string;
-  tier: string;
-  hourly_rate: number;
-  weekly_subscription_price: number | null;
-  stripe_price_id: string | null;
-  display_name: string;
-  is_subscription: boolean;
-}
 
 export default function AdminSettings() {
   const { isAdmin, isLoading: authLoading } = useAdminAuth();
@@ -171,11 +162,6 @@ export default function AdminSettings() {
   const [newCustomRate, setNewCustomRate] = useState("");
   const [isSavingRate, setIsSavingRate] = useState(false);
 
-  // Tier Pricing
-  const [pricingTiers, setPricingTiers] = useState<PricingTier[]>([]);
-  const [isLoadingPricing, setIsLoadingPricing] = useState(true);
-  const [editedPricing, setEditedPricing] = useState<Record<string, { hourly_rate: string; weekly_price: string }>>({});
-  const [isSavingPricing, setIsSavingPricing] = useState(false);
 
   // Get unique families from products
   const families = [...new Set(products.map(p => p.family).filter(Boolean))] as string[];
@@ -286,77 +272,9 @@ export default function AdminSettings() {
       fetchProducts();
       fetchCustomers();
       fetchEmailTemplates();
-      fetchPricingTiers();
     }
   }, [isAdmin]);
 
-  const fetchPricingTiers = async () => {
-    setIsLoadingPricing(true);
-    const { data, error } = await supabase
-      .from("pricing_config")
-      .select("*")
-      .order("display_order");
-
-    if (!error && data) {
-      setPricingTiers(data as PricingTier[]);
-      // Initialize edited values
-      const edited: Record<string, { hourly_rate: string; weekly_price: string }> = {};
-      data.forEach((tier: PricingTier) => {
-        edited[tier.tier] = {
-          hourly_rate: tier.hourly_rate.toString(),
-          weekly_price: tier.weekly_subscription_price?.toString() || "",
-        };
-      });
-      setEditedPricing(edited);
-    }
-    setIsLoadingPricing(false);
-  };
-
-  const handlePricingChange = (tier: string, field: "hourly_rate" | "weekly_price", value: string) => {
-    setEditedPricing(prev => ({
-      ...prev,
-      [tier]: {
-        ...prev[tier],
-        [field]: value,
-      },
-    }));
-  };
-
-  const savePricingChanges = async () => {
-    setIsSavingPricing(true);
-    try {
-      const updates = pricingTiers.map(tier => ({
-        tier: tier.tier,
-        hourly_rate: parseFloat(editedPricing[tier.tier]?.hourly_rate || tier.hourly_rate.toString()),
-        weekly_subscription_price: tier.is_subscription && editedPricing[tier.tier]?.weekly_price
-          ? parseFloat(editedPricing[tier.tier].weekly_price)
-          : undefined,
-      }));
-
-      const { data, error } = await supabase.functions.invoke("update-pricing", {
-        body: { updates, migrate_subscribers: true },
-      });
-
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-
-      toast({
-        title: "Pricing updated",
-        description: "All pricing changes have been saved and synced with Stripe.",
-        duration: 4000,
-      });
-
-      fetchPricingTiers();
-    } catch (error: any) {
-      toast({
-        title: "Error updating pricing",
-        description: error.message || "Failed to update pricing.",
-        variant: "destructive",
-        duration: 4000,
-      });
-    }
-    setIsSavingPricing(false);
-  };
 
   const fetchProducts = async () => {
     setIsLoadingProducts(true);
@@ -633,76 +551,6 @@ export default function AdminSettings() {
 
           {/* Pricing Settings */}
           <TabsContent value="pricing" className="space-y-4">
-            {/* Tier Rates */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Membership Tier Pricing</CardTitle>
-                <CardDescription>Set hourly rates and weekly subscription prices for each membership tier</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {isLoadingPricing ? (
-                  <Skeleton className="h-48" />
-                ) : (
-                  <>
-                    <div className="grid gap-4">
-                      {pricingTiers.map((tier) => (
-                        <div key={tier.id} className="flex items-center gap-4 p-4 border rounded-lg">
-                          <div className="flex-1 min-w-[120px]">
-                            <span className="font-medium">{tier.display_name}</span>
-                            {tier.is_subscription && (
-                              <Badge variant="outline" className="ml-2 text-xs">Subscription</Badge>
-                            )}
-                          </div>
-                          
-                          <div className="flex items-center gap-2">
-                            <Label className="text-xs text-muted-foreground whitespace-nowrap">Hourly Rate</Label>
-                            <div className="relative w-24">
-                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                value={editedPricing[tier.tier]?.hourly_rate || ""}
-                                onChange={(e) => handlePricingChange(tier.tier, "hourly_rate", e.target.value)}
-                                className="pl-7"
-                              />
-                            </div>
-                            <span className="text-xs text-muted-foreground">/hr</span>
-                          </div>
-
-                          {tier.is_subscription && (
-                            <div className="flex items-center gap-2">
-                              <Label className="text-xs text-muted-foreground whitespace-nowrap">Weekly Price</Label>
-                              <div className="relative w-24">
-                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
-                                <Input
-                                  type="number"
-                                  step="0.01"
-                                  min="0"
-                                  value={editedPricing[tier.tier]?.weekly_price || ""}
-                                  onChange={(e) => handlePricingChange(tier.tier, "weekly_price", e.target.value)}
-                                  className="pl-7"
-                                />
-                              </div>
-                              <span className="text-xs text-muted-foreground">/wk</span>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="flex items-center justify-between pt-4 border-t">
-                      <p className="text-sm text-muted-foreground">
-                        Changes will update Stripe prices and migrate existing subscribers to new rates.
-                      </p>
-                      <Button onClick={savePricingChanges} disabled={isSavingPricing}>
-                        {isSavingPricing ? "Saving..." : "Save Pricing Changes"}
-                      </Button>
-                    </div>
-                  </>
-                )}
-              </CardContent>
-            </Card>
 
             {/* Dynamic Pricing (Customer Overrides) */}
             <Card>
