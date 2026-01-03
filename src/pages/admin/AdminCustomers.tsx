@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -58,8 +59,11 @@ import {
   DollarSign,
   Trash2,
   X,
-  UserX
+  UserX,
+  Gift,
+  Users
 } from "lucide-react";
+import { GiftCardsSection } from "@/components/admin/GiftCardsSection";
 import { format } from "date-fns";
 
 interface Customer {
@@ -142,6 +146,9 @@ export default function AdminCustomers() {
   const [showCancelMembershipConfirm, setShowCancelMembershipConfirm] = useState(false);
   const [sendCancellationEmail, setSendCancellationEmail] = useState(true);
   const [isCancellingMembership, setIsCancellingMembership] = useState(false);
+
+  // Tab state
+  const [activeTab, setActiveTab] = useState("customers");
 
   // Check for user query param to auto-select customer
   const highlightedUserId = searchParams.get("user");
@@ -691,17 +698,34 @@ export default function AdminCustomers() {
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => navigate('/admin/customer-import')}>
-              <Upload className="h-4 w-4 mr-2" />
-              Import CSV
-            </Button>
-            <Button onClick={() => setShowAddCustomerDialog(true)}>
-              <UserPlus className="h-4 w-4 mr-2" />
-              Add Customer
-            </Button>
-          </div>
+          {activeTab === "customers" && (
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={() => navigate('/admin/customer-import')}>
+                <Upload className="h-4 w-4 mr-2" />
+                Import CSV
+              </Button>
+              <Button onClick={() => setShowAddCustomerDialog(true)}>
+                <UserPlus className="h-4 w-4 mr-2" />
+                Add Customer
+              </Button>
+            </div>
+          )}
         </div>
+
+        {/* Tabs */}
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList>
+            <TabsTrigger value="customers" className="gap-2">
+              <Users className="h-4 w-4" />
+              Customers
+            </TabsTrigger>
+            <TabsTrigger value="gift-cards" className="gap-2">
+              <Gift className="h-4 w-4" />
+              Gift Cards
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="customers" className="space-y-4 mt-4">
 
         {/* Bulk Actions */}
         {selectedCustomers.size > 0 && (
@@ -1383,6 +1407,12 @@ export default function AdminCustomers() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+          </TabsContent>
+
+          <TabsContent value="gift-cards" className="mt-4">
+            <GiftCardsSection />
+          </TabsContent>
+        </Tabs>
       </div>
     </AdminLayout>
   );

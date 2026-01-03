@@ -68,3 +68,6 @@ verify_jwt = false
 
 [functions.cancel-booking]
 verify_jwt = false
+
+[functions.issue-gift-card]
+verify_jwt = false
