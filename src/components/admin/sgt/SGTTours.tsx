@@ -1,12 +1,10 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -22,31 +20,18 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { 
   Search, 
   Trophy, 
   Users, 
   Calendar, 
   ChevronRight,
-  Settings,
-  UserPlus,
-  Loader2,
+  Info,
   CheckCircle2,
   Plus,
   Pencil,
 } from "lucide-react";
 import { format } from "date-fns";
-import { useToast } from "@/hooks/use-toast";
 import { TourFormDialog } from "./TourFormDialog";
 
 interface TourStanding {
@@ -71,22 +56,11 @@ interface Tour {
   team_tour: number | null;
 }
 
-interface TourSettings {
-  id: string;
-  tour_id: number;
-  auto_register_members: boolean;
-  auto_register_tournaments: boolean;
-  use_combo_handicap: boolean;
-}
-
 export function SGTTours() {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTour, setSelectedTour] = useState<Tour | null>(null);
   const [standingsOpen, setStandingsOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [confirmRegisterAll, setConfirmRegisterAll] = useState(false);
+  const [infoOpen, setInfoOpen] = useState(false);
   const [tourFormOpen, setTourFormOpen] = useState(false);
   const [editingTour, setEditingTour] = useState<Tour | null>(null);
 
@@ -101,18 +75,6 @@ export function SGTTours() {
         .order("start_date", { ascending: false });
       if (error) throw error;
       return data as Tour[];
-    },
-  });
-
-  // Fetch tour settings
-  const { data: allTourSettings } = useQuery({
-    queryKey: ["sgt-tour-settings"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("sgt_tour_settings")
-        .select("*");
-      if (error) throw error;
-      return data as TourSettings[];
     },
   });
 
@@ -180,108 +142,19 @@ export function SGTTours() {
     },
   });
 
-  // Save tour settings mutation
-  const saveSettings = useMutation({
-    mutationFn: async (settings: Partial<TourSettings> & { tour_id: number }) => {
-      const { data, error } = await supabase
-        .from("sgt_tour_settings")
-        .upsert({
-          tour_id: settings.tour_id,
-          auto_register_members: settings.auto_register_members ?? false,
-          auto_register_tournaments: settings.auto_register_tournaments ?? false,
-          use_combo_handicap: settings.use_combo_handicap ?? true,
-        }, { onConflict: "tour_id" })
-        .select()
-        .single();
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["sgt-tour-settings"] });
-      toast({
-        title: "Settings saved",
-        description: "Tour settings have been updated",
-      });
-    },
-    onError: (error) => {
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to save settings",
-        variant: "destructive",
-      });
-    },
-  });
-
-  // Register all members to tour mutation
-  const registerAllMembers = useMutation({
-    mutationFn: async ({ tourId, useComboHandicap }: { tourId: number; useComboHandicap: boolean }) => {
-      const { data, error } = await supabase.functions.invoke("sgt-member-management", {
-        body: { 
-          action: "register-all-to-tour",
-          tourId,
-          useComboHandicap,
-        },
-      });
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["sgt-tour-member-counts"] });
-      toast({
-        title: "Registration complete",
-        description: `Successfully registered ${data.successCount || 0} members to the tour`,
-      });
-    },
-    onError: (error) => {
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to register members",
-        variant: "destructive",
-      });
-    },
-  });
-
   const filteredTours = tours?.filter((tour) =>
     tour.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
-
-  const getSettings = (tourId: number): TourSettings | undefined => {
-    return allTourSettings?.find((s) => s.tour_id === tourId);
-  };
 
   const handleViewStandings = (tour: Tour) => {
     setSelectedTour(tour);
     setStandingsOpen(true);
   };
 
-  const handleOpenSettings = (tour: Tour) => {
+  const handleOpenInfo = (tour: Tour) => {
     setSelectedTour(tour);
-    setSettingsOpen(true);
+    setInfoOpen(true);
   };
-
-  const handleSettingsChange = (field: keyof TourSettings, value: boolean) => {
-    if (!selectedTour) return;
-    
-    const currentSettings = getSettings(selectedTour.tour_id);
-    saveSettings.mutate({
-      tour_id: selectedTour.tour_id,
-      auto_register_members: field === "auto_register_members" ? value : currentSettings?.auto_register_members ?? false,
-      auto_register_tournaments: field === "auto_register_tournaments" ? value : currentSettings?.auto_register_tournaments ?? false,
-      use_combo_handicap: field === "use_combo_handicap" ? value : currentSettings?.use_combo_handicap ?? true,
-    });
-  };
-
-  const handleRegisterAllMembers = () => {
-    if (!selectedTour) return;
-    const settings = getSettings(selectedTour.tour_id);
-    registerAllMembers.mutate({
-      tourId: selectedTour.tour_id,
-      useComboHandicap: settings?.use_combo_handicap ?? true,
-    });
-    setConfirmRegisterAll(false);
-  };
-
-  const currentSettings = selectedTour ? getSettings(selectedTour.tour_id) : undefined;
 
   const handleCreateTour = () => {
     setEditingTour(null);
@@ -319,87 +192,75 @@ export function SGTTours() {
         </div>
       ) : filteredTours && filteredTours.length > 0 ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filteredTours.map((tour) => {
-            const settings = getSettings(tour.tour_id);
-            const hasAutoReg = settings?.auto_register_members || settings?.auto_register_tournaments;
-            
-            return (
-              <Card key={tour.id} className="hover:shadow-md transition-shadow">
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="p-2 rounded-lg bg-amber-500/10">
-                        <Trophy className="h-4 w-4 text-amber-500" />
-                      </div>
-                      <div>
-                        <CardTitle className="text-base font-semibold line-clamp-1">
-                          {tour.name}
-                        </CardTitle>
-                        <p className="text-xs text-muted-foreground">
-                          ID: {tour.tour_id}
-                        </p>
-                      </div>
+          {filteredTours.map((tour) => (
+            <Card key={tour.id} className="hover:shadow-md transition-shadow">
+              <CardHeader className="pb-3">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 rounded-lg bg-amber-500/10">
+                      <Trophy className="h-4 w-4 text-amber-500" />
                     </div>
-                    <div className="flex items-center gap-2">
-                      {hasAutoReg && (
-                        <Badge variant="outline" className="text-xs bg-green-500/10 text-green-600 border-green-500/30">
-                          Auto-Reg
-                        </Badge>
-                      )}
-                      <Badge variant={tour.active === 1 ? "default" : "secondary"}>
-                        {tour.active === 1 ? "Active" : "Inactive"}
-                      </Badge>
+                    <div>
+                      <CardTitle className="text-base font-semibold line-clamp-1">
+                        {tour.name}
+                      </CardTitle>
+                      <p className="text-xs text-muted-foreground">
+                        ID: {tour.tour_id}
+                      </p>
                     </div>
                   </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Users className="h-4 w-4" />
-                      <span>{memberCounts?.[tour.tour_id] || 0} members</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Calendar className="h-4 w-4" />
-                      <span>{tournamentCounts?.[tour.tour_id] || 0} events</span>
-                    </div>
+                  <Badge variant={tour.active === 1 ? "default" : "secondary"}>
+                    {tour.active === 1 ? "Active" : "Inactive"}
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Users className="h-4 w-4" />
+                    <span>{memberCounts?.[tour.tour_id] || 0} members</span>
                   </div>
-                  
-                  {tour.start_date && (
-                    <p className="text-xs text-muted-foreground">
-                      {format(new Date(tour.start_date), "MMM d, yyyy")}
-                      {tour.end_date && ` - ${format(new Date(tour.end_date), "MMM d, yyyy")}`}
-                    </p>
-                  )}
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Calendar className="h-4 w-4" />
+                    <span>{tournamentCounts?.[tour.tour_id] || 0} events</span>
+                  </div>
+                </div>
+                
+                {tour.start_date && (
+                  <p className="text-xs text-muted-foreground">
+                    {format(new Date(tour.start_date), "MMM d, yyyy")}
+                    {tour.end_date && ` - ${format(new Date(tour.end_date), "MMM d, yyyy")}`}
+                  </p>
+                )}
 
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="flex-1 gap-2"
-                      onClick={() => handleViewStandings(tour)}
-                    >
-                      Standings
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleEditTour(tour)}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleOpenSettings(tour)}
-                    >
-                      <Settings className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 gap-2"
+                    onClick={() => handleViewStandings(tour)}
+                  >
+                    Standings
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleEditTour(tour)}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleOpenInfo(tour)}
+                  >
+                    <Info className="h-4 w-4" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
       ) : (
         <Card>
@@ -458,125 +319,45 @@ export function SGTTours() {
         </DialogContent>
       </Dialog>
 
-      {/* Settings Dialog */}
-      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+      {/* Info Dialog */}
+      <Dialog open={infoOpen} onOpenChange={setInfoOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{selectedTour?.name} - Settings</DialogTitle>
+            <DialogTitle>{selectedTour?.name} - Info</DialogTitle>
             <DialogDescription>
-              Configure auto-registration and handicap settings for this tour
+              Tour information and registration status
             </DialogDescription>
           </DialogHeader>
           
-          <div className="space-y-6 py-4">
-            {/* Auto-register members toggle */}
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label htmlFor="auto-register-members" className="text-base">
-                  Auto-register new members
-                </Label>
-                <p className="text-sm text-muted-foreground">
-                  Automatically add all new SGT members to this tour
-                </p>
+          <div className="space-y-4 py-4">
+            <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4">
+              <div className="flex items-center gap-2 text-green-700 dark:text-green-400 font-medium mb-2">
+                <CheckCircle2 className="h-4 w-4" />
+                Auto-Registration Active
               </div>
-              <Switch
-                id="auto-register-members"
-                checked={currentSettings?.auto_register_members ?? false}
-                onCheckedChange={(checked) => handleSettingsChange("auto_register_members", checked)}
-                disabled={saveSettings.isPending}
-              />
+              <p className="text-sm text-muted-foreground">
+                All members are automatically registered to all active tours and tournaments. 
+                New members are registered immediately when they join.
+              </p>
             </div>
 
-            {/* Auto-register tournaments toggle */}
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label htmlFor="auto-register-tournaments" className="text-base">
-                  Auto-register to tournaments
-                </Label>
-                <p className="text-sm text-muted-foreground">
-                  When enabled, all tour members are automatically registered to new tournaments created on this tour
-                </p>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Tour Members</span>
+                <span className="font-medium">{memberCounts?.[selectedTour?.tour_id ?? 0] || 0}</span>
               </div>
-              <Switch
-                id="auto-register-tournaments"
-                checked={currentSettings?.auto_register_tournaments ?? false}
-                onCheckedChange={(checked) => handleSettingsChange("auto_register_tournaments", checked)}
-                disabled={saveSettings.isPending}
-              />
-            </div>
-
-            {currentSettings?.auto_register_tournaments && (
-              <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3 text-sm text-green-700 dark:text-green-400">
-                ✓ Members will be auto-registered when you create new tournaments via the SGT Manager, or when new tournaments are detected during sync.
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Total Active Members</span>
+                <span className="font-medium">{totalMembers}</span>
               </div>
-            )}
-
-            {/* Use combo handicap toggle */}
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label htmlFor="use-combo-handicap" className="text-base">
-                  Use combo handicap
-                </Label>
-                <p className="text-sm text-muted-foreground">
-                  Use combined handicap (useComboCapstring) for registrations
-                </p>
-              </div>
-              <Switch
-                id="use-combo-handicap"
-                checked={currentSettings?.use_combo_handicap ?? true}
-                onCheckedChange={(checked) => handleSettingsChange("use_combo_handicap", checked)}
-                disabled={saveSettings.isPending}
-              />
-            </div>
-
-            <div className="border-t pt-4">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <p className="font-medium">Register all members now</p>
-                  <p className="text-sm text-muted-foreground">
-                    Add all {totalMembers} active members to this tour
-                  </p>
-                </div>
-                <Button
-                  variant="outline"
-                  onClick={() => setConfirmRegisterAll(true)}
-                  disabled={registerAllMembers.isPending}
-                  className="gap-2"
-                >
-                  {registerAllMembers.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <UserPlus className="h-4 w-4" />
-                  )}
-                  Register All
-                </Button>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Tournaments</span>
+                <span className="font-medium">{tournamentCounts?.[selectedTour?.tour_id ?? 0] || 0}</span>
               </div>
             </div>
           </div>
         </DialogContent>
       </Dialog>
-
-      {/* Confirm Register All Dialog */}
-      <AlertDialog open={confirmRegisterAll} onOpenChange={setConfirmRegisterAll}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Register All Members</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will register all {totalMembers} active SGT members to "{selectedTour?.name}".
-              {currentSettings?.use_combo_handicap && " Combo handicap will be used."}
-              <br /><br />
-              Members already registered will be skipped.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleRegisterAllMembers}>
-              <CheckCircle2 className="h-4 w-4 mr-2" />
-              Register All Members
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       {/* Tour Form Dialog (Create/Edit) */}
       <TourFormDialog
