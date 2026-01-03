@@ -1,7 +1,7 @@
 import { MembershipPricing } from "@/types/booking";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Check } from "lucide-react";
+import { Check, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface MembershipCardProps {
@@ -12,6 +12,7 @@ interface MembershipCardProps {
 
 export function MembershipCard({ membership, isPopular, onSelect }: MembershipCardProps) {
   const isVisitor = membership.tier === 'visitor';
+  const hasRestrictions = !!membership.restrictions;
 
   return (
     <Card className={cn(
@@ -32,7 +33,7 @@ export function MembershipCard({ membership, isPopular, onSelect }: MembershipCa
       <CardContent className="flex-1 space-y-6">
         {/* Pricing */}
         <div className="text-center space-y-1">
-          {!isVisitor && (
+          {!isVisitor && membership.weeklyFee > 0 && (
             <div className="text-muted-foreground text-sm">
               <span className="text-3xl font-bold text-foreground">${membership.weeklyFee}</span>
               <span>/week</span>
@@ -40,9 +41,10 @@ export function MembershipCard({ membership, isPopular, onSelect }: MembershipCa
           )}
           <div className={cn(
             "font-semibold",
-            isVisitor ? "text-3xl" : "text-lg text-accent"
+            isVisitor ? "text-2xl" : "text-lg text-accent"
           )}>
             ${membership.hourlyRate}/hr
+            {isVisitor && <span className="text-sm font-normal text-muted-foreground"> (peak)</span>}
           </div>
         </div>
 
@@ -55,6 +57,14 @@ export function MembershipCard({ membership, isPopular, onSelect }: MembershipCa
             </li>
           ))}
         </ul>
+
+        {/* Restrictions warning */}
+        {hasRestrictions && (
+          <div className="flex items-start gap-2 text-xs text-amber-600 bg-amber-50 p-2 rounded">
+            <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+            <span>{membership.restrictions}</span>
+          </div>
+        )}
       </CardContent>
 
       <CardFooter>

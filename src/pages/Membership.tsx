@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Check, Crown, Loader2 } from "lucide-react";
+import { ArrowLeft, Check, Crown, Loader2, Clock, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -19,54 +19,44 @@ interface MembershipTier {
   color: string;
   badgeColor: string;
   popular?: boolean;
+  restrictions?: string;
 }
 
-// Stripe price and product IDs for each membership tier
+// Updated Stripe price and product IDs for new membership structure
 const MEMBERSHIP_TIERS: Record<string, MembershipTier> = {
-  par: {
-    name: "Par",
-    priceId: "price_1SbVrRLpXZPXTNVBUcGdyz8u",
-    productId: "prod_TYd7QY23jzF3P4",
+  weekday: {
+    name: "Weekday",
+    priceId: "price_1SlMZXLpXZPXTNVB2aLrl9Qb",
+    productId: "prod_TioBcaSmquQmwW",
     weeklyFee: 15,
-    hourlyRate: 12,
-    features: ["Cancel any time"],
-    color: "border-emerald-500",
-    badgeColor: "bg-emerald-100 text-emerald-800",
+    hourlyRate: 10,
+    features: ["Weekdays before 4pm only", "Cancel any time"],
+    color: "border-teal-500",
+    badgeColor: "bg-teal-100 text-teal-800",
+    restrictions: "Peak times charged at visitor rate ($35/hr)",
   },
   birdie: {
     name: "Birdie",
-    priceId: "price_1SbVrcLpXZPXTNVB5WUvDHZt",
-    productId: "prod_TYd7LDyVYD1bJs",
-    weeklyFee: 20,
+    priceId: "price_1SlMZjLpXZPXTNVBK7nr4Wsr",
+    productId: "prod_TioC3XI7T8GpXd",
+    weeklyFee: 27,
     hourlyRate: 10,
-    features: ["Birdies League Access", "Cancel any time"],
+    features: ["Play anytime", "Birdies League Access", "Cancel any time"],
     color: "border-blue-500",
     badgeColor: "bg-blue-100 text-blue-800",
+    popular: true,
   },
   eagle: {
     name: "Eagle",
-    priceId: "price_1SbVroLpXZPXTNVBEwRcbDn7",
-    productId: "prod_TYd8lH1kqVy713",
-    weeklyFee: 25,
-    hourlyRate: 9,
-    features: ["Birdies League Access", "Cancel any time", "Free merch pack"],
-    color: "border-purple-500",
-    badgeColor: "bg-purple-100 text-purple-800",
-    popular: true,
-  },
-  albatross: {
-    name: "Albatross",
-    priceId: "price_1SbVsELpXZPXTNVBTsNhk1H2",
-    productId: "prod_TYd8J3bpTeqVAU",
+    priceId: "price_1SlMZtLpXZPXTNVBfgjiczGa",
+    productId: "prod_TioCdsw2GO5v5T",
     weeklyFee: 35,
     hourlyRate: 8,
-    features: ["Birdies League Access", "Cancel any time", "Free merch pack", "Personal Locker"],
-    color: "border-amber-500",
-    badgeColor: "bg-amber-100 text-amber-800",
+    features: ["Play anytime", "Birdies League Access", "Priority booking", "Cancel any time"],
+    color: "border-purple-500",
+    badgeColor: "bg-purple-100 text-purple-800",
   },
 };
-
-
 
 const Membership = () => {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
@@ -124,7 +114,6 @@ const Membership = () => {
       // If subscription was created directly (using saved card)
       if (data.success && data.subscriptionId) {
         toast.success(`Successfully subscribed to ${tier.name} membership!`);
-        // Refresh the page to update membership status
         navigate(`/membership?success=true&tier=${tierKey}`, { replace: true });
         fetchCurrentMembership();
         return;
@@ -183,7 +172,7 @@ const Membership = () => {
 
       {/* Main content */}
       <main className="flex-1 p-6">
-        <div className="container max-w-5xl mx-auto">
+        <div className="container max-w-4xl mx-auto">
           {/* Current membership info */}
           {hasActiveMembership && (
             <Card className="mb-8">
@@ -197,7 +186,7 @@ const Membership = () => {
                       <Badge className={MEMBERSHIP_TIERS[currentTier]?.badgeColor || ""}>
                         {MEMBERSHIP_TIERS[currentTier]?.name || currentTier}
                       </Badge>{" "}
-                      plan at <span className="font-semibold">${MEMBERSHIP_TIERS[currentTier]?.hourlyRate || 30}/hour</span>
+                      plan at <span className="font-semibold">${MEMBERSHIP_TIERS[currentTier]?.hourlyRate || 35}/hour</span>
                     </CardDescription>
                   </div>
                 </div>
@@ -216,8 +205,32 @@ const Membership = () => {
             </p>
           </div>
 
+          {/* Visitor pricing info */}
+          <Card className="mb-8 border-dashed">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Clock className="h-5 w-5" />
+                Visitor Pricing
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-4">
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="text-orange-600 border-orange-300">Peak</Badge>
+                  <span className="font-semibold">$35/hr</span>
+                  <span className="text-sm text-muted-foreground">(Fri-Sun, Mon-Thu 4pm+)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="text-green-600 border-green-300">Off-Peak</Badge>
+                  <span className="font-semibold">$25/hr</span>
+                  <span className="text-sm text-muted-foreground">(Mon-Thu before 4pm)</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Membership tiers grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {Object.entries(MEMBERSHIP_TIERS).map(
               ([key, tier]) => (
                 <Card 
@@ -246,7 +259,7 @@ const Membership = () => {
                   </CardHeader>
                   
                   <CardContent className="flex-1 flex flex-col">
-                    <ul className="space-y-3 mb-6 flex-1">
+                    <ul className="space-y-3 mb-4 flex-1">
                       {tier.features.map((feature, index) => (
                         <li key={index} className="flex items-center gap-2 text-sm">
                           <Check className="h-4 w-4 text-accent flex-shrink-0" />
@@ -254,6 +267,13 @@ const Membership = () => {
                         </li>
                       ))}
                     </ul>
+                    
+                    {tier.restrictions && (
+                      <div className="flex items-start gap-2 text-xs text-amber-600 bg-amber-50 p-2 rounded mb-4">
+                        <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                        <span>{tier.restrictions}</span>
+                      </div>
+                    )}
                     
                     <div className="text-center mb-4">
                       <span className="text-2xl font-bold">${tier.weeklyFee}</span>
@@ -288,9 +308,32 @@ const Membership = () => {
             )}
           </div>
 
+          {/* Break-even comparison */}
+          <Card className="mt-8">
+            <CardHeader>
+              <CardTitle className="text-lg">Which membership is right for you?</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3 text-sm">
+                <p>
+                  <strong>Weekday Member ($15/wk):</strong> Best if you only play weekdays before 4pm. 
+                  Break-even at 2 hours/week vs off-peak visitor rate.
+                </p>
+                <p>
+                  <strong>Birdie Member ($27/wk):</strong> Best for all-around access at $10/hr. 
+                  Break-even at 3 hours/week vs peak visitor rate.
+                </p>
+                <p>
+                  <strong>Eagle Member ($35/wk):</strong> Best rate at $8/hr for frequent players. 
+                  Break-even at 4 hours/week vs Birdie, or 1 hour/week vs peak visitor.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Footer note */}
           <p className="text-center text-sm text-muted-foreground mt-8">
-            Need to cancel? Email us at info@birdiesbayside.com.au and we'll help you out.
+            Need to cancel or make changes? Email us at info@birdiesbayside.com.au and we'll help you out.
           </p>
         </div>
       </main>

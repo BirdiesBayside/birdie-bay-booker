@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2, AlertCircle } from "lucide-react";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import { useBooking, PaymentMethod } from "@/hooks/useBooking";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { DateTimePicker } from "@/components/booking/DateTimePicker";
 import { BayAvailabilityGrid } from "@/components/booking/BayAvailabilityGrid";
 import { toast } from "@/hooks/use-toast";
@@ -13,10 +14,9 @@ import birdiesLogo from "@/assets/birdies-logo.png";
 
 const MEMBERSHIP_DISPLAY: Record<string, string> = {
   visitor: "Visitor",
-  par: "Par Member",
+  weekday: "Weekday Member",
   birdie: "Birdie Member",
   eagle: "Eagle Member",
-  albatross: "Albatross Member",
 };
 
 export default function Booking() {
@@ -29,6 +29,7 @@ export default function Booking() {
     depositBalance,
     savedCard,
     getHourlyRate,
+    getRateInfo,
     fetchBookingsForDate,
     checkBayAvailability,
     createBooking,
@@ -91,7 +92,6 @@ export default function Booking() {
     } else if (savedCard) {
       handleConfirmBooking("card");
     } else {
-      // No saved card - redirect to Stripe Checkout
       handleConfirmBooking("card");
     }
   };
@@ -103,7 +103,6 @@ export default function Booking() {
     try {
       const result = await createBooking(selectedBayId, selectedDate, selectedTime, selectedDuration, selectedPlayers, paymentMethod);
       
-      // If checkout is required (no saved card), redirect to Stripe
       if (result.requiresCheckout && result.checkoutUrl) {
         window.location.href = result.checkoutUrl;
         return;
@@ -135,7 +134,15 @@ export default function Booking() {
 
   if (!isAuthenticated) return null;
 
-  const hourlyRate = getHourlyRate();
+  // Calculate rate with peak/off-peak logic
+  const hourlyRate = selectedDate && selectedTime 
+    ? getHourlyRate(userMembershipTier, selectedDate, selectedTime)
+    : getHourlyRate();
+  
+  const rateInfo = selectedDate && selectedTime 
+    ? getRateInfo(selectedDate, selectedTime)
+    : null;
+
   const canConfirm = selectedDate && selectedTime && selectedBayId;
 
   return (
@@ -162,8 +169,8 @@ export default function Booking() {
       </header>
 
       <main className="max-w-4xl mx-auto p-4 space-y-6">
-        {/* Membership Badge */}
-        <div className="flex items-center justify-between">
+        {/* Membership Badge with Peak/Off-Peak Indicator */}
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-secondary rounded-full">
             <span className="text-sm text-secondary-foreground">
               {MEMBERSHIP_DISPLAY[userMembershipTier]}
@@ -172,7 +179,37 @@ export default function Booking() {
               ${hourlyRate}/hr
             </span>
           </div>
+          
+          {rateInfo && selectedTime && (
+            <div className="flex items-center gap-2">
+              <Badge 
+                variant="outline" 
+                className={rateInfo.isPeak 
+                  ? "text-orange-600 border-orange-300 bg-orange-50" 
+                  : "text-green-600 border-green-300 bg-green-50"
+                }
+              >
+                {rateInfo.isPeak ? "Peak" : "Off-Peak"}
+              </Badge>
+              {rateInfo.isRestricted && (
+                <Badge variant="outline" className="text-amber-600 border-amber-300 bg-amber-50">
+                  Visitor Rate Applied
+                </Badge>
+              )}
+            </div>
+          )}
         </div>
+
+        {/* Weekday member restriction warning */}
+        {userMembershipTier === "weekday" && rateInfo?.isRestricted && (
+          <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+            <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
+            <div>
+              <strong>Peak time selected.</strong> As a Weekday member, you get $10/hr for Monday-Thursday before 4pm only. 
+              This booking will be charged at the visitor peak rate ($35/hr).
+            </div>
+          </div>
+        )}
 
         {/* Date & Time Selection */}
         <Card>
@@ -218,7 +255,6 @@ export default function Booking() {
         </Card>
 
         {/* Confirm Button */}
-        {/* Confirm Button */}
         <div className="space-y-2">
           <Button
             className="w-full py-6 text-lg font-display gradient-orange text-accent-foreground"
@@ -242,7 +278,6 @@ export default function Booking() {
             </p>
           )}
         </div>
-
       </main>
     </div>
   );
