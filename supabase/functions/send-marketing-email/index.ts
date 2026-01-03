@@ -155,7 +155,7 @@ const handler = async (req: Request): Promise<Response> => {
           
           const brandedHtml = buildEmailTemplate(personalizedSubject, bodyContent, {
             text: "Book Now",
-            url: "https://birdiesbayside.com.au/booking"
+            url: "https://hub.birdiesbayside.com.au/booking"
           });
           
           await resend.emails.send({

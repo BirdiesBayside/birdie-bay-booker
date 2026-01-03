@@ -41,7 +41,7 @@ serve(async (req: Request): Promise<Response> => {
       .maybeSingle();
 
     // Build activation URL with token
-    const baseUrl = Deno.env.get("SITE_URL") || "https://birdiesbayside.com.au";
+    const baseUrl = Deno.env.get("SITE_URL") || "https://hub.birdiesbayside.com.au";
     const activationUrl = `${baseUrl}/?gift_token=${token}`;
 
     // Use template or fallback

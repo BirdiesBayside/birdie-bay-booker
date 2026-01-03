@@ -204,7 +204,7 @@ serve(async (req) => {
       
       htmlContent = buildEmailTemplate("Welcome to Birdies!", bodyContent, {
         text: "Book Your First Session",
-        url: "https://birdiesbayside.com.au/booking"
+        url: "https://hub.birdiesbayside.com.au/booking"
       });
     }
 
