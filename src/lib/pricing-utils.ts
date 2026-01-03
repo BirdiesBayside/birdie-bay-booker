@@ -35,19 +35,23 @@ export function isWeekdayMemberTime(date: Date, startTime: string): boolean {
   return hour < 16;
 }
 
+// Visitor pricing constants
+export const VISITOR_PEAK_RATE = 35;
+export const VISITOR_OFF_PEAK_RATE = 30;
+
 /**
  * Gets the appropriate hourly rate based on membership tier, date, and time.
  * 
  * Visitor rates:
  *   - Peak: $35/hr
- *   - Off-peak: $25/hr
+ *   - Off-peak: $30/hr
  * 
  * Weekday Member:
- *   - Weekdays before 4pm: $10/hr
+ *   - Weekdays before 4pm: member rate
  *   - Other times: Visitor peak rate ($35/hr)
  * 
- * Birdie Member: $10/hr (anytime)
- * Eagle Member: $8/hr (anytime)
+ * Birdie Member: member rate (anytime)
+ * Eagle Member: member rate (anytime)
  */
 export function calculateHourlyRate(
   tier: string,
@@ -59,12 +63,14 @@ export function calculateHourlyRate(
   
   switch (tier.toLowerCase()) {
     case "visitor":
-      return isPeak ? 35 : 25;
+      return isPeak ? VISITOR_PEAK_RATE : VISITOR_OFF_PEAK_RATE;
     
     case "weekday":
-      // Weekday members pay $10/hr for off-peak weekday slots
+      // Weekday members pay their rate for off-peak weekday slots
       // Otherwise they pay visitor peak rate
-      return isWeekdayMemberTime(date, startTime) ? 10 : 35;
+      return isWeekdayMemberTime(date, startTime) 
+        ? (tierPricing.weekday || 10) 
+        : VISITOR_PEAK_RATE;
     
     case "birdie":
       return tierPricing.birdie || 10;
@@ -74,7 +80,7 @@ export function calculateHourlyRate(
     
     default:
       // Unknown tier defaults to peak visitor rate
-      return 35;
+      return VISITOR_PEAK_RATE;
   }
 }
 
