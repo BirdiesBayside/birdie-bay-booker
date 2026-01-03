@@ -23,8 +23,12 @@ const signInSchema = z.object({
   password: z.string().min(1, "Password is required"),
 });
 
-export function AuthForm() {
-  const [isSignUp, setIsSignUp] = useState(false);
+interface AuthFormProps {
+  defaultToSignUp?: boolean;
+}
+
+export function AuthForm({ defaultToSignUp = false }: AuthFormProps) {
+  const [isSignUp, setIsSignUp] = useState(defaultToSignUp);
   const [isLoading, setIsLoading] = useState(false);
   const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
