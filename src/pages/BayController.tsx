@@ -220,6 +220,20 @@ export default function BayController() {
     setDebugLogs(prev => [...prev.slice(-49), { time, message, type }]); // Keep last 50 logs
   }, []);
 
+  // F12 hotkey to toggle SGT overlay
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // F12 toggles SGT overlay when there's an active booking
+      if (e.key === 'F12' && isAuthenticated && activeBooking) {
+        e.preventDefault();
+        setShowSGTOverlay(prev => !prev);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isAuthenticated, activeBooking]);
+
   // Check if running in Electron and load saved credentials/config
   useEffect(() => {
     const electronCheck = !!window.electronAPI?.isElectron;
