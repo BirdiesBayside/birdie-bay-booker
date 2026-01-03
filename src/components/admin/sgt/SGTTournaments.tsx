@@ -36,7 +36,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Search, Calendar, Plus, MoreHorizontal, Pencil, XCircle } from "lucide-react";
+import { Search, Calendar, Plus, MoreHorizontal, Pencil, XCircle, Users } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "@/hooks/use-toast";
 import { TournamentFormDialog } from "./TournamentFormDialog";
@@ -50,6 +50,9 @@ export function SGTTournaments() {
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
   const [tournamentToClose, setTournamentToClose] = useState<any>(null);
   const [isClosing, setIsClosing] = useState(false);
+  const [registerDialogOpen, setRegisterDialogOpen] = useState(false);
+  const [tournamentToRegister, setTournamentToRegister] = useState<any>(null);
+  const [isRegistering, setIsRegistering] = useState(false);
   const queryClient = useQueryClient();
 
   // Fetch tournaments
@@ -148,6 +151,43 @@ export function SGTTournaments() {
       setIsClosing(false);
       setCloseDialogOpen(false);
       setTournamentToClose(null);
+    }
+  };
+
+  const handleRegisterAllMembers = async () => {
+    if (!tournamentToRegister) return;
+    
+    setIsRegistering(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("sgt-tournament-auto-register", {
+        body: {
+          tournament_id: tournamentToRegister.tournament_id,
+          tour_id: tournamentToRegister.tour_id,
+        },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      const result = data.tournaments?.[0];
+      toast({
+        title: "Members registered",
+        description: `Registered ${result?.registered || 0} new members. ${result?.alreadyRegistered || 0} were already registered.`,
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["sgt-tournaments"] });
+      queryClient.invalidateQueries({ queryKey: ["sgt-scorecards"] });
+    } catch (error) {
+      console.error("Register members error:", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to register members",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRegistering(false);
+      setRegisterDialogOpen(false);
+      setTournamentToRegister(null);
     }
   };
 
@@ -258,16 +298,27 @@ export function SGTTournaments() {
                             Edit
                           </DropdownMenuItem>
                           {tournament.status !== "Completed" && (
-                            <DropdownMenuItem
-                              onClick={() => {
-                                setTournamentToClose(tournament);
-                                setCloseDialogOpen(true);
-                              }}
-                              className="text-destructive"
-                            >
-                              <XCircle className="h-4 w-4 mr-2" />
-                              Close Tournament
-                            </DropdownMenuItem>
+                            <>
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setTournamentToRegister(tournament);
+                                  setRegisterDialogOpen(true);
+                                }}
+                              >
+                                <Users className="h-4 w-4 mr-2" />
+                                Register All Members
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setTournamentToClose(tournament);
+                                  setCloseDialogOpen(true);
+                                }}
+                                className="text-destructive"
+                              >
+                                <XCircle className="h-4 w-4 mr-2" />
+                                Close Tournament
+                              </DropdownMenuItem>
+                            </>
                           )}
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -295,6 +346,27 @@ export function SGTTournaments() {
         tours={tours || []}
         defaultTourId={tourFilter !== "all" ? parseInt(tourFilter) : undefined}
       />
+
+      {/* Register All Members Confirmation Dialog */}
+      <AlertDialog open={registerDialogOpen} onOpenChange={setRegisterDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Register All Members</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will register all tour members for "{tournamentToRegister?.name}" who are not already registered.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleRegisterAllMembers}
+              disabled={isRegistering}
+            >
+              {isRegistering ? "Registering..." : "Register All"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Close Tournament Confirmation Dialog */}
       <AlertDialog open={closeDialogOpen} onOpenChange={setCloseDialogOpen}>
