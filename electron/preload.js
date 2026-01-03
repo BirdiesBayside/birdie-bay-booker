@@ -90,5 +90,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('show-notification-popup', { message, displayLabel, durationMs }),
   
   // Close the notification popup
-  closeNotificationPopup: () => ipcRenderer.invoke('close-notification-popup')
+  closeNotificationPopup: () => ipcRenderer.invoke('close-notification-popup'),
+  
+  // =====================================================
+  // CLIPBOARD / AUTO-PASTE APIs
+  // =====================================================
+  
+  // Copy text to clipboard and arm auto-paste mode
+  // After calling this, triggerAutoPaste will do Ctrl+A, Delete, Ctrl+V
+  copyForPaste: (text) => ipcRenderer.invoke('copy-for-paste', { text }),
+  
+  // Trigger the auto-paste sequence (Ctrl+A, Delete, Ctrl+V)
+  triggerAutoPaste: () => ipcRenderer.invoke('trigger-auto-paste'),
+  
+  // Get auto-paste status
+  getAutoPasteStatus: () => ipcRenderer.invoke('get-auto-paste-status'),
+  
+  // Clear/disarm auto-paste
+  clearAutoPaste: () => ipcRenderer.invoke('clear-auto-paste')
 });

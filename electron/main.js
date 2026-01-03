@@ -1,9 +1,13 @@
-const { app, BrowserWindow, Tray, Menu, ipcMain, screen, dialog } = require('electron');
+const { app, BrowserWindow, Tray, Menu, ipcMain, screen, dialog, clipboard } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { exec, spawn } = require('child_process');
 const { promisify } = require('util');
 const execAsync = promisify(exec);
+
+// State for auto-paste functionality
+let autoPasteEnabled = false;
+let autoPasteText = '';
 
 let mainWindow;
 let tray;
@@ -1033,4 +1037,106 @@ ipcMain.handle('close-notification-popup', async () => {
   } catch (error) {
     return { success: false, error: error.message };
   }
+});
+
+// =====================================================
+// CLIPBOARD AND AUTO-PASTE
+// =====================================================
+
+// Copy text to clipboard and arm auto-paste
+// When armed, the next simulated key sequence will do Ctrl+A, Delete, Ctrl+V
+ipcMain.handle('copy-for-paste', async (event, { text }) => {
+  try {
+    clipboard.writeText(text);
+    autoPasteEnabled = true;
+    autoPasteText = text;
+    console.log('Clipboard armed for auto-paste:', text);
+    return { success: true };
+  } catch (error) {
+    console.error('Copy for paste failed:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Trigger the auto-paste sequence: Ctrl+A, Delete, then Ctrl+V
+// Uses PowerShell SendKeys for reliability with GSPro
+ipcMain.handle('trigger-auto-paste', async () => {
+  try {
+    if (!autoPasteEnabled || !autoPasteText) {
+      return { success: false, error: 'Auto-paste not armed' };
+    }
+    
+    console.log('Triggering auto-paste sequence...');
+    
+    // Create a PowerShell script that sends Ctrl+A, then Delete, then Ctrl+V
+    // We use a short delay between keystrokes for reliability
+    const tempScript = path.join(app.getPath('temp'), 'auto_paste.ps1');
+    const scriptContent = `
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public class KeyboardSender {
+    [DllImport("user32.dll")] public static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, IntPtr dwExtraInfo);
+    public const int KEYEVENTF_KEYUP = 0x02;
+    public const byte VK_CONTROL = 0x11;
+    public const byte VK_A = 0x41;
+    public const byte VK_V = 0x56;
+    public const byte VK_DELETE = 0x2E;
+    
+    public static void SendCtrlA() {
+        keybd_event(VK_CONTROL, 0, 0, IntPtr.Zero);
+        keybd_event(VK_A, 0, 0, IntPtr.Zero);
+        keybd_event(VK_A, 0, KEYEVENTF_KEYUP, IntPtr.Zero);
+        keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, IntPtr.Zero);
+    }
+    
+    public static void SendDelete() {
+        keybd_event(VK_DELETE, 0, 0, IntPtr.Zero);
+        keybd_event(VK_DELETE, 0, KEYEVENTF_KEYUP, IntPtr.Zero);
+    }
+    
+    public static void SendCtrlV() {
+        keybd_event(VK_CONTROL, 0, 0, IntPtr.Zero);
+        keybd_event(VK_V, 0, 0, IntPtr.Zero);
+        keybd_event(VK_V, 0, KEYEVENTF_KEYUP, IntPtr.Zero);
+        keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, IntPtr.Zero);
+    }
+}
+"@
+[KeyboardSender]::SendCtrlA()
+Start-Sleep -Milliseconds 50
+[KeyboardSender]::SendDelete()
+Start-Sleep -Milliseconds 50
+[KeyboardSender]::SendCtrlV()
+Write-Output "done"
+`;
+    
+    fs.writeFileSync(tempScript, scriptContent);
+    await execAsync(`powershell -NoProfile -ExecutionPolicy Bypass -File "${tempScript}"`, { timeout: 5000 });
+    fs.unlinkSync(tempScript);
+    
+    // Disarm auto-paste after use
+    autoPasteEnabled = false;
+    autoPasteText = '';
+    
+    console.log('Auto-paste sequence completed');
+    return { success: true };
+  } catch (error) {
+    console.error('Auto-paste failed:', error);
+    try { fs.unlinkSync(path.join(app.getPath('temp'), 'auto_paste.ps1')); } catch {}
+    return { success: false, error: error.message };
+  }
+});
+
+// Get current auto-paste status
+ipcMain.handle('get-auto-paste-status', async () => {
+  return { enabled: autoPasteEnabled, text: autoPasteText };
+});
+
+// Clear/disarm auto-paste
+ipcMain.handle('clear-auto-paste', async () => {
+  autoPasteEnabled = false;
+  autoPasteText = '';
+  clipboard.clear();
+  return { success: true };
 });
