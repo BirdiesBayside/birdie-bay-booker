@@ -333,9 +333,6 @@ const MyAccount = () => {
                     <p className="text-3xl font-bold text-primary">
                       ${(profile?.deposit_balance || 0).toFixed(2)}
                     </p>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      This credit will be automatically applied to your next booking
-                    </p>
                   </div>
                 </div>
               </CardContent>
