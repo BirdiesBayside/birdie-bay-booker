@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Crown, CreditCard, Lock, User, Mail, Phone, Plus, Loader2, Trash2, Pencil, Check, X, Wallet } from "lucide-react";
+import { ArrowLeft, Crown, Lock, User, Mail, Phone, Plus, Loader2, Trash2, Pencil, Check, X, Wallet, CreditCard } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -51,7 +51,7 @@ const MyAccount = () => {
   const [deletingPaymentMethodId, setDeletingPaymentMethodId] = useState<string | null>(null);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
-  const [isOpeningPortal, setIsOpeningPortal] = useState(false);
+  
   const [editForm, setEditForm] = useState({
     first_name: "",
     last_name: "",
@@ -221,24 +221,6 @@ const MyAccount = () => {
     }
   };
 
-  const handleOpenCustomerPortal = async () => {
-    setIsOpeningPortal(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("customer-portal");
-      
-      if (error) throw error;
-      if (data.error) throw new Error(data.error);
-      
-      if (data.url) {
-        window.open(data.url, "_blank");
-      }
-    } catch (error: any) {
-      console.error("Error opening customer portal:", error);
-      toast.error(error.message || "Failed to open billing portal");
-    } finally {
-      setIsOpeningPortal(false);
-    }
-  };
 
   const getPaymentMethodDisplay = (method: PaymentMethod) => {
     if (method.type === "link" || method.brand === "link") {
@@ -318,30 +300,9 @@ const MyAccount = () => {
                       Your hourly rate: <span className="font-semibold text-foreground">${membershipInfo.rate}/hour</span>
                     </p>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Button variant="outline" onClick={() => navigate("/membership")}>
-                      {profile?.membership_tier === "visitor" ? "Become a Member" : "View Plans"}
-                    </Button>
-                    {profile?.membership_tier !== "visitor" && (
-                      <Button 
-                        variant="secondary" 
-                        onClick={handleOpenCustomerPortal}
-                        disabled={isOpeningPortal}
-                      >
-                        {isOpeningPortal ? (
-                          <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            Opening...
-                          </>
-                        ) : (
-                          <>
-                            <CreditCard className="h-4 w-4 mr-2" />
-                            Manage Billing
-                          </>
-                        )}
-                      </Button>
-                    )}
-                  </div>
+                  <Button variant="outline" onClick={() => navigate("/membership")}>
+                    {profile?.membership_tier === "visitor" ? "Become a Member" : "View Plans"}
+                  </Button>
                 </div>
                 {profile?.membership_tier !== "visitor" && (
                   <p className="text-xs text-muted-foreground">
