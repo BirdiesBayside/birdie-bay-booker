@@ -180,23 +180,10 @@ export default function Booking() {
             </span>
           </div>
           
-          {rateInfo && selectedTime && (
-            <div className="flex items-center gap-2">
-              <Badge 
-                variant="outline" 
-                className={rateInfo.isPeak 
-                  ? "text-orange-600 border-orange-300 bg-orange-50" 
-                  : "text-green-600 border-green-300 bg-green-50"
-                }
-              >
-                {rateInfo.isPeak ? "Peak" : "Off-Peak"}
-              </Badge>
-              {rateInfo.isRestricted && (
-                <Badge variant="outline" className="text-amber-600 border-amber-300 bg-amber-50">
-                  Visitor Rate Applied
-                </Badge>
-              )}
-            </div>
+          {rateInfo?.isRestricted && selectedTime && (
+            <Badge variant="outline" className="text-amber-600 border-amber-300 bg-amber-50">
+              Visitor Rate Applied
+            </Badge>
           )}
         </div>
 
