@@ -494,7 +494,7 @@ export function SGTTours() {
                   Auto-register to tournaments
                 </Label>
                 <p className="text-sm text-muted-foreground">
-                  Automatically register tour members to new tournaments
+                  When enabled, all tour members are automatically registered to new tournaments created on this tour
                 </p>
               </div>
               <Switch
@@ -504,6 +504,12 @@ export function SGTTours() {
                 disabled={saveSettings.isPending}
               />
             </div>
+
+            {currentSettings?.auto_register_tournaments && (
+              <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3 text-sm text-green-700 dark:text-green-400">
+                ✓ Members will be auto-registered when you create new tournaments via the SGT Manager, or when new tournaments are detected during sync.
+              </div>
+            )}
 
             {/* Use combo handicap toggle */}
             <div className="flex items-center justify-between">

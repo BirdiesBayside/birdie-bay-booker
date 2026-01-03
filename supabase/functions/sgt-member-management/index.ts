@@ -716,6 +716,43 @@ serve(async (req) => {
             });
           
           console.log(`[SGT-MEMBER-MGMT] Created tournament: ${tournamentname} (ID: ${response.tournamentId})`);
+
+          // Check if auto-register is enabled for this tour
+          const { data: tourSettings } = await adminClient
+            .from("sgt_tour_settings")
+            .select("auto_register_tournaments")
+            .eq("tour_id", tourId)
+            .maybeSingle();
+
+          if (tourSettings?.auto_register_tournaments) {
+            console.log(`[SGT-MEMBER-MGMT] Auto-registering tour members to tournament ${response.tournamentId}...`);
+            
+            // Get all tour members
+            const { data: tourMembers } = await adminClient
+              .from("sgt_tour_members")
+              .select("user_id, user_name")
+              .eq("tour_id", tourId);
+
+            if (tourMembers && tourMembers.length > 0) {
+              let registered = 0;
+              let errors = 0;
+
+              for (const member of tourMembers) {
+                try {
+                  await sgtRequest(clubUrl, "/tournaments/add-member", "POST", {
+                    user_id: member.user_id.toString(),
+                    tournament_id: response.tournamentId.toString(),
+                  });
+                  registered++;
+                } catch (regError) {
+                  errors++;
+                  console.error(`[SGT-MEMBER-MGMT] Failed to register ${member.user_name}:`, regError);
+                }
+              }
+
+              console.log(`[SGT-MEMBER-MGMT] Auto-registration complete: ${registered} registered, ${errors} errors`);
+            }
+          }
         }
 
         result = { 
