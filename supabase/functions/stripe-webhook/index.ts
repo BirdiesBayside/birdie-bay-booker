@@ -15,24 +15,20 @@ const logStep = (step: string, details?: any) => {
 
 // Map Stripe price IDs to membership tiers
 const PRICE_TO_TIER: Record<string, string> = {
-  "price_1SbVrRLpXZPXTNVBUcGdyz8u": "par",
   "price_1SbVrcLpXZPXTNVB5WUvDHZt": "birdie",
   "price_1SbVroLpXZPXTNVBEwRcbDn7": "eagle",
-  "price_1SbVsELpXZPXTNVBTsNhk1H2": "albatross",
 };
 
 const TIER_NAMES: Record<string, string> = {
-  "par": "Par",
+  "weekday": "Weekday",
   "birdie": "Birdie",
   "eagle": "Eagle",
-  "albatross": "Albatross",
 };
 
 const TIER_WEEKLY_PRICES: Record<string, string> = {
-  "par": "$15.00",
-  "birdie": "$20.00",
-  "eagle": "$25.00",
-  "albatross": "$35.00",
+  "weekday": "$15.00",
+  "birdie": "$27.00",
+  "eagle": "$35.00",
 };
 
 // Replace template tags with actual values

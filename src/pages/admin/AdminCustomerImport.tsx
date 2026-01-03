@@ -22,7 +22,7 @@ interface ImportRow {
   message?: string;
 }
 
-const VALID_TIERS = ['visitor', 'par', 'birdie', 'eagle', 'albatross'];
+const VALID_TIERS = ['visitor', 'weekday', 'birdie', 'eagle'];
 
 export default function AdminCustomerImport() {
   const { isAdmin, isLoading: authLoading } = useAdminAuth();
@@ -138,10 +138,9 @@ export default function AdminCustomerImport() {
   const getTierBadge = (tier: string) => {
     const colors: Record<string, string> = {
       visitor: 'bg-gray-500',
-      par: 'bg-blue-500',
-      birdie: 'bg-green-500',
-      eagle: 'bg-purple-500',
-      albatross: 'bg-yellow-500'
+      weekday: 'bg-teal-500',
+      birdie: 'bg-blue-500',
+      eagle: 'bg-purple-500'
     };
     return (
       <Badge className={`${colors[tier] || 'bg-gray-500'} text-white`}>

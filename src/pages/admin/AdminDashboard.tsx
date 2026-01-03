@@ -15,7 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 
 type TimeFilter = "today" | "week" | "month" | "quarter";
-type MemberTierFilter = "all" | "weekday" | "par" | "birdie" | "eagle" | "albatross";
+type MemberTierFilter = "all" | "weekday" | "birdie" | "eagle";
 type MemberRevenueFilter = "weekly" | "monthly" | "quarterly";
 
 interface DashboardStats {
@@ -37,10 +37,8 @@ const timeFilterLabels: Record<TimeFilter, string> = {
 const memberTierLabels: Record<MemberTierFilter, string> = {
   all: "All Members",
   weekday: "Weekday",
-  par: "Par",
   birdie: "Birdie",
   eagle: "Eagle",
-  albatross: "Albatross",
 };
 
 const memberRevenueLabels: Record<MemberRevenueFilter, string> = {
@@ -168,10 +166,8 @@ export default function AdminDashboard() {
       // Calculate member revenue based on filter
       const weeklyFees: Record<string, number> = {
         weekday: 15,
-        par: 15,
-        birdie: 20,
-        eagle: 25,
-        albatross: 35,
+        birdie: 27,
+        eagle: 35,
       };
       
       const { data: allMembers } = await supabase
@@ -396,7 +392,7 @@ export default function AdminDashboard() {
                 <FilterDropdown
                   value={memberTierFilter}
                   onChange={setMemberTierFilter}
-                  options={["all", "weekday", "par", "birdie", "eagle", "albatross"]}
+                  options={["all", "weekday", "birdie", "eagle"]}
                   labels={memberTierLabels}
                 />
               </div>
