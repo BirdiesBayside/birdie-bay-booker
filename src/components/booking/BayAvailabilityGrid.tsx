@@ -2,6 +2,7 @@ import { Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Bay } from "@/hooks/useBooking";
 
 interface BayAvailabilityGridProps {
@@ -12,6 +13,7 @@ interface BayAvailabilityGridProps {
   checkAvailability: (bayId: string, startTime: string, duration: number) => boolean;
   onSelectBay: (bayId: string) => void;
   hourlyRate: number;
+  isPeak?: boolean;
 }
 
 export function BayAvailabilityGrid({
@@ -22,6 +24,7 @@ export function BayAvailabilityGrid({
   checkAvailability,
   onSelectBay,
   hourlyRate,
+  isPeak,
 }: BayAvailabilityGridProps) {
   if (!selectedTime) {
     return (
@@ -35,8 +38,21 @@ export function BayAvailabilityGrid({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="font-display text-lg text-foreground">Available Bays</h3>
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <h3 className="font-display text-lg text-foreground">Available Bays</h3>
+          {isPeak !== undefined && (
+            <Badge 
+              variant="outline" 
+              className={isPeak 
+                ? "text-orange-600 border-orange-300 bg-orange-50" 
+                : "text-green-600 border-green-300 bg-green-50"
+              }
+            >
+              {isPeak ? "Peak" : "Off-Peak"}
+            </Badge>
+          )}
+        </div>
         <div className="text-sm text-muted-foreground">
           ${hourlyRate}/hr × {selectedDuration}hr = <span className="font-semibold text-accent">${totalPrice}</span>
         </div>
