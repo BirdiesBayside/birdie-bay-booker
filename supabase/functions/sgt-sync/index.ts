@@ -279,13 +279,34 @@ serve(async (req) => {
         console.error(`[SGT-SYNC] Error syncing members for tour ${t.tourId}:`, e);
       }
 
-      // 4. Sync Tournaments for this tour
+      // 4. Sync Tournaments for this tour and auto-register members if enabled
       try {
+        // Check if auto-register tournaments is enabled for this tour
+        const { data: tourSettings } = await supabase
+          .from("sgt_tour_settings")
+          .select("auto_register_tournaments, use_combo_handicap")
+          .eq("tour_id", t.tourId)
+          .maybeSingle();
+
+        const autoRegisterEnabled = tourSettings?.auto_register_tournaments ?? false;
+        const useComboHcp = tourSettings?.use_combo_handicap ?? true;
+
         const tournamentsResponse = await sgtRequest("/tournaments/list", { tourId: t.tourId.toString() });
         const tournaments = extractArray(tournamentsResponse, ['results', 'tournaments']);
         
+        // Get existing tournaments from our DB to detect new ones
+        const { data: existingTournaments } = await supabase
+          .from("sgt_tournaments")
+          .select("tournament_id")
+          .eq("tour_id", t.tourId);
+        
+        const existingTournamentIds = new Set(existingTournaments?.map(t => t.tournament_id) || []);
+        
         for (const tournament of tournaments.slice(0, 20)) { // Limit to recent 20 tournaments
           const tourn = tournament as { tournamentId: number; name: string; courseName?: string; status?: string; start_date?: string; end_date?: string };
+          
+          const isNewTournament = !existingTournamentIds.has(tourn.tournamentId);
+          const isUpcoming = tourn.status === "Upcoming" || tourn.status === "Active";
           
           await supabase.from("sgt_tournaments").upsert({
             tournament_id: tourn.tournamentId,
@@ -298,6 +319,51 @@ serve(async (req) => {
             updated_at: new Date().toISOString(),
           }, { onConflict: 'tournament_id' });
           totalRecords++;
+
+          // Auto-register all tour members to new tournaments if enabled
+          if (autoRegisterEnabled && isNewTournament && isUpcoming) {
+            console.log(`[SGT-SYNC] Auto-registering members to new tournament: ${tourn.name} (ID: ${tourn.tournamentId})`);
+            
+            // Get all tour members
+            const { data: tourMembersData } = await supabase
+              .from("sgt_tour_members")
+              .select("user_id, user_name")
+              .eq("tour_id", t.tourId);
+            
+            if (tourMembersData && tourMembersData.length > 0) {
+              let registered = 0;
+              let errors = 0;
+              
+              for (const member of tourMembersData) {
+                try {
+                  const apiKey = await getApiKey();
+                  const formData = new URLSearchParams();
+                  formData.append("api-key", apiKey);
+                  formData.append("user_id", member.user_id.toString());
+                  formData.append("tournament_id", tourn.tournamentId.toString());
+                  
+                  const regResponse = await fetch(`${SGT_BASE_URL}/${CLUB_URL}/tournaments/add-member`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                    body: formData.toString(),
+                  });
+                  
+                  const regData = await regResponse.json();
+                  if (regData.success || regData.feedback?.includes("already")) {
+                    registered++;
+                  } else {
+                    errors++;
+                    console.error(`[SGT-SYNC] Failed to register ${member.user_name} to tournament:`, regData);
+                  }
+                } catch (regError) {
+                  errors++;
+                  console.error(`[SGT-SYNC] Error registering ${member.user_name}:`, regError);
+                }
+              }
+              
+              console.log(`[SGT-SYNC] Auto-registration complete for ${tourn.name}: ${registered} registered, ${errors} errors`);
+            }
+          }
 
           // 5. Sync Scorecards for this tournament
           try {
