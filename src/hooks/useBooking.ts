@@ -222,7 +222,8 @@ export function useBooking() {
     durationHours: number,
     playerCount: number = 1,
     paymentMethod: PaymentMethod = "card",
-    newPaymentMethodId?: string
+    newPaymentMethodId?: string,
+    partialBalanceAmount?: number
   ): Promise<{ booking: any; requiresCheckout?: boolean; checkoutUrl?: string }> => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
@@ -230,14 +231,33 @@ export function useBooking() {
     // Calculate rate with peak/off-peak logic
     const hourlyRate = getHourlyRate(userMembershipTier, date, startTime);
     const totalPrice = hourlyRate * durationHours;
+    
+    // Track how much to deduct from balance and charge to card
+    let balanceDeduction = 0;
+    let cardAmount = totalPrice;
 
     // If using balance, check if sufficient funds
     if (paymentMethod === "balance") {
       if (depositBalance < totalPrice) {
         throw new Error("Insufficient balance");
       }
+      balanceDeduction = totalPrice;
+      cardAmount = 0;
       
       const newBalance = depositBalance - totalPrice;
+      const { error: balanceError } = await supabase
+        .from("profiles")
+        .update({ deposit_balance: newBalance })
+        .eq("user_id", user.id);
+      
+      if (balanceError) throw new Error("Failed to deduct balance");
+      setDepositBalance(newBalance);
+    } else if (partialBalanceAmount && partialBalanceAmount > 0) {
+      // Partial balance usage with card payment
+      balanceDeduction = Math.min(partialBalanceAmount, totalPrice);
+      cardAmount = totalPrice - balanceDeduction;
+      
+      const newBalance = depositBalance - balanceDeduction;
       const { error: balanceError } = await supabase
         .from("profiles")
         .update({ deposit_balance: newBalance })
@@ -264,7 +284,7 @@ export function useBooking() {
         hourly_rate: hourlyRate,
         total_price: totalPrice,
         player_count: playerCount,
-        payment_method: paymentMethod === "balance" ? "balance" : "pending",
+        payment_method: paymentMethod === "balance" ? "balance" : (balanceDeduction > 0 ? "partial" : "pending"),
         status: paymentMethod === "balance" ? "confirmed" : "pending",
       })
       .select()
@@ -272,25 +292,42 @@ export function useBooking() {
 
     if (error) throw error;
 
-    if (paymentMethod === "card") {
+    // Only charge card if there's an amount to charge
+    if (paymentMethod === "card" && cardAmount > 0) {
       const bayName = bays.find(b => b.id === bayId)?.name || "Bay";
       const description = `${bayName} - ${format(date, "PPP")} at ${startTime} (${durationHours}hr)`;
       
       const { data: chargeResult, error: chargeError } = await supabase.functions.invoke("charge-booking", {
         body: {
           bookingId: bookingData.id,
-          amount: totalPrice,
+          amount: cardAmount,
           description,
           paymentMethodId: newPaymentMethodId,
         },
       });
 
       if (chargeError) {
+        // Restore balance if card payment fails
+        if (balanceDeduction > 0) {
+          await supabase
+            .from("profiles")
+            .update({ deposit_balance: depositBalance })
+            .eq("user_id", user.id);
+          setDepositBalance(depositBalance);
+        }
         await supabase.from("bookings").delete().eq("id", bookingData.id);
         throw new Error(chargeError.message || "Payment failed");
       }
 
       if (chargeResult.error) {
+        // Restore balance if card payment fails
+        if (balanceDeduction > 0) {
+          await supabase
+            .from("profiles")
+            .update({ deposit_balance: depositBalance })
+            .eq("user_id", user.id);
+          setDepositBalance(depositBalance);
+        }
         await supabase.from("bookings").delete().eq("id", bookingData.id);
         throw new Error(chargeResult.error);
       }
