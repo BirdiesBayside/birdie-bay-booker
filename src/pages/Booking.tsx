@@ -249,6 +249,7 @@ export default function Booking() {
                 checkAvailability={checkBayAvailability}
                 onSelectBay={setSelectedBayId}
                 hourlyRate={hourlyRate}
+                isPeak={rateInfo?.isPeak}
               />
             )}
           </CardContent>
