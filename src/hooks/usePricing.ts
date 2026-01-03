@@ -17,10 +17,8 @@ export interface PricingTier {
 const FALLBACK_RATES: Record<string, number> = {
   visitor: 35, // Peak rate
   weekday: 10,
-  par: 12,
   birdie: 10,
   eagle: 8,
-  albatross: 6,
 };
 
 export function usePricing() {

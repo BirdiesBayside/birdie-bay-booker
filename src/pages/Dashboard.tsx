@@ -7,7 +7,7 @@ import birdiesLogo from "@/assets/birdies-logo.png";
 import { supabase } from "@/integrations/supabase/client";
 import { NotificationBell } from "@/components/NotificationBell";
 
-type MembershipTier = "visitor" | "weekday" | "par" | "birdie" | "eagle" | "albatross";
+type MembershipTier = "visitor" | "weekday" | "birdie" | "eagle";
 
 const Dashboard = () => {
   const { user, isAuthenticated, isLoading, signOut } = useAuth();
@@ -68,7 +68,7 @@ const Dashboard = () => {
   }
 
   const firstName = user?.user_metadata?.first_name || "Member";
-  const hasLeagueAccess = ["birdie", "eagle", "albatross"].includes(membershipTier);
+  const hasLeagueAccess = ["birdie", "eagle"].includes(membershipTier);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -191,7 +191,7 @@ const Dashboard = () => {
               ) : (
                 <>
                   <p className="text-muted-foreground mb-4">
-                    Upgrade to Birdie, Eagle, or Albatross membership to access the league.
+                    Upgrade to Birdie or Eagle membership to access the league.
                   </p>
                   <Button 
                     className="w-full"
