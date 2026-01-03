@@ -1,6 +1,6 @@
 // Core types for the Birdies booking platform
 
-export type MembershipTier = 'visitor' | 'par' | 'birdie' | 'eagle' | 'albatross';
+export type MembershipTier = 'visitor' | 'weekday' | 'birdie' | 'eagle';
 
 export interface MembershipPricing {
   tier: MembershipTier;
@@ -9,6 +9,7 @@ export interface MembershipPricing {
   hourlyRate: number;
   description: string;
   features: string[];
+  restrictions?: string;
 }
 
 export const MEMBERSHIP_TIERS: Record<MembershipTier, MembershipPricing> = {
@@ -16,41 +17,34 @@ export const MEMBERSHIP_TIERS: Record<MembershipTier, MembershipPricing> = {
     tier: 'visitor',
     name: 'Visitor',
     weeklyFee: 0,
-    hourlyRate: 15,
+    hourlyRate: 35, // Peak rate - off-peak is $25
     description: 'Pay as you play',
-    features: ['No commitment', 'Standard pricing', 'Book up to 1 week ahead'],
+    features: ['No commitment', 'Peak: $35/hr, Off-Peak: $25/hr', 'Book up to 1 week ahead'],
   },
-  par: {
-    tier: 'par',
-    name: 'Par Member',
+  weekday: {
+    tier: 'weekday',
+    name: 'Weekday Member',
     weeklyFee: 15,
-    hourlyRate: 12,
-    description: 'Great value for casual players',
-    features: ['$12/hr rate', 'Book 2 weeks ahead', 'Member events access'],
+    hourlyRate: 10,
+    description: 'Perfect for daytime players',
+    features: ['$10/hr weekdays before 4pm', 'No weekend commitment', 'Cancel any time'],
+    restrictions: 'Mon-Thu before 4pm only at member rate',
   },
   birdie: {
     tier: 'birdie',
     name: 'Birdie Member',
-    weeklyFee: 20,
+    weeklyFee: 27,
     hourlyRate: 10,
-    description: 'Perfect for regular players',
-    features: ['$10/hr rate', 'Book 3 weeks ahead', 'Priority booking', '10% pro shop discount'],
+    description: 'Full access for regular players',
+    features: ['$10/hr anytime', 'Birdies League Access', 'Cancel any time'],
   },
   eagle: {
     tier: 'eagle',
     name: 'Eagle Member',
-    weeklyFee: 25,
-    hourlyRate: 9,
-    description: 'For the dedicated golfer',
-    features: ['$9/hr rate', 'Book 4 weeks ahead', 'Priority booking', '15% pro shop discount', 'Guest passes'],
-  },
-  albatross: {
-    tier: 'albatross',
-    name: 'Albatross Member',
     weeklyFee: 35,
     hourlyRate: 8,
-    description: 'Ultimate golfing experience',
-    features: ['$8/hr rate', 'Book 6 weeks ahead', 'VIP priority', '20% pro shop discount', 'Unlimited guest passes', 'Exclusive events'],
+    description: 'Premium rate for dedicated golfers',
+    features: ['$8/hr anytime', 'Birdies League Access', 'Priority booking', 'Cancel any time'],
   },
 };
 
@@ -75,6 +69,7 @@ export interface TimeSlot {
   time: string; // HH:MM format
   isAvailable: boolean;
   price?: number;
+  isPeak?: boolean;
 }
 
 export interface Booking {

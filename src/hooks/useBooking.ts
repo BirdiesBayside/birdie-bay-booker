@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
+import { calculateHourlyRate, isPeakTime, isWeekdayMemberTime } from "@/lib/pricing-utils";
 
 export interface Bay {
   id: string;
@@ -31,13 +32,12 @@ export interface SavedCard {
   expYear?: number;
 }
 
-// Fallback pricing in case database fetch fails
+// Updated fallback pricing for new tier structure
 const FALLBACK_PRICING: Record<string, number> = {
-  visitor: 30,
-  par: 12,
+  visitor: 35, // Peak rate
+  weekday: 10,
   birdie: 10,
-  eagle: 9,
-  albatross: 8,
+  eagle: 8,
 };
 
 export type PaymentMethod = "card" | "balance";
@@ -125,33 +125,65 @@ export function useBooking() {
     setIsLoading(true);
     const dateStr = format(date, "yyyy-MM-dd");
 
-    // Use the secure booking_availability view that only exposes scheduling data
     const { data, error } = await supabase
       .from("booking_availability")
       .select("bay_id, booking_date, start_time, end_time")
       .eq("booking_date", dateStr);
 
     if (!error && data) {
-      // Map to Booking interface with minimal required fields for availability
       setBookings(data.map(b => ({
-        id: '', // Not available from view - not needed for availability
+        id: '',
         bay_id: b.bay_id,
         booking_date: b.booking_date,
         start_time: b.start_time,
         end_time: b.end_time,
-        duration_hours: 0, // Not available from view - not needed for availability
+        duration_hours: 0,
         status: 'confirmed'
       })));
     }
     setIsLoading(false);
   };
 
-  const getHourlyRate = (tier: string = userMembershipTier): number => {
-    // Custom hourly rate overrides membership tier pricing
+  /**
+   * Get hourly rate based on membership tier, date, and time.
+   * Uses peak/off-peak pricing for visitors and weekday restrictions.
+   */
+  const getHourlyRate = (
+    tier: string = userMembershipTier,
+    date?: Date,
+    startTime?: string
+  ): number => {
+    // Custom hourly rate overrides everything
     if (customHourlyRate !== null) {
       return customHourlyRate;
     }
-    return tierPricing[tier] || tierPricing.visitor || FALLBACK_PRICING.visitor;
+    
+    // If no date/time provided, return the base tier rate
+    if (!date || !startTime) {
+      return tierPricing[tier] || FALLBACK_PRICING[tier] || FALLBACK_PRICING.visitor;
+    }
+    
+    // Calculate rate based on tier, date, and time
+    return calculateHourlyRate(tier, date, startTime, tierPricing);
+  };
+
+  /**
+   * Check if a weekday member can book at member rate for given time
+   */
+  const canWeekdayMemberBook = (date: Date, startTime: string): boolean => {
+    if (userMembershipTier !== "weekday") return true;
+    return isWeekdayMemberTime(date, startTime);
+  };
+
+  /**
+   * Get the display rate info for the booking UI
+   */
+  const getRateInfo = (date: Date, startTime: string): { rate: number; isPeak: boolean; isRestricted: boolean } => {
+    const rate = getHourlyRate(userMembershipTier, date, startTime);
+    const isPeak = isPeakTime(date, startTime);
+    const isRestricted = userMembershipTier === "weekday" && !isWeekdayMemberTime(date, startTime);
+    
+    return { rate, isPeak, isRestricted };
   };
 
   const checkBayAvailability = (
@@ -175,7 +207,6 @@ export function useBooking() {
       const bookingStartMinutes = bookingStartHour * 60 + bookingStartMin;
       const bookingEndMinutes = bookingEndHour * 60 + bookingEndMin;
 
-      // Check for overlap
       if (startMinutes < bookingEndMinutes && endMinutes > bookingStartMinutes) {
         return false;
       }
@@ -196,7 +227,8 @@ export function useBooking() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
 
-    const hourlyRate = getHourlyRate();
+    // Calculate rate with peak/off-peak logic
+    const hourlyRate = getHourlyRate(userMembershipTier, date, startTime);
     const totalPrice = hourlyRate * durationHours;
 
     // If using balance, check if sufficient funds
@@ -205,7 +237,6 @@ export function useBooking() {
         throw new Error("Insufficient balance");
       }
       
-      // Deduct from balance
       const newBalance = depositBalance - totalPrice;
       const { error: balanceError } = await supabase
         .from("profiles")
@@ -221,7 +252,6 @@ export function useBooking() {
     const endHour = startHour + durationHours;
     const endTime = `${endHour.toString().padStart(2, "0")}:${startMinute.toString().padStart(2, "0")}`;
 
-    // Create booking record first
     const { data: bookingData, error } = await supabase
       .from("bookings")
       .insert({
@@ -242,7 +272,6 @@ export function useBooking() {
 
     if (error) throw error;
 
-    // If paying by card, charge via Stripe
     if (paymentMethod === "card") {
       const bayName = bays.find(b => b.id === bayId)?.name || "Bay";
       const description = `${bayName} - ${format(date, "PPP")} at ${startTime} (${durationHours}hr)`;
@@ -257,7 +286,6 @@ export function useBooking() {
       });
 
       if (chargeError) {
-        // Delete the pending booking if charge failed
         await supabase.from("bookings").delete().eq("id", bookingData.id);
         throw new Error(chargeError.message || "Payment failed");
       }
@@ -267,7 +295,6 @@ export function useBooking() {
         throw new Error(chargeResult.error);
       }
 
-      // If requires checkout redirect
       if (chargeResult.requiresCheckout) {
         return { 
           booking: bookingData, 
@@ -277,7 +304,6 @@ export function useBooking() {
       }
     }
 
-    // Send booking confirmation notification
     try {
       await supabase.functions.invoke("send-booking-notification", {
         body: {
@@ -307,7 +333,10 @@ export function useBooking() {
     depositBalance,
     savedCard,
     isLoadingSavedCard,
+    tierPricing,
     getHourlyRate,
+    getRateInfo,
+    canWeekdayMemberBook,
     fetchBookingsForDate,
     checkBayAvailability,
     createBooking,

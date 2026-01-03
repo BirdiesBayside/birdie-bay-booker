@@ -13,13 +13,12 @@ export interface PricingTier {
   is_subscription: boolean;
 }
 
-// Fallback rates in case database fetch fails
+// Updated fallback rates for new tier structure
 const FALLBACK_RATES: Record<string, number> = {
-  visitor: 30,
-  par: 12,
+  visitor: 35, // Peak rate
+  weekday: 10,
   birdie: 10,
-  eagle: 9,
-  albatross: 8,
+  eagle: 8,
 };
 
 export function usePricing() {
