@@ -52,6 +52,11 @@ const GAMEPLAY_OPTIONS = ["Normal", "Scramble", "AltShot", "Shamble", "BetterBal
 const HOLES_OPTIONS = ["18", "Front9", "Back9", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17"] as const;
 const GIMMES_OPTIONS = [0, 2, 4, 5, 6, 8, 10, 99] as const;
 const PUTTING_MODE_OPTIONS = ["Optimistic", "Casual", "Hard"] as const;
+const PUTTING_MODE_LABELS: Record<typeof PUTTING_MODE_OPTIONS[number], string> = {
+  "Optimistic": "Default",
+  "Casual": "Casual", 
+  "Hard": "Hard",
+};
 const GREEN_FIRMNESS_OPTIONS = ["Soft", "Normal", "Hard", "Firm", "Links"] as const;
 const FAIRWAY_FIRMNESS_OPTIONS = ["Soft", "Normal", "Hard", "Firm", "Links"] as const;
 const TEES_OPTIONS = ["Black", "Blue", "White", "Yellow", "Green", "Red", "Junior", "Par3"] as const;
@@ -882,7 +887,7 @@ export function TournamentFormDialog({
                             </FormControl>
                             <SelectContent>
                               {PUTTING_MODE_OPTIONS.map(opt => (
-                                <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                                <SelectItem key={opt} value={opt}>{PUTTING_MODE_LABELS[opt]}</SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
