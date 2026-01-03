@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import birdiesLogo from "@/assets/birdies-logo.png";
 import { usePricing, PricingTier } from "@/hooks/usePricing";
+import { VISITOR_PEAK_RATE, VISITOR_OFF_PEAK_RATE } from "@/lib/pricing-utils";
 
 interface MembershipTierConfig {
   features: string[];
@@ -52,8 +53,8 @@ const Membership = () => {
   
   // Get visitor pricing for display
   const visitorPricing = pricing.find(p => p.tier === 'visitor');
-  const peakRate = visitorPricing?.hourly_rate ?? 35;
-  const offPeakRate = 25; // Off-peak is fixed at $25
+  const peakRate = visitorPricing?.hourly_rate ?? VISITOR_PEAK_RATE;
+  const offPeakRate = VISITOR_OFF_PEAK_RATE;
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
