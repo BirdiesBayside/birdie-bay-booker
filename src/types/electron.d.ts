@@ -40,6 +40,24 @@ declare global {
       triggerAutoPaste: () => Promise<{ success: boolean; error?: string }>;
       getAutoPasteStatus: () => Promise<{ enabled: boolean; text: string }>;
       clearAutoPaste: () => Promise<{ success: boolean }>;
+      // GSPro Baseline Settings
+      getBaselineConfig: () => Promise<{
+        gsproFolderPath: string;
+        dpsFilePath: string;
+        settingsFilePath: string;
+        enabled: boolean;
+        hasDpsFile: boolean;
+        hasSettingsFile: boolean;
+        isWatching: boolean;
+      }>;
+      browseGsproFolder: () => Promise<{ success: boolean; canceled?: boolean; folderPath?: string; dpsFilePath?: string; settingsFilePath?: string; error?: string }>;
+      setGsproFolder: (folderPath: string) => Promise<{ success: boolean; dpsFilePath?: string; settingsFilePath?: string; error?: string }>;
+      browseBaselineFile: (fileName: string) => Promise<{ success: boolean; canceled?: boolean; sourcePath?: string; storedPath?: string; error?: string }>;
+      setBaselineEnabled: (enabled: boolean) => Promise<{ success: boolean; enabled: boolean }>;
+      restoreBaselineNow: () => Promise<{ success: boolean; results?: { file: string; success: boolean; error?: string }[]; error?: string }>;
+      isGsproRunning: () => Promise<{ isRunning: boolean }>;
+      onGsproClosed: (callback: () => void) => () => void;
+      onBaselineRestored: (callback: (results: { file: string; success: boolean; error?: string }[]) => void) => () => void;
     };
   }
 }

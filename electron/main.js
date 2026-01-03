@@ -1140,3 +1140,314 @@ ipcMain.handle('clear-auto-paste', async () => {
   clipboard.clear();
   return { success: true };
 });
+
+// =====================================================
+// GSPRO BASELINE SETTINGS MANAGEMENT
+// =====================================================
+
+// State for baseline settings
+let baselineConfig = {
+  gsproFolderPath: '', // C:\Users\<user>\AppData\Local\GSPro
+  dpsFilePath: '',     // Full path to dpsV2x3.gss in GSPro folder
+  settingsFilePath: '', // Full path to Settings.vgs in GSPro folder
+  enabled: false,
+};
+
+// State for process monitoring
+let gsproWatchInterval = null;
+let gsproWasRunning = false;
+
+// Get the app data folder for storing baseline files
+function getBaselineStoragePath() {
+  const userDataPath = app.getPath('userData');
+  const baselinePath = path.join(userDataPath, 'gspro-baseline');
+  
+  // Create folder if it doesn't exist
+  if (!fs.existsSync(baselinePath)) {
+    fs.mkdirSync(baselinePath, { recursive: true });
+  }
+  
+  return baselinePath;
+}
+
+// Load baseline config from storage
+function loadBaselineConfig() {
+  try {
+    const configPath = path.join(getBaselineStoragePath(), 'config.json');
+    if (fs.existsSync(configPath)) {
+      const data = fs.readFileSync(configPath, 'utf-8');
+      baselineConfig = { ...baselineConfig, ...JSON.parse(data) };
+      console.log('Loaded baseline config:', baselineConfig);
+    }
+  } catch (error) {
+    console.error('Failed to load baseline config:', error);
+  }
+}
+
+// Save baseline config to storage
+function saveBaselineConfig() {
+  try {
+    const configPath = path.join(getBaselineStoragePath(), 'config.json');
+    fs.writeFileSync(configPath, JSON.stringify(baselineConfig, null, 2));
+    console.log('Saved baseline config');
+  } catch (error) {
+    console.error('Failed to save baseline config:', error);
+  }
+}
+
+// Check if GSPro is running
+async function isGsproRunning() {
+  try {
+    const { stdout } = await execAsync('tasklist /FI "IMAGENAME eq GSPro.exe" /NH', { timeout: 5000 });
+    return stdout.toLowerCase().includes('gspro.exe');
+  } catch {
+    return false;
+  }
+}
+
+// Restore baseline files to GSPro folder
+async function restoreBaselineFiles() {
+  const results = [];
+  const storagePath = getBaselineStoragePath();
+  
+  console.log('=== RESTORING BASELINE FILES ===');
+  
+  // Restore dpsV2x3.gss
+  const storedDpsPath = path.join(storagePath, 'dpsV2x3.gss');
+  if (baselineConfig.dpsFilePath && fs.existsSync(storedDpsPath)) {
+    try {
+      fs.copyFileSync(storedDpsPath, baselineConfig.dpsFilePath);
+      console.log('Restored dpsV2x3.gss to:', baselineConfig.dpsFilePath);
+      results.push({ file: 'dpsV2x3.gss', success: true });
+    } catch (error) {
+      console.error('Failed to restore dpsV2x3.gss:', error);
+      results.push({ file: 'dpsV2x3.gss', success: false, error: error.message });
+    }
+  } else {
+    console.log('Skipping dpsV2x3.gss - not configured or baseline not found');
+    results.push({ file: 'dpsV2x3.gss', success: false, error: 'Not configured' });
+  }
+  
+  // Restore Settings.vgs
+  const storedSettingsPath = path.join(storagePath, 'Settings.vgs');
+  if (baselineConfig.settingsFilePath && fs.existsSync(storedSettingsPath)) {
+    try {
+      fs.copyFileSync(storedSettingsPath, baselineConfig.settingsFilePath);
+      console.log('Restored Settings.vgs to:', baselineConfig.settingsFilePath);
+      results.push({ file: 'Settings.vgs', success: true });
+    } catch (error) {
+      console.error('Failed to restore Settings.vgs:', error);
+      results.push({ file: 'Settings.vgs', success: false, error: error.message });
+    }
+  } else {
+    console.log('Skipping Settings.vgs - not configured or baseline not found');
+    results.push({ file: 'Settings.vgs', success: false, error: 'Not configured' });
+  }
+  
+  console.log('=== BASELINE RESTORE COMPLETE ===', results);
+  return results;
+}
+
+// Start watching for GSPro process
+function startGsproWatcher() {
+  if (gsproWatchInterval) {
+    console.log('GSPro watcher already running');
+    return;
+  }
+  
+  console.log('Starting GSPro process watcher...');
+  
+  gsproWatchInterval = setInterval(async () => {
+    const isRunning = await isGsproRunning();
+    
+    // Detect when GSPro stops running
+    if (gsproWasRunning && !isRunning) {
+      console.log('GSPro process closed - triggering baseline restore');
+      
+      // Notify renderer that GSPro closed
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('gspro-closed');
+      }
+      
+      // Wait a moment for files to be released
+      setTimeout(async () => {
+        const results = await restoreBaselineFiles();
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('baseline-restored', results);
+        }
+      }, 2000);
+    }
+    
+    gsproWasRunning = isRunning;
+  }, 3000); // Check every 3 seconds
+}
+
+// Stop watching for GSPro process
+function stopGsproWatcher() {
+  if (gsproWatchInterval) {
+    clearInterval(gsproWatchInterval);
+    gsproWatchInterval = null;
+    gsproWasRunning = false;
+    console.log('GSPro watcher stopped');
+  }
+}
+
+// Load config on startup
+loadBaselineConfig();
+
+// IPC: Get baseline config
+ipcMain.handle('get-baseline-config', async () => {
+  const storagePath = getBaselineStoragePath();
+  const hasDpsFile = fs.existsSync(path.join(storagePath, 'dpsV2x3.gss'));
+  const hasSettingsFile = fs.existsSync(path.join(storagePath, 'Settings.vgs'));
+  
+  return {
+    ...baselineConfig,
+    hasDpsFile,
+    hasSettingsFile,
+    isWatching: !!gsproWatchInterval,
+  };
+});
+
+// IPC: Set GSPro folder path
+ipcMain.handle('set-gspro-folder', async (event, { folderPath }) => {
+  try {
+    // Validate the folder exists
+    if (!fs.existsSync(folderPath)) {
+      return { success: false, error: 'Folder does not exist' };
+    }
+    
+    // Set the paths
+    baselineConfig.gsproFolderPath = folderPath;
+    baselineConfig.dpsFilePath = path.join(folderPath, 'dpsV2x3.gss');
+    baselineConfig.settingsFilePath = path.join(folderPath, 'Settings.vgs');
+    
+    saveBaselineConfig();
+    
+    return { 
+      success: true, 
+      dpsFilePath: baselineConfig.dpsFilePath,
+      settingsFilePath: baselineConfig.settingsFilePath,
+    };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// IPC: Browse for GSPro folder
+ipcMain.handle('browse-gspro-folder', async () => {
+  try {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: 'Select GSPro Data Folder',
+      defaultPath: path.join(process.env.LOCALAPPDATA || '', 'GSPro'),
+      properties: ['openDirectory'],
+    });
+    
+    if (result.canceled || result.filePaths.length === 0) {
+      return { success: false, canceled: true };
+    }
+    
+    const folderPath = result.filePaths[0];
+    
+    // Set and save the config
+    baselineConfig.gsproFolderPath = folderPath;
+    baselineConfig.dpsFilePath = path.join(folderPath, 'dpsV2x3.gss');
+    baselineConfig.settingsFilePath = path.join(folderPath, 'Settings.vgs');
+    
+    saveBaselineConfig();
+    
+    return { 
+      success: true, 
+      folderPath,
+      dpsFilePath: baselineConfig.dpsFilePath,
+      settingsFilePath: baselineConfig.settingsFilePath,
+    };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// IPC: Upload baseline file (receive file content from renderer)
+ipcMain.handle('save-baseline-file', async (event, { fileName, filePath }) => {
+  try {
+    const storagePath = getBaselineStoragePath();
+    const destPath = path.join(storagePath, fileName);
+    
+    // Copy the file to our storage
+    fs.copyFileSync(filePath, destPath);
+    
+    console.log(`Saved baseline file: ${fileName} from ${filePath}`);
+    
+    return { success: true, storedPath: destPath };
+  } catch (error) {
+    console.error('Failed to save baseline file:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// IPC: Browse and upload a baseline file
+ipcMain.handle('browse-baseline-file', async (event, { fileName }) => {
+  try {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: `Select ${fileName} baseline file`,
+      filters: [
+        { name: 'GSPro Settings', extensions: ['gss', 'vgs'] },
+        { name: 'All Files', extensions: ['*'] }
+      ],
+      properties: ['openFile'],
+    });
+    
+    if (result.canceled || result.filePaths.length === 0) {
+      return { success: false, canceled: true };
+    }
+    
+    const sourcePath = result.filePaths[0];
+    const storagePath = getBaselineStoragePath();
+    const destPath = path.join(storagePath, fileName);
+    
+    // Copy the file to our storage
+    fs.copyFileSync(sourcePath, destPath);
+    
+    console.log(`Saved baseline file: ${fileName} from ${sourcePath}`);
+    
+    return { success: true, sourcePath, storedPath: destPath };
+  } catch (error) {
+    console.error('Failed to browse/save baseline file:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// IPC: Enable/disable baseline restore
+ipcMain.handle('set-baseline-enabled', async (event, { enabled }) => {
+  baselineConfig.enabled = enabled;
+  saveBaselineConfig();
+  
+  if (enabled) {
+    startGsproWatcher();
+  } else {
+    stopGsproWatcher();
+  }
+  
+  return { success: true, enabled };
+});
+
+// IPC: Manually restore baseline files
+ipcMain.handle('restore-baseline-now', async () => {
+  try {
+    const results = await restoreBaselineFiles();
+    return { success: true, results };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// IPC: Check if GSPro is currently running
+ipcMain.handle('is-gspro-running', async () => {
+  const isRunning = await isGsproRunning();
+  return { isRunning };
+});
+
+// Start watcher if enabled on startup
+if (baselineConfig.enabled) {
+  startGsproWatcher();
+}
