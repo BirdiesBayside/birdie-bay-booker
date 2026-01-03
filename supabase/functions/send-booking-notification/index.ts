@@ -384,7 +384,7 @@ serve(async (req) => {
         
         htmlContent = buildEmailTemplate("Booking Confirmed!", bodyContent, {
           text: "View My Bookings",
-          url: "https://birdiesbayside.com.au/my-bookings"
+          url: "https://hub.birdiesbayside.com.au/my-bookings"
         });
       }
     } else {
@@ -422,7 +422,7 @@ serve(async (req) => {
         
         htmlContent = buildEmailTemplate("Booking Cancelled", bodyContent, {
           text: "Book Again",
-          url: "https://birdiesbayside.com.au/booking"
+          url: "https://hub.birdiesbayside.com.au/booking"
         });
       }
     }

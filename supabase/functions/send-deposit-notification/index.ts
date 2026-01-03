@@ -230,7 +230,7 @@ serve(async (req) => {
       
       htmlContent = buildEmailTemplate("Credit Added!", bodyContent, {
         text: "Book Now",
-        url: "https://birdiesbayside.com.au/booking"
+        url: "https://hub.birdiesbayside.com.au/booking"
       });
     }
 
