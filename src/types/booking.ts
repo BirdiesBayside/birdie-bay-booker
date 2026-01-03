@@ -1,6 +1,6 @@
 // Core types for the Birdies booking platform
 
-export type MembershipTier = 'visitor' | 'weekday' | 'birdie' | 'eagle';
+export type MembershipTier = 'visitor' | 'weekday' | 'par' | 'birdie' | 'eagle' | 'albatross';
 
 export interface MembershipPricing {
   tier: MembershipTier;
@@ -30,6 +30,14 @@ export const MEMBERSHIP_TIERS: Record<MembershipTier, MembershipPricing> = {
     features: ['$10/hr weekdays before 4pm', 'No weekend commitment', 'Cancel any time'],
     restrictions: 'Mon-Thu before 4pm only at member rate',
   },
+  par: {
+    tier: 'par',
+    name: 'Par Member',
+    weeklyFee: 15,
+    hourlyRate: 12,
+    description: 'Affordable full access',
+    features: ['$12/hr anytime', 'Birdies Clubhouse Access', 'Cancel any time'],
+  },
   birdie: {
     tier: 'birdie',
     name: 'Birdie Member',
@@ -45,6 +53,14 @@ export const MEMBERSHIP_TIERS: Record<MembershipTier, MembershipPricing> = {
     hourlyRate: 8,
     description: 'Premium rate for dedicated golfers',
     features: ['$8/hr anytime', 'Birdies League Access', 'Priority booking', 'Cancel any time'],
+  },
+  albatross: {
+    tier: 'albatross',
+    name: 'Albatross Member',
+    weeklyFee: 45,
+    hourlyRate: 6,
+    description: 'Ultimate value for serious golfers',
+    features: ['$6/hr anytime', 'Birdies League Access', 'Priority booking', 'VIP perks', 'Cancel any time'],
   },
 };
 

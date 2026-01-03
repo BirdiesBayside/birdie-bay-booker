@@ -7,7 +7,7 @@ import birdiesLogo from "@/assets/birdies-logo.png";
 import { supabase } from "@/integrations/supabase/client";
 import { NotificationBell } from "@/components/NotificationBell";
 
-type MembershipTier = "visitor" | "par" | "birdie" | "eagle" | "albatross";
+type MembershipTier = "visitor" | "weekday" | "par" | "birdie" | "eagle" | "albatross";
 
 const Dashboard = () => {
   const { user, isAuthenticated, isLoading, signOut } = useAuth();
