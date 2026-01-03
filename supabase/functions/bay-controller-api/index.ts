@@ -126,26 +126,50 @@ serve(async (req) => {
           );
         }
 
-        // Fetch customer names for each booking
+        // Fetch customer names and SGT info for each booking
         const userIds = [...new Set(filteredBookings.map((b: any) => b.user_id))];
-        let profilesMap: Record<string, { first_name: string; last_name: string }> = {};
+        let profilesMap: Record<string, { first_name: string; last_name: string; sgt_user_id: number | null }> = {};
         
         if (userIds.length > 0) {
           const { data: profiles } = await supabase
             .from("profiles")
-            .select("user_id, first_name, last_name")
+            .select("user_id, first_name, last_name, sgt_user_id")
             .in("user_id", userIds);
           
           if (profiles) {
             profiles.forEach((p: any) => {
-              profilesMap[p.user_id] = { first_name: p.first_name, last_name: p.last_name };
+              profilesMap[p.user_id] = { 
+                first_name: p.first_name, 
+                last_name: p.last_name,
+                sgt_user_id: p.sgt_user_id 
+              };
             });
           }
         }
 
-        // Transform bookings to include customer_name
+        // Fetch SGT member info for users with sgt_user_id
+        const sgtUserIds = Object.values(profilesMap)
+          .filter(p => p.sgt_user_id !== null)
+          .map(p => p.sgt_user_id);
+        
+        let sgtMembersMap: Record<number, { user_name: string }> = {};
+        if (sgtUserIds.length > 0) {
+          const { data: sgtMembers } = await supabase
+            .from("sgt_members")
+            .select("user_id, user_name")
+            .in("user_id", sgtUserIds);
+          
+          if (sgtMembers) {
+            sgtMembers.forEach((m: any) => {
+              sgtMembersMap[m.user_id] = { user_name: m.user_name };
+            });
+          }
+        }
+
+        // Transform bookings to include customer_name and SGT info
         const bookingsWithNames = filteredBookings.map((booking: any) => {
           const profile = profilesMap[booking.user_id];
+          const sgtMember = profile?.sgt_user_id ? sgtMembersMap[profile.sgt_user_id] : null;
           return {
             id: booking.id,
             booking_date: booking.booking_date,
@@ -157,6 +181,8 @@ serve(async (req) => {
             customer_name: profile 
               ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim() 
               : 'Unknown',
+            sgt_user_id: profile?.sgt_user_id || null,
+            sgt_username: sgtMember?.user_name || null,
           };
         });
 

@@ -8,10 +8,11 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Lock, Wifi, Power, Clock, AlertTriangle, CheckCircle, XCircle, Settings, RefreshCw, Monitor, Play, Square, FolderOpen, ChevronDown, ChevronUp, Bell, X, Trash2, TestTube } from "lucide-react";
+import { Lock, Wifi, Power, Clock, AlertTriangle, CheckCircle, XCircle, Settings, RefreshCw, Monitor, Play, Square, FolderOpen, ChevronDown, ChevronUp, Bell, X, Trash2, TestTube, User } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format, addMinutes, isBefore, isAfter, parseISO } from "date-fns";
+import { SGTPlayerOverlay } from "@/components/bay-controller/SGTPlayerOverlay";
 
 interface Booking {
   id: string;
@@ -22,6 +23,8 @@ interface Booking {
   player_count: number;
   status: string;
   customer_name?: string;
+  sgt_user_id?: number | null;
+  sgt_username?: string | null;
 }
 
 interface TapoPlug {
@@ -76,37 +79,8 @@ const findDisplayByLabel = (displays: DisplayInfo[], label: string): DisplayInfo
   return displays.find(d => d.label === label);
 };
 
-// Type for Electron API exposed via preload
-declare global {
-  interface Window {
-    electronAPI?: {
-      isElectron: boolean;
-      tapoInit: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-      tapoTestLogin: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-      controlPlug: (email: string, password: string, ip: string, action: 'on' | 'off' | 'status') => Promise<{ success: boolean; isOn?: boolean; error?: string }>;
-      // App automation
-      getDisplays: () => Promise<DisplayInfo[]>;
-      launchApp: (exePath: string) => Promise<{ success: boolean; pid?: number; error?: string }>;
-      findWindow: (titlePattern: string) => Promise<{ success: boolean; hwnd?: number; title?: string; error?: string }>;
-      moveWindow: (hwnd: number, displayIndex: number, fullscreen?: boolean) => Promise<{ success: boolean; error?: string }>;
-      minimizeWindow: (hwnd: number) => Promise<{ success: boolean; error?: string }>;
-      focusWindow: (hwnd: number) => Promise<{ success: boolean; error?: string }>;
-      runAppSequence: (config: { gsproPath: string; proteeLabsPath: string; gsproDisplay: number; proteeDisplay: number; postLaunchDelay?: number }) => Promise<{ success: boolean; cancelled?: boolean; results?: any[]; error?: string }>;
-      cancelAppSequence: () => Promise<{ success: boolean }>;
-      closeApps: (appNames: string[]) => Promise<{ success: boolean; results?: any[]; error?: string }>;
-      checkWindowPositions: (gsproDisplay: number, proteeDisplay: number) => Promise<{ success: boolean; results?: { app: string; found: boolean; moved?: boolean; display?: number }[]; error?: string }>;
-      listWindows: () => Promise<{ success: boolean; windows?: { title: string; hwnd: number }[]; error?: string }>;
-      // Notification popup
-      showNotificationPopup: (message: string, displayLabel: string, durationMs: number) => Promise<{ success: boolean; error?: string }>;
-      closeNotificationPopup: () => Promise<{ success: boolean; error?: string }>;
-      // Security / Quit control
-      confirmQuit: () => Promise<{ success: boolean }>;
-      setAuthenticated: (authenticated: boolean) => Promise<{ success: boolean }>;
-      onRequestLock: (callback: () => void) => () => void;
-      onRequestQuitPassword: (callback: () => void) => () => void;
-    };
-  }
-}
+// Import Electron types
+import "@/types/electron.d";
 
 const CORRECT_PASSWORD = "Holeinone1";
 const APP_VERSION = "1.0.2";
@@ -235,6 +209,9 @@ export default function BayController() {
   });
   // activeNotification state removed - now using Electron popup windows
   const [shownNotifications, setShownNotifications] = useState<Set<string>>(new Set());
+  
+  // SGT Player overlay state
+  const [showSGTOverlay, setShowSGTOverlay] = useState(false);
   
   // Helper to add debug log
   const addLog = useCallback((message: string, type: 'info' | 'error' | 'success' = 'info') => {
@@ -1645,11 +1622,25 @@ export default function BayController() {
             </div>
             {activeBooking && (
               <div className="mt-4 p-3 bg-primary/10 rounded-lg">
-                <p className="font-medium">{activeBooking.customer_name || 'Active Booking'}</p>
-                <p className="text-sm text-muted-foreground">
-                  {activeBooking.start_time.slice(0, 5)} - {activeBooking.end_time.slice(0, 5)}
-                  {" "}({activeBooking.duration_hours}h, {activeBooking.player_count} player{activeBooking.player_count > 1 ? "s" : ""})
-                </p>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">{activeBooking.customer_name || 'Active Booking'}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {activeBooking.start_time.slice(0, 5)} - {activeBooking.end_time.slice(0, 5)}
+                      {" "}({activeBooking.duration_hours}h, {activeBooking.player_count} player{activeBooking.player_count > 1 ? "s" : ""})
+                    </p>
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setShowSGTOverlay(true)}
+                    className={activeBooking.sgt_user_id ? "border-green-500 text-green-600" : ""}
+                  >
+                    <User className="w-4 h-4 mr-1" />
+                    SGT
+                    {activeBooking.sgt_user_id && <Badge variant="secondary" className="ml-1 text-xs">Linked</Badge>}
+                  </Button>
+                </div>
               </div>
             )}
             <div className="flex gap-2 mt-4">
@@ -2346,6 +2337,16 @@ export default function BayController() {
           </Card>
         </div>
       )}
+
+      {/* SGT Player Overlay */}
+      <SGTPlayerOverlay
+        isOpen={showSGTOverlay}
+        onClose={() => setShowSGTOverlay(false)}
+        sgtUserId={activeBooking?.sgt_user_id || null}
+        sgtUsername={activeBooking?.sgt_username || null}
+        customerName={activeBooking?.customer_name || 'Unknown'}
+        isElectron={isElectron}
+      />
     </div>
   );
 }
