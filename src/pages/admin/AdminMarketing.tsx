@@ -69,6 +69,7 @@ interface CustomerFilter {
 const MEMBERSHIP_OPTIONS = [
   { value: "all", label: "All Customers" },
   { value: "visitor", label: "Visitor" },
+  { value: "weekday", label: "Weekday" },
   { value: "par", label: "Par" },
   { value: "birdie", label: "Birdie" },
   { value: "eagle", label: "Eagle" },
@@ -155,7 +156,7 @@ export default function AdminMarketing() {
       .eq("marketing_opt_out", false);
     
     if (membershipFilter !== "all") {
-      query = query.eq("membership_tier", membershipFilter as "visitor" | "par" | "birdie" | "eagle" | "albatross");
+      query = query.eq("membership_tier", membershipFilter as "visitor" | "weekday" | "par" | "birdie" | "eagle" | "albatross");
     }
     
     const { count, error } = await query;
@@ -245,7 +246,7 @@ export default function AdminMarketing() {
         .eq("marketing_opt_out", false);
       
       if (membershipFilter !== "all") {
-        recipientQuery = recipientQuery.eq("membership_tier", membershipFilter as "visitor" | "par" | "birdie" | "eagle" | "albatross");
+        recipientQuery = recipientQuery.eq("membership_tier", membershipFilter as "visitor" | "weekday" | "par" | "birdie" | "eagle" | "albatross");
       }
 
       const { data: recipients, error: recipientError } = await recipientQuery;

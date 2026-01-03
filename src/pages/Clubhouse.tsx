@@ -35,7 +35,7 @@ interface Comment {
   author_name?: string;
 }
 
-type MembershipTier = "visitor" | "par" | "birdie" | "eagle" | "albatross";
+type MembershipTier = "visitor" | "weekday" | "par" | "birdie" | "eagle" | "albatross";
 
 const Clubhouse = () => {
   const { user, isAuthenticated, isLoading } = useAuth();
