@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { format } from "date-fns";
-import { CalendarIcon, ChevronDown, ChevronUp } from "lucide-react";
+import { CalendarIcon, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -309,6 +309,7 @@ export function TournamentFormDialog({
   defaultTourId,
 }: TournamentFormDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoadingDetails, setIsLoadingDetails] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const queryClient = useQueryClient();
   const isEditing = !!tournament;
@@ -354,10 +355,51 @@ export function TournamentFormDialog({
 
   const watchNumberRounds = form.watch("numberrounds");
 
+  // Fetch tournament details from SGT API when editing
+  const fetchTournamentDetails = async (tournamentId: number) => {
+    setIsLoadingDetails(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("sgt-member-management", {
+        body: { action: "get-tournament-details", tournamentId },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      console.log("Tournament details from SGT:", data);
+      return data;
+    } catch (error) {
+      console.error("Failed to fetch tournament details:", error);
+      toast({
+        title: "Warning",
+        description: "Could not load all tournament settings. Some fields may use default values.",
+        variant: "destructive",
+      });
+      return null;
+    } finally {
+      setIsLoadingDetails(false);
+    }
+  };
+
+  // Helper to parse round config from SGT API response
+  const parseRoundConfig = (details: any, roundNum: number) => {
+    const courseId = details?.[`course${roundNum}Id`] || details?.[`course${roundNum}_id`];
+    return {
+      courseId: courseId ? parseInt(courseId) : undefined,
+      greenSpeed: parseInt(details?.[`green${roundNum}speed`] || details?.[`green${roundNum}_speed`]) || 11,
+      greenFirmness: (details?.[`green${roundNum}firmness`] || details?.[`green${roundNum}_firmness`] || "Normal") as typeof GREEN_FIRMNESS_OPTIONS[number],
+      fairwayFirmness: (details?.[`fairway${roundNum}firmness`] || details?.[`fairway${roundNum}_firmness`] || "Normal") as typeof FAIRWAY_FIRMNESS_OPTIONS[number],
+      tees: (details?.[`tees${roundNum}`] || "White") as typeof TEES_OPTIONS[number],
+      pins: (details?.[`pins${roundNum}`] || ["Thursday", "Friday", "Saturday", "Sunday"][roundNum - 1]) as typeof PINS_OPTIONS[number],
+      wind: (details?.[`wind${roundNum}`] || "Calm") as typeof WIND_OPTIONS[number],
+    };
+  };
+
   // Reset form when dialog opens
   useEffect(() => {
     if (open) {
       if (tournament) {
+        // First set basic values from local data, then fetch full details from SGT
         form.reset({
           tournamentname: tournament.name,
           tourId: tournament.tour_id.toString(),
@@ -379,6 +421,56 @@ export function TournamentFormDialog({
           startdate: tournament.start_date ? new Date(tournament.start_date) : undefined,
           enddate: tournament.end_date ? new Date(tournament.end_date) : undefined,
           round1: defaultRoundConfig,
+        });
+
+        // Fetch full details from SGT API
+        fetchTournamentDetails(tournament.tournament_id).then((details) => {
+          if (details) {
+            const numRounds = parseInt(details.numberrounds || details.number_rounds) || 1;
+            
+            form.reset({
+              tournamentname: details.tournamentname || details.tournament_name || tournament.name,
+              tourId: (details.tourId || details.tour_id || tournament.tour_id).toString(),
+              numberrounds: numRounds,
+              registrationon: details.registrationon === 1 || details.registration_on === 1 || details.registrationon === "1",
+              statson: details.statson === 1 || details.stats_on === 1 || details.statson === "1",
+              clubcombo: details.clubcombo === 1 || details.club_combo === 1 || details.clubcombo === "1",
+              points: (details.points || "Tour") as typeof POINTS_OPTIONS[number],
+              gameplay: (details.gameplay || "Normal") as typeof GAMEPLAY_OPTIONS[number],
+              stableford: details.stableford === 1 || details.stableford === "1",
+              numberholes: (details.numberholes || details.number_holes || "18") as typeof HOLES_OPTIONS[number],
+              gimmes: parseInt(details.gimmes) || 0,
+              puttingmode: (details.puttingmode || details.putting_mode || "Optimistic") as typeof PUTTING_MODE_OPTIONS[number],
+              head2head: details.head2head === 1 || details.head2head === "1",
+              hideleaderboard: details.hideleaderboard === 1 || details.hide_leaderboard === 1 || details.hideleaderboard === "1",
+              skins: details.skins === 1 || details.skins === "1",
+              mulligans: details.mulligans === 1 || details.mulligans === "1",
+              attempts: details.attempts === 1 || details.attempts === "1",
+              startdate: details.startdate || details.start_date 
+                ? new Date(details.startdate || details.start_date) 
+                : tournament.start_date ? new Date(tournament.start_date) : undefined,
+              enddate: details.enddate || details.end_date 
+                ? new Date(details.enddate || details.end_date) 
+                : tournament.end_date ? new Date(tournament.end_date) : undefined,
+              regstartdate: details.regstartdate || details.reg_start_date 
+                ? new Date(details.regstartdate || details.reg_start_date) 
+                : undefined,
+              regenddate: details.regenddate || details.reg_end_date 
+                ? new Date(details.regenddate || details.reg_end_date) 
+                : undefined,
+              round1: parseRoundConfig(details, 1),
+              round2: numRounds >= 2 ? parseRoundConfig(details, 2) : { ...defaultRoundConfig, pins: "Friday" as const },
+              round3: numRounds >= 3 ? parseRoundConfig(details, 3) : { ...defaultRoundConfig, pins: "Saturday" as const },
+              round4: numRounds >= 4 ? parseRoundConfig(details, 4) : { ...defaultRoundConfig, pins: "Sunday" as const },
+            });
+
+            // Open advanced settings if there are non-default values
+            if (details.gameplay !== "Normal" || details.points !== "Tour" || 
+                details.stableford || details.hideleaderboard || details.skins || 
+                details.mulligans || details.attempts || details.gimmes > 0) {
+              setShowAdvanced(true);
+            }
+          }
         });
       } else {
         form.reset({
@@ -514,11 +606,17 @@ export function TournamentFormDialog({
           <DialogTitle>{isEditing ? "Edit Tournament" : "Create Tournament"}</DialogTitle>
           <DialogDescription>
             {isEditing
-              ? "Update the tournament details below."
+              ? "Update the tournament details below. Settings are loaded from SGT."
               : "Fill in the details to create a new tournament with GSPro settings."}
           </DialogDescription>
         </DialogHeader>
 
+        {isLoadingDetails ? (
+          <div className="flex flex-col items-center justify-center py-12 space-y-4">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">Loading tournament settings from SGT...</p>
+          </div>
+        ) : (
         <ScrollArea className="max-h-[calc(90vh-120px)] pr-4">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -939,6 +1037,7 @@ export function TournamentFormDialog({
             </form>
           </Form>
         </ScrollArea>
+        )}
       </DialogContent>
     </Dialog>
   );
