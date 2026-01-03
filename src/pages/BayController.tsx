@@ -8,11 +8,12 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Lock, Wifi, Power, Clock, AlertTriangle, CheckCircle, XCircle, Settings, RefreshCw, Monitor, Play, Square, FolderOpen, ChevronDown, ChevronUp, Bell, X, Trash2, TestTube, User } from "lucide-react";
+import { Lock, Wifi, Power, Clock, AlertTriangle, CheckCircle, XCircle, Settings, RefreshCw, Monitor, Play, Square, FolderOpen, ChevronDown, ChevronUp, Bell, X, Trash2, TestTube, User, FileText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format, addMinutes, isBefore, isAfter, parseISO } from "date-fns";
 import { SGTPlayerOverlay } from "@/components/bay-controller/SGTPlayerOverlay";
+import { GSProBaselineSettings } from "@/components/bay-controller/GSProBaselineSettings";
 
 interface Booking {
   id: string;
@@ -2064,6 +2065,11 @@ export default function BayController() {
               )}
             </div>
           </details>
+        </CollapsibleSettingsCard>
+
+        {/* GSPro Baseline Settings - Collapsible */}
+        <CollapsibleSettingsCard title="GSPro Baseline Settings" icon={<FileText className="w-5 h-5" />} defaultOpen={false}>
+          <GSProBaselineSettings isElectron={isElectron} />
         </CollapsibleSettingsCard>
 
         {/* Customer Notifications - Collapsible */}

@@ -107,5 +107,42 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAutoPasteStatus: () => ipcRenderer.invoke('get-auto-paste-status'),
   
   // Clear/disarm auto-paste
-  clearAutoPaste: () => ipcRenderer.invoke('clear-auto-paste')
+  clearAutoPaste: () => ipcRenderer.invoke('clear-auto-paste'),
+  
+  // =====================================================
+  // GSPRO BASELINE SETTINGS APIs
+  // =====================================================
+  
+  // Get current baseline configuration
+  getBaselineConfig: () => ipcRenderer.invoke('get-baseline-config'),
+  
+  // Browse for GSPro folder
+  browseGsproFolder: () => ipcRenderer.invoke('browse-gspro-folder'),
+  
+  // Set GSPro folder path manually
+  setGsproFolder: (folderPath) => ipcRenderer.invoke('set-gspro-folder', { folderPath }),
+  
+  // Browse and upload a baseline file
+  browseBaselineFile: (fileName) => ipcRenderer.invoke('browse-baseline-file', { fileName }),
+  
+  // Enable/disable baseline restore feature
+  setBaselineEnabled: (enabled) => ipcRenderer.invoke('set-baseline-enabled', { enabled }),
+  
+  // Manually trigger baseline restore
+  restoreBaselineNow: () => ipcRenderer.invoke('restore-baseline-now'),
+  
+  // Check if GSPro is running
+  isGsproRunning: () => ipcRenderer.invoke('is-gspro-running'),
+  
+  // Listen for GSPro closed event
+  onGsproClosed: (callback) => {
+    ipcRenderer.on('gspro-closed', () => callback());
+    return () => ipcRenderer.removeAllListeners('gspro-closed');
+  },
+  
+  // Listen for baseline restored event
+  onBaselineRestored: (callback) => {
+    ipcRenderer.on('baseline-restored', (event, results) => callback(results));
+    return () => ipcRenderer.removeAllListeners('baseline-restored');
+  }
 });
