@@ -1,12 +1,15 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Loader2, AlertCircle } from "lucide-react";
+import { ArrowLeft, Loader2, AlertCircle, Wallet, CreditCard } from "lucide-react";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import { useBooking, PaymentMethod } from "@/hooks/useBooking";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { DateTimePicker } from "@/components/booking/DateTimePicker";
 import { BayAvailabilityGrid } from "@/components/booking/BayAvailabilityGrid";
 import { toast } from "@/hooks/use-toast";
@@ -41,6 +44,8 @@ export default function Booking() {
   const [selectedPlayers, setSelectedPlayers] = useState<number>(1);
   const [selectedBayId, setSelectedBayId] = useState<string | undefined>();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<"balance" | "card" | "partial">("card");
+  const [usePartialBalance, setUsePartialBalance] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -86,31 +91,50 @@ export default function Booking() {
 
     const totalPrice = hourlyRate * selectedDuration;
 
-    // Priority: 1) Balance if sufficient, 2) Saved card, 3) Redirect to Stripe
-    if (depositBalance >= totalPrice) {
+    // Use selected payment method
+    if (selectedPaymentMethod === "balance" && depositBalance >= totalPrice) {
       handleConfirmBooking("balance");
-    } else if (savedCard) {
-      handleConfirmBooking("card");
     } else {
-      handleConfirmBooking("card");
+      // Card payment (full or partial - partial balance deduction handled in hook)
+      handleConfirmBooking("card", usePartialBalance);
     }
   };
 
-  const handleConfirmBooking = async (paymentMethod: PaymentMethod) => {
+  const handleConfirmBooking = async (paymentMethod: PaymentMethod, applyPartialBalance: boolean = false) => {
     if (!selectedDate || !selectedTime || !selectedBayId) return;
 
     setIsSubmitting(true);
     try {
-      const result = await createBooking(selectedBayId, selectedDate, selectedTime, selectedDuration, selectedPlayers, paymentMethod);
+      const result = await createBooking(
+        selectedBayId, 
+        selectedDate, 
+        selectedTime, 
+        selectedDuration, 
+        selectedPlayers, 
+        paymentMethod,
+        undefined,
+        applyPartialBalance ? depositBalance : undefined
+      );
       
       if (result.requiresCheckout && result.checkoutUrl) {
         window.location.href = result.checkoutUrl;
         return;
       }
       
+      const totalPrice = hourlyRate * selectedDuration;
+      let message = `Your bay is booked for ${format(selectedDate, "PPP")} at ${selectedTime}.`;
+      if (paymentMethod === "balance") {
+        message += " Balance deducted.";
+      } else if (applyPartialBalance && depositBalance > 0) {
+        const cardAmount = totalPrice - depositBalance;
+        message += ` $${depositBalance.toFixed(2)} from balance, $${cardAmount.toFixed(2)} charged to card.`;
+      } else if (savedCard) {
+        message += ` Charged to card ending ${savedCard.last4}.`;
+      }
+      
       toast({
         title: "Booking confirmed!",
-        description: `Your bay is booked for ${format(selectedDate, "PPP")} at ${selectedTime}.${paymentMethod === "balance" ? " Balance deducted." : savedCard ? ` Charged to card ending ${savedCard.last4}.` : ""}`,
+        description: message,
       });
       navigate("/dashboard");
     } catch (error: any) {
@@ -242,6 +266,99 @@ export default function Booking() {
           </CardContent>
         </Card>
 
+        {/* Payment Method Selection - Only show if user has balance */}
+        {canConfirm && depositBalance > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="font-display text-xl">Payment Method</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <Wallet className="h-5 w-5 text-accent" />
+                  <span className="font-medium">Credit Balance</span>
+                </div>
+                <span className="font-semibold text-accent">${depositBalance.toFixed(2)}</span>
+              </div>
+
+              {(() => {
+                const totalPrice = hourlyRate * selectedDuration;
+                const hasEnoughBalance = depositBalance >= totalPrice;
+                const remainingAfterBalance = totalPrice - depositBalance;
+
+                return (
+                  <RadioGroup
+                    value={selectedPaymentMethod}
+                    onValueChange={(value) => {
+                      setSelectedPaymentMethod(value as "balance" | "card");
+                      if (value === "balance") {
+                        setUsePartialBalance(false);
+                      }
+                    }}
+                    className="space-y-3"
+                  >
+                    {/* Full balance payment option - only if enough balance */}
+                    {hasEnoughBalance && (
+                      <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-secondary/30 transition-colors">
+                        <RadioGroupItem value="balance" id="balance" />
+                        <Label htmlFor="balance" className="flex-1 cursor-pointer">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <Wallet className="h-4 w-4 text-muted-foreground" />
+                              <span>Pay with Credit Balance</span>
+                            </div>
+                            <span className="font-medium text-green-600">-${totalPrice.toFixed(2)}</span>
+                          </div>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            Remaining balance: ${(depositBalance - totalPrice).toFixed(2)}
+                          </p>
+                        </Label>
+                      </div>
+                    )}
+
+                    {/* Card payment option */}
+                    <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-secondary/30 transition-colors">
+                      <RadioGroupItem value="card" id="card" />
+                      <Label htmlFor="card" className="flex-1 cursor-pointer">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <CreditCard className="h-4 w-4 text-muted-foreground" />
+                            <span>
+                              {savedCard 
+                                ? `Pay with ${savedCard.brand} •••• ${savedCard.last4}` 
+                                : "Pay with Card"}
+                            </span>
+                          </div>
+                          <span className="font-medium">${totalPrice.toFixed(2)}</span>
+                        </div>
+                      </Label>
+                    </div>
+
+                    {/* Partial payment option - only if not enough balance but has some */}
+                    {!hasEnoughBalance && selectedPaymentMethod === "card" && (
+                      <div className="ml-6 p-3 border border-dashed rounded-lg bg-secondary/20">
+                        <div className="flex items-start space-x-3">
+                          <Checkbox 
+                            id="partial" 
+                            checked={usePartialBalance}
+                            onCheckedChange={(checked) => setUsePartialBalance(checked === true)}
+                          />
+                          <Label htmlFor="partial" className="cursor-pointer">
+                            <div className="font-medium">Apply credit balance to reduce card payment</div>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              Use ${depositBalance.toFixed(2)} credit, pay ${remainingAfterBalance.toFixed(2)} by card
+                            </p>
+                          </Label>
+                        </div>
+                      </div>
+                    )}
+                  </RadioGroup>
+                );
+              })()}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Confirm Button */}
         <div className="space-y-2">
           <Button
@@ -252,10 +369,21 @@ export default function Booking() {
             {isSubmitting ? (
               <>
                 <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                {savedCard ? "Charging Card..." : "Processing..."}
+                {selectedPaymentMethod === "balance" ? "Processing..." : "Charging Card..."}
               </>
             ) : (
-              `Confirm Booking${canConfirm ? ` - $${hourlyRate * selectedDuration}` : ""}`
+              (() => {
+                if (!canConfirm) return "Confirm Booking";
+                const totalPrice = hourlyRate * selectedDuration;
+                if (selectedPaymentMethod === "balance" && depositBalance >= totalPrice) {
+                  return `Confirm Booking - $${totalPrice.toFixed(2)} from Balance`;
+                }
+                if (usePartialBalance && depositBalance > 0) {
+                  const cardAmount = totalPrice - depositBalance;
+                  return `Confirm Booking - $${cardAmount.toFixed(2)} Card + $${depositBalance.toFixed(2)} Balance`;
+                }
+                return `Confirm Booking - $${totalPrice.toFixed(2)}`;
+              })()
             )}
           </Button>
           {canConfirm && depositBalance === 0 && (
