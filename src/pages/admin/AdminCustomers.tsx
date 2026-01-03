@@ -507,13 +507,14 @@ export default function AdminCustomers() {
 
     for (const customer of selectedCustomersList) {
       try {
-        // Delete profile (bookings will be orphaned but remain for records)
-        const { error } = await supabase
-          .from("profiles")
-          .delete()
-          .eq("id", customer.id);
+        // Delete user via edge function (deletes from auth.users, profile cascades)
+        const { data, error } = await supabase.functions.invoke("delete-customer", {
+          body: { user_id: customer.user_id },
+        });
 
         if (error) throw error;
+        if (data?.error) throw new Error(data.error);
+        
         successCount++;
       } catch (error) {
         console.error(`Failed to delete ${customer.email}:`, error);
