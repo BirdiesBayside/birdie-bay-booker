@@ -726,52 +726,134 @@ serve(async (req) => {
         break;
       }
 
+      case "get-tournament-details": {
+        // Get tournament details from SGT API
+        const { tournamentId } = params;
+        if (!tournamentId) throw new Error("tournamentId is required");
+
+        const response = await sgtRequest(clubUrl, `/tournaments/details?tournament_id=${tournamentId}`);
+        console.log(`[SGT-MEMBER-MGMT] Got tournament details for ID: ${tournamentId}`, response);
+        
+        result = response;
+        break;
+      }
+
       case "edit-tournament": {
-        // Edit an existing tournament
-        const { tournamentId, tournamentname, courseId, startdate, enddate, tourId } = params;
-        if (!tournamentId || !tournamentname || !startdate || !enddate) {
-          throw new Error("tournamentId, tournamentname, startdate, and enddate are required");
+        // Edit an existing tournament with full SGT API options
+        const { 
+          tournamentId,
+          tournamentname, tourId, 
+          // Tournament settings
+          numberrounds, registrationon, statson, clubcombo, points, gameplay,
+          stableford, numberholes, gimmes, puttingmode, head2head, hideleaderboard,
+          skins, mulligans, attempts,
+          // Dates
+          regstartdate, regenddate, startdate, enddate,
+          // Round 1 config
+          course1select, green1speed, green1firmness, fairway1firmness, tees1, pins1, wind1,
+          // Round 2 config (optional)
+          course2select, green2speed, green2firmness, fairway2firmness, tees2, pins2, wind2,
+          // Round 3 config (optional)
+          course3select, green3speed, green3firmness, fairway3firmness, tees3, pins3, wind3,
+          // Round 4 config (optional)
+          course4select, green4speed, green4firmness, fairway4firmness, tees4, pins4, wind4,
+        } = params;
+        
+        if (!tournamentId || !tournamentname || !tourId || !startdate || !enddate || !course1select) {
+          throw new Error("tournamentId, tournamentname, tourId, startdate, enddate, and course1select are required");
         }
 
+        // Build the request body with all SGT API parameters
         const body: Record<string, string> = {
-          tournament_id: tournamentId.toString(),
-          tournamentname: tournamentname,
+          tournamentId: tournamentId.toString(),
+          tourneyname: tournamentname,
+          tourId: tourId.toString(),
+          // Tournament settings
+          numberrounds: (numberrounds ?? 1).toString(),
+          registrationon: (registrationon ?? 1).toString(),
+          statson: (statson ?? 1).toString(),
+          clubcombo: (clubcombo ?? 1).toString(),
+          points: points ?? "Tour",
+          gameplay: gameplay ?? "Normal",
+          stableford: (stableford ?? 0).toString(),
+          numberholes: numberholes ?? "18",
+          gimmes: (gimmes ?? 0).toString(),
+          puttingmode: puttingmode ?? "Optimistic",
+          head2head: (head2head ?? 0).toString(),
+          hideleaderboard: (hideleaderboard ?? 0).toString(),
+          skins: (skins ?? 0).toString(),
+          mulligans: (mulligans ?? 0).toString(),
+          attempts: (attempts ?? 0).toString(),
+          // Dates
+          regstartdate: regstartdate ?? startdate,
+          regenddate: regenddate ?? enddate,
           startdate: startdate,
           enddate: enddate,
+          // Round 1 config (required)
+          course1select: course1select.toString(),
+          green1speed: (green1speed ?? 11).toString(),
+          green1firmness: green1firmness ?? "Normal",
+          fairway1firmness: fairway1firmness ?? "Normal",
+          tees1: tees1 ?? "White",
+          pins1: pins1 ?? "Thursday",
+          wind1: wind1 ?? "Calm",
         };
 
-        if (courseId) {
-          body.course_id = courseId.toString();
+        // Add round 2 config if present
+        if (course2select && parseInt(numberrounds ?? "1") >= 2) {
+          body.course2select = course2select.toString();
+          body.green2speed = (green2speed ?? 11).toString();
+          body.green2firmness = green2firmness ?? "Normal";
+          body.fairway2firmness = fairway2firmness ?? "Normal";
+          body.tees2 = tees2 ?? "White";
+          body.pins2 = pins2 ?? "Friday";
+          body.wind2 = wind2 ?? "Calm";
         }
 
-        const response = await sgtRequest(clubUrl, "/tournaments/edit", "POST", body) as { success?: boolean; feedback?: string };
+        // Add round 3 config if present
+        if (course3select && parseInt(numberrounds ?? "1") >= 3) {
+          body.course3select = course3select.toString();
+          body.green3speed = (green3speed ?? 11).toString();
+          body.green3firmness = green3firmness ?? "Normal";
+          body.fairway3firmness = fairway3firmness ?? "Normal";
+          body.tees3 = tees3 ?? "White";
+          body.pins3 = pins3 ?? "Saturday";
+          body.wind3 = wind3 ?? "Calm";
+        }
+
+        // Add round 4 config if present
+        if (course4select && parseInt(numberrounds ?? "1") >= 4) {
+          body.course4select = course4select.toString();
+          body.green4speed = (green4speed ?? 11).toString();
+          body.green4firmness = green4firmness ?? "Normal";
+          body.fairway4firmness = fairway4firmness ?? "Normal";
+          body.tees4 = tees4 ?? "White";
+          body.pins4 = pins4 ?? "Sunday";
+          body.wind4 = wind4 ?? "Calm";
+        }
+
+        const response = await sgtRequest(clubUrl, "/tournaments/edit", "POST", body) as { 
+          success?: boolean; 
+          feedback?: string; 
+        };
 
         if (response.success) {
-          // Get course name if courseId provided
-          let courseName = null;
-          if (courseId) {
-            const { data: courseData } = await adminClient
-              .from("sgt_courses")
-              .select("name")
-              .eq("course_id", courseId)
-              .single();
-            courseName = courseData?.name;
-          }
+          // Get course name from our database
+          const { data: courseData } = await adminClient
+            .from("sgt_courses")
+            .select("name")
+            .eq("course_id", course1select)
+            .maybeSingle();
 
           // Update our local database
-          const updateData: Record<string, unknown> = {
-            name: tournamentname,
-            start_date: startdate,
-            end_date: enddate,
-          };
-          
-          if (courseName) {
-            updateData.course_name = courseName;
-          }
-
           await adminClient
             .from("sgt_tournaments")
-            .update(updateData)
+            .update({
+              name: tournamentname,
+              course_name: courseData?.name || null,
+              start_date: startdate,
+              end_date: enddate,
+            })
             .eq("tournament_id", tournamentId);
           
           console.log(`[SGT-MEMBER-MGMT] Updated tournament: ${tournamentname} (ID: ${tournamentId})`);
