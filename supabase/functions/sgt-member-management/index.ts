@@ -907,11 +907,12 @@ serve(async (req) => {
 
       case "close-tournament": {
         // Close/complete a tournament
-        const { tournamentId } = params;
+        const { tournamentId, assessPoints } = params;
         if (!tournamentId) throw new Error("tournamentId is required");
 
         const response = await sgtRequest(clubUrl, "/tournaments/close", "POST", {
-          tournament_id: tournamentId.toString(),
+          tournamentId: tournamentId.toString(),
+          assess_points: (assessPoints ?? "1"),
         }) as { success?: boolean; feedback?: string };
 
         if (response.success) {
