@@ -44,6 +44,10 @@ interface TournamentResult {
   position: number;
   playerName: string;
   hcp: number | null;
+  rd1: number | null;
+  rd1ToPar: number | null;
+  rd2: number | null;
+  rd2ToPar: number | null;
   total: number | null;
   toPar: number | null;
   courseName: string | null;
@@ -369,16 +373,11 @@ export default function EmbedLeaderboard() {
                     </span>
                   </div>
 
-                  <div className="col-span-7 md:col-span-4 flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-[hsl(128,42%,21%)] text-white flex items-center justify-center font-bold">
-                      {standing.user_name.charAt(0).toUpperCase()}
-                    </div>
-                    <div>
-                      <p className="font-semibold text-[hsl(128,42%,21%)]">{standing.user_name}</p>
-                      <p className="text-xs text-[hsl(128,20%,40%)] md:hidden">
-                        {standing.events} events • {standing.points} pts
-                      </p>
-                    </div>
+                  <div className="col-span-7 md:col-span-4">
+                    <p className="font-semibold text-[hsl(128,42%,21%)]">{standing.user_name}</p>
+                    <p className="text-xs text-[hsl(128,20%,40%)] md:hidden">
+                      {standing.events} events • {standing.points} pts
+                    </p>
                   </div>
 
                   <div className="hidden md:block col-span-1 text-center text-[hsl(128,20%,40%)]">
@@ -430,11 +429,13 @@ export default function EmbedLeaderboard() {
             )}
 
             {/* Table Header */}
-            <div className="hidden md:grid grid-cols-12 gap-4 px-4 py-3 bg-[hsl(128,42%,21%)] text-sm font-medium text-white">
+            <div className="hidden md:grid grid-cols-12 gap-2 px-4 py-3 bg-[hsl(128,42%,21%)] text-sm font-medium text-white">
               <div className="col-span-1 text-center">#</div>
-              <div className="col-span-5">Player</div>
-              <div className="col-span-2 text-center">HCP</div>
-              <div className="col-span-2 text-center">Score</div>
+              <div className="col-span-3">Player</div>
+              <div className="col-span-1 text-center">HCP</div>
+              <div className="col-span-2 text-center">Rd 1</div>
+              <div className="col-span-2 text-center">Rd 2</div>
+              <div className="col-span-1 text-center">Total</div>
               <div className="col-span-2 text-center">To Par</div>
             </div>
 
@@ -443,7 +444,7 @@ export default function EmbedLeaderboard() {
               {tournamentResults.map((result) => (
                 <div
                   key={result.playerName}
-                  className="grid grid-cols-12 gap-4 px-4 py-3 items-center hover:bg-[hsl(37,100%,97%)] transition-colors"
+                  className="grid grid-cols-12 gap-2 px-4 py-3 items-center hover:bg-[hsl(37,100%,97%)] transition-colors"
                 >
                   <div className="col-span-2 md:col-span-1 flex items-center justify-center gap-1">
                     {getPositionIcon(result.position)}
@@ -455,22 +456,23 @@ export default function EmbedLeaderboard() {
                     </span>
                   </div>
 
-                  <div className="col-span-6 md:col-span-5 flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-[hsl(128,42%,21%)] text-white flex items-center justify-center font-bold">
-                      {result.playerName.charAt(0).toUpperCase()}
-                    </div>
-                    <div>
-                      <p className="font-semibold text-[hsl(128,42%,21%)]">{result.playerName}</p>
-                      <p className="text-xs text-[hsl(128,20%,40%)] md:hidden">
-                        {result.total ?? "-"} ({formatScore(result.toPar)})
-                      </p>
-                    </div>
+                  <div className="col-span-6 md:col-span-3">
+                    <p className="font-semibold text-[hsl(128,42%,21%)]">{result.playerName}</p>
+                    <p className="text-xs text-[hsl(128,20%,40%)] md:hidden">
+                      HCP: {result.hcp ?? "-"} | Rd1: {result.rd1 ?? "-"} | Rd2: {result.rd2 ?? "-"} | Total: {result.total ?? "-"} ({formatScore(result.toPar)})
+                    </p>
                   </div>
 
-                  <div className="hidden md:block col-span-2 text-center text-[hsl(128,20%,40%)]">
+                  <div className="hidden md:block col-span-1 text-center text-[hsl(128,20%,40%)]">
                     {result.hcp ?? "-"}
                   </div>
-                  <div className="hidden md:block col-span-2 text-center font-bold text-[hsl(128,42%,21%)]">
+                  <div className="hidden md:block col-span-2 text-center text-[hsl(128,20%,40%)]">
+                    {result.rd1 ?? "-"}
+                  </div>
+                  <div className="hidden md:block col-span-2 text-center text-[hsl(128,20%,40%)]">
+                    {result.rd2 ?? "-"}
+                  </div>
+                  <div className="hidden md:block col-span-1 text-center font-bold text-[hsl(128,42%,21%)]">
                     {result.total ?? "-"}
                   </div>
                   <div className="col-span-4 md:col-span-2 text-center">
