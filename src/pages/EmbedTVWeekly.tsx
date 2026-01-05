@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Trophy, Medal, Award, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
-import birdiesLogo from "@/assets/birdies-logo.png";
+import birdiesLogo from "@/assets/birdies-b-orange.png";
 
 interface Tour {
   tour_id: number;
