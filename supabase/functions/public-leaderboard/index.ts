@@ -100,24 +100,64 @@ Deno.serve(async (req) => {
           });
         }
 
-        // Get scorecards for this tournament
+        // Get scorecards for this tournament, including round number
         const { data: scorecards, error } = await supabase
           .from("sgt_scorecards")
-          .select("player_name, hcp_index, total_gross, total_net, to_par_gross, to_par_net, course_name")
+          .select("player_name, player_id, hcp_index, total_gross, total_net, to_par_gross, to_par_net, course_name, round")
           .eq("tournament_id", parseInt(tournamentId))
-          .order(grossOrNet === "gross" ? "total_gross" : "total_net", { ascending: true });
+          .order("player_name", { ascending: true })
+          .order("round", { ascending: true });
 
         if (error) throw error;
 
-        // Calculate positions based on score
-        const results = (scorecards || []).map((card, index) => ({
-          position: index + 1,
-          playerName: card.player_name,
-          hcp: card.hcp_index,
-          total: grossOrNet === "gross" ? card.total_gross : card.total_net,
-          toPar: grossOrNet === "gross" ? card.to_par_gross : card.to_par_net,
-          courseName: card.course_name,
-        }));
+        // Group scorecards by player and consolidate rounds
+        const playerMap = new Map<number, {
+          playerName: string;
+          hcp: number | null;
+          rounds: { round: number; score: number | null; toPar: number | null }[];
+          totalScore: number;
+          totalToPar: number;
+          courseName: string | null;
+        }>();
+
+        for (const card of scorecards || []) {
+          const score = grossOrNet === "gross" ? card.total_gross : card.total_net;
+          const toPar = grossOrNet === "gross" ? card.to_par_gross : card.to_par_net;
+          const roundNum = card.round || 1;
+
+          if (!playerMap.has(card.player_id)) {
+            playerMap.set(card.player_id, {
+              playerName: card.player_name,
+              hcp: card.hcp_index,
+              rounds: [],
+              totalScore: 0,
+              totalToPar: 0,
+              courseName: card.course_name,
+            });
+          }
+
+          const player = playerMap.get(card.player_id)!;
+          player.rounds.push({ round: roundNum, score, toPar });
+          if (score !== null) player.totalScore += score;
+          if (toPar !== null) player.totalToPar += toPar;
+        }
+
+        // Convert to array and sort by total score
+        const results = Array.from(playerMap.values())
+          .filter(p => p.rounds.length > 0)
+          .sort((a, b) => a.totalScore - b.totalScore)
+          .map((player, index) => ({
+            position: index + 1,
+            playerName: player.playerName,
+            hcp: player.hcp,
+            rd1: player.rounds.find(r => r.round === 1)?.score ?? null,
+            rd1ToPar: player.rounds.find(r => r.round === 1)?.toPar ?? null,
+            rd2: player.rounds.find(r => r.round === 2)?.score ?? null,
+            rd2ToPar: player.rounds.find(r => r.round === 2)?.toPar ?? null,
+            total: player.totalScore,
+            toPar: player.totalToPar,
+            courseName: player.courseName,
+          }));
 
         return new Response(JSON.stringify({ results }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
