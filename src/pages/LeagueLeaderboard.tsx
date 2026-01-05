@@ -27,7 +27,7 @@ export default function LeagueLeaderboard() {
   const [tournamentResults, setTournamentResults] = useState<TournamentResult[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [scoreType, setScoreType] = useState<"gross" | "net">("net");
-  const [viewMode, setViewMode] = useState<"overall" | "weekly">("overall");
+  const [viewMode, setViewMode] = useState<"overall" | "weekly">("weekly");
   const [showAllWeeks, setShowAllWeeks] = useState(false);
 
   const INITIAL_WEEKS_TO_SHOW = 5;
