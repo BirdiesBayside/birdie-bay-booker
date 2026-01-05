@@ -424,8 +424,8 @@ export default function EmbedLeaderboard() {
               </div>
             )}
 
-            {/* Table Header */}
-            <div className="hidden md:grid grid-cols-12 gap-2 px-4 py-3 bg-[hsl(128,42%,21%)] text-sm font-medium text-white">
+            {/* Table Header - Desktop */}
+            <div className="hidden sm:grid grid-cols-12 gap-2 px-4 py-3 bg-[hsl(128,42%,21%)] text-sm font-medium text-white">
               <div className="col-span-1 text-center">#</div>
               <div className="col-span-3">Player</div>
               <div className="col-span-1 text-center">HCP</div>
@@ -435,49 +435,64 @@ export default function EmbedLeaderboard() {
               <div className="col-span-2 text-center">To Par</div>
             </div>
 
+            {/* Table Header - Mobile */}
+            <div className="grid sm:hidden grid-cols-12 gap-1 px-3 py-2 bg-[hsl(128,42%,21%)] text-xs font-medium text-white">
+              <div className="col-span-1 text-center">#</div>
+              <div className="col-span-3">Player</div>
+              <div className="col-span-2 text-center">Rd1</div>
+              <div className="col-span-2 text-center">Rd2</div>
+              <div className="col-span-2 text-center">Tot</div>
+              <div className="col-span-2 text-center">+/-</div>
+            </div>
+
             {/* Table Body */}
             <div className="divide-y divide-[hsl(128,20%,85%)]">
               {tournamentResults.map((result) => (
                 <div
                   key={result.playerName}
-                  className="grid grid-cols-12 gap-2 px-4 py-3 items-center hover:bg-[hsl(37,100%,97%)] transition-colors"
+                  className="grid grid-cols-12 gap-1 sm:gap-2 px-3 sm:px-4 py-2 sm:py-3 items-center hover:bg-[hsl(37,100%,97%)] transition-colors"
                 >
-                  <div className="col-span-2 md:col-span-1 flex items-center justify-center gap-1">
-                    {getPositionIcon(result.position)}
+                  {/* Position */}
+                  <div className="col-span-1 flex items-center justify-center gap-0.5 sm:gap-1">
+                    <span className="hidden sm:inline">{getPositionIcon(result.position)}</span>
                     <span className={cn(
-                      "font-bold",
+                      "font-bold text-xs sm:text-base",
                       result.position <= 3 ? "text-[hsl(128,42%,21%)]" : "text-[hsl(128,20%,40%)]"
                     )}>
                       {result.position}
                     </span>
                   </div>
 
-                  <div className="col-span-6 md:col-span-3">
-                    <p className="font-semibold text-[hsl(128,42%,21%)]">{result.playerName}</p>
-                    <p className="text-xs text-[hsl(128,20%,40%)] md:hidden">
-                      HCP: {result.hcp ?? "-"} | Rd1:{" "}
-                      {result.dnf && result.rd1 === null ? "DNF" : result.rd1 ?? "-"} | Rd2:{" "}
-                      {result.dnf && result.rd2 === null ? "DNF" : result.rd2 ?? "-"} | Total:{" "}
-                      {result.dnf ? "DNF" : result.total ?? "-"} ({result.dnf ? "DNF" : formatScore(result.toPar)})
+                  {/* Player Name */}
+                  <div className="col-span-3">
+                    <p className="font-semibold text-[hsl(128,42%,21%)] text-xs sm:text-base truncate">
+                      {result.playerName}
+                    </p>
+                    <p className="hidden sm:block text-xs text-[hsl(128,20%,40%)]">
+                      HCP: {result.hcp ?? "-"}
                     </p>
                   </div>
 
-                  <div className="hidden md:block col-span-1 text-center text-[hsl(128,20%,40%)]">
-                    {result.hcp ?? "-"}
-                  </div>
-                  <div className="hidden md:block col-span-2 text-center text-[hsl(128,20%,40%)]">
+                  {/* Rd1 */}
+                  <div className="col-span-2 text-center text-xs sm:text-sm text-[hsl(128,20%,40%)]">
                     {result.dnf && result.rd1 === null ? "DNF" : result.rd1 ?? "-"}
                   </div>
-                  <div className="hidden md:block col-span-2 text-center text-[hsl(128,20%,40%)]">
+
+                  {/* Rd2 */}
+                  <div className="col-span-2 text-center text-xs sm:text-sm text-[hsl(128,20%,40%)]">
                     {result.dnf && result.rd2 === null ? "DNF" : result.rd2 ?? "-"}
                   </div>
-                  <div className="hidden md:block col-span-1 text-center font-bold text-[hsl(128,42%,21%)]">
+
+                  {/* Total */}
+                  <div className="col-span-2 sm:col-span-1 text-center font-bold text-xs sm:text-base text-[hsl(128,42%,21%)]">
                     {result.dnf ? "DNF" : result.total ?? "-"}
                   </div>
-                  <div className="col-span-4 md:col-span-2 text-center">
+
+                  {/* To Par */}
+                  <div className="col-span-2 text-center">
                     <span
                       className={cn(
-                        "px-2 py-1 rounded font-bold text-sm",
+                        "px-1 sm:px-2 py-0.5 sm:py-1 rounded font-bold text-xs sm:text-sm",
                         result.dnf && "bg-muted text-muted-foreground",
                         !result.dnf && result.toPar !== null && result.toPar < 0 && "bg-red-100 text-red-700",
                         !result.dnf && result.toPar === 0 && "bg-green-100 text-green-700",
