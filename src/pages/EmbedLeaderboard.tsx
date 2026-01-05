@@ -51,12 +51,7 @@ interface TournamentResult {
 
 async function fetchPublicLeaderboard(action: string, params: Record<string, string> = {}) {
   const queryParams = new URLSearchParams({ action, ...params });
-  const { data, error } = await supabase.functions.invoke("public-leaderboard", {
-    body: null,
-    method: "GET",
-  });
   
-  // Use direct fetch for GET with query params
   const response = await fetch(
     `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/public-leaderboard?${queryParams}`,
     { headers: { "Content-Type": "application/json" } }
