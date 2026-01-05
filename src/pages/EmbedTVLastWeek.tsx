@@ -10,15 +10,23 @@ interface Tour {
   active: number;
 }
 
-interface Standing {
+interface Tournament {
+  tournament_id: number;
+  name: string;
+  course_name: string | null;
+  start_date: string | null;
+  status: string | null;
+}
+
+interface TournamentResult {
   position: number;
-  user_name: string;
+  playerName: string;
   hcp: number | null;
-  events: number | null;
-  first: number | null;
-  top5: number | null;
-  top10: number | null;
-  points: number | null;
+  rd1: number | null;
+  rd2: number | null;
+  total: number | null;
+  toPar: number | null;
+  dnf: boolean;
 }
 
 async function fetchPublicLeaderboard(action: string, params: Record<string, string> = {}) {
@@ -30,9 +38,10 @@ async function fetchPublicLeaderboard(action: string, params: Record<string, str
   return data;
 }
 
-export default function EmbedTVStandings() {
+export default function EmbedTVLastWeek() {
   const [activeTour, setActiveTour] = useState<Tour | null>(null);
-  const [standings, setStandings] = useState<Standing[]>([]);
+  const [previousTournament, setPreviousTournament] = useState<Tournament | null>(null);
+  const [results, setResults] = useState<TournamentResult[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
 
@@ -44,15 +53,21 @@ export default function EmbedTVStandings() {
       if (!active) return;
       setActiveTour(active);
 
-      // Get standings for active tour
-      const standingsData = await fetchPublicLeaderboard("standings", {
-        tourId: active.tour_id.toString(),
+      // Get tournaments for active tour - get the second one (previous week)
+      const tournamentsData = await fetchPublicLeaderboard("tournaments", { tourId: active.tour_id.toString() });
+      const previous = tournamentsData.tournaments?.[1]; // Index 1 = previous week
+      if (!previous) return;
+      setPreviousTournament(previous);
+
+      // Get results for previous tournament
+      const resultsData = await fetchPublicLeaderboard("tournament-results", {
+        tournamentId: previous.tournament_id.toString(),
         grossOrNet: "net",
       });
-      setStandings(standingsData.standings || []);
+      setResults(resultsData.results || []);
       setLastUpdated(new Date());
     } catch (error) {
-      console.error("Failed to load TV standings:", error);
+      console.error("Failed to load TV data:", error);
     } finally {
       setIsLoading(false);
     }
@@ -74,6 +89,13 @@ export default function EmbedTVStandings() {
     }
   };
 
+  const formatScore = (score: number | null) => {
+    if (score === null || score === undefined) return "-";
+    if (score === 0) return "E";
+    if (score > 0) return `+${score}`;
+    return score.toString();
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[hsl(37,100%,95%)] flex items-center justify-center">
@@ -90,16 +112,16 @@ export default function EmbedTVStandings() {
           <img src={birdiesLogo} alt="Birdies" className="h-16" />
           <div>
             <h1 className="font-bold text-4xl text-[hsl(128,42%,21%)] tracking-tight">
-              OVERALL STANDINGS
+              {previousTournament?.name || "Last Week Results"}
             </h1>
             <p className="text-xl text-[hsl(128,20%,40%)]">
-              {activeTour?.name} • NET Scores
+              {previousTournament?.course_name} • NET Scores
             </p>
           </div>
         </div>
         <div className="text-right">
           <div className="px-6 py-3 bg-[hsl(128,42%,21%)] text-white rounded-lg text-xl font-bold">
-            OVERALL
+            LAST WEEK
           </div>
           <p className="text-sm text-[hsl(128,20%,40%)] mt-2">
             Updated: {lastUpdated.toLocaleTimeString()}
@@ -107,64 +129,67 @@ export default function EmbedTVStandings() {
         </div>
       </div>
 
-      {/* Standings Table */}
+      {/* Leaderboard Table */}
       <div className="flex-1 bg-white rounded-2xl border-2 border-[hsl(128,20%,85%)] overflow-hidden shadow-lg">
         {/* Table Header */}
         <div className="grid grid-cols-12 gap-4 px-6 py-4 bg-[hsl(128,42%,21%)] text-xl font-bold text-white">
           <div className="col-span-1 text-center">#</div>
           <div className="col-span-4">Player</div>
           <div className="col-span-1 text-center">HCP</div>
-          <div className="col-span-1 text-center">Events</div>
-          <div className="col-span-1 text-center">Wins</div>
-          <div className="col-span-1 text-center">Top 5</div>
-          <div className="col-span-1 text-center">Top 10</div>
-          <div className="col-span-2 text-center">Points</div>
+          <div className="col-span-2 text-center">Rd 1</div>
+          <div className="col-span-2 text-center">Rd 2</div>
+          <div className="col-span-1 text-center">Total</div>
+          <div className="col-span-1 text-center">+/-</div>
         </div>
 
         {/* Table Body */}
         <div className="divide-y divide-[hsl(128,20%,85%)]">
-          {standings.slice(0, 12).map((standing) => (
+          {results.slice(0, 12).map((result) => (
             <div
-              key={standing.user_name}
+              key={result.playerName}
               className={cn(
                 "grid grid-cols-12 gap-4 px-6 py-4 items-center",
-                standing.position <= 3 && "bg-[hsl(37,100%,97%)]"
+                result.position <= 3 && "bg-[hsl(37,100%,97%)]"
               )}
             >
               <div className="col-span-1 flex items-center justify-center gap-2">
-                {getPositionIcon(standing.position)}
+                {getPositionIcon(result.position)}
                 <span className={cn(
                   "font-bold text-2xl",
-                  standing.position <= 3 ? "text-[hsl(128,42%,21%)]" : "text-[hsl(128,20%,40%)]"
+                  result.position <= 3 ? "text-[hsl(128,42%,21%)]" : "text-[hsl(128,20%,40%)]"
                 )}>
-                  {standing.position}
+                  {result.position}
                 </span>
               </div>
 
               <div className="col-span-4">
-                <p className="font-bold text-2xl text-[hsl(128,42%,21%)]">{standing.user_name}</p>
+                <p className="font-bold text-2xl text-[hsl(128,42%,21%)]">{result.playerName}</p>
               </div>
 
               <div className="col-span-1 text-center text-xl text-[hsl(128,20%,40%)]">
-                {standing.hcp ?? "-"}
+                {result.hcp ?? "-"}
               </div>
-              <div className="col-span-1 text-center text-xl text-[hsl(128,20%,40%)]">
-                {standing.events ?? 0}
+              <div className="col-span-2 text-center text-xl text-[hsl(128,20%,40%)]">
+                {result.dnf && result.rd1 === null ? "DNF" : result.rd1 ?? "-"}
               </div>
-              <div className="col-span-1 text-center text-xl font-medium text-[hsl(128,42%,21%)]">
-                {standing.first || "-"}
+              <div className="col-span-2 text-center text-xl text-[hsl(128,20%,40%)]">
+                {result.dnf && result.rd2 === null ? "DNF" : result.rd2 ?? "-"}
               </div>
-              <div className="col-span-1 text-center text-xl text-[hsl(128,20%,40%)]">
-                {standing.top5 || "-"}
+              <div className="col-span-1 text-center font-bold text-2xl text-[hsl(128,42%,21%)]">
+                {result.dnf ? "DNF" : result.total ?? "-"}
               </div>
-              <div className="col-span-1 text-center text-xl text-[hsl(128,20%,40%)]">
-                {standing.top10 || "-"}
-              </div>
-              <div className="col-span-2 text-center">
-                <span className="font-bold text-3xl text-[hsl(128,42%,21%)]">
-                  {standing.points ?? 0}
+              <div className="col-span-1 text-center">
+                <span
+                  className={cn(
+                    "px-3 py-1 rounded-lg font-bold text-xl",
+                    result.dnf && "bg-muted text-muted-foreground",
+                    !result.dnf && result.toPar !== null && result.toPar < 0 && "bg-red-100 text-red-700",
+                    !result.dnf && result.toPar === 0 && "bg-green-100 text-green-700",
+                    !result.dnf && result.toPar !== null && result.toPar > 0 && "bg-blue-100 text-blue-700",
+                  )}
+                >
+                  {result.dnf ? "DNF" : formatScore(result.toPar)}
                 </span>
-                <span className="text-lg text-[hsl(128,20%,40%)] ml-1">pts</span>
               </div>
             </div>
           ))}
