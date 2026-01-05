@@ -80,3 +80,6 @@ verify_jwt = false
 
 [functions.redeem-gift-card]
 verify_jwt = false
+
+[functions.public-leaderboard]
+verify_jwt = false
