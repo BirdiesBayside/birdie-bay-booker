@@ -2,17 +2,28 @@ import { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { User, Copy, Check, GripHorizontal, X, ClipboardPaste, Info } from "lucide-react";
+import { User, Copy, Check, GripHorizontal, X, ClipboardPaste, Info, Clock, Calendar } from "lucide-react";
 import { toast } from "sonner";
 import "@/types/electron.d";
+import { format, parseISO } from "date-fns";
+
+interface NextBooking {
+  id: string;
+  booking_date: string;
+  start_time: string;
+  customer_name?: string;
+  sgt_user_id?: number | null;
+  sgt_username?: string | null;
+}
 
 interface SGTPlayerOverlayProps {
   isOpen: boolean;
   onClose: () => void;
   sgtUserId: number | null;
   sgtUsername: string | null;
-  customerName: string;
+  customerName: string | null;
   isElectron: boolean;
+  nextBooking?: NextBooking;
 }
 
 export function SGTPlayerOverlay({
@@ -22,6 +33,7 @@ export function SGTPlayerOverlay({
   sgtUsername,
   customerName,
   isElectron,
+  nextBooking,
 }: SGTPlayerOverlayProps) {
   const [position, setPosition] = useState({ x: 100, y: 100 });
   const [isDragging, setIsDragging] = useState(false);
@@ -140,6 +152,7 @@ export function SGTPlayerOverlay({
 
   if (!isOpen) return null;
 
+  const hasActiveBooking = customerName !== null;
   const hasSGTAccount = sgtUserId && sgtUsername;
 
   return (
@@ -172,108 +185,150 @@ export function SGTPlayerOverlay({
         </CardHeader>
 
         <CardContent className="p-4 pt-0 space-y-4">
-          {/* Customer Name */}
-          <div className="space-y-1">
-            <p className="text-xs text-muted-foreground">Current Booker</p>
-            <p className="font-medium flex items-center gap-2">
-              <User className="h-4 w-4" />
-              {customerName}
-            </p>
-          </div>
-
-          {hasSGTAccount ? (
+          {hasActiveBooking ? (
             <>
-              <div className="h-px bg-border" />
-
-              {/* SGT Username */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs text-muted-foreground">SGT Username</p>
-                  <Badge variant="secondary" className="text-xs">SGT Linked</Badge>
-                </div>
-                <div className="flex items-center gap-2">
-                  <code className="flex-1 bg-muted px-3 py-2 rounded text-sm font-mono truncate">
-                    {sgtUsername}
-                  </code>
-                  <Button
-                    size="sm"
-                    variant={copiedField === "username" ? "secondary" : "outline"}
-                    className="shrink-0"
-                    onClick={() => copyForPaste("Username", sgtUsername!)}
-                  >
-                    {copiedField === "username" ? (
-                      <Check className="h-4 w-4" />
-                    ) : (
-                      <Copy className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
+              {/* Customer Name */}
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Current Booker</p>
+                <p className="font-medium flex items-center gap-2">
+                  <User className="h-4 w-4" />
+                  {customerName}
+                </p>
               </div>
 
-              {/* SGT User ID */}
-              <div className="space-y-2">
-                <p className="text-xs text-muted-foreground">SGT User ID (UID)</p>
-                <div className="flex items-center gap-2">
-                  <code className="flex-1 bg-muted px-3 py-2 rounded text-sm font-mono">
-                    {sgtUserId}
-                  </code>
-                  <Button
-                    size="sm"
-                    variant={copiedField === "uid" ? "secondary" : "outline"}
-                    className="shrink-0"
-                    onClick={() => copyForPaste("UID", sgtUserId!.toString())}
-                  >
-                    {copiedField === "uid" ? (
-                      <Check className="h-4 w-4" />
-                    ) : (
-                      <Copy className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
-              </div>
+              {hasSGTAccount ? (
+                <>
+                  <div className="h-px bg-border" />
 
-              <div className="h-px bg-border" />
-
-              {/* Auto-paste button */}
-              {autoPasteArmed ? (
-                <div className="space-y-2">
-                  <p className="text-xs text-muted-foreground text-center">
-                    Click in the GSPro field, then click Paste
-                  </p>
-                  <div className="flex gap-2">
-                    <Button
-                      className="flex-1"
-                      onClick={triggerPaste}
-                    >
-                      <ClipboardPaste className="h-4 w-4 mr-2" />
-                      Paste {autoPasteArmed}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={clearArmed}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
+                  {/* SGT Username */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-muted-foreground">SGT Username</p>
+                      <Badge variant="secondary" className="text-xs">SGT Linked</Badge>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 bg-muted px-3 py-2 rounded text-sm font-mono truncate">
+                        {sgtUsername}
+                      </code>
+                      <Button
+                        size="sm"
+                        variant={copiedField === "username" ? "secondary" : "outline"}
+                        className="shrink-0"
+                        onClick={() => copyForPaste("Username", sgtUsername!)}
+                      >
+                        {copiedField === "username" ? (
+                          <Check className="h-4 w-4" />
+                        ) : (
+                          <Copy className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
                   </div>
-                </div>
+
+                  {/* SGT User ID */}
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground">SGT User ID (UID)</p>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 bg-muted px-3 py-2 rounded text-sm font-mono">
+                        {sgtUserId}
+                      </code>
+                      <Button
+                        size="sm"
+                        variant={copiedField === "uid" ? "secondary" : "outline"}
+                        className="shrink-0"
+                        onClick={() => copyForPaste("UID", sgtUserId!.toString())}
+                      >
+                        {copiedField === "uid" ? (
+                          <Check className="h-4 w-4" />
+                        ) : (
+                          <Copy className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="h-px bg-border" />
+
+                  {/* Auto-paste button */}
+                  {autoPasteArmed ? (
+                    <div className="space-y-2">
+                      <p className="text-xs text-muted-foreground text-center">
+                        Click in the GSPro field, then click Paste
+                      </p>
+                      <div className="flex gap-2">
+                        <Button
+                          className="flex-1"
+                          onClick={triggerPaste}
+                        >
+                          <ClipboardPaste className="h-4 w-4 mr-2" />
+                          Paste {autoPasteArmed}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={clearArmed}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-lg">
+                      <p className="flex items-start gap-2">
+                        <Info className="h-4 w-4 mt-0.5 shrink-0" />
+                        <span>
+                          Click Copy on a field, then click in the GSPro input field, and click the Paste button.
+                        </span>
+                      </p>
+                    </div>
+                  )}
+                </>
               ) : (
-                <div className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-lg">
-                  <p className="flex items-start gap-2">
-                    <Info className="h-4 w-4 mt-0.5 shrink-0" />
-                    <span>
-                      Click Copy on a field, then click in the GSPro input field, and click the Paste button.
-                    </span>
+                <div className="text-sm text-muted-foreground bg-muted/50 p-4 rounded-lg text-center">
+                  <p className="mb-2">No SGT account linked to this customer.</p>
+                  <p className="text-xs">
+                    They can link their account via the Birdies app.
                   </p>
                 </div>
               )}
             </>
           ) : (
-            <div className="text-sm text-muted-foreground bg-muted/50 p-4 rounded-lg text-center">
-              <p className="mb-2">No SGT account linked to this customer.</p>
-              <p className="text-xs">
-                They can link their account via the Birdies app.
-              </p>
+            <div className="space-y-4">
+              <div className="text-sm text-muted-foreground bg-muted/50 p-4 rounded-lg text-center">
+                <Clock className="h-6 w-6 mx-auto mb-2 opacity-50" />
+                <p className="font-medium text-foreground">No Active Booking</p>
+                <p className="text-xs mt-1">
+                  Press F12 again to close this overlay
+                </p>
+              </div>
+
+              {nextBooking && (
+                <>
+                  <div className="h-px bg-border" />
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Calendar className="h-3 w-3" />
+                      Next Booking
+                    </p>
+                    <div className="bg-muted/30 p-3 rounded-lg space-y-2">
+                      <p className="font-medium flex items-center gap-2">
+                        <User className="h-4 w-4" />
+                        {nextBooking.customer_name || 'Unknown'}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {format(parseISO(`${nextBooking.booking_date}T${nextBooking.start_time}`), "h:mm a")}
+                      </p>
+                      {nextBooking.sgt_username ? (
+                        <Badge variant="secondary" className="text-xs">
+                          SGT: {nextBooking.sgt_username}
+                        </Badge>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">No SGT linked</span>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           )}
         </CardContent>

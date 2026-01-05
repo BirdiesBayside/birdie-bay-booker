@@ -223,16 +223,17 @@ export default function BayController() {
   // F12 hotkey to toggle SGT overlay
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // F12 toggles SGT overlay when there's an active booking
-      if (e.key === 'F12' && isAuthenticated && activeBooking) {
+      // F12 toggles SGT overlay when authenticated (works with or without active booking)
+      if (e.key === 'F12' && isAuthenticated) {
         e.preventDefault();
+        console.log('[BayController] F12 pressed, toggling SGT overlay');
         setShowSGTOverlay(prev => !prev);
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isAuthenticated, activeBooking]);
+  }, [isAuthenticated]);
 
   // Check if running in Electron and load saved credentials/config
   useEffect(() => {
@@ -2364,8 +2365,13 @@ export default function BayController() {
         onClose={() => setShowSGTOverlay(false)}
         sgtUserId={activeBooking?.sgt_user_id || null}
         sgtUsername={activeBooking?.sgt_username || null}
-        customerName={activeBooking?.customer_name || 'Unknown'}
+        customerName={activeBooking?.customer_name || null}
         isElectron={isElectron}
+        nextBooking={!activeBooking ? bookings.find(b => {
+          const now = new Date();
+          const startTime = parseISO(`${b.booking_date}T${b.start_time}`);
+          return isAfter(startTime, now) && b.status === 'confirmed';
+        }) : undefined}
       />
     </div>
   );
