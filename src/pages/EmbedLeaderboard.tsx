@@ -51,21 +51,17 @@ interface TournamentResult {
   total: number | null;
   toPar: number | null;
   courseName: string | null;
+  dnf: boolean;
 }
 
 async function fetchPublicLeaderboard(action: string, params: Record<string, string> = {}) {
-  const queryParams = new URLSearchParams({ action, ...params });
-  
-  const response = await fetch(
-    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/public-leaderboard?${queryParams}`,
-    { headers: { "Content-Type": "application/json" } }
-  );
-  
-  if (!response.ok) {
-    throw new Error(`API error: ${response.status}`);
-  }
-  
-  return response.json();
+  const { data, error } = await supabase.functions.invoke("public-leaderboard", {
+    method: "POST",
+    body: { action, ...params },
+  });
+
+  if (error) throw error;
+  return data;
 }
 
 export default function EmbedLeaderboard() {
@@ -459,7 +455,10 @@ export default function EmbedLeaderboard() {
                   <div className="col-span-6 md:col-span-3">
                     <p className="font-semibold text-[hsl(128,42%,21%)]">{result.playerName}</p>
                     <p className="text-xs text-[hsl(128,20%,40%)] md:hidden">
-                      HCP: {result.hcp ?? "-"} | Rd1: {result.rd1 ?? "-"} | Rd2: {result.rd2 ?? "-"} | Total: {result.total ?? "-"} ({formatScore(result.toPar)})
+                      HCP: {result.hcp ?? "-"} | Rd1:{" "}
+                      {result.dnf && result.rd1 === null ? "DNF" : result.rd1 ?? "-"} | Rd2:{" "}
+                      {result.dnf && result.rd2 === null ? "DNF" : result.rd2 ?? "-"} | Total:{" "}
+                      {result.dnf ? "DNF" : result.total ?? "-"} ({result.dnf ? "DNF" : formatScore(result.toPar)})
                     </p>
                   </div>
 
@@ -467,22 +466,25 @@ export default function EmbedLeaderboard() {
                     {result.hcp ?? "-"}
                   </div>
                   <div className="hidden md:block col-span-2 text-center text-[hsl(128,20%,40%)]">
-                    {result.rd1 ?? "-"}
+                    {result.dnf && result.rd1 === null ? "DNF" : result.rd1 ?? "-"}
                   </div>
                   <div className="hidden md:block col-span-2 text-center text-[hsl(128,20%,40%)]">
-                    {result.rd2 ?? "-"}
+                    {result.dnf && result.rd2 === null ? "DNF" : result.rd2 ?? "-"}
                   </div>
                   <div className="hidden md:block col-span-1 text-center font-bold text-[hsl(128,42%,21%)]">
-                    {result.total ?? "-"}
+                    {result.dnf ? "DNF" : result.total ?? "-"}
                   </div>
                   <div className="col-span-4 md:col-span-2 text-center">
-                    <span className={cn(
-                      "px-2 py-1 rounded font-bold text-sm",
-                      result.toPar !== null && result.toPar < 0 && "bg-red-100 text-red-700",
-                      result.toPar === 0 && "bg-green-100 text-green-700",
-                      result.toPar !== null && result.toPar > 0 && "bg-blue-100 text-blue-700"
-                    )}>
-                      {formatScore(result.toPar)}
+                    <span
+                      className={cn(
+                        "px-2 py-1 rounded font-bold text-sm",
+                        result.dnf && "bg-muted text-muted-foreground",
+                        !result.dnf && result.toPar !== null && result.toPar < 0 && "bg-red-100 text-red-700",
+                        !result.dnf && result.toPar === 0 && "bg-green-100 text-green-700",
+                        !result.dnf && result.toPar !== null && result.toPar > 0 && "bg-blue-100 text-blue-700",
+                      )}
+                    >
+                      {result.dnf ? "DNF" : formatScore(result.toPar)}
                     </span>
                   </div>
                 </div>
