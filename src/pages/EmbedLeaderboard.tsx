@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
-import birdieLogo from "@/assets/birdies-logo.png";
+import birdiesB from "@/assets/birdies-b-icon.png";
 
 interface Tour {
   tour_id: number;
@@ -217,7 +217,7 @@ export default function EmbedLeaderboard() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <img src={birdieLogo} alt="Birdies" className="h-10" />
+          <img src={birdiesB} alt="Birdies" className="h-10" />
           <div>
             <h1 className="font-bold text-xl text-[hsl(128,42%,21%)]">LEADERBOARD</h1>
             <p className="text-sm text-[hsl(128,20%,40%)]">Birdies League Hub</p>
