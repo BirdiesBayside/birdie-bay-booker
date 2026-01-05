@@ -23,6 +23,8 @@ const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const Clubhouse = lazy(() => import("./pages/Clubhouse"));
 const BayController = lazy(() => import("./pages/BayController"));
 const EmbedLeaderboard = lazy(() => import("./pages/EmbedLeaderboard"));
+const EmbedTVWeekly = lazy(() => import("./pages/EmbedTVWeekly"));
+const EmbedTVStandings = lazy(() => import("./pages/EmbedTVStandings"));
 
 // Admin pages
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
@@ -76,6 +78,8 @@ const App = () => (
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/clubhouse" element={<Clubhouse />} />
             <Route path="/embed/leaderboard" element={<EmbedLeaderboard />} />
+            <Route path="/embed/tv-weekly" element={<EmbedTVWeekly />} />
+            <Route path="/embed/tv-standings" element={<EmbedTVStandings />} />
             <Route path="/bay-controller" element={<BayController />} />
             {/* Admin Routes */}
             <Route path="/admin" element={<AdminDashboard />} />
