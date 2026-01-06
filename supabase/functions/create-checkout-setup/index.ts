@@ -47,7 +47,18 @@ serve(async (req) => {
       logStep("Found existing customer", { customerId });
     }
 
-    const origin = req.headers.get("origin") || "http://localhost:3000";
+    const origin = req.headers.get("origin") || "https://hub.birdiesbayside.com.au";
+
+    // Parse optional returnTo from request body
+    let returnTo = "/card-added";
+    try {
+      const body = await req.json();
+      if (body?.returnTo) {
+        returnTo = body.returnTo;
+      }
+    } catch {
+      // No body or invalid JSON - use default
+    }
 
     // Create a Checkout session in setup mode to save card
     const session = await stripe.checkout.sessions.create({
@@ -55,8 +66,8 @@ serve(async (req) => {
       customer_email: customerId ? undefined : user.email,
       mode: "setup",
       payment_method_types: ["card"],
-      success_url: `${origin}/my-account?setup=success`,
-      cancel_url: `${origin}/my-account?setup=cancelled`,
+      success_url: `${origin}${returnTo}`,
+      cancel_url: `${origin}/booking?setup_cancelled=true`,
     });
     logStep("Created checkout session", { sessionId: session.id });
 

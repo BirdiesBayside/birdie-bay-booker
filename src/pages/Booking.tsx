@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Loader2, AlertCircle, Wallet, CreditCard } from "lucide-react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,9 +11,16 @@ import { Badge } from "@/components/ui/badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { DateTimePicker } from "@/components/booking/DateTimePicker";
 import { BayAvailabilityGrid } from "@/components/booking/BayAvailabilityGrid";
-import { PaymentSheet } from "@/components/booking/PaymentSheet";
 import { toast } from "@/hooks/use-toast";
 import birdiesLogo from "@/assets/birdies-logo.png";
 
@@ -26,10 +33,12 @@ const MEMBERSHIP_DISPLAY: Record<string, string> = {
 
 export default function Booking() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, isLoading: authLoading, isAuthenticated } = useAuth();
   const {
     bays,
     isLoading,
+    isLoadingSavedCard,
     userMembershipTier,
     depositBalance,
     savedCard,
@@ -46,12 +55,21 @@ export default function Booking() {
   const [selectedPlayers, setSelectedPlayers] = useState<number>(1);
   const [selectedBayId, setSelectedBayId] = useState<string | undefined>();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<"balance" | "card" | "partial">("card");
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<"balance" | "card">("card");
   const [usePartialBalance, setUsePartialBalance] = useState(false);
-  const [showPaymentSheet, setShowPaymentSheet] = useState(false);
-  const [pendingBookingId, setPendingBookingId] = useState<string | null>(null);
-  const [pendingAmount, setPendingAmount] = useState<number>(0);
-  const [pendingDescription, setPendingDescription] = useState<string>("");
+  const [showNoCardDialog, setShowNoCardDialog] = useState(false);
+  const [isRedirectingToStripe, setIsRedirectingToStripe] = useState(false);
+
+  // Show toast if setup was cancelled
+  useEffect(() => {
+    if (searchParams.get("setup_cancelled") === "true") {
+      toast({
+        title: "Card setup cancelled",
+        description: "You need to add a payment method to make bookings.",
+        variant: "destructive",
+      });
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -97,16 +115,46 @@ export default function Booking() {
 
     const totalPrice = hourlyRate * selectedDuration;
 
-    // Use selected payment method
+    // If paying with balance and have enough, proceed
     if (selectedPaymentMethod === "balance" && depositBalance >= totalPrice) {
       handleConfirmBooking("balance");
-    } else {
-      // Card payment (full or partial - partial balance deduction handled in hook)
-      handleConfirmBooking("card", usePartialBalance);
+      return;
+    }
+
+    // For card payment, check if they have a saved card
+    if (!savedCard && !isLoadingSavedCard) {
+      setShowNoCardDialog(true);
+      return;
+    }
+
+    // Has saved card - proceed with booking
+    handleConfirmBooking("card", usePartialBalance);
+  };
+
+  const handleAddCard = async () => {
+    setIsRedirectingToStripe(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("create-checkout-setup", {
+        body: { returnTo: "/card-added" },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      if (data?.url) {
+        window.location.href = data.url;
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to start card setup. Please try again.",
+        variant: "destructive",
+      });
+      setIsRedirectingToStripe(false);
     }
   };
 
-  const handleConfirmBooking = async (paymentMethod: PaymentMethod, applyPartialBalance: boolean = false, paymentMethodId?: string) => {
+  const handleConfirmBooking = async (paymentMethod: PaymentMethod, applyPartialBalance: boolean = false) => {
     if (!selectedDate || !selectedTime || !selectedBayId) return;
 
     setIsSubmitting(true);
@@ -118,26 +166,9 @@ export default function Booking() {
         selectedDuration, 
         selectedPlayers, 
         paymentMethod,
-        paymentMethodId,
+        undefined, // No new payment method ID - we use saved card
         applyPartialBalance ? depositBalance : undefined
       );
-      
-      if (result.requiresCheckout) {
-        // Instead of redirecting, show the payment sheet
-        const bayName = bays.find(b => b.id === selectedBayId)?.name || "Bay";
-        const description = `${bayName} - ${format(selectedDate, "PPP")} at ${selectedTime} (${selectedDuration}hr)`;
-        const totalPrice = hourlyRate * selectedDuration;
-        const cardAmount = applyPartialBalance && depositBalance > 0 
-          ? totalPrice - depositBalance 
-          : totalPrice;
-        
-        setPendingBookingId(result.booking?.id);
-        setPendingAmount(cardAmount);
-        setPendingDescription(description);
-        setShowPaymentSheet(true);
-        setIsSubmitting(false);
-        return;
-      }
       
       const totalPrice = hourlyRate * selectedDuration;
       let message = `Your bay is booked for ${format(selectedDate, "PPP")} at ${selectedTime}.`;
@@ -146,8 +177,8 @@ export default function Booking() {
       } else if (applyPartialBalance && depositBalance > 0) {
         const cardAmount = totalPrice - depositBalance;
         message += ` $${depositBalance.toFixed(2)} from balance, $${cardAmount.toFixed(2)} charged to card.`;
-      } else if (savedCard || paymentMethodId) {
-        message += " Card charged.";
+      } else if (savedCard) {
+        message += ` Charged to your ${savedCard.brand} •••• ${savedCard.last4}.`;
       }
       
       toast({
@@ -164,50 +195,6 @@ export default function Booking() {
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const handlePaymentSuccess = async (paymentMethodId: string) => {
-    if (!pendingBookingId) return;
-    
-    setShowPaymentSheet(false);
-    setIsSubmitting(true);
-    
-    try {
-      // Charge the booking with the new payment method
-      const { data, error } = await supabase.functions.invoke("charge-booking", {
-        body: {
-          bookingId: pendingBookingId,
-          amount: pendingAmount,
-          description: pendingDescription,
-          paymentMethodId,
-        },
-      });
-      
-      if (error) throw error;
-      if (data.error) throw new Error(data.error);
-      
-      toast({
-        title: "Booking confirmed!",
-        description: `Card ending in ${data.cardLast4} was charged $${pendingAmount.toFixed(2)}.`,
-      });
-      navigate("/dashboard");
-    } catch (error: any) {
-      toast({
-        title: "Payment failed",
-        description: error.message || "Unable to process payment. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSubmitting(false);
-      setPendingBookingId(null);
-    }
-  };
-
-  const handlePaymentCancel = () => {
-    setShowPaymentSheet(false);
-    setPendingBookingId(null);
-    setPendingAmount(0);
-    setPendingDescription("");
   };
 
   if (authLoading) {
@@ -448,25 +435,53 @@ export default function Booking() {
               })()
             )}
           </Button>
-          {canConfirm && depositBalance === 0 && !showPaymentSheet && (
+          {canConfirm && depositBalance === 0 && (
             <p className="text-center text-sm text-muted-foreground">
-              {savedCard 
-                ? `Will charge your ${savedCard.brand} card ending in ${savedCard.last4}`
-                : "Enter payment details to complete booking"}
+              {isLoadingSavedCard 
+                ? "Checking payment method..."
+                : savedCard 
+                  ? `Will charge your ${savedCard.brand} card ending in ${savedCard.last4}`
+                  : "You'll need to add a payment method"}
             </p>
           )}
         </div>
       </main>
 
-      {/* Payment Sheet for new card entry */}
-      <PaymentSheet
-        isOpen={showPaymentSheet}
-        onClose={handlePaymentCancel}
-        onSuccess={handlePaymentSuccess}
-        amount={pendingAmount}
-        bookingId={pendingBookingId || ""}
-        description={pendingDescription}
-      />
+      {/* No Card Dialog */}
+      <Dialog open={showNoCardDialog} onOpenChange={setShowNoCardDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Payment Method Required</DialogTitle>
+            <DialogDescription>
+              To make a booking, you need to add a payment method to your account first. 
+              You'll be redirected to securely add your card.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => setShowNoCardDialog(false)}
+              disabled={isRedirectingToStripe}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleAddCard}
+              disabled={isRedirectingToStripe}
+              className="gradient-orange text-accent-foreground"
+            >
+              {isRedirectingToStripe ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Redirecting...
+                </>
+              ) : (
+                "Add Payment Method"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
