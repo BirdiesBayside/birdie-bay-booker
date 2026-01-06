@@ -66,8 +66,12 @@ export function AuthForm({ defaultToSignUp = false, onSignInSuccess }: AuthFormP
             description: "Please sign in with your email and password.",
             variant: "destructive",
           });
-          // Delete invalid credentials
-          await biometric.deleteCredentials();
+
+          // Only delete saved credentials if they're actually invalid.
+          const msg = (error.message ?? "").toLowerCase();
+          if (msg.includes("invalid login credentials")) {
+            await biometric.deleteCredentials();
+          }
         }
       } else {
         toast({
