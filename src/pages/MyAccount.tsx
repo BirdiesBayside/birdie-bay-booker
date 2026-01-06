@@ -1,14 +1,11 @@
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { BiometricEnableDialog } from "@/components/auth/BiometricEnableDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/useAuth";
-import { useBiometric } from "@/hooks/useBiometric";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Crown, Lock, User, Mail, Phone, Plus, Loader2, Trash2, Pencil, Check, X, Wallet, CreditCard, Fingerprint } from "lucide-react";
+import { ArrowLeft, Crown, Lock, User, Mail, Phone, Plus, Loader2, Trash2, Pencil, Check, X, Wallet, CreditCard } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -42,7 +39,6 @@ interface PaymentMethod {
 
 const MyAccount = () => {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
-  const biometric = useBiometric();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -54,8 +50,6 @@ const MyAccount = () => {
   const [deletingPaymentMethodId, setDeletingPaymentMethodId] = useState<string | null>(null);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
-  const [isTogglingBiometric, setIsTogglingBiometric] = useState(false);
-  const [showBiometricEnableDialog, setShowBiometricEnableDialog] = useState(false);
 
   const [editForm, setEditForm] = useState({
     first_name: "",
@@ -226,14 +220,6 @@ const MyAccount = () => {
     }
   };
 
-  const handleEnableBiometric = async (password: string) => {
-    if (!user?.email) throw new Error("Missing email");
-
-    await biometric.saveCredentials(user.email, password);
-    await biometric.refresh();
-
-    toast.success(`${biometric.getBiometryName()} enabled`);
-  };
 
 
   const getPaymentMethodDisplay = (method: PaymentMethod) => {
@@ -573,66 +559,6 @@ const MyAccount = () => {
               </div>
             </CardHeader>
             <CardContent className="space-y-6">
-              <BiometricEnableDialog
-                open={showBiometricEnableDialog}
-                onOpenChange={(open) => {
-                  setShowBiometricEnableDialog(open);
-                  setIsTogglingBiometric(false);
-                }}
-                biometryName={biometric.getBiometryName()}
-                email={user?.email ?? ""}
-                onEnable={async (password) => {
-                  await handleEnableBiometric(password);
-                }}
-              />
-
-              {/* Biometric Login - Only show on native platforms */}
-              {biometric.isNative && biometric.isAvailable && (
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b">
-                  <div className="flex items-center gap-3">
-                    <Fingerprint className="h-5 w-5 text-muted-foreground" />
-                    <div>
-                      <p className="font-medium">{biometric.getBiometryName()} Login</p>
-                      <p className="text-sm text-muted-foreground">
-                        Sign in faster using {biometric.getBiometryName()}
-                      </p>
-                    </div>
-                  </div>
-                  <Switch
-                    checked={biometric.hasCredentials}
-                    disabled={isTogglingBiometric}
-                    onCheckedChange={async (checked) => {
-                      setIsTogglingBiometric(true);
-                      try {
-                        if (checked) {
-                          setShowBiometricEnableDialog(true);
-                        } else {
-                          await biometric.deleteCredentials();
-                          toast.success(`${biometric.getBiometryName()} disabled`);
-                        }
-                      } catch (error) {
-                        console.error("Biometric toggle error:", error);
-                        toast.error("Failed to update biometric settings");
-                      } finally {
-                        setIsTogglingBiometric(false);
-                      }
-                    }}
-                  />
-                </div>
-              )}
-              {biometric.isNative && !biometric.isChecking && !biometric.isAvailable && (
-                <div className="pb-4 border-b">
-                  <div className="flex items-center gap-3">
-                    <Fingerprint className="h-5 w-5 text-muted-foreground" />
-                    <div>
-                      <p className="font-medium">Biometric login unavailable</p>
-                      <p className="text-sm text-muted-foreground">
-                        Make sure Face ID/Touch ID is set up on this iPhone and allowed for Birdies in Settings.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
 
               {/* Password Reset */}
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

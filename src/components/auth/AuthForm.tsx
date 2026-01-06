@@ -8,8 +8,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { useBiometric } from "@/hooks/useBiometric";
-import { Fingerprint, Loader2 } from "lucide-react";
 import { z } from "zod";
 
 const signUpSchema = z.object({
@@ -27,10 +25,9 @@ const signInSchema = z.object({
 
 interface AuthFormProps {
   defaultToSignUp?: boolean;
-  onSignInSuccess?: (credentials: { email: string; password: string }) => void;
 }
 
-export function AuthForm({ defaultToSignUp = false, onSignInSuccess }: AuthFormProps) {
+export function AuthForm({ defaultToSignUp = false }: AuthFormProps) {
   const [isSignUp, setIsSignUp] = useState(defaultToSignUp);
   const [isLoading, setIsLoading] = useState(false);
   const [isForgotPassword, setIsForgotPassword] = useState(false);
@@ -44,53 +41,6 @@ export function AuthForm({ defaultToSignUp = false, onSignInSuccess }: AuthFormP
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const { toast } = useToast();
-
-  // Biometric authentication
-  const biometric = useBiometric();
-  const [isBiometricLoading, setIsBiometricLoading] = useState(false);
-
-  const handleBiometricLogin = async () => {
-    setIsBiometricLoading(true);
-    try {
-      const credentials = await biometric.authenticate();
-      if (credentials) {
-        const { error } = await supabase.auth.signInWithPassword({
-          email: credentials.email,
-          password: credentials.password,
-        });
-
-        if (error) {
-          // Credentials might be outdated
-          toast({
-            title: "Sign in failed",
-            description: "Please sign in with your email and password.",
-            variant: "destructive",
-          });
-
-          // Only delete saved credentials if they're actually invalid.
-          const msg = (error.message ?? "").toLowerCase();
-          if (msg.includes("invalid login credentials")) {
-            await biometric.deleteCredentials();
-          }
-        }
-      } else {
-        toast({
-          title: "Authentication cancelled",
-          description: "Please try again or sign in with email and password.",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      console.error("[Biometric] Login error:", error);
-      toast({
-        title: "Authentication failed",
-        description: "Please sign in with your email and password.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsBiometricLoading(false);
-    }
-  };
 
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -248,8 +198,6 @@ export function AuthForm({ defaultToSignUp = false, onSignInSuccess }: AuthFormP
             description: "Invalid email or password. Please try again.",
             variant: "destructive",
           });
-        } else {
-          onSignInSuccess?.({ email, password });
         }
       }
     } catch (err) {
@@ -339,38 +287,6 @@ export function AuthForm({ defaultToSignUp = false, onSignInSuccess }: AuthFormP
         </CardHeader>
 
         <CardContent>
-          {/* Biometric Login Button */}
-          {!isSignUp && biometric.hasCredentials && !biometric.isChecking && (
-            <div className="mb-6">
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full h-14 text-lg border-2 border-accent hover:bg-accent/10"
-                onClick={handleBiometricLogin}
-                disabled={isBiometricLoading}
-              >
-                {isBiometricLoading ? (
-                  <>
-                    <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                    Authenticating...
-                  </>
-                ) : (
-                  <>
-                    <Fingerprint className="h-5 w-5 mr-2" />
-                    Use {biometric.getBiometryName()}
-                  </>
-                )}
-              </Button>
-              <div className="relative my-4">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-card px-2 text-muted-foreground">or</span>
-                </div>
-              </div>
-            </div>
-          )}
           
           <form onSubmit={handleSubmit} className="space-y-4">
           {isSignUp && (
