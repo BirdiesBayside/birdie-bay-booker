@@ -44,6 +44,13 @@ serve(async (req) => {
       );
     }
 
+    // Never return restricted/secret keys by accident.
+    if (!/^pk_(test|live)_/i.test(publishableKey)) {
+      throw new Error(
+        "Stripe publishable key is invalid (expected pk_test_... or pk_live_...)."
+      );
+    }
+
     logStep("Returning publishable key", {
       userId: data.user.id,
       keyPrefix: publishableKey.slice(0, 8),
