@@ -220,10 +220,10 @@ export default function BayController() {
     setDebugLogs(prev => [...prev.slice(-49), { time, message, type }]); // Keep last 50 logs
   }, []);
 
-  // F11 hotkey to fix window positions (works without authentication - for customers)
+  // F10 hotkey to fix window positions (works without authentication - for customers)
   useEffect(() => {
-    const handleF11 = async (e: KeyboardEvent) => {
-      if (e.key === 'F11' && isElectron && window.electronAPI) {
+    const handleF10 = async (e: KeyboardEvent) => {
+      if (e.key === 'F10' && isElectron && window.electronAPI) {
         e.preventDefault();
         console.log('[BayController] F11 pressed, fixing window positions');
         
@@ -267,8 +267,8 @@ export default function BayController() {
       }
     };
 
-    window.addEventListener('keydown', handleF11);
-    return () => window.removeEventListener('keydown', handleF11);
+    window.addEventListener('keydown', handleF10);
+    return () => window.removeEventListener('keydown', handleF10);
   }, [isElectron]);
 
   // F12 hotkey to toggle SGT overlay
