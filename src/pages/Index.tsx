@@ -16,7 +16,6 @@ const Index = () => {
   const { toast } = useToast();
   const [giftToken, setGiftToken] = useState<string | null>(null);
   const [isRedeemingGift, setIsRedeemingGift] = useState(false);
-  const [isBiometricAttempted, setIsBiometricAttempted] = useState(false);
   const [isBiometricLoading, setIsBiometricLoading] = useState(false);
   const biometricAttemptRef = useRef(false);
 
@@ -27,6 +26,13 @@ const Index = () => {
       setGiftToken(token);
     }
   }, [searchParams]);
+
+  // Reset biometric attempt flag when user is not authenticated (e.g., after logout)
+  useEffect(() => {
+    if (!isAuthenticated && !authLoading) {
+      biometricAttemptRef.current = false;
+    }
+  }, [isAuthenticated, authLoading]);
 
   // Auto-trigger biometric login when available and no session
   useEffect(() => {
@@ -43,7 +49,6 @@ const Index = () => {
       }
 
       biometricAttemptRef.current = true;
-      setIsBiometricAttempted(true);
       setIsBiometricLoading(true);
 
       try {
