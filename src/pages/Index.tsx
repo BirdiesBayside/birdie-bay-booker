@@ -1,19 +1,24 @@
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { AuthForm } from "@/components/auth/AuthForm";
 import { useAuth } from "@/hooks/useAuth";
+import { useBiometric } from "@/hooks/useBiometric";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import birdiesLogo from "@/assets/birdies-logo.png";
-import { Gift } from "lucide-react";
+import { Gift, Fingerprint } from "lucide-react";
 
 const Index = () => {
-  const { isAuthenticated, isLoading, user } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, user } = useAuth();
+  const biometric = useBiometric();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const [giftToken, setGiftToken] = useState<string | null>(null);
   const [isRedeemingGift, setIsRedeemingGift] = useState(false);
+  const [isBiometricAttempted, setIsBiometricAttempted] = useState(false);
+  const [isBiometricLoading, setIsBiometricLoading] = useState(false);
+  const biometricAttemptRef = useRef(false);
 
   // Check for gift_token in URL
   useEffect(() => {
@@ -23,44 +28,97 @@ const Index = () => {
     }
   }, [searchParams]);
 
-  // Redeem gift card after authentication
+  // Auto-trigger biometric login when available and no session
   useEffect(() => {
-    const redeemGiftCard = async () => {
-      if (isAuthenticated && user && !isRedeemingGift) {
-        // Check if there are any pending gift cards for this email
-        setIsRedeemingGift(true);
-        try {
-          const { data, error } = await supabase.functions.invoke("redeem-gift-card", {
-            body: {
-              email: user.email,
-              user_id: user.id,
-              token: giftToken || undefined,
-            },
+    const attemptBiometricLogin = async () => {
+      // Skip if already attempted, still checking, no credentials, or already authenticated
+      if (
+        biometricAttemptRef.current ||
+        biometric.isChecking ||
+        authLoading ||
+        isAuthenticated ||
+        !biometric.hasCredentials
+      ) {
+        return;
+      }
+
+      biometricAttemptRef.current = true;
+      setIsBiometricAttempted(true);
+      setIsBiometricLoading(true);
+
+      try {
+        const credentials = await biometric.authenticate();
+        if (credentials) {
+          const { error } = await supabase.auth.signInWithPassword({
+            email: credentials.email,
+            password: credentials.password,
           });
 
-          if (!error && data?.redeemed > 0) {
+          if (error) {
             toast({
-              title: "Gift card redeemed!",
-              description: `$${data.totalAmount.toFixed(2)} credit has been added to your account.`,
+              title: "Sign in failed",
+              description: "Please sign in with your email and password.",
+              variant: "destructive",
             });
+            await biometric.deleteCredentials();
           }
-        } catch (err) {
-          console.error("Failed to redeem gift card:", err);
         }
-        
-        navigate("/dashboard");
-      } else if (isAuthenticated && !giftToken) {
-        navigate("/dashboard");
+      } catch (error) {
+        console.error("[Biometric] Auto-login error:", error);
+      } finally {
+        setIsBiometricLoading(false);
       }
     };
 
-    redeemGiftCard();
+    attemptBiometricLogin();
+  }, [biometric.isChecking, biometric.hasCredentials, authLoading, isAuthenticated, biometric, toast]);
+
+  // Redeem gift card and navigate after authentication
+  useEffect(() => {
+    const handleAuthenticatedUser = async () => {
+      if (!isAuthenticated || !user || isRedeemingGift) return;
+
+      setIsRedeemingGift(true);
+      try {
+        const { data, error } = await supabase.functions.invoke("redeem-gift-card", {
+          body: {
+            email: user.email,
+            user_id: user.id,
+            token: giftToken || undefined,
+          },
+        });
+
+        if (!error && data?.redeemed > 0) {
+          toast({
+            title: "Gift card redeemed!",
+            description: `$${data.totalAmount.toFixed(2)} credit has been added to your account.`,
+          });
+        }
+      } catch (err) {
+        console.error("Failed to redeem gift card:", err);
+      }
+
+      navigate("/dashboard");
+    };
+
+    handleAuthenticatedUser();
   }, [isAuthenticated, user, giftToken, navigate, toast, isRedeemingGift]);
+
+  // Show loading while checking auth or attempting biometric
+  const isLoading = authLoading || biometric.isChecking || isBiometricLoading;
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="animate-pulse text-muted-foreground">Loading...</div>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background safe-area-top safe-area-bottom">
+        <img src={birdiesLogo} alt="Birdies" className="h-16 mb-6" />
+        {isBiometricLoading ? (
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Fingerprint className="h-5 w-5 animate-pulse" />
+            <span>Authenticating...</span>
+          </div>
+        ) : (
+          <div className="animate-pulse text-muted-foreground">Loading...</div>
+        )}
       </div>
     );
   }
