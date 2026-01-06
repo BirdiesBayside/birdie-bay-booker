@@ -145,7 +145,7 @@ export default function LeagueRegister() {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
-      <header className="bg-primary py-4 px-4">
+      <header className="bg-primary py-4 px-4 safe-area-top">
         <div className="container flex items-center gap-3">
           <button
             onClick={() => navigate("/dashboard")}

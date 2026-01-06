@@ -128,7 +128,7 @@ const BookingSuccess = () => {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
-      <header className="bg-primary text-primary-foreground py-4 px-4">
+      <header className="bg-primary text-primary-foreground py-4 px-4 safe-area-top">
         <div className="container mx-auto flex items-center justify-center">
           <img src={birdieLogo} alt="Birdies Logo" className="h-10 w-auto" />
         </div>

@@ -132,6 +132,15 @@
     text-wrap: balance;
   }
 
+  /* iOS Safe Area padding */
+  .safe-area-top {
+    padding-top: env(safe-area-inset-top);
+  }
+  
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
   .gradient-orange {
     background: linear-gradient(135deg, hsl(var(--birdies-orange)) 0%, hsl(var(--birdies-orange-light)) 100%);
   }
