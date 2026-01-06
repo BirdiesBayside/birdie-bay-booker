@@ -26,7 +26,10 @@ async function getStripePublishableKey(): Promise<string> {
   const envKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as
     | string
     | undefined;
-  if (envKey) return envKey;
+
+  // In some builds the environment can accidentally contain a restricted/secret key.
+  // Never use anything except a publishable key (pk_*).
+  if (envKey && /^pk_(test|live)_/i.test(envKey)) return envKey;
 
   const { data, error } = await supabase.functions.invoke(
     "get-stripe-publishable-key"
