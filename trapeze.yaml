@@ -1,0 +1,22 @@
+platforms:
+  ios:
+    targets:
+      App:
+        plist:
+          replace: false
+          entries:
+            - CFBundleURLTypes:
+                - CFBundleURLName: golf.birdies.hub
+                  CFBundleURLSchemes:
+                    - birdiesbayside
+  android:
+    manifest:
+      - file: AndroidManifest.xml
+        target: manifest/application/activity
+        inject: |
+          <intent-filter>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.DEFAULT" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="birdiesbayside" />
+          </intent-filter>

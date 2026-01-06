@@ -13,11 +13,6 @@ const config: CapacitorConfig = {
       presentationOptions: ['badge', 'sound', 'alert']
     }
   },
-  // Custom URL scheme for deep linking (Stripe payment return)
-  // This enables birdiesbayside:// URLs to open the app
-  ios: {
-    scheme: 'birdiesbayside'
-  },
   android: {
     allowMixedContent: false
   }
