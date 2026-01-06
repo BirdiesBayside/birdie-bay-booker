@@ -144,6 +144,9 @@ export default function Booking() {
   };
 
   const handleAddCard = async () => {
+    // Pre-open a tab synchronously so iOS doesn't block opening Safari after the async call
+    const preOpened = window.open("about:blank", "_blank");
+
     setIsOpeningStripe(true);
     try {
       const { data, error } = await supabase.functions.invoke("create-checkout-setup", {
@@ -156,12 +159,26 @@ export default function Booking() {
       if (data?.error) throw new Error(data.error);
       if (!data?.url) throw new Error("No Stripe URL returned");
 
-      // Store flag so when app reloads, we know to show the Close dialog
+      // Store flag so when the app reloads/returns, we show the Close dialog
       localStorage.setItem(CARD_SETUP_PENDING_KEY, "1");
 
-      // Redirect to Stripe (will open Safari on iOS)
-      window.location.href = data.url;
+      // Switch the popup to "Close" state
+      setIsRedirectingToStripe(true);
+      setIsOpeningStripe(false);
+
+      if (preOpened) {
+        preOpened.location.href = data.url;
+      } else {
+        // Fallback: navigate current view
+        window.location.href = data.url;
+      }
     } catch (error: any) {
+      try {
+        preOpened?.close();
+      } catch {
+        // ignore
+      }
+
       toast({
         title: "Error",
         description: error.message || "Failed to start card setup. Please try again.",
@@ -169,6 +186,7 @@ export default function Booking() {
       });
       localStorage.removeItem(CARD_SETUP_PENDING_KEY);
       setIsOpeningStripe(false);
+      setIsRedirectingToStripe(false);
     }
   };
 
