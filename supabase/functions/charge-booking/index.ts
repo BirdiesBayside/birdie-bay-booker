@@ -39,9 +39,9 @@ serve(async (req) => {
     if (!user?.email) throw new Error("User not authenticated");
     logStep("User authenticated", { userId: user.id, email: user.email });
 
-    const { bookingId, amount, description, paymentMethodId, isNativeApp } = await req.json();
+    const { bookingId, amount, description, paymentMethodId, mode } = await req.json();
     if (!bookingId || !amount) throw new Error("Missing bookingId or amount");
-    logStep("Request parsed", { bookingId, amount, description, paymentMethodId, isNativeApp });
+    logStep("Request parsed", { bookingId, amount, description, paymentMethodId, mode });
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
 
