@@ -22,7 +22,10 @@ export function useBiometric() {
   const isNative = Capacitor.isNativePlatform();
 
   const checkAvailability = useCallback(async () => {
+    console.log("[Biometric] checkAvailability called, isNative:", isNative);
+    
     if (!isNative) {
+      console.log("[Biometric] Not a native platform, skipping biometric check");
       setState({
         isAvailable: false,
         biometryType: null,
@@ -33,23 +36,30 @@ export function useBiometric() {
     }
 
     try {
+      console.log("[Biometric] Calling NativeBiometric.isAvailable()...");
       const result = await NativeBiometric.isAvailable();
+      console.log("[Biometric] isAvailable result:", JSON.stringify(result));
       
       // Check if credentials are stored
       let hasCredentials = false;
       try {
+        console.log("[Biometric] Checking for stored credentials...");
         await NativeBiometric.getCredentials({ server: SERVER_ID });
         hasCredentials = true;
-      } catch {
+        console.log("[Biometric] Credentials found");
+      } catch (credError) {
         hasCredentials = false;
+        console.log("[Biometric] No credentials stored:", credError);
       }
 
-      setState({
+      const newState = {
         isAvailable: result.isAvailable,
         biometryType: result.biometryType,
         hasCredentials,
         isChecking: false,
-      });
+      };
+      console.log("[Biometric] Setting state:", JSON.stringify(newState));
+      setState(newState);
     } catch (error) {
       console.error("[Biometric] Availability check failed:", error);
       setState({
@@ -83,17 +93,23 @@ export function useBiometric() {
   }, [state.biometryType]);
 
   const saveCredentials = useCallback(async (email: string, password: string) => {
+    console.log("[Biometric] saveCredentials called, isNative:", isNative, "isAvailable:", state.isAvailable);
+    
     if (!isNative || !state.isAvailable) {
-      throw new Error("Biometric authentication not available");
+      const errorMsg = `Biometric authentication not available (isNative: ${isNative}, isAvailable: ${state.isAvailable})`;
+      console.error("[Biometric]", errorMsg);
+      throw new Error(errorMsg);
     }
 
     try {
+      console.log("[Biometric] Calling NativeBiometric.setCredentials...");
       await NativeBiometric.setCredentials({
         username: email,
         password: password,
         server: SERVER_ID,
       });
       
+      console.log("[Biometric] Credentials saved successfully");
       setState(prev => ({ ...prev, hasCredentials: true }));
       return true;
     } catch (error) {

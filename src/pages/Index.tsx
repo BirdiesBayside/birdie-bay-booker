@@ -120,7 +120,16 @@ const Index = () => {
   // Redeem gift card and navigate after authentication
   useEffect(() => {
     const handleAuthenticatedUser = async () => {
-      if (!isAuthenticated || !user || isRedeemingGift || showBiometricEnrollPrompt) return;
+      console.log("[Index] handleAuthenticatedUser - isAuthenticated:", isAuthenticated, 
+        "user:", !!user, "isRedeemingGift:", isRedeemingGift, 
+        "showBiometricEnrollPrompt:", showBiometricEnrollPrompt,
+        "pendingBiometricEnroll:", !!pendingBiometricEnroll);
+      
+      // Don't navigate if biometric enrollment prompt is showing or pending
+      if (!isAuthenticated || !user || isRedeemingGift || showBiometricEnrollPrompt || pendingBiometricEnroll) {
+        console.log("[Index] Skipping navigation - waiting for biometric enrollment decision or not ready");
+        return;
+      }
 
       setIsRedeemingGift(true);
       try {
@@ -142,12 +151,12 @@ const Index = () => {
         console.error("Failed to redeem gift card:", err);
       }
 
-      setPendingBiometricEnroll(null);
+      console.log("[Index] Navigating to /dashboard");
       navigate("/dashboard");
     };
 
     handleAuthenticatedUser();
-  }, [isAuthenticated, user, giftToken, navigate, toast, isRedeemingGift]);
+  }, [isAuthenticated, user, giftToken, navigate, toast, isRedeemingGift, showBiometricEnrollPrompt, pendingBiometricEnroll]);
 
   // Show loading while checking auth or attempting biometric
   const isLoading = authLoading || biometric.isChecking || isBiometricLoading;
@@ -205,11 +214,20 @@ const Index = () => {
             <AuthForm
               defaultToSignUp={!!giftToken}
               onSignInSuccess={({ email, password }) => {
+                console.log("[Index] onSignInSuccess called");
+                console.log("[Index] biometric.isNative:", biometric.isNative);
+                console.log("[Index] biometric.isAvailable:", biometric.isAvailable);
+                console.log("[Index] biometric.hasCredentials:", biometric.hasCredentials);
+                console.log("[Index] biometric.biometryType:", biometric.biometryType);
+                
                 // IMPORTANT: Index immediately redirects to /dashboard after auth.
                 // We capture creds here so the user can actually confirm enabling Face ID *before* redirect.
                 if (biometric.isNative && biometric.isAvailable && !biometric.hasCredentials) {
+                  console.log("[Index] Showing biometric enrollment prompt");
                   setPendingBiometricEnroll({ email, password });
                   setShowBiometricEnrollPrompt(true);
+                } else {
+                  console.log("[Index] Not showing biometric prompt - conditions not met");
                 }
               }}
             />
