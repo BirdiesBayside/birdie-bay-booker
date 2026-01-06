@@ -74,9 +74,9 @@ function DeepLinkHandler() {
         try {
           // Parse the deep link URL
           // Format: birdiesbayside://booking-success?booking_id=xxx
-          // or: birdiesbayside://booking-cancelled?booking_id=xxx
+          // or: birdiesbayside://card-added
           const url = new URL(event.url);
-          const path = url.hostname; // e.g., "booking-success"
+          const path = url.hostname; // e.g., "booking-success", "card-added"
           const params = url.searchParams;
           
           if (path === 'booking-success') {
@@ -87,6 +87,12 @@ function DeepLinkHandler() {
             const bookingId = params.get('booking_id');
             console.log('[DeepLink] Navigating to booking (cancelled):', bookingId);
             navigate(`/booking?booking_cancelled=true&booking_id=${bookingId}`);
+          } else if (path === 'card-added') {
+            console.log('[DeepLink] Card added successfully, navigating to card-added page');
+            navigate('/card-added');
+          } else if (path === 'card-cancelled') {
+            console.log('[DeepLink] Card setup cancelled, navigating to booking');
+            navigate('/booking?setup_cancelled=true');
           }
         } catch (error) {
           console.error('[DeepLink] Error parsing URL:', error);
