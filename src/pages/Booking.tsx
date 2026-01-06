@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Loader2, AlertCircle, Wallet, CreditCard } from "lucide-react";
 import { format } from "date-fns";
 import { Capacitor } from "@capacitor/core";
+import { App as CapacitorApp } from "@capacitor/app";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useBooking, PaymentMethod } from "@/hooks/useBooking";
@@ -60,6 +61,31 @@ export default function Booking() {
   const [usePartialBalance, setUsePartialBalance] = useState(false);
   const [showNoCardDialog, setShowNoCardDialog] = useState(false);
   const [isRedirectingToStripe, setIsRedirectingToStripe] = useState(false);
+  const stripeSetupRedirectRef = useRef(false);
+
+  // If the app goes to background while we're redirecting to Stripe, reset UI so user
+  // won't be stuck on the "Redirecting..." dialog when they return.
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+
+    let handle: { remove: () => Promise<void> } | undefined;
+
+    CapacitorApp.addListener("appStateChange", ({ isActive }) => {
+      if (!stripeSetupRedirectRef.current) return;
+
+      console.log("[StripeSetup] App state changed, resetting UI", { isActive });
+      stripeSetupRedirectRef.current = false;
+      setShowNoCardDialog(false);
+      setIsRedirectingToStripe(false);
+      navigate("/dashboard");
+    }).then((h) => {
+      handle = h;
+    });
+
+    return () => {
+      handle?.remove();
+    };
+  }, [navigate]);
 
   // Show toast if setup was cancelled
   useEffect(() => {
@@ -133,10 +159,11 @@ export default function Booking() {
   };
 
   const handleAddCard = async () => {
+    stripeSetupRedirectRef.current = true;
     setIsRedirectingToStripe(true);
     try {
       const { data, error } = await supabase.functions.invoke("create-checkout-setup", {
-        body: { 
+        body: {
           returnTo: "/card-added",
           isNativeApp: Capacitor.isNativePlatform(),
         },
@@ -146,16 +173,17 @@ export default function Booking() {
       if (data?.error) throw new Error(data.error);
 
       if (data?.url) {
-        // Open Stripe in browser, then navigate app back to dashboard
-        // User will add card in Safari, then manually return to app
+        // Immediately reset UI + return user to home in-app.
+        // Stripe will open in Safari; user can return to the app manually.
+        setShowNoCardDialog(false);
+        setIsRedirectingToStripe(false);
+        navigate("/dashboard");
+
+        console.log("[StripeSetup] Opening Stripe setup URL");
         window.location.href = data.url;
-        
-        // After a short delay, navigate the app to dashboard so when user returns, they're on home
-        setTimeout(() => {
-          navigate("/dashboard");
-        }, 1000);
       }
     } catch (error: any) {
+      stripeSetupRedirectRef.current = false;
       toast({
         title: "Error",
         description: error.message || "Failed to start card setup. Please try again.",
