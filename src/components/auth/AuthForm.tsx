@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,7 +9,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useBiometric } from "@/hooks/useBiometric";
-import { BiometricPrompt } from "./BiometricPrompt";
 import { Fingerprint, Loader2 } from "lucide-react";
 import { z } from "zod";
 
@@ -28,9 +27,10 @@ const signInSchema = z.object({
 
 interface AuthFormProps {
   defaultToSignUp?: boolean;
+  onSignInSuccess?: (credentials: { email: string; password: string }) => void;
 }
 
-export function AuthForm({ defaultToSignUp = false }: AuthFormProps) {
+export function AuthForm({ defaultToSignUp = false, onSignInSuccess }: AuthFormProps) {
   const [isSignUp, setIsSignUp] = useState(defaultToSignUp);
   const [isLoading, setIsLoading] = useState(false);
   const [isForgotPassword, setIsForgotPassword] = useState(false);
@@ -44,19 +44,10 @@ export function AuthForm({ defaultToSignUp = false }: AuthFormProps) {
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const { toast } = useToast();
-  
+
   // Biometric authentication
   const biometric = useBiometric();
-  const [showBiometricPrompt, setShowBiometricPrompt] = useState(false);
-  const [pendingCredentials, setPendingCredentials] = useState<{ email: string; password: string } | null>(null);
   const [isBiometricLoading, setIsBiometricLoading] = useState(false);
-
-  // Auto-trigger biometric login if available
-  useEffect(() => {
-    if (!isSignUp && biometric.hasCredentials && !biometric.isChecking) {
-      // Don't auto-trigger, let user click the button
-    }
-  }, [isSignUp, biometric.hasCredentials, biometric.isChecking]);
 
   const handleBiometricLogin = async () => {
     setIsBiometricLoading(true);
@@ -97,31 +88,6 @@ export function AuthForm({ defaultToSignUp = false }: AuthFormProps) {
     }
   };
 
-  const handleEnableBiometric = async () => {
-    if (!pendingCredentials) return;
-    
-    try {
-      await biometric.saveCredentials(pendingCredentials.email, pendingCredentials.password);
-      toast({
-        title: `${biometric.getBiometryName()} enabled!`,
-        description: "You can now sign in faster next time.",
-      });
-    } catch (error) {
-      console.error("[Biometric] Save error:", error);
-      toast({
-        title: "Failed to enable biometric",
-        description: "Please try again from your account settings.",
-        variant: "destructive",
-      });
-    }
-    setShowBiometricPrompt(false);
-    setPendingCredentials(null);
-  };
-
-  const handleSkipBiometric = () => {
-    setShowBiometricPrompt(false);
-    setPendingCredentials(null);
-  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -264,9 +230,12 @@ export function AuthForm({ defaultToSignUp = false }: AuthFormProps) {
           return;
         }
 
+        const email = formData.email.trim();
+        const password = formData.password;
+
         const { error } = await supabase.auth.signInWithPassword({
-          email: formData.email.trim(),
-          password: formData.password,
+          email,
+          password,
         });
 
         if (error) {
@@ -276,14 +245,7 @@ export function AuthForm({ defaultToSignUp = false }: AuthFormProps) {
             variant: "destructive",
           });
         } else {
-          // Successful login - offer biometric if available and not already set up
-          if (biometric.isAvailable && !biometric.hasCredentials) {
-            setPendingCredentials({
-              email: formData.email.trim(),
-              password: formData.password,
-            });
-            setShowBiometricPrompt(true);
-          }
+          onSignInSuccess?.({ email, password });
         }
       }
     } catch (err) {
@@ -360,16 +322,7 @@ export function AuthForm({ defaultToSignUp = false }: AuthFormProps) {
   }
 
   return (
-    <>
-      <BiometricPrompt
-        open={showBiometricPrompt}
-        onOpenChange={setShowBiometricPrompt}
-        biometryName={biometric.getBiometryName()}
-        onConfirm={handleEnableBiometric}
-        onCancel={handleSkipBiometric}
-      />
-      
-      <Card className="w-full max-w-md shadow-xl border-none">
+    <Card className="w-full max-w-md shadow-xl border-none">
         <CardHeader className="text-center space-y-2">
           <CardTitle className="font-display text-3xl text-primary">
             {isSignUp ? "CREATE ACCOUNT" : "WELCOME BACK"}
@@ -697,6 +650,5 @@ export function AuthForm({ defaultToSignUp = false }: AuthFormProps) {
         </div>
       </CardContent>
     </Card>
-    </>
   );
 }
