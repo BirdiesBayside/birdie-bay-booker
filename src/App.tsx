@@ -1,9 +1,9 @@
-import { lazy, Suspense, useEffect } from "react";
+import { lazy, Suspense, useEffect, useRef } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, HashRouter, Routes, Route, useNavigate } from "react-router-dom";
+import { BrowserRouter, HashRouter, Routes, Route, useLocation, useNavigate } from "react-router-dom";
 import { Capacitor } from "@capacitor/core";
 import { App as CapacitorApp } from "@capacitor/app";
 
@@ -110,6 +110,37 @@ function DeepLinkHandler() {
   return null;
 }
 
+const LAST_ROUTE_KEY = "bb:lastRoute";
+
+// iOS may reload the webview after switching to Safari. This restores the last route
+// so users land back on the Booking screen instead of "/".
+function NativeRoutePersistence() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const restoredRef = useRef(false);
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    const current = `${location.pathname}${location.search}`;
+    localStorage.setItem(LAST_ROUTE_KEY, current);
+  }, [location.pathname, location.search]);
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    if (restoredRef.current) return;
+    restoredRef.current = true;
+
+    const saved = localStorage.getItem(LAST_ROUTE_KEY);
+    if (!saved) return;
+
+    if (location.pathname === "/" && saved !== "/") {
+      console.log("[NativeNav] Restoring last route:", saved);
+      navigate(saved, { replace: true });
+    }
+  }, [navigate, location.pathname]);
+
+  return null;
+}
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -117,6 +148,7 @@ const App = () => (
       <Sonner />
       <Router>
         <DeepLinkHandler />
+        <NativeRoutePersistence />
         <Suspense fallback={<PageLoader />}>
           <Routes>
             <Route path="/" element={<Index />} />
