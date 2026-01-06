@@ -28,6 +28,7 @@ const EmbedLeaderboard = lazy(() => import("./pages/EmbedLeaderboard"));
 const EmbedTVWeekly = lazy(() => import("./pages/EmbedTVWeekly"));
 const EmbedTVStandings = lazy(() => import("./pages/EmbedTVStandings"));
 const EmbedTVLastWeek = lazy(() => import("./pages/EmbedTVLastWeek"));
+const CardAdded = lazy(() => import("./pages/CardAdded"));
 
 // Admin pages
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
@@ -131,6 +132,7 @@ const App = () => (
             <Route path="/embed/tv-standings" element={<EmbedTVStandings />} />
             <Route path="/embed/tv-lastweek" element={<EmbedTVLastWeek />} />
             <Route path="/bay-controller" element={<BayController />} />
+            <Route path="/card-added" element={<CardAdded />} />
             {/* Admin Routes */}
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/admin/timetable" element={<AdminTimetable />} />
