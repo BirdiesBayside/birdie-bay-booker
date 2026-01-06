@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { calculateHourlyRate, isPeakTime, isWeekdayMemberTime } from "@/lib/pricing-utils";
+import { Capacitor } from "@capacitor/core";
 
 export interface Bay {
   id: string;
@@ -303,6 +304,7 @@ export function useBooking() {
           amount: cardAmount,
           description,
           paymentMethodId: newPaymentMethodId,
+          isNativeApp: Capacitor.isNativePlatform(),
         },
       });
 

@@ -1,9 +1,11 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, HashRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, HashRouter, Routes, Route, useNavigate } from "react-router-dom";
+import { Capacitor } from "@capacitor/core";
+import { App as CapacitorApp } from "@capacitor/app";
 
 // Lazy load all pages for code splitting
 const Index = lazy(() => import("./pages/Index"));
@@ -56,12 +58,58 @@ const PageLoader = () => (
   </div>
 );
 
+// Deep link handler component - handles birdiesbayside:// URLs
+function DeepLinkHandler() {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+
+    // Listen for app URL open events (deep links)
+    const setupAppUrlListener = async () => {
+      await CapacitorApp.addListener('appUrlOpen', (event) => {
+        console.log('[DeepLink] App opened with URL:', event.url);
+        
+        try {
+          // Parse the deep link URL
+          // Format: birdiesbayside://booking-success?booking_id=xxx
+          // or: birdiesbayside://booking-cancelled?booking_id=xxx
+          const url = new URL(event.url);
+          const path = url.hostname; // e.g., "booking-success"
+          const params = url.searchParams;
+          
+          if (path === 'booking-success') {
+            const bookingId = params.get('booking_id');
+            console.log('[DeepLink] Navigating to booking success:', bookingId);
+            navigate(`/booking-success?booking_id=${bookingId}`);
+          } else if (path === 'booking-cancelled') {
+            const bookingId = params.get('booking_id');
+            console.log('[DeepLink] Navigating to booking (cancelled):', bookingId);
+            navigate(`/booking?booking_cancelled=true&booking_id=${bookingId}`);
+          }
+        } catch (error) {
+          console.error('[DeepLink] Error parsing URL:', error);
+        }
+      });
+    };
+
+    setupAppUrlListener();
+
+    return () => {
+      CapacitorApp.removeAllListeners();
+    };
+  }, [navigate]);
+
+  return null;
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
       <Sonner />
       <Router>
+        <DeepLinkHandler />
         <Suspense fallback={<PageLoader />}>
           <Routes>
             <Route path="/" element={<Index />} />
