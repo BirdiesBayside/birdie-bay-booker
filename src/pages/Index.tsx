@@ -98,7 +98,13 @@ const Index = () => {
               description: "Please sign in with your email and password.",
               variant: "destructive",
             });
-            await biometric.deleteCredentials();
+
+            // Only delete saved credentials if they're actually invalid.
+            // (Network/temporary errors shouldn't wipe Face ID login.)
+            const msg = (error.message ?? "").toLowerCase();
+            if (msg.includes("invalid login credentials")) {
+              await biometric.deleteCredentials();
+            }
           }
         }
       } catch (error) {
