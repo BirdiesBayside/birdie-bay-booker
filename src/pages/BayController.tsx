@@ -220,6 +220,57 @@ export default function BayController() {
     setDebugLogs(prev => [...prev.slice(-49), { time, message, type }]); // Keep last 50 logs
   }, []);
 
+  // F11 hotkey to fix window positions (works without authentication - for customers)
+  useEffect(() => {
+    const handleF11 = async (e: KeyboardEvent) => {
+      if (e.key === 'F11' && isElectron && window.electronAPI) {
+        e.preventDefault();
+        console.log('[BayController] F11 pressed, fixing window positions');
+        
+        try {
+          const savedConfig = localStorage.getItem("bayController_appLaunchConfig");
+          if (!savedConfig) {
+            toast.error("App launch not configured");
+            return;
+          }
+          
+          const config = JSON.parse(savedConfig);
+          const currentDisplays = await window.electronAPI.getDisplays();
+          
+          const gsproIdx = currentDisplays.findIndex(d => d.label === config.gsproDisplayLabel);
+          const proteeIdx = currentDisplays.findIndex(d => d.label === config.proteeDisplayLabel);
+          
+          if (gsproIdx < 0 && proteeIdx < 0) {
+            toast.error("Configured displays not found");
+            return;
+          }
+          
+          toast.info("Fixing window positions...");
+          const result = await window.electronAPI.checkWindowPositions(gsproIdx, proteeIdx);
+          
+          if (result.success && result.results) {
+            const moved = result.results.filter(r => r.moved);
+            const found = result.results.filter(r => r.found);
+            
+            if (moved.length > 0) {
+              toast.success(`Moved ${moved.map(r => r.app).join(' & ')} to correct screen`);
+            } else if (found.length > 0) {
+              toast.info("Windows already on correct screens");
+            } else {
+              toast.warning("Windows not found - are apps running?");
+            }
+          }
+        } catch (err) {
+          console.error('[BayController] F11 window fix failed:', err);
+          toast.error("Failed to fix window positions");
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleF11);
+    return () => window.removeEventListener('keydown', handleF11);
+  }, [isElectron]);
+
   // F12 hotkey to toggle SGT overlay
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
