@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Loader2, AlertCircle, Wallet, CreditCard } from "lucide-react";
 import { format } from "date-fns";
+import { Capacitor } from "@capacitor/core";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useBooking, PaymentMethod } from "@/hooks/useBooking";
@@ -135,7 +136,10 @@ export default function Booking() {
     setIsRedirectingToStripe(true);
     try {
       const { data, error } = await supabase.functions.invoke("create-checkout-setup", {
-        body: { returnTo: "/card-added" },
+        body: { 
+          returnTo: "/card-added",
+          isNativeApp: Capacitor.isNativePlatform(),
+        },
       });
 
       if (error) throw error;
