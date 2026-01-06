@@ -1,10 +1,10 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { loadStripe } from "@stripe/stripe-js";
 import {
   Elements,
   PaymentElement,
-  useStripe,
   useElements,
+  useStripe,
 } from "@stripe/react-stripe-js";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,24 @@ import {
 import { Loader2, CreditCard, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
+type StripePromise = ReturnType<typeof loadStripe>;
+
+let stripePromiseSingleton: StripePromise | null = null;
+
+async function getStripePublishableKey(): Promise<string> {
+  const envKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as
+    | string
+    | undefined;
+  if (envKey) return envKey;
+
+  const { data, error } = await supabase.functions.invoke(
+    "get-stripe-publishable-key"
+  );
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
+  if (!data?.publishableKey) throw new Error("Missing Stripe publishable key");
+  return data.publishableKey as string;
+}
 
 interface PaymentFormProps {
   onSuccess: (paymentMethodId: string) => void;
@@ -133,18 +150,38 @@ export function PaymentSheet({
   description,
 }: PaymentSheetProps) {
   const [clientSecret, setClientSecret] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [stripePromise, setStripePromise] = useState<StripePromise | null>(
+    stripePromiseSingleton
+  );
+  const [isSetupLoading, setIsSetupLoading] = useState(false);
+  const [isStripeLoading, setIsStripeLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  useEffect(() => {
-    if (isOpen && !clientSecret) {
-      createSetupIntent();
+  const ensureStripe = async () => {
+    if (stripePromiseSingleton) {
+      if (!stripePromise) setStripePromise(stripePromiseSingleton);
+      return;
     }
-  }, [isOpen]);
+
+    setIsStripeLoading(true);
+    try {
+      const key = await getStripePublishableKey();
+      stripePromiseSingleton = loadStripe(key);
+      setStripePromise(stripePromiseSingleton);
+    } catch (err: any) {
+      console.error("Error loading Stripe:", err);
+      setError(
+        err.message ||
+          "Payments are not configured on this build (missing Stripe publishable key)."
+      );
+    } finally {
+      setIsStripeLoading(false);
+    }
+  };
 
   const createSetupIntent = async () => {
-    setIsLoading(true);
+    setIsSetupLoading(true);
     setError(null);
 
     try {
@@ -156,24 +193,36 @@ export function PaymentSheet({
       );
 
       if (fnError) throw fnError;
-      if (data.error) throw new Error(data.error);
+      if (data?.error) throw new Error(data.error);
 
       setClientSecret(data.clientSecret);
     } catch (err: any) {
       console.error("Error creating setup intent:", err);
       setError(err.message || "Failed to initialize payment form");
     } finally {
-      setIsLoading(false);
+      setIsSetupLoading(false);
     }
   };
 
-  const handleClose = () => {
-    if (!isProcessing) {
-      setClientSecret(null);
-      setError(null);
-      onClose();
+  useEffect(() => {
+    if (!isOpen) return;
+
+    void ensureStripe();
+    if (!clientSecret) {
+      void createSetupIntent();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
+
+  const handleClose = () => {
+    if (isProcessing) return;
+
+    setClientSecret(null);
+    setError(null);
+    onClose();
   };
+
+  const isLoading = isSetupLoading || isStripeLoading;
 
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && handleClose()}>
@@ -192,13 +241,13 @@ export function PaymentSheet({
         )}
 
         {error && (
-          <div className="flex items-center gap-2 p-4 bg-destructive/10 text-destructive rounded-lg mb-4">
+          <div className="mb-4 flex items-center gap-2 rounded-lg bg-destructive/10 p-4 text-destructive">
             <AlertCircle className="h-5 w-5" />
             <p className="text-sm">{error}</p>
           </div>
         )}
 
-        {clientSecret && stripePromise && (
+        {!isLoading && clientSecret && stripePromise && !error && (
           <Elements
             stripe={stripePromise}
             options={{
@@ -206,18 +255,21 @@ export function PaymentSheet({
               appearance: {
                 theme: "stripe",
                 variables: {
-                  colorPrimary: "#f97316",
+                  colorPrimary: "hsl(var(--primary))",
+                  colorText: "hsl(var(--foreground))",
+                  colorBackground: "hsl(var(--background))",
+                  colorDanger: "hsl(var(--destructive))",
                   borderRadius: "8px",
                   fontFamily: "system-ui, sans-serif",
                 },
                 rules: {
                   ".Input": {
-                    border: "1px solid #e5e7eb",
+                    border: "1px solid hsl(var(--border))",
                     boxShadow: "none",
                   },
                   ".Input:focus": {
-                    border: "1px solid #f97316",
-                    boxShadow: "0 0 0 1px #f97316",
+                    border: "1px solid hsl(var(--primary))",
+                    boxShadow: "0 0 0 1px hsl(var(--primary))",
                   },
                 },
               },
