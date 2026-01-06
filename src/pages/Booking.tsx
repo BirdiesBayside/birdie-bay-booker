@@ -4,6 +4,7 @@ import { ArrowLeft, Loader2, AlertCircle, Wallet, CreditCard } from "lucide-reac
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import { useBooking, PaymentMethod } from "@/hooks/useBooking";
+import { useInAppBrowser } from "@/hooks/useInAppBrowser";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -37,6 +38,7 @@ export default function Booking() {
     checkBayAvailability,
     createBooking,
   } = useBooking();
+  const { openCheckoutUrl } = useInAppBrowser();
 
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [selectedTime, setSelectedTime] = useState<string | undefined>();
@@ -117,7 +119,22 @@ export default function Booking() {
       );
       
       if (result.requiresCheckout && result.checkoutUrl) {
-        window.location.href = result.checkoutUrl;
+        // Use in-app browser for native, redirect for web
+        openCheckoutUrl(result.checkoutUrl, {
+          successPath: '/booking-success',
+          cancelPath: '/booking',
+          onSuccess: (bookingId) => {
+            navigate(`/booking-success?booking_id=${bookingId}`);
+          },
+          onCancel: () => {
+            setIsSubmitting(false);
+            toast({
+              title: "Payment cancelled",
+              description: "Your booking was not completed.",
+              variant: "destructive",
+            });
+          },
+        });
         return;
       }
       
