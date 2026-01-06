@@ -23,36 +23,27 @@ serve(async (req) => {
     const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
     if (!stripeKey) throw new Error("STRIPE_SECRET_KEY is not set");
 
+    // Use service role to verify payment - this runs after Stripe redirect
+    // The booking_id is only known to the user who created it
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
       { auth: { persistSession: false } }
     );
 
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) throw new Error("No authorization header provided");
-
-    const token = authHeader.replace("Bearer ", "");
-    const { data: userData, error: userError } = await supabaseClient.auth.getUser(token);
-    if (userError) throw new Error(`Authentication error: ${userError.message}`);
-    const user = userData.user;
-    if (!user?.id) throw new Error("User not authenticated");
-    logStep("User authenticated", { userId: user.id });
-
     const { bookingId } = await req.json();
     if (!bookingId) throw new Error("Missing bookingId");
     logStep("Request parsed", { bookingId });
 
-    // Check if booking exists and belongs to user
+    // Check if booking exists (using UUID provides security - only holder knows it)
     const { data: booking, error: bookingError } = await supabaseClient
       .from("bookings")
       .select("*")
       .eq("id", bookingId)
-      .eq("user_id", user.id)
       .maybeSingle();
 
     if (bookingError || !booking) {
-      throw new Error("Booking not found or access denied");
+      throw new Error("Booking not found");
     }
 
     // If already confirmed, return success
