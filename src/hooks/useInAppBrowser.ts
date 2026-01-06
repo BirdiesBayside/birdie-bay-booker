@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { Capacitor } from '@capacitor/core';
-import { InAppBrowser, ToolbarPosition } from '@capacitor/inappbrowser';
+import { InAppBrowser, DismissStyle, iOSViewStyle, iOSAnimation, AndroidViewStyle, AndroidAnimation } from '@capacitor/inappbrowser';
 
 interface UseInAppBrowserOptions {
   successPath: string;
   cancelPath: string;
   onSuccess?: (bookingId: string) => void;
   onCancel?: () => void;
+  bookingId?: string;
 }
 
 export function useInAppBrowser() {
@@ -38,7 +39,7 @@ export function useInAppBrowser() {
     url: string,
     options: UseInAppBrowserOptions
   ) => {
-    const { successPath, cancelPath, onSuccess, onCancel } = options;
+    const { onSuccess, onCancel, bookingId } = options;
 
     if (!isNative) {
       // On web, just redirect
@@ -46,85 +47,44 @@ export function useInAppBrowser() {
       return;
     }
 
-    // Set up listener for page navigation completion (has URL data)
-    const navListener = await InAppBrowser.addListener(
-      'browserPageNavigationCompleted',
-      async (data) => {
-        const currentUrl = data.url || '';
-        
-        // Check if we've reached the success page
-        if (currentUrl.includes(successPath)) {
-          // Extract booking_id from URL
-          try {
-            const urlObj = new URL(currentUrl);
-            const bookingId = urlObj.searchParams.get('booking_id');
-            
-            await cleanup();
-            
-            if (onSuccess && bookingId) {
-              onSuccess(bookingId);
-            }
-          } catch (e) {
-            console.error('Error parsing success URL:', e);
-          }
-          return;
-        }
-
-        // Check if user cancelled
-        if (currentUrl.includes(cancelPath)) {
-          await cleanup();
-          
-          if (onCancel) {
-            onCancel();
-          }
-          return;
-        }
-      }
-    );
-
-    // Also listen for browser close (user manually closed)
+    // Listen for browser close - we'll check payment status when it closes
     const closeListener = await InAppBrowser.addListener(
       'browserClosed',
       async () => {
-        if (onCancel) {
+        // When browser closes, we assume user either completed or cancelled
+        // The parent component should verify payment status
+        if (onSuccess && bookingId) {
+          onSuccess(bookingId);
+        } else if (onCancel) {
           onCancel();
         }
         cleanup();
       }
     );
 
-    // Store cleanup function for both listeners
+    // Store cleanup function
     listenerRef.current = () => {
-      navListener.remove();
       closeListener.remove();
     };
 
-    // Open the URL in the in-app browser
-    await InAppBrowser.openInWebView({
+    // Open the URL in the system browser (Safari on iOS, Chrome Custom Tabs on Android)
+    // This uses SFSafariViewController on iOS which DOES share Safari's saved passwords/cards
+    await InAppBrowser.openInSystemBrowser({
       url,
       options: {
-        showToolbar: true,
-        showURL: false,
-        closeButtonText: 'Cancel',
-        clearCache: false,
-        clearSessionCache: false,
-        mediaPlaybackRequiresUserAction: false,
-        showNavigationButtons: false,
-        leftToRight: false,
-        toolbarPosition: ToolbarPosition.TOP,
-        android: {
-          allowZoom: false,
-          hardwareBack: true,
-          pauseMedia: true,
-        },
         iOS: {
-          allowOverScroll: true,
-          enableViewportScale: false,
-          allowInLineMediaPlayback: true,
-          surpressIncrementalRendering: false,
-          viewStyle: 2, // FULL_SCREEN
-          animationEffect: 2, // COVER_VERTICAL
-          allowsBackForwardNavigationGestures: false,
+          closeButtonText: DismissStyle.CANCEL,
+          viewStyle: iOSViewStyle.FULL_SCREEN,
+          animationEffect: iOSAnimation.COVER_VERTICAL,
+          enableBarsCollapsing: false,
+          enableReadersMode: false,
+        },
+        android: {
+          showTitle: true,
+          hideToolbarOnScroll: false,
+          viewStyle: AndroidViewStyle.FULL_SCREEN,
+          startAnimation: AndroidAnimation.FADE_IN,
+          exitAnimation: AndroidAnimation.FADE_OUT,
         },
       }
     });

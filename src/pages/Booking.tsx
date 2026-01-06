@@ -120,10 +120,14 @@ export default function Booking() {
       
       if (result.requiresCheckout && result.checkoutUrl) {
         // Use in-app browser for native, redirect for web
+        // Pass bookingId so we can verify payment when browser closes
         openCheckoutUrl(result.checkoutUrl, {
           successPath: '/booking-success',
           cancelPath: '/booking',
+          bookingId: result.booking?.id,
           onSuccess: (bookingId) => {
+            // Navigate to success page - it will verify payment status
+            setIsSubmitting(false);
             navigate(`/booking-success?booking_id=${bookingId}`);
           },
           onCancel: () => {
