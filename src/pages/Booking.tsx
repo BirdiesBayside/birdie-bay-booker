@@ -146,7 +146,14 @@ export default function Booking() {
       if (data?.error) throw new Error(data.error);
 
       if (data?.url) {
+        // Open Stripe in browser, then navigate app back to dashboard
+        // User will add card in Safari, then manually return to app
         window.location.href = data.url;
+        
+        // After a short delay, navigate the app to dashboard so when user returns, they're on home
+        setTimeout(() => {
+          navigate("/dashboard");
+        }, 1000);
       }
     } catch (error: any) {
       toast({
