@@ -23,21 +23,44 @@ type StripePromise = ReturnType<typeof loadStripe>;
 let stripePromiseSingleton: StripePromise | null = null;
 
 async function getStripePublishableKey(): Promise<string> {
-  const envKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as
+  const envKeyRaw = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as
     | string
     | undefined;
+  const envKey = envKeyRaw?.trim();
 
-  // In some builds the environment can accidentally contain a restricted/secret key.
   // Never use anything except a publishable key (pk_*).
+  // (Some builds accidentally end up with restricted/secret keys in env.)
   if (envKey && /^pk_(test|live)_/i.test(envKey)) return envKey;
 
   const { data, error } = await supabase.functions.invoke(
     "get-stripe-publishable-key"
   );
-  if (error) throw error;
-  if (data?.error) throw new Error(data.error);
-  if (!data?.publishableKey) throw new Error("Missing Stripe publishable key");
-  return data.publishableKey as string;
+
+  if (error) {
+    const body = (error as any)?.context?.body;
+
+    // Supabase functions errors often include a JSON body; surface it.
+    if (typeof body === "string") {
+      try {
+        const parsed = JSON.parse(body);
+        if (parsed?.error) throw new Error(String(parsed.error));
+      } catch {
+        // ignore JSON parse failures
+      }
+    }
+
+    if (body && typeof body === "object" && (body as any).error) {
+      throw new Error(String((body as any).error));
+    }
+
+    throw new Error(error.message);
+  }
+
+  if ((data as any)?.error) throw new Error(String((data as any).error));
+
+  const key = String((data as any)?.publishableKey ?? "").trim();
+  if (!key) throw new Error("Missing Stripe publishable key");
+  return key;
 }
 
 interface PaymentFormProps {
