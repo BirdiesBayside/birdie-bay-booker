@@ -111,7 +111,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
       </aside>
 
       {/* Mobile Header */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-sidebar border-b border-sidebar-border">
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-sidebar border-b border-sidebar-border safe-area-top">
         <div className="flex items-center justify-between p-4">
           <div className="flex items-center gap-3">
             <Button
@@ -174,7 +174,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
       </div>
 
       {/* Main Content */}
-      <main className="flex-1 lg:pt-0 pt-16 overflow-auto">
+      <main className="flex-1 lg:pt-0 pt-[calc(4rem+env(safe-area-inset-top))] overflow-auto">
         {children}
       </main>
     </div>
