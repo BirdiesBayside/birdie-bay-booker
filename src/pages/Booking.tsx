@@ -31,6 +31,8 @@ const MEMBERSHIP_DISPLAY: Record<string, string> = {
   eagle: "Eagle Member",
 };
 
+const CARD_SETUP_PENDING_KEY = "bb:cardSetupPending";
+
 export default function Booking() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -60,6 +62,15 @@ export default function Booking() {
   const [usePartialBalance, setUsePartialBalance] = useState(false);
   const [showNoCardDialog, setShowNoCardDialog] = useState(false);
   const [isRedirectingToStripe, setIsRedirectingToStripe] = useState(false);
+
+  // If iOS reloads the app after going to Safari, reopen the dialog so the user can
+  // hit Close to refresh their saved card.
+  useEffect(() => {
+    if (localStorage.getItem(CARD_SETUP_PENDING_KEY) === "1") {
+      setShowNoCardDialog(true);
+      setIsRedirectingToStripe(true);
+    }
+  }, []);
 
   // Show toast if setup was cancelled
   useEffect(() => {
@@ -145,6 +156,7 @@ export default function Booking() {
       if (data?.error) throw new Error(data.error);
 
       if (data?.url) {
+        localStorage.setItem(CARD_SETUP_PENDING_KEY, "1");
         // Open Stripe in a new tab/Safari - user stays on this page
         window.open(data.url, "_blank");
       }
@@ -159,6 +171,7 @@ export default function Booking() {
   };
 
   const handleCloseCardDialog = () => {
+    localStorage.removeItem(CARD_SETUP_PENDING_KEY);
     setShowNoCardDialog(false);
     setIsRedirectingToStripe(false);
     // Refresh saved card data in case they added one
