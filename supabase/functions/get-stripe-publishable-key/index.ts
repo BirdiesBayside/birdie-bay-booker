@@ -50,7 +50,7 @@ serve(async (req) => {
     if (!/^pk_(test|live)_/i.test(publishableKey)) {
       logStep("Invalid key prefix", { keyPrefix: publishableKey.slice(0, 8) });
       throw new Error(
-        "Stripe publishable key is invalid (expected pk_test_... or pk_live_...)."
+        `Stripe publishable key is invalid (expected pk_test_... or pk_live_...). Current prefix: ${publishableKey.slice(0, 3)}`
       );
     }
 

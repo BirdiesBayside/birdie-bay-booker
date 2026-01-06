@@ -22,6 +22,46 @@ type StripePromise = ReturnType<typeof loadStripe>;
 
 let stripePromiseSingleton: StripePromise | null = null;
 
+async function getInvokeErrorMessage(fnError: any): Promise<string> {
+  const ctx = fnError?.context;
+
+  // Supabase FunctionsHttpError exposes a Response as `context`
+  if (ctx && typeof ctx.clone === "function") {
+    try {
+      const parsed = await ctx.clone().json();
+      if (parsed?.error) return String(parsed.error);
+      return typeof parsed === "string" ? parsed : JSON.stringify(parsed);
+    } catch {
+      // ignore
+    }
+
+    try {
+      const text = await ctx.clone().text();
+      if (text) return text;
+    } catch {
+      // ignore
+    }
+  }
+
+  const body = ctx?.body ?? fnError?.body ?? fnError?.details;
+  if (typeof body === "string") {
+    try {
+      const parsed = JSON.parse(body);
+      if (parsed?.error) return String(parsed.error);
+    } catch {
+      // ignore
+    }
+
+    return body;
+  }
+
+  if (body && typeof body === "object" && (body as any).error) {
+    return String((body as any).error);
+  }
+
+  return String(fnError?.message || "Request failed");
+}
+
 async function getStripePublishableKey(): Promise<string> {
   const envKeyRaw = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as
     | string
@@ -29,7 +69,6 @@ async function getStripePublishableKey(): Promise<string> {
   const envKey = envKeyRaw?.trim();
 
   // Never use anything except a publishable key (pk_*).
-  // (Some builds accidentally end up with restricted/secret keys in env.)
   if (envKey && /^pk_(test|live)_/i.test(envKey)) return envKey;
 
   const { data, error } = await supabase.functions.invoke(
@@ -37,23 +76,8 @@ async function getStripePublishableKey(): Promise<string> {
   );
 
   if (error) {
-    const body = (error as any)?.context?.body;
-
-    // Supabase functions errors often include a JSON body; surface it.
-    if (typeof body === "string") {
-      try {
-        const parsed = JSON.parse(body);
-        if (parsed?.error) throw new Error(String(parsed.error));
-      } catch {
-        // ignore JSON parse failures
-      }
-    }
-
-    if (body && typeof body === "object" && (body as any).error) {
-      throw new Error(String((body as any).error));
-    }
-
-    throw new Error(error.message);
+    console.error("[PaymentSheet] get-stripe-publishable-key failed", error);
+    throw new Error(await getInvokeErrorMessage(error));
   }
 
   if ((data as any)?.error) throw new Error(String((data as any).error));
@@ -71,12 +95,12 @@ interface PaymentFormProps {
   setIsProcessing: (val: boolean) => void;
 }
 
-function PaymentForm({ 
-  onSuccess, 
-  onCancel, 
-  amount, 
-  isProcessing, 
-  setIsProcessing 
+function PaymentForm({
+  onSuccess,
+  onCancel,
+  amount,
+  isProcessing,
+  setIsProcessing,
 }: PaymentFormProps) {
   const stripe = useStripe();
   const elements = useElements();
@@ -231,10 +255,15 @@ export function PaymentSheet({
         }
       );
 
-      if (fnError) throw fnError;
-      if (data?.error) throw new Error(data.error);
+      if (fnError) {
+        console.error("[PaymentSheet] create-setup-intent failed", fnError);
+        throw new Error(await getInvokeErrorMessage(fnError));
+      }
+      if ((data as any)?.error) throw new Error(String((data as any).error));
 
-      setClientSecret(data.clientSecret);
+      const secret = String((data as any)?.clientSecret ?? "");
+      if (!secret) throw new Error("Missing setup intent client secret");
+      setClientSecret(secret);
     } catch (err: any) {
       console.error("Error creating setup intent:", err);
       setError(err.message || "Failed to initialize payment form");
