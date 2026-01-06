@@ -15,6 +15,7 @@ const logStep = (step: string, details?: any) => {
 
 // Map Stripe price IDs to membership tiers
 const PRICE_TO_TIER: Record<string, string> = {
+  "price_1SlMZXLpXZPXTNVB2aLrl9Qb": "weekday",
   "price_1SbVrcLpXZPXTNVB5WUvDHZt": "birdie",
   "price_1SbVroLpXZPXTNVBEwRcbDn7": "eagle",
 };
@@ -233,6 +234,23 @@ serve(async (req) => {
       const customer = await stripe.customers.retrieve(customerId);
       if (customer.deleted) {
         logStep("Customer deleted, skipping");
+        return new Response(JSON.stringify({ received: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Check if customer has any other active subscriptions (e.g., they switched plans)
+      const activeSubscriptions = await stripe.subscriptions.list({
+        customer: customerId,
+        status: "active",
+        limit: 1,
+      });
+
+      if (activeSubscriptions.data.length > 0) {
+        logStep("Customer has another active subscription, skipping tier reset", { 
+          cancelledSubscription: subscription.id,
+          activeSubscription: activeSubscriptions.data[0].id 
+        });
         return new Response(JSON.stringify({ received: true }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
