@@ -11,6 +11,9 @@ const config: CapacitorConfig = {
   plugins: {
     PushNotifications: {
       presentationOptions: ['badge', 'sound', 'alert']
+    },
+    NativeBiometric: {
+      faceidPermission: "Use Face ID to quickly sign in to Birdies"
     }
   }
 };
