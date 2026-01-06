@@ -83,6 +83,35 @@ export default function Booking() {
     }
   }, [searchParams]);
 
+  // Handle cancelled checkout - delete the pending booking
+  useEffect(() => {
+    const handleCancelledBooking = async () => {
+      const bookingId = searchParams.get("booking_id");
+      const wasCancelled = searchParams.get("booking_cancelled") === "true";
+      
+      if (wasCancelled && bookingId) {
+        try {
+          // Delete the pending booking that was never paid
+          await supabase
+            .from("bookings")
+            .delete()
+            .eq("id", bookingId)
+            .eq("status", "pending");
+          
+          toast({
+            title: "Booking cancelled",
+            description: "Your booking was not completed. Please try again.",
+            variant: "destructive",
+          });
+        } catch (error) {
+          console.error("Failed to delete pending booking:", error);
+        }
+      }
+    };
+    
+    handleCancelledBooking();
+  }, [searchParams]);
+
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       navigate("/");
