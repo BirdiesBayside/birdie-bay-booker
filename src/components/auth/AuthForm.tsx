@@ -321,6 +321,11 @@ export function AuthForm({ defaultToSignUp = false }: AuthFormProps) {
                 placeholder="you@example.com"
                 value={formData.email}
                 onChange={handleChange}
+                inputMode="email"
+                autoComplete="email"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 className={errors.email ? "border-destructive" : ""}
               />
               {errors.email && (
@@ -453,6 +458,8 @@ export function AuthForm({ defaultToSignUp = false }: AuthFormProps) {
                   placeholder="0400 000 000"
                   value={formData.phone}
                   onChange={handleChange}
+                  inputMode="tel"
+                  autoComplete="tel"
                   className={errors.phone ? "border-destructive" : ""}
                 />
                 {errors.phone && (
@@ -471,6 +478,11 @@ export function AuthForm({ defaultToSignUp = false }: AuthFormProps) {
               placeholder="you@example.com"
               value={formData.email}
               onChange={handleChange}
+              inputMode="email"
+              autoComplete={isSignUp ? "email" : "username"}
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
               className={errors.email ? "border-destructive" : ""}
             />
             {errors.email && (
@@ -487,6 +499,10 @@ export function AuthForm({ defaultToSignUp = false }: AuthFormProps) {
               placeholder="••••••••"
               value={formData.password}
               onChange={handleChange}
+              autoComplete={isSignUp ? "new-password" : "current-password"}
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
               className={errors.password ? "border-destructive" : ""}
             />
             {errors.password && (
