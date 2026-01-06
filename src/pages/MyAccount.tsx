@@ -3,9 +3,11 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/useAuth";
+import { useBiometric } from "@/hooks/useBiometric";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Crown, Lock, User, Mail, Phone, Plus, Loader2, Trash2, Pencil, Check, X, Wallet, CreditCard } from "lucide-react";
+import { ArrowLeft, Crown, Lock, User, Mail, Phone, Plus, Loader2, Trash2, Pencil, Check, X, Wallet, CreditCard, Fingerprint } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -39,6 +41,7 @@ interface PaymentMethod {
 
 const MyAccount = () => {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const biometric = useBiometric();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -50,6 +53,7 @@ const MyAccount = () => {
   const [deletingPaymentMethodId, setDeletingPaymentMethodId] = useState<string | null>(null);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [isTogglingBiometric, setIsTogglingBiometric] = useState(false);
   
   const [editForm, setEditForm] = useState({
     first_name: "",
@@ -557,7 +561,44 @@ const MyAccount = () => {
                 </div>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-6">
+              {/* Biometric Login - Only show on native platforms */}
+              {biometric.isNative && biometric.isAvailable && (
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b">
+                  <div className="flex items-center gap-3">
+                    <Fingerprint className="h-5 w-5 text-muted-foreground" />
+                    <div>
+                      <p className="font-medium">{biometric.getBiometryName()} Login</p>
+                      <p className="text-sm text-muted-foreground">
+                        Sign in faster using {biometric.getBiometryName()}
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={biometric.hasCredentials}
+                    disabled={isTogglingBiometric}
+                    onCheckedChange={async (checked) => {
+                      setIsTogglingBiometric(true);
+                      try {
+                        if (checked) {
+                          // Need to re-authenticate to enable biometric
+                          toast.info("Please sign out and sign in again to enable biometric login.");
+                        } else {
+                          await biometric.deleteCredentials();
+                          toast.success(`${biometric.getBiometryName()} disabled`);
+                        }
+                      } catch (error) {
+                        console.error("Biometric toggle error:", error);
+                        toast.error("Failed to update biometric settings");
+                      } finally {
+                        setIsTogglingBiometric(false);
+                      }
+                    }}
+                  />
+                </div>
+              )}
+              
+              {/* Password Reset */}
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
                   <p className="font-medium">Password</p>

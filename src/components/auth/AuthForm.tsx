@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,6 +8,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useBiometric } from "@/hooks/useBiometric";
+import { BiometricPrompt } from "./BiometricPrompt";
+import { Fingerprint, Loader2 } from "lucide-react";
 import { z } from "zod";
 
 const signUpSchema = z.object({
@@ -41,6 +44,84 @@ export function AuthForm({ defaultToSignUp = false }: AuthFormProps) {
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const { toast } = useToast();
+  
+  // Biometric authentication
+  const biometric = useBiometric();
+  const [showBiometricPrompt, setShowBiometricPrompt] = useState(false);
+  const [pendingCredentials, setPendingCredentials] = useState<{ email: string; password: string } | null>(null);
+  const [isBiometricLoading, setIsBiometricLoading] = useState(false);
+
+  // Auto-trigger biometric login if available
+  useEffect(() => {
+    if (!isSignUp && biometric.hasCredentials && !biometric.isChecking) {
+      // Don't auto-trigger, let user click the button
+    }
+  }, [isSignUp, biometric.hasCredentials, biometric.isChecking]);
+
+  const handleBiometricLogin = async () => {
+    setIsBiometricLoading(true);
+    try {
+      const credentials = await biometric.authenticate();
+      if (credentials) {
+        const { error } = await supabase.auth.signInWithPassword({
+          email: credentials.email,
+          password: credentials.password,
+        });
+
+        if (error) {
+          // Credentials might be outdated
+          toast({
+            title: "Sign in failed",
+            description: "Please sign in with your email and password.",
+            variant: "destructive",
+          });
+          // Delete invalid credentials
+          await biometric.deleteCredentials();
+        }
+      } else {
+        toast({
+          title: "Authentication cancelled",
+          description: "Please try again or sign in with email and password.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("[Biometric] Login error:", error);
+      toast({
+        title: "Authentication failed",
+        description: "Please sign in with your email and password.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsBiometricLoading(false);
+    }
+  };
+
+  const handleEnableBiometric = async () => {
+    if (!pendingCredentials) return;
+    
+    try {
+      await biometric.saveCredentials(pendingCredentials.email, pendingCredentials.password);
+      toast({
+        title: `${biometric.getBiometryName()} enabled!`,
+        description: "You can now sign in faster next time.",
+      });
+    } catch (error) {
+      console.error("[Biometric] Save error:", error);
+      toast({
+        title: "Failed to enable biometric",
+        description: "Please try again from your account settings.",
+        variant: "destructive",
+      });
+    }
+    setShowBiometricPrompt(false);
+    setPendingCredentials(null);
+  };
+
+  const handleSkipBiometric = () => {
+    setShowBiometricPrompt(false);
+    setPendingCredentials(null);
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -194,6 +275,15 @@ export function AuthForm({ defaultToSignUp = false }: AuthFormProps) {
             description: "Invalid email or password. Please try again.",
             variant: "destructive",
           });
+        } else {
+          // Successful login - offer biometric if available and not already set up
+          if (biometric.isAvailable && !biometric.hasCredentials) {
+            setPendingCredentials({
+              email: formData.email.trim(),
+              password: formData.password,
+            });
+            setShowBiometricPrompt(true);
+          }
         }
       }
     } catch (err) {
@@ -265,20 +355,62 @@ export function AuthForm({ defaultToSignUp = false }: AuthFormProps) {
   }
 
   return (
-    <Card className="w-full max-w-md shadow-xl border-none">
-      <CardHeader className="text-center space-y-2">
-        <CardTitle className="font-display text-3xl text-primary">
-          {isSignUp ? "CREATE ACCOUNT" : "WELCOME BACK"}
-        </CardTitle>
-        <CardDescription>
-          {isSignUp
-            ? "Join Birdies and start booking bays today"
-            : "Sign in to access your account"}
-        </CardDescription>
-      </CardHeader>
+    <>
+      <BiometricPrompt
+        open={showBiometricPrompt}
+        onOpenChange={setShowBiometricPrompt}
+        biometryName={biometric.getBiometryName()}
+        onConfirm={handleEnableBiometric}
+        onCancel={handleSkipBiometric}
+      />
+      
+      <Card className="w-full max-w-md shadow-xl border-none">
+        <CardHeader className="text-center space-y-2">
+          <CardTitle className="font-display text-3xl text-primary">
+            {isSignUp ? "CREATE ACCOUNT" : "WELCOME BACK"}
+          </CardTitle>
+          <CardDescription>
+            {isSignUp
+              ? "Join Birdies and start booking bays today"
+              : "Sign in to access your account"}
+          </CardDescription>
+        </CardHeader>
 
-      <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <CardContent>
+          {/* Biometric Login Button */}
+          {!isSignUp && biometric.hasCredentials && !biometric.isChecking && (
+            <div className="mb-6">
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full h-14 text-lg border-2 border-accent hover:bg-accent/10"
+                onClick={handleBiometricLogin}
+                disabled={isBiometricLoading}
+              >
+                {isBiometricLoading ? (
+                  <>
+                    <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                    Authenticating...
+                  </>
+                ) : (
+                  <>
+                    <Fingerprint className="h-5 w-5 mr-2" />
+                    Use {biometric.getBiometryName()}
+                  </>
+                )}
+              </Button>
+              <div className="relative my-4">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-card px-2 text-muted-foreground">or</span>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          <form onSubmit={handleSubmit} className="space-y-4">
           {isSignUp && (
             <>
               <div className="grid grid-cols-2 gap-4">
@@ -549,5 +681,6 @@ export function AuthForm({ defaultToSignUp = false }: AuthFormProps) {
         </div>
       </CardContent>
     </Card>
+    </>
   );
 }
