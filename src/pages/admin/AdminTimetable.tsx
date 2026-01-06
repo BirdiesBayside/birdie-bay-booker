@@ -236,7 +236,7 @@ export default function AdminTimetable() {
         .from("bookings")
         .select("*")
         .eq("booking_date", dateStr)
-        .neq("status", "cancelled")
+        .eq("status", "confirmed")
         .order("start_time"),
       supabase
         .from("bay_blocks")
