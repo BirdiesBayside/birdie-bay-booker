@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Loader2, AlertCircle, Wallet, CreditCard } from "lucide-react";
 import { format } from "date-fns";
+import { Capacitor } from "@capacitor/core";
+import { Browser } from "@capacitor/browser";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useBooking, PaymentMethod } from "@/hooks/useBooking";
@@ -61,8 +63,8 @@ export default function Booking() {
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<"balance" | "card">("card");
   const [usePartialBalance, setUsePartialBalance] = useState(false);
   const [showNoCardDialog, setShowNoCardDialog] = useState(false);
+  const [isOpeningStripe, setIsOpeningStripe] = useState(false);
   const [isRedirectingToStripe, setIsRedirectingToStripe] = useState(false);
-
   // If iOS reloads the app after going to Safari, reopen the dialog so the user can
   // hit Close to refresh their saved card.
   useEffect(() => {
@@ -144,7 +146,7 @@ export default function Booking() {
   };
 
   const handleAddCard = async () => {
-    setIsRedirectingToStripe(true);
+    setIsOpeningStripe(true);
     try {
       const { data, error } = await supabase.functions.invoke("create-checkout-setup", {
         body: {
@@ -154,25 +156,36 @@ export default function Booking() {
 
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
+      if (!data?.url) throw new Error("No Stripe URL returned");
 
-      if (data?.url) {
-        localStorage.setItem(CARD_SETUP_PENDING_KEY, "1");
-        // Open Stripe in a new tab/Safari - user stays on this page
-        window.open(data.url, "_blank");
+      localStorage.setItem(CARD_SETUP_PENDING_KEY, "1");
+
+      // Open Safari reliably on iOS native app
+      if (Capacitor.isNativePlatform()) {
+        await Browser.open({ url: data.url });
+      } else {
+        window.open(data.url, "_blank", "noopener,noreferrer");
       }
+
+      // Only switch the dialog AFTER Safari has been opened
+      setIsRedirectingToStripe(true);
     } catch (error: any) {
       toast({
         title: "Error",
         description: error.message || "Failed to start card setup. Please try again.",
         variant: "destructive",
       });
+      localStorage.removeItem(CARD_SETUP_PENDING_KEY);
       setIsRedirectingToStripe(false);
+    } finally {
+      setIsOpeningStripe(false);
     }
   };
 
   const handleCloseCardDialog = () => {
     localStorage.removeItem(CARD_SETUP_PENDING_KEY);
     setShowNoCardDialog(false);
+    setIsOpeningStripe(false);
     setIsRedirectingToStripe(false);
     // Refresh saved card data in case they added one
     refetchSavedCard();
@@ -472,37 +485,59 @@ export default function Booking() {
       </main>
 
       {/* No Card Dialog */}
-      <Dialog open={showNoCardDialog} onOpenChange={(open) => !open && handleCloseCardDialog()}>
+      <Dialog
+        open={showNoCardDialog}
+        onOpenChange={(open) => {
+          if (open) {
+            setShowNoCardDialog(true);
+            return;
+          }
+
+          // If we're in the "return from Safari" state, closing acts like Close
+          if (isRedirectingToStripe) {
+            handleCloseCardDialog();
+          } else {
+            setShowNoCardDialog(false);
+            setIsOpeningStripe(false);
+          }
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Payment Method Required</DialogTitle>
             <DialogDescription>
-              {isRedirectingToStripe 
-                ? "A new window has opened for you to add your card. Once complete, close this dialog and try booking again."
+              {isRedirectingToStripe
+                ? "Safari should be open for you to add your card. Once complete, return to the Birdies app and tap Close to refresh your payment method."
                 : "To make a booking, you need to add a payment method to your account first."}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex-col sm:flex-row gap-2">
             {isRedirectingToStripe ? (
-              <Button 
-                onClick={handleCloseCardDialog}
-                className="w-full gradient-orange text-accent-foreground"
-              >
+              <Button onClick={handleCloseCardDialog} className="w-full gradient-orange text-accent-foreground">
                 Close
               </Button>
             ) : (
               <>
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   onClick={() => setShowNoCardDialog(false)}
+                  disabled={isOpeningStripe}
                 >
                   Cancel
                 </Button>
-                <Button 
+                <Button
                   onClick={handleAddCard}
                   className="gradient-orange text-accent-foreground"
+                  disabled={isOpeningStripe}
                 >
-                  Add Payment Method
+                  {isOpeningStripe ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Opening Stripe...
+                    </>
+                  ) : (
+                    "Add Payment Method"
+                  )}
                 </Button>
               </>
             )}
