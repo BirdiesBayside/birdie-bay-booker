@@ -167,14 +167,27 @@ export function PaymentSheet({
     setIsStripeLoading(true);
     try {
       const key = await getStripePublishableKey();
-      stripePromiseSingleton = loadStripe(key);
-      setStripePromise(stripePromiseSingleton);
+
+      // Quick sanity check: publishable keys MUST start with pk_test_ or pk_live_
+      if (!/^pk_(test|live)_/i.test(key)) {
+        throw new Error(
+          "Stripe publishable key is invalid (expected pk_test_... or pk_live_...)."
+        );
+      }
+
+      const promise = loadStripe(key);
+      const stripeInstance = await promise;
+      if (!stripeInstance) {
+        throw new Error(
+          "Stripe failed to load. This is usually caused by a blocked Stripe script (CSP/network) or an invalid key."
+        );
+      }
+
+      stripePromiseSingleton = promise;
+      setStripePromise(promise);
     } catch (err: any) {
       console.error("Error loading Stripe:", err);
-      setError(
-        err.message ||
-          "Payments are not configured on this build (missing Stripe publishable key)."
-      );
+      setError(err.message || "Failed to load Stripe");
     } finally {
       setIsStripeLoading(false);
     }
@@ -254,24 +267,6 @@ export function PaymentSheet({
               clientSecret,
               appearance: {
                 theme: "stripe",
-                variables: {
-                  colorPrimary: "hsl(var(--primary))",
-                  colorText: "hsl(var(--foreground))",
-                  colorBackground: "hsl(var(--background))",
-                  colorDanger: "hsl(var(--destructive))",
-                  borderRadius: "8px",
-                  fontFamily: "system-ui, sans-serif",
-                },
-                rules: {
-                  ".Input": {
-                    border: "1px solid hsl(var(--border))",
-                    boxShadow: "none",
-                  },
-                  ".Input:focus": {
-                    border: "1px solid hsl(var(--primary))",
-                    boxShadow: "0 0 0 1px hsl(var(--primary))",
-                  },
-                },
               },
             }}
           >
