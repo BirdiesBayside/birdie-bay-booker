@@ -2,8 +2,6 @@ import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Loader2, AlertCircle, Wallet, CreditCard } from "lucide-react";
 import { format } from "date-fns";
-import { Capacitor } from "@capacitor/core";
-import { Browser } from "@capacitor/browser";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useBooking, PaymentMethod } from "@/hooks/useBooking";
@@ -158,17 +156,11 @@ export default function Booking() {
       if (data?.error) throw new Error(data.error);
       if (!data?.url) throw new Error("No Stripe URL returned");
 
+      // Store flag so when app reloads, we know to show the Close dialog
       localStorage.setItem(CARD_SETUP_PENDING_KEY, "1");
 
-      // Open Safari reliably on iOS native app
-      if (Capacitor.isNativePlatform()) {
-        await Browser.open({ url: data.url });
-      } else {
-        window.open(data.url, "_blank", "noopener,noreferrer");
-      }
-
-      // Only switch the dialog AFTER Safari has been opened
-      setIsRedirectingToStripe(true);
+      // Redirect to Stripe (will open Safari on iOS)
+      window.location.href = data.url;
     } catch (error: any) {
       toast({
         title: "Error",
@@ -176,8 +168,6 @@ export default function Booking() {
         variant: "destructive",
       });
       localStorage.removeItem(CARD_SETUP_PENDING_KEY);
-      setIsRedirectingToStripe(false);
-    } finally {
       setIsOpeningStripe(false);
     }
   };
