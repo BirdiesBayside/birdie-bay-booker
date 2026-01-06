@@ -39,9 +39,9 @@ serve(async (req) => {
     if (!user?.email) throw new Error("User not authenticated");
     logStep("User authenticated", { userId: user.id, email: user.email });
 
-    const { bookingId, amount, description, paymentMethodId } = await req.json();
+    const { bookingId, amount, description, paymentMethodId, isNativeApp } = await req.json();
     if (!bookingId || !amount) throw new Error("Missing bookingId or amount");
-    logStep("Request parsed", { bookingId, amount, description, paymentMethodId });
+    logStep("Request parsed", { bookingId, amount, description, paymentMethodId, isNativeApp });
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
 
@@ -124,9 +124,18 @@ serve(async (req) => {
     // No new payment method - check for existing customer/cards
     if (!customerId) {
       // No Stripe customer - redirect to checkout
-      logStep("No Stripe customer found, creating checkout session");
+      logStep("No Stripe customer found, creating checkout session", { isNativeApp });
       
-      const origin = req.headers.get("origin") || "https://hltrcuypuxhetcjyvedl.lovable.app";
+      const origin = req.headers.get("origin") || "https://hub.birdiesbayside.com.au";
+      
+      // For native apps, use custom URL scheme so Stripe redirects back INTO the app
+      // This closes the browser and returns to the app automatically
+      const successUrl = isNativeApp 
+        ? `birdiesbayside://booking-success?booking_id=${bookingId}`
+        : `${origin}/booking-success?booking_id=${bookingId}`;
+      const cancelUrl = isNativeApp
+        ? `birdiesbayside://booking-cancelled?booking_id=${bookingId}`
+        : `${origin}/booking?booking_cancelled=true&booking_id=${bookingId}`;
       
       const session = await stripe.checkout.sessions.create({
         customer_email: user.email,
@@ -153,8 +162,8 @@ serve(async (req) => {
         payment_intent_data: {
           setup_future_usage: "off_session",
         },
-        success_url: `${origin}/booking-success?booking_id=${bookingId}`,
-        cancel_url: `${origin}/booking?booking_cancelled=true&booking_id=${bookingId}`,
+        success_url: successUrl,
+        cancel_url: cancelUrl,
         metadata: {
           booking_id: bookingId,
           user_id: user.id,
@@ -182,9 +191,17 @@ serve(async (req) => {
 
     if (paymentMethods.data.length === 0) {
       // No saved card - redirect to checkout
-      logStep("No saved payment method, creating checkout session");
+      logStep("No saved payment method, creating checkout session", { isNativeApp });
       
-      const origin = req.headers.get("origin") || "https://hltrcuypuxhetcjyvedl.lovable.app";
+      const origin = req.headers.get("origin") || "https://hub.birdiesbayside.com.au";
+      
+      // For native apps, use custom URL scheme so Stripe redirects back INTO the app
+      const successUrl = isNativeApp 
+        ? `birdiesbayside://booking-success?booking_id=${bookingId}`
+        : `${origin}/booking-success?booking_id=${bookingId}`;
+      const cancelUrl = isNativeApp
+        ? `birdiesbayside://booking-cancelled?booking_id=${bookingId}`
+        : `${origin}/booking?booking_cancelled=true&booking_id=${bookingId}`;
       
       const session = await stripe.checkout.sessions.create({
         customer: customerId,
@@ -211,8 +228,8 @@ serve(async (req) => {
         payment_intent_data: {
           setup_future_usage: "off_session",
         },
-        success_url: `${origin}/booking-success?booking_id=${bookingId}`,
-        cancel_url: `${origin}/booking?booking_cancelled=true&booking_id=${bookingId}`,
+        success_url: successUrl,
+        cancel_url: cancelUrl,
         metadata: {
           booking_id: bookingId,
           user_id: user.id,

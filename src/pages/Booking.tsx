@@ -119,26 +119,14 @@ export default function Booking() {
       );
       
       if (result.requiresCheckout && result.checkoutUrl) {
-        // Use in-app browser for native, redirect for web
-        // Pass bookingId so we can verify payment when browser closes
+        // Open checkout in browser - Stripe will redirect back to app via deep link
+        // The deep link handler in App.tsx will navigate to booking-success
         openCheckoutUrl(result.checkoutUrl, {
           successPath: '/booking-success',
           cancelPath: '/booking',
           bookingId: result.booking?.id,
-          onSuccess: (bookingId) => {
-            // Navigate to success page - it will verify payment status
-            setIsSubmitting(false);
-            navigate(`/booking-success?booking_id=${bookingId}`);
-          },
-          onCancel: () => {
-            setIsSubmitting(false);
-            toast({
-              title: "Payment cancelled",
-              description: "Your booking was not completed.",
-              variant: "destructive",
-            });
-          },
         });
+        // Keep showing "Processing..." - the app will navigate when deep link fires
         return;
       }
       
