@@ -33,10 +33,12 @@ serve(async (req) => {
     if (userError) throw userError;
     if (!data.user) throw new Error("User not authenticated");
 
-    const publishableKey =
+    const rawKey =
       Deno.env.get("VITE_STRIPE_PUBLISHABLE_KEY") ||
       Deno.env.get("STRIPE_PUBLISHABLE_KEY") ||
       "";
+
+    const publishableKey = rawKey.trim();
 
     if (!publishableKey) {
       throw new Error(
@@ -46,6 +48,7 @@ serve(async (req) => {
 
     // Never return restricted/secret keys by accident.
     if (!/^pk_(test|live)_/i.test(publishableKey)) {
+      logStep("Invalid key prefix", { keyPrefix: publishableKey.slice(0, 8) });
       throw new Error(
         "Stripe publishable key is invalid (expected pk_test_... or pk_live_...)."
       );
