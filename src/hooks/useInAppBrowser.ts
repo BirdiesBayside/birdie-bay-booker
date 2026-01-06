@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { Capacitor } from '@capacitor/core';
-import { InAppBrowser, DismissStyle, iOSViewStyle, iOSAnimation, AndroidViewStyle, AndroidAnimation } from '@capacitor/inappbrowser';
+import { InAppBrowser, iOSViewStyle, iOSAnimation, ToolbarPosition } from '@capacitor/inappbrowser';
+import { useNavigate } from 'react-router-dom';
 
 interface UseInAppBrowserOptions {
   successPath: string;
@@ -12,10 +13,11 @@ interface UseInAppBrowserOptions {
 
 export function useInAppBrowser() {
   const isNative = Capacitor.isNativePlatform();
+  const navigate = useNavigate();
 
   const openCheckoutUrl = useCallback(async (
     url: string,
-    _options: UseInAppBrowserOptions
+    options: UseInAppBrowserOptions
   ) => {
     if (!isNative) {
       // On web, just redirect
@@ -23,30 +25,78 @@ export function useInAppBrowser() {
       return;
     }
 
-    // On native, open in system browser (SFSafariViewController on iOS)
-    // Stripe will redirect to birdiesbayside://booking-success?booking_id=xxx
-    // which will be handled by App.tsx via the App URL listener
-    // The browser will automatically close when redirecting to the custom scheme
-    await InAppBrowser.openInSystemBrowser({
-      url,
-      options: {
-        iOS: {
-          closeButtonText: DismissStyle.CANCEL,
-          viewStyle: iOSViewStyle.FULL_SCREEN,
-          animationEffect: iOSAnimation.COVER_VERTICAL,
-          enableBarsCollapsing: false,
-          enableReadersMode: false,
-        },
-        android: {
-          showTitle: true,
-          hideToolbarOnScroll: false,
-          viewStyle: AndroidViewStyle.FULL_SCREEN,
-          startAnimation: AndroidAnimation.FADE_IN,
-          exitAnimation: AndroidAnimation.FADE_OUT,
-        },
-      }
-    });
-  }, [isNative]);
+    // On native, open in WebView and listen for page navigation
+    // When Stripe redirects to our custom scheme, we'll catch it and navigate
+    try {
+      // Add listener for page navigation to detect deep link redirect
+      await InAppBrowser.addListener('browserPageNavigationCompleted', async (event) => {
+        const eventUrl = event.url || '';
+        
+        // Check if this is our custom scheme redirect
+        if (eventUrl.startsWith('birdiesbayside://booking-success')) {
+          const urlParams = new URL(eventUrl.replace('birdiesbayside://', 'https://app/'));
+          const bookingId = urlParams.searchParams.get('booking_id');
+          
+          // Close the browser
+          await InAppBrowser.close();
+          InAppBrowser.removeAllListeners();
+          
+          // Navigate to success page
+          if (bookingId) {
+            navigate(`/booking-success?booking_id=${bookingId}`);
+          }
+        } else if (eventUrl.startsWith('birdiesbayside://booking-cancelled')) {
+          const urlParams = new URL(eventUrl.replace('birdiesbayside://', 'https://app/'));
+          const bookingId = urlParams.searchParams.get('booking_id');
+          
+          // Close the browser
+          await InAppBrowser.close();
+          InAppBrowser.removeAllListeners();
+          
+          // Navigate back to booking with cancelled state
+          navigate(`/booking?booking_cancelled=true${bookingId ? `&booking_id=${bookingId}` : ''}`);
+        }
+      });
+
+      // Also listen for browser close event (user manually closes)
+      await InAppBrowser.addListener('browserClosed', () => {
+        InAppBrowser.removeAllListeners();
+      });
+
+      // Open in WebView - this allows us to intercept URL changes
+      await InAppBrowser.openInWebView({
+        url,
+        options: {
+          showURL: false,
+          showToolbar: true,
+          clearCache: false,
+          clearSessionCache: false,
+          mediaPlaybackRequiresUserAction: true,
+          closeButtonText: 'Cancel',
+          toolbarPosition: ToolbarPosition.TOP,
+          showNavigationButtons: false,
+          leftToRight: false,
+          android: {
+            allowZoom: false,
+            hardwareBack: true,
+            pauseMedia: true,
+          },
+          iOS: {
+            allowOverScroll: false,
+            enableViewportScale: false,
+            allowInLineMediaPlayback: false,
+            surpressIncrementalRendering: false,
+            viewStyle: iOSViewStyle.FULL_SCREEN,
+            animationEffect: iOSAnimation.COVER_VERTICAL,
+            allowsBackForwardNavigationGestures: false,
+          }
+        }
+      });
+    } catch (error) {
+      console.error('Error opening checkout:', error);
+      InAppBrowser.removeAllListeners();
+    }
+  }, [isNative, navigate]);
 
   return {
     openCheckoutUrl,
