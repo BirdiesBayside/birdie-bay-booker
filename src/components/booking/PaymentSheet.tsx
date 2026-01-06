@@ -208,6 +208,17 @@ export function PaymentSheet({
                 variables: {
                   colorPrimary: "#f97316",
                   borderRadius: "8px",
+                  fontFamily: "system-ui, sans-serif",
+                },
+                rules: {
+                  ".Input": {
+                    border: "1px solid #e5e7eb",
+                    boxShadow: "none",
+                  },
+                  ".Input:focus": {
+                    border: "1px solid #f97316",
+                    boxShadow: "0 0 0 1px #f97316",
+                  },
                 },
               },
             }}
