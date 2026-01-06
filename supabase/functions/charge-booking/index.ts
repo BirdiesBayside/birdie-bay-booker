@@ -124,18 +124,13 @@ serve(async (req) => {
     // No new payment method - check for existing customer/cards
     if (!customerId) {
       // No Stripe customer - redirect to checkout
-      logStep("No Stripe customer found, creating checkout session", { isNativeApp });
+      logStep("No Stripe customer found, creating checkout session");
       
       const origin = req.headers.get("origin") || "https://hub.birdiesbayside.com.au";
       
-      // For native apps, use custom URL scheme so Stripe redirects back INTO the app
-      // This closes the browser and returns to the app automatically
-      const successUrl = isNativeApp 
-        ? `birdiesbayside://booking-success?booking_id=${bookingId}`
-        : `${origin}/booking-success?booking_id=${bookingId}`;
-      const cancelUrl = isNativeApp
-        ? `birdiesbayside://booking-cancelled?booking_id=${bookingId}`
-        : `${origin}/booking?booking_cancelled=true&booking_id=${bookingId}`;
+      // Always use HTTPS URLs - for native apps, the WebView handles the redirect naturally
+      const successUrl = `${origin}/booking-success?booking_id=${bookingId}`;
+      const cancelUrl = `${origin}/booking?booking_cancelled=true&booking_id=${bookingId}`;
       
       const session = await stripe.checkout.sessions.create({
         customer_email: user.email,
@@ -191,17 +186,13 @@ serve(async (req) => {
 
     if (paymentMethods.data.length === 0) {
       // No saved card - redirect to checkout
-      logStep("No saved payment method, creating checkout session", { isNativeApp });
+      logStep("No saved payment method, creating checkout session");
       
       const origin = req.headers.get("origin") || "https://hub.birdiesbayside.com.au";
       
-      // For native apps, use custom URL scheme so Stripe redirects back INTO the app
-      const successUrl = isNativeApp 
-        ? `birdiesbayside://booking-success?booking_id=${bookingId}`
-        : `${origin}/booking-success?booking_id=${bookingId}`;
-      const cancelUrl = isNativeApp
-        ? `birdiesbayside://booking-cancelled?booking_id=${bookingId}`
-        : `${origin}/booking?booking_cancelled=true&booking_id=${bookingId}`;
+      // Always use HTTPS URLs - for native apps, the WebView handles the redirect naturally
+      const successUrl = `${origin}/booking-success?booking_id=${bookingId}`;
+      const cancelUrl = `${origin}/booking?booking_cancelled=true&booking_id=${bookingId}`;
       
       const session = await stripe.checkout.sessions.create({
         customer: customerId,
