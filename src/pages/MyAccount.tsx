@@ -255,7 +255,7 @@ const MyAccount = () => {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       {/* Header */}
-      <header className="bg-primary py-4 px-6 flex items-center justify-between">
+      <header className="bg-primary py-4 px-6 flex items-center justify-between safe-area-top">
         <div className="flex items-center gap-4">
           <Button
             variant="ghost"

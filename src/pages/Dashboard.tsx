@@ -73,7 +73,7 @@ const Dashboard = () => {
   return (
     <div className="min-h-screen flex flex-col">
       {/* Header */}
-      <header className="bg-primary py-4 px-6 flex items-center justify-between">
+      <header className="bg-primary py-4 px-6 flex items-center justify-between safe-area-top">
         <img 
           src={birdiesLogo} 
           alt="Birdies" 

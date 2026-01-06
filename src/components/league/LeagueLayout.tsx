@@ -39,7 +39,7 @@ export function LeagueLayout({ children }: LeagueLayoutProps) {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
-      <header className="bg-primary sticky top-0 z-50">
+      <header className="bg-primary sticky top-0 z-50 safe-area-top">
         <div className="container flex items-center justify-between h-16 px-4">
           <div className="flex items-center gap-3">
             <Link

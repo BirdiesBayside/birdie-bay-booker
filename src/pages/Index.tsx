@@ -68,7 +68,7 @@ const Index = () => {
   return (
     <div className="min-h-screen flex flex-col">
       {/* Header */}
-      <header className="bg-primary py-4 px-6">
+      <header className="bg-primary py-4 px-6 safe-area-top">
         <img src={birdiesLogo} alt="Birdies" className="h-10" />
       </header>
 
