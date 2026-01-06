@@ -98,6 +98,10 @@ const MyBookings = () => {
 
   const handleCancelBooking = async (bookingId: string) => {
     setCancellingId(bookingId);
+    
+    // Show immediate feedback
+    toast.loading("Processing cancellation...", { id: `cancel-${bookingId}` });
+    
     try {
       const { data, error } = await supabase.functions.invoke("cancel-booking", {
         body: { booking_id: bookingId },
@@ -106,6 +110,9 @@ const MyBookings = () => {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
+      // Dismiss loading toast and show success
+      toast.dismiss(`cancel-${bookingId}`);
+      
       if (data?.refund) {
         if (data.refund.type === "balance") {
           toast.success(`Booking cancelled. $${data.refund.amount.toFixed(2)} refunded to your deposit balance.`);
@@ -119,6 +126,7 @@ const MyBookings = () => {
       fetchBookings();
     } catch (error) {
       console.error("Error cancelling booking:", error);
+      toast.dismiss(`cancel-${bookingId}`);
       toast.error(error instanceof Error ? error.message : "Failed to cancel booking");
     } finally {
       setCancellingId(null);
