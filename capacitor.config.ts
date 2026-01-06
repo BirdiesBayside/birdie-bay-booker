@@ -5,7 +5,7 @@ const config: CapacitorConfig = {
   appName: 'Birdies Hub',
   webDir: 'dist',
   server: {
-    url: 'https://hub.biredbayside.com.au',
+    url: 'https://hub.birdiesbayside.com.au',
     cleartext: false
   },
   plugins: {
