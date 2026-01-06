@@ -379,5 +379,6 @@ export function useBooking() {
     fetchBookingsForDate,
     checkBayAvailability,
     createBooking,
+    refetchSavedCard: fetchSavedCard,
   };
 }

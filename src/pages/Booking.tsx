@@ -1,9 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Loader2, AlertCircle, Wallet, CreditCard } from "lucide-react";
 import { format } from "date-fns";
-import { Capacitor } from "@capacitor/core";
-import { App as CapacitorApp } from "@capacitor/app";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useBooking, PaymentMethod } from "@/hooks/useBooking";
@@ -49,6 +47,7 @@ export default function Booking() {
     fetchBookingsForDate,
     checkBayAvailability,
     createBooking,
+    refetchSavedCard,
   } = useBooking();
 
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
@@ -61,31 +60,6 @@ export default function Booking() {
   const [usePartialBalance, setUsePartialBalance] = useState(false);
   const [showNoCardDialog, setShowNoCardDialog] = useState(false);
   const [isRedirectingToStripe, setIsRedirectingToStripe] = useState(false);
-  const stripeSetupRedirectRef = useRef(false);
-
-  // If the app goes to background while we're redirecting to Stripe, reset UI so user
-  // won't be stuck on the "Redirecting..." dialog when they return.
-  useEffect(() => {
-    if (!Capacitor.isNativePlatform()) return;
-
-    let handle: { remove: () => Promise<void> } | undefined;
-
-    CapacitorApp.addListener("appStateChange", ({ isActive }) => {
-      if (!stripeSetupRedirectRef.current) return;
-
-      console.log("[StripeSetup] App state changed, resetting UI", { isActive });
-      stripeSetupRedirectRef.current = false;
-      setShowNoCardDialog(false);
-      setIsRedirectingToStripe(false);
-      navigate("/dashboard");
-    }).then((h) => {
-      handle = h;
-    });
-
-    return () => {
-      handle?.remove();
-    };
-  }, [navigate]);
 
   // Show toast if setup was cancelled
   useEffect(() => {
@@ -159,13 +133,11 @@ export default function Booking() {
   };
 
   const handleAddCard = async () => {
-    stripeSetupRedirectRef.current = true;
     setIsRedirectingToStripe(true);
     try {
       const { data, error } = await supabase.functions.invoke("create-checkout-setup", {
         body: {
           returnTo: "/card-added",
-          isNativeApp: Capacitor.isNativePlatform(),
         },
       });
 
@@ -173,17 +145,10 @@ export default function Booking() {
       if (data?.error) throw new Error(data.error);
 
       if (data?.url) {
-        // Immediately reset UI + return user to home in-app.
-        // Stripe will open in Safari; user can return to the app manually.
-        setShowNoCardDialog(false);
-        setIsRedirectingToStripe(false);
-        navigate("/dashboard");
-
-        console.log("[StripeSetup] Opening Stripe setup URL");
-        window.location.href = data.url;
+        // Open Stripe in a new tab/Safari - user stays on this page
+        window.open(data.url, "_blank");
       }
     } catch (error: any) {
-      stripeSetupRedirectRef.current = false;
       toast({
         title: "Error",
         description: error.message || "Failed to start card setup. Please try again.",
@@ -191,6 +156,13 @@ export default function Booking() {
       });
       setIsRedirectingToStripe(false);
     }
+  };
+
+  const handleCloseCardDialog = () => {
+    setShowNoCardDialog(false);
+    setIsRedirectingToStripe(false);
+    // Refresh saved card data in case they added one
+    refetchSavedCard();
   };
 
   const handleConfirmBooking = async (paymentMethod: PaymentMethod, applyPartialBalance: boolean = false) => {
@@ -487,37 +459,40 @@ export default function Booking() {
       </main>
 
       {/* No Card Dialog */}
-      <Dialog open={showNoCardDialog} onOpenChange={setShowNoCardDialog}>
+      <Dialog open={showNoCardDialog} onOpenChange={(open) => !open && handleCloseCardDialog()}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Payment Method Required</DialogTitle>
             <DialogDescription>
-              To make a booking, you need to add a payment method to your account first. 
-              You'll be redirected to securely add your card.
+              {isRedirectingToStripe 
+                ? "A new window has opened for you to add your card. Once complete, close this dialog and try booking again."
+                : "To make a booking, you need to add a payment method to your account first."}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex-col sm:flex-row gap-2">
-            <Button 
-              variant="outline" 
-              onClick={() => setShowNoCardDialog(false)}
-              disabled={isRedirectingToStripe}
-            >
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleAddCard}
-              disabled={isRedirectingToStripe}
-              className="gradient-orange text-accent-foreground"
-            >
-              {isRedirectingToStripe ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Redirecting...
-                </>
-              ) : (
-                "Add Payment Method"
-              )}
-            </Button>
+            {isRedirectingToStripe ? (
+              <Button 
+                onClick={handleCloseCardDialog}
+                className="w-full gradient-orange text-accent-foreground"
+              >
+                Close
+              </Button>
+            ) : (
+              <>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setShowNoCardDialog(false)}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleAddCard}
+                  className="gradient-orange text-accent-foreground"
+                >
+                  Add Payment Method
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -49,31 +49,21 @@ serve(async (req) => {
 
     const origin = req.headers.get("origin") || "https://hub.birdiesbayside.com.au";
 
-    // Parse optional parameters from request body
+    // Parse optional returnTo from request body
     let returnTo = "/card-added";
-    let isNativeApp = false;
     try {
       const body = await req.json();
       if (body?.returnTo) {
         returnTo = body.returnTo;
       }
-      if (body?.isNativeApp) {
-        isNativeApp = true;
-      }
     } catch {
       // No body or invalid JSON - use default
     }
 
-    // For native apps, use deep link URL scheme
-    const successUrl = isNativeApp 
-      ? `birdiesbayside://card-added`
-      : `${origin}${returnTo}`;
-    
-    const cancelUrl = isNativeApp
-      ? `birdiesbayside://card-cancelled`
-      : `${origin}/booking?setup_cancelled=true`;
+    const successUrl = `${origin}${returnTo}`;
+    const cancelUrl = `${origin}/booking?setup_cancelled=true`;
 
-    logStep("Creating checkout session", { isNativeApp, successUrl, cancelUrl });
+    logStep("Creating checkout session", { successUrl, cancelUrl });
 
     // Create a Checkout session in setup mode to save card
     const session = await stripe.checkout.sessions.create({
