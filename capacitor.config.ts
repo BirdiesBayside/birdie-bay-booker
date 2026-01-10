@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'golf.birdies.hub',
+  appId: 'com.birdiesbayside.hub',
   appName: 'Birdies Hub',
   webDir: 'dist',
   server: {
