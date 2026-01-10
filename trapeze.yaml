@@ -6,7 +6,7 @@ platforms:
           replace: false
           entries:
             - CFBundleURLTypes:
-                - CFBundleURLName: golf.birdies.hub
+                - CFBundleURLName: com.birdiesbayside.hub
                   CFBundleURLSchemes:
                     - birdiesbayside
   android:
