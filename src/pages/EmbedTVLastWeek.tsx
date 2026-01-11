@@ -4,18 +4,14 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import birdiesLogo from "@/assets/birdies-b-orange.png";
 
-interface Tour {
-  tour_id: number;
-  name: string;
-  active: number;
-}
-
 interface Tournament {
   tournament_id: number;
   name: string;
   course_name: string | null;
   start_date: string | null;
+  end_date: string | null;
   status: string | null;
+  tour_id: number;
 }
 
 interface TournamentResult {
@@ -39,29 +35,29 @@ async function fetchPublicLeaderboard(action: string, params: Record<string, str
 }
 
 export default function EmbedTVLastWeek() {
-  const [activeTour, setActiveTour] = useState<Tour | null>(null);
-  const [previousTournament, setPreviousTournament] = useState<Tournament | null>(null);
+  const [tourName, setTourName] = useState<string | null>(null);
+  const [lastTournament, setLastTournament] = useState<Tournament | null>(null);
   const [results, setResults] = useState<TournamentResult[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
 
   const loadData = async () => {
     try {
-      // Get tours and find active one
-      const toursData = await fetchPublicLeaderboard("tours");
-      const active = toursData.tours?.find((t: Tour) => t.active === 1) || toursData.tours?.[0];
-      if (!active) return;
-      setActiveTour(active);
+      // Get the last completed tournament across ALL tours
+      const lastCompletedData = await fetchPublicLeaderboard("last-completed-tournament");
+      const tournament = lastCompletedData.tournament;
+      
+      if (!tournament) {
+        setIsLoading(false);
+        return;
+      }
+      
+      setLastTournament(tournament);
+      setTourName(lastCompletedData.tourName);
 
-      // Get tournaments for active tour - get the second one (previous week)
-      const tournamentsData = await fetchPublicLeaderboard("tournaments", { tourId: active.tour_id.toString() });
-      const previous = tournamentsData.tournaments?.[1]; // Index 1 = previous week
-      if (!previous) return;
-      setPreviousTournament(previous);
-
-      // Get results for previous tournament
+      // Get results for this tournament
       const resultsData = await fetchPublicLeaderboard("tournament-results", {
-        tournamentId: previous.tournament_id.toString(),
+        tournamentId: tournament.tournament_id.toString(),
         grossOrNet: "net",
       });
       setResults(resultsData.results || []);
@@ -112,16 +108,16 @@ export default function EmbedTVLastWeek() {
           <img src={birdiesLogo} alt="Birdies" className="h-16" />
           <div>
             <h1 className="font-bold text-4xl text-[hsl(128,42%,21%)] tracking-tight">
-              {previousTournament?.name || "Last Week Results"}
+              {lastTournament?.name || "Last Completed Tournament"}
             </h1>
             <p className="text-xl text-[hsl(128,20%,40%)]">
-              {previousTournament?.course_name} • NET Scores
+              {lastTournament?.course_name} • {tourName} • NET Scores
             </p>
           </div>
         </div>
         <div className="text-right">
           <div className="px-6 py-3 bg-[hsl(128,42%,21%)] text-white rounded-lg text-xl font-bold">
-            LAST WEEK
+            LAST COMPLETED
           </div>
           <p className="text-sm text-[hsl(128,20%,40%)] mt-2">
             Updated: {lastUpdated.toLocaleTimeString()}

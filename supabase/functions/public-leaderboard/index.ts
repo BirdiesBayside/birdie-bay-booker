@@ -105,6 +105,36 @@ Deno.serve(async (req) => {
         });
       }
 
+      case "last-completed-tournament": {
+        // Get the most recently completed tournament across ALL tours
+        const today = new Date().toISOString().split('T')[0];
+        const { data: tournaments, error } = await supabase
+          .from("sgt_tournaments")
+          .select("tournament_id, name, course_name, start_date, end_date, status, tour_id")
+          .eq("status", "Completed")
+          .order("end_date", { ascending: false })
+          .limit(1);
+
+        if (error) throw error;
+
+        const tournament = tournaments?.[0] || null;
+
+        // Also get the tour name for context
+        let tourName = null;
+        if (tournament) {
+          const { data: tour } = await supabase
+            .from("sgt_tours")
+            .select("name")
+            .eq("tour_id", tournament.tour_id)
+            .single();
+          tourName = tour?.name || null;
+        }
+
+        return new Response(JSON.stringify({ tournament, tourName }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       case "tournament-results": {
         const tournamentId = getParam("tournamentId");
         const grossOrNet = (getParam("grossOrNet") || "net") as "gross" | "net";
