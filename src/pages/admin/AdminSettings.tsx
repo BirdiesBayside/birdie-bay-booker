@@ -25,7 +25,8 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Pencil, Trash2, Settings, ShoppingCart, Bell, DollarSign, X, Copy, Check, Eye } from "lucide-react";
+import { Plus, Pencil, Trash2, Settings, ShoppingCart, Bell, DollarSign, X, Copy, Check, Eye, BarChart3 } from "lucide-react";
+import { SalesReporting } from "@/components/admin/SalesReporting";
 
 // Template types and their available placeholder tags
 const TEMPLATE_TAGS: Record<string, { tag: string; description: string }[]> = {
@@ -491,22 +492,26 @@ export default function AdminSettings() {
         </div>
 
         <Tabs defaultValue="general" className="space-y-6">
-          <TabsList className="grid w-full max-w-lg grid-cols-4">
+          <TabsList className="grid w-full max-w-2xl grid-cols-5">
             <TabsTrigger value="general" className="flex items-center gap-2">
               <Settings className="h-4 w-4" />
-              General
+              <span className="hidden sm:inline">General</span>
+            </TabsTrigger>
+            <TabsTrigger value="reporting" className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" />
+              <span className="hidden sm:inline">Reporting</span>
             </TabsTrigger>
             <TabsTrigger value="pricing" className="flex items-center gap-2">
               <DollarSign className="h-4 w-4" />
-              Pricing
+              <span className="hidden sm:inline">Pricing</span>
             </TabsTrigger>
             <TabsTrigger value="pos" className="flex items-center gap-2">
               <ShoppingCart className="h-4 w-4" />
-              POS
+              <span className="hidden sm:inline">POS</span>
             </TabsTrigger>
             <TabsTrigger value="notifications" className="flex items-center gap-2">
               <Bell className="h-4 w-4" />
-              Notifications
+              <span className="hidden sm:inline">Notifications</span>
             </TabsTrigger>
           </TabsList>
 
@@ -547,6 +552,11 @@ export default function AdminSettings() {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Reporting Section */}
+          <TabsContent value="reporting" className="space-y-4">
+            <SalesReporting />
           </TabsContent>
 
           {/* Pricing Settings */}
