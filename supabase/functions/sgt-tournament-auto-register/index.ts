@@ -167,16 +167,24 @@ serve(async (req) => {
           end_date?: string;
         }[];
 
-        // Find tournaments that have started today or earlier but are not completed
-        const today = new Date().toISOString().split('T')[0];
+        // Find tournaments that are active OR start within the next 48 hours
+        const now = new Date();
+        const today = now.toISOString().split('T')[0];
+        const in48Hours = new Date(now.getTime() + 48 * 60 * 60 * 1000).toISOString().split('T')[0];
+        
         const activeTournaments = tournaments.filter(t => {
           const startDate = t.start_date || '';
-          const isStartedOrToday = startDate <= today;
           const isNotClosed = t.status !== 'Closed' && t.status !== 'Completed';
-          return isStartedOrToday && isNotClosed;
+          
+          // Include if: already started/active OR starting within 48 hours
+          const hasStarted = startDate <= today;
+          const startsWithin48h = startDate > today && startDate <= in48Hours;
+          const isUpcoming = t.status === 'Upcoming';
+          
+          return isNotClosed && (hasStarted || (isUpcoming && startsWithin48h));
         });
 
-        console.log(`[SGT-TOURN-REG] Found ${activeTournaments.length} active tournaments for tour ${tour.name}`);
+        console.log(`[SGT-TOURN-REG] Found ${activeTournaments.length} active/upcoming tournaments for tour ${tour.name} (checking up to ${in48Hours})`);
 
         for (const tournament of activeTournaments) {
           const result = await registerAllMembersForTournament(
