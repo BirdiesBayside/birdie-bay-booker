@@ -866,33 +866,27 @@ async function showWelcomeWindows(firstName) {
   
   const displays = screen.getAllDisplays();
   
-  // Read the logo file and convert to base64
-  let logoBase64 = '';
-  try {
-    const logoPath = path.join(__dirname, 'icon.png');
-    if (fs.existsSync(logoPath)) {
-      const logoBuffer = fs.readFileSync(logoPath);
-      logoBase64 = `data:image/png;base64,${logoBuffer.toString('base64')}`;
-    }
-  } catch (err) {
-    console.log('Could not load logo:', err.message);
-  }
+  // Logo URL from Birdies website
+  const logoUrl = 'https://hub.birdiesbayside.com.au/assets/birdies-logo-CK0tMxtB.png';
   
-  // Create HTML content for welcome window
+  // Create HTML content for welcome window - Birdies brand theme
   const htmlContent = `
     <!DOCTYPE html>
     <html>
     <head>
+      <link rel="preconnect" href="https://fonts.googleapis.com">
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+      <link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
       <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-          font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
-          background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+          font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+          background: #fff5e4;
           display: flex;
           align-items: center;
           justify-content: center;
           height: 100vh;
-          color: white;
+          color: #1f4c25;
           overflow: hidden;
         }
         .container {
@@ -904,41 +898,45 @@ async function showWelcomeWindows(firstName) {
           to { opacity: 1; transform: scale(1); }
         }
         .logo {
-          width: 150px;
-          height: 150px;
-          margin-bottom: 40px;
-          filter: drop-shadow(0 10px 30px rgba(236, 98, 45, 0.3));
+          width: 280px;
+          margin-bottom: 50px;
+          filter: drop-shadow(0 10px 30px rgba(31, 76, 37, 0.15));
         }
         h1 {
-          font-size: 72px;
-          font-weight: 300;
-          margin-bottom: 20px;
-          background: linear-gradient(135deg, #ffffff, #ec622d);
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          background-clip: text;
+          font-family: 'Anton', sans-serif;
+          font-size: 96px;
+          font-weight: 400;
+          color: #1f4c25;
+          margin-bottom: 10px;
+          text-transform: uppercase;
+          letter-spacing: 2px;
         }
         h2 {
-          font-size: 48px;
+          font-family: 'Anton', sans-serif;
+          font-size: 56px;
           font-weight: 400;
           color: #ec622d;
           margin-bottom: 60px;
+          text-transform: uppercase;
+          letter-spacing: 1px;
         }
         p {
+          font-family: 'Inter', sans-serif;
           font-size: 28px;
-          opacity: 0.9;
-          margin-bottom: 10px;
-          font-weight: 300;
+          font-weight: 400;
+          color: #1f4c25;
+          opacity: 0.85;
+          margin-bottom: 12px;
         }
         .loading {
           margin-top: 60px;
           display: flex;
-          gap: 12px;
+          gap: 16px;
           justify-content: center;
         }
         .loading span {
-          width: 16px;
-          height: 16px;
+          width: 18px;
+          height: 18px;
           background: #ec622d;
           border-radius: 50%;
           animation: pulse 1.4s infinite ease-in-out;
@@ -954,7 +952,7 @@ async function showWelcomeWindows(firstName) {
     </head>
     <body>
       <div class="container">
-        ${logoBase64 ? `<img src="${logoBase64}" class="logo" alt="Birdies" />` : ''}
+        <img src="${logoUrl}" class="logo" alt="Birdies" />
         <h1>Hi ${firstName}!</h1>
         <h2>Welcome to Birdies</h2>
         <p>Your session is starting.</p>
