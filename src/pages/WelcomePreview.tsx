@@ -35,7 +35,7 @@ const WelcomePreview = () => {
         <img 
           src="/birdies-welcome-logo.png" 
           alt="Birdies" 
-          className="w-[420px] mx-auto mb-12"
+          className="w-[210px] mx-auto mb-12"
           style={{ filter: 'drop-shadow(0 10px 30px rgba(31, 76, 37, 0.15))' }}
         />
         
