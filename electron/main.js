@@ -866,8 +866,17 @@ async function showWelcomeWindows(firstName) {
   
   const displays = screen.getAllDisplays();
   
-  // Logo URL from Birdies website
-  const logoUrl = 'https://hub.birdiesbayside.com.au/assets/birdies-logo-CK0tMxtB.png';
+  // Read the welcome logo and convert to base64
+  let logoBase64 = '';
+  try {
+    const logoPath = path.join(__dirname, 'welcome-logo.png');
+    if (fs.existsSync(logoPath)) {
+      const logoBuffer = fs.readFileSync(logoPath);
+      logoBase64 = `data:image/png;base64,${logoBuffer.toString('base64')}`;
+    }
+  } catch (err) {
+    console.log('Could not load welcome logo:', err.message);
+  }
   
   // Create HTML content for welcome window - Birdies brand theme
   const htmlContent = `
@@ -898,7 +907,7 @@ async function showWelcomeWindows(firstName) {
           to { opacity: 1; transform: scale(1); }
         }
         .logo {
-          width: 280px;
+          width: 420px;
           margin-bottom: 50px;
           filter: drop-shadow(0 10px 30px rgba(31, 76, 37, 0.15));
         }
@@ -952,7 +961,7 @@ async function showWelcomeWindows(firstName) {
     </head>
     <body>
       <div class="container">
-        <img src="${logoUrl}" class="logo" alt="Birdies" />
+        ${logoBase64 ? `<img src="${logoBase64}" class="logo" alt="Birdies" />` : ''}
         <h1>Hi ${firstName}!</h1>
         <h2>Welcome to Birdies</h2>
         <p>Your session is starting.</p>

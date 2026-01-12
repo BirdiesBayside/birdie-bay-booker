@@ -33,9 +33,9 @@ const WelcomePreview = () => {
       
       <div className="welcome-container text-center">
         <img 
-          src="https://hub.birdiesbayside.com.au/assets/birdies-logo-CK0tMxtB.png" 
+          src="/birdies-welcome-logo.png" 
           alt="Birdies" 
-          className="w-[280px] mx-auto mb-12"
+          className="w-[420px] mx-auto mb-12"
           style={{ filter: 'drop-shadow(0 10px 30px rgba(31, 76, 37, 0.15))' }}
         />
         
