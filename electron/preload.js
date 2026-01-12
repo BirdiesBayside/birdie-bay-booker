@@ -47,6 +47,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Cancel the app launch sequence
   cancelAppSequence: () => ipcRenderer.invoke('cancel-app-sequence'),
   
+  // Show welcome windows on all displays
+  showWelcomeWindows: (firstName) => ipcRenderer.invoke('show-welcome-windows', { firstName }),
+  
+  // Close all welcome windows
+  closeWelcomeWindows: () => ipcRenderer.invoke('close-welcome-windows'),
+  
   // Close apps by process name
   closeApps: (appNames) => ipcRenderer.invoke('close-apps', { appNames }),
   

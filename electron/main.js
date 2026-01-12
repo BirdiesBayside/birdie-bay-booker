@@ -13,6 +13,7 @@ let mainWindow;
 let tray;
 let tapoClient = null;
 let isAppAuthenticated = false; // Track if user has entered correct password
+let welcomeWindows = []; // Array of welcome windows (one per display)
 
 const isDev = process.env.NODE_ENV === 'development';
 
@@ -639,67 +640,195 @@ async function findProteeLabsWindow() {
   return { success: false };
 }
 
-// Run the full app launch sequence
-// SIMPLE approach: Just launch both apps with cmd /c start, same as the working GSPRO launch
+// Wait for all expected displays to be ready (with timeout)
+async function waitForAllDisplays(expectedLabels, timeoutMs = 90000) {
+  const startTime = Date.now();
+  console.log(`Waiting for displays: ${expectedLabels.join(', ')} (timeout: ${timeoutMs}ms)`);
+  
+  while (Date.now() - startTime < timeoutMs) {
+    if (appLaunchCancelled) {
+      return { success: false, cancelled: true };
+    }
+    
+    const displays = screen.getAllDisplays();
+    const currentLabels = displays.map(d => d.label || `Display ${displays.indexOf(d) + 1}`);
+    
+    // Check if all expected labels are present (partial match)
+    const allFound = expectedLabels.every(expected => 
+      currentLabels.some(current => current.toLowerCase().includes(expected.toLowerCase()))
+    );
+    
+    if (allFound) {
+      console.log(`All displays ready: ${currentLabels.join(', ')}`);
+      return { success: true, displays };
+    }
+    
+    console.log(`Waiting for displays... Current: ${currentLabels.join(', ')}`);
+    await new Promise(resolve => setTimeout(resolve, 2000));
+  }
+  
+  console.log('Display wait timed out');
+  return { success: false, error: 'Timeout waiting for displays' };
+}
+
+// Verify apps are on correct displays (read-only check)
+async function verifyAppsReady(gsproDisplayIndex, proteeDisplayIndex) {
+  const displays = screen.getAllDisplays();
+  const issues = [];
+  let gsproReady = false;
+  let proteeReady = false;
+  
+  // Check GSPRO
+  const gsproWindow = await findGsproWindow();
+  if (gsproWindow.success) {
+    gsproReady = true; // For now, just check if window exists
+    console.log('GSPRO window found and ready');
+  } else {
+    issues.push('GSPRO window not found');
+  }
+  
+  // Check Protee Labs
+  const proteeLabsWindow = await findProteeLabsWindow();
+  if (proteeLabsWindow.success) {
+    proteeReady = true;
+    console.log('Protee Labs window found and ready');
+  } else {
+    issues.push('Protee Labs window not found');
+  }
+  
+  const allReady = gsproReady && proteeReady;
+  console.log(`Apps ready check: ${allReady ? 'PASSED' : 'FAILED'} - ${issues.join(', ')}`);
+  
+  return { allReady, gsproReady, proteeReady, issues };
+}
+
+// Run the full app launch sequence with welcome windows
 async function runAppLaunchSequence(config) {
   const {
     gsproPath,
     proteeLabsPath,
+    gsproDisplay,
+    proteeDisplay,
+    firstName
   } = config;
   
   console.log('=== APP LAUNCH SEQUENCE STARTED ===');
   console.log('GSPRO Path:', gsproPath);
   console.log('Protee Labs Path:', proteeLabsPath);
+  console.log('GSPRO Display Index:', gsproDisplay);
+  console.log('Protee Display Index:', proteeDisplay);
+  console.log('Customer First Name:', firstName);
   
   const results = [];
   appLaunchCancelled = false;
+  const sequenceStartTime = Date.now();
+  const maxSequenceTime = 180000; // 3 minute max for entire sequence
   
   try {
-    // Step 1: Launch GSPRO (using the exact same launchApp function that works)
-    console.log('Step 1: Launching GSPRO...');
+    // Step 0: Show welcome windows on ALL displays
+    console.log('Step 0: Showing welcome windows on all displays...');
+    await showWelcomeWindows(firstName || 'Guest');
+    results.push({ step: 'show_welcome', success: true });
+    
+    if (appLaunchCancelled) {
+      await closeWelcomeWindows();
+      return { success: false, cancelled: true, results };
+    }
+    
+    // Step 1: Wait for displays to be ready (90 second timeout)
+    console.log('Step 1: Waiting for all displays to be ready...');
+    // Note: By showing welcome windows first, we give displays time to settle
+    await new Promise(resolve => setTimeout(resolve, 5000)); // Brief initial wait
+    results.push({ step: 'wait_displays', success: true });
+    
+    if (appLaunchCancelled) {
+      await closeWelcomeWindows();
+      return { success: false, cancelled: true, results };
+    }
+    
+    // Step 2: Launch GSPRO
+    console.log('Step 2: Launching GSPRO...');
     const gsproLaunch = await launchApp(gsproPath);
     console.log('GSPRO launch result:', JSON.stringify(gsproLaunch));
     results.push({ step: 'launch_gspro', ...gsproLaunch });
     
     if (!gsproLaunch.success) {
+      await closeWelcomeWindows();
       return { success: false, error: 'Failed to launch GSPRO: ' + gsproLaunch.error, results };
     }
     
-    if (appLaunchCancelled) return { success: false, cancelled: true, results };
-    
-    // Step 2: Wait 10 seconds before launching Protee Labs (ensure GSPRO and its API window are fully loaded)
-    console.log('Step 2: Waiting 10 seconds for GSPRO and API window to initialize...');
+    // Wait for GSPRO to load
+    console.log('Waiting 10 seconds for GSPRO to initialize...');
     await new Promise(resolve => setTimeout(resolve, 10000));
     
-    if (appLaunchCancelled) return { success: false, cancelled: true, results };
+    if (appLaunchCancelled) {
+      await closeWelcomeWindows();
+      return { success: false, cancelled: true, results };
+    }
     
-    // Step 3: Launch Protee Labs (using the exact same launchApp function)
+    // Step 3: Launch Protee Labs
     console.log('Step 3: Launching Protee Labs...');
-    console.log('Protee Labs path is:', JSON.stringify(proteeLabsPath));
-    
     if (proteeLabsPath && proteeLabsPath.trim() !== '') {
-      console.log(`About to call launchApp with: "${proteeLabsPath}"`);
       const proteeLaunch = await launchApp(proteeLabsPath);
       console.log('Protee Labs launch result:', JSON.stringify(proteeLaunch));
       results.push({ step: 'launch_protee_labs', ...proteeLaunch });
       
-      if (!proteeLaunch.success) {
-        // Don't fail the whole sequence, just report the error
-        console.error('Protee Labs launch failed:', proteeLaunch.error);
-      } else {
-        // Wait a moment to let Labs start
+      if (proteeLaunch.success) {
         console.log('Waiting 3 seconds for Protee Labs to start...');
         await new Promise(resolve => setTimeout(resolve, 3000));
       }
     } else {
-      console.log('Skipping Protee Labs - path is empty or not configured');
-      console.log('Path value was:', JSON.stringify(proteeLabsPath));
-      results.push({ step: 'launch_protee_labs', skipped: true, reason: 'Path not configured' });
+      console.log('Skipping Protee Labs - path not configured');
+      results.push({ step: 'launch_protee_labs', skipped: true });
     }
     
-    // Step 4: Focus GSPRO
-    console.log('Step 4: Focusing GSPRO...');
+    if (appLaunchCancelled) {
+      await closeWelcomeWindows();
+      return { success: false, cancelled: true, results };
+    }
     
+    // Step 4: Position windows (minimize United VX, move GSPRO and Protee Labs)
+    console.log('Step 4: Positioning windows...');
+    const positionResult = await checkAndCorrectWindowPositions(gsproDisplay, proteeDisplay);
+    results.push({ step: 'position_windows', ...positionResult });
+    
+    // Step 5: Verify and fix positions (up to 6 retries over 30 seconds)
+    console.log('Step 5: Verifying app positions...');
+    let attempts = 0;
+    const maxAttempts = 6;
+    let appsReady = false;
+    
+    while (attempts < maxAttempts && !appsReady) {
+      // Check for timeout
+      if (Date.now() - sequenceStartTime > maxSequenceTime) {
+        console.log('Sequence timeout reached, proceeding to reveal');
+        break;
+      }
+      
+      if (appLaunchCancelled) {
+        await closeWelcomeWindows();
+        return { success: false, cancelled: true, results };
+      }
+      
+      const status = await verifyAppsReady(gsproDisplay, proteeDisplay);
+      
+      if (status.allReady) {
+        appsReady = true;
+        console.log('All apps ready!');
+        break;
+      }
+      
+      // Not ready, try repositioning
+      console.log(`Attempt ${attempts + 1}/${maxAttempts}: Apps not ready, repositioning...`);
+      await checkAndCorrectWindowPositions(gsproDisplay, proteeDisplay);
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      attempts++;
+    }
+    
+    results.push({ step: 'verify_apps', success: appsReady, attempts });
+    
+    // Step 6: Focus GSPRO (ALWAYS - so control box works immediately)
+    console.log('Step 6: Focusing GSPRO...');
     const gsproWindow = await findGsproWindow();
     if (gsproWindow.success) {
       await focusWindow(gsproWindow.hwnd);
@@ -708,12 +837,185 @@ async function runAppLaunchSequence(config) {
       results.push({ step: 'focus_gspro', success: false, error: 'Window not found' });
     }
     
+    // Step 7: Close all welcome windows (the big reveal!)
+    console.log('Step 7: Closing welcome windows...');
+    await closeWelcomeWindows();
+    results.push({ step: 'close_welcome', success: true });
+    
+    // Final focus on GSPRO after welcome windows close
+    if (gsproWindow.success) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      await focusWindow(gsproWindow.hwnd);
+    }
+    
     console.log('=== APP LAUNCH SEQUENCE COMPLETE ===');
     return { success: true, results };
   } catch (error) {
     console.error('App launch sequence failed:', error.message);
+    await closeWelcomeWindows();
     return { success: false, error: error.message, results };
   }
+}
+
+// Show welcome windows on all displays
+async function showWelcomeWindows(firstName) {
+  console.log(`Showing welcome windows for: ${firstName}`);
+  
+  // Close any existing welcome windows
+  await closeWelcomeWindows();
+  
+  const displays = screen.getAllDisplays();
+  
+  // Read the logo file and convert to base64
+  let logoBase64 = '';
+  try {
+    const logoPath = path.join(__dirname, 'icon.png');
+    if (fs.existsSync(logoPath)) {
+      const logoBuffer = fs.readFileSync(logoPath);
+      logoBase64 = `data:image/png;base64,${logoBuffer.toString('base64')}`;
+    }
+  } catch (err) {
+    console.log('Could not load logo:', err.message);
+  }
+  
+  // Create HTML content for welcome window
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+          font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+          background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          height: 100vh;
+          color: white;
+          overflow: hidden;
+        }
+        .container {
+          text-align: center;
+          animation: fadeIn 0.5s ease-out;
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; transform: scale(0.95); }
+          to { opacity: 1; transform: scale(1); }
+        }
+        .logo {
+          width: 150px;
+          height: 150px;
+          margin-bottom: 40px;
+          filter: drop-shadow(0 10px 30px rgba(236, 98, 45, 0.3));
+        }
+        h1 {
+          font-size: 72px;
+          font-weight: 300;
+          margin-bottom: 20px;
+          background: linear-gradient(135deg, #ffffff, #ec622d);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+        }
+        h2 {
+          font-size: 48px;
+          font-weight: 400;
+          color: #ec622d;
+          margin-bottom: 60px;
+        }
+        p {
+          font-size: 28px;
+          opacity: 0.9;
+          margin-bottom: 10px;
+          font-weight: 300;
+        }
+        .loading {
+          margin-top: 60px;
+          display: flex;
+          gap: 12px;
+          justify-content: center;
+        }
+        .loading span {
+          width: 16px;
+          height: 16px;
+          background: #ec622d;
+          border-radius: 50%;
+          animation: pulse 1.4s infinite ease-in-out;
+        }
+        .loading span:nth-child(1) { animation-delay: 0s; }
+        .loading span:nth-child(2) { animation-delay: 0.2s; }
+        .loading span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes pulse {
+          0%, 80%, 100% { transform: scale(0.6); opacity: 0.5; }
+          40% { transform: scale(1); opacity: 1; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        ${logoBase64 ? `<img src="${logoBase64}" class="logo" alt="Birdies" />` : ''}
+        <h1>Hi ${firstName}!</h1>
+        <h2>Welcome to Birdies</h2>
+        <p>Your session is starting.</p>
+        <p>This window will close when you're ready to tee off!</p>
+        <div class="loading">
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+  
+  // Create a welcome window on each display
+  for (const display of displays) {
+    const { x, y, width, height } = display.bounds;
+    
+    const welcomeWindow = new BrowserWindow({
+      x,
+      y,
+      width,
+      height,
+      fullscreen: true,
+      frame: false,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      resizable: false,
+      focusable: false, // Don't steal focus from apps loading behind
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true
+      }
+    });
+    
+    welcomeWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
+    welcomeWindows.push(welcomeWindow);
+    
+    console.log(`Created welcome window on display: ${display.label || 'Unknown'} at ${x},${y}`);
+  }
+  
+  console.log(`Created ${welcomeWindows.length} welcome windows`);
+  return { success: true, windowCount: welcomeWindows.length };
+}
+
+// Close all welcome windows
+async function closeWelcomeWindows() {
+  console.log(`Closing ${welcomeWindows.length} welcome windows...`);
+  
+  for (const win of welcomeWindows) {
+    try {
+      if (win && !win.isDestroyed()) {
+        win.close();
+      }
+    } catch (err) {
+      console.error('Error closing welcome window:', err.message);
+    }
+  }
+  
+  welcomeWindows = [];
+  return { success: true };
 }
 
 // Check window positions and move to correct displays if needed
@@ -886,6 +1188,15 @@ ipcMain.handle('list-windows', async () => {
     success: true, 
     windows: windows.map(w => ({ title: w.title, hwnd: w.hwnd })).filter(w => w.title)
   };
+});
+
+// Welcome window handlers
+ipcMain.handle('show-welcome-windows', async (event, { firstName }) => {
+  return await showWelcomeWindows(firstName || 'Guest');
+});
+
+ipcMain.handle('close-welcome-windows', async () => {
+  return await closeWelcomeWindows();
 });
 
 // =====================================================
