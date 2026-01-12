@@ -907,7 +907,7 @@ async function showWelcomeWindows(firstName) {
           to { opacity: 1; transform: scale(1); }
         }
         .logo {
-          width: 420px;
+          width: 210px;
           margin-bottom: 50px;
           filter: drop-shadow(0 10px 30px rgba(31, 76, 37, 0.15));
         }
