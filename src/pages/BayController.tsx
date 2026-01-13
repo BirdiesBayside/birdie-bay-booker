@@ -274,10 +274,10 @@ export default function BayController() {
   // F12 hotkey to toggle SGT overlay
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // F12 toggles SGT overlay when authenticated (works with or without active booking)
-      if (e.key === 'F12' && isAuthenticated) {
+      // F9 toggles SGT overlay when authenticated (works with or without active booking)
+      if (e.key === 'F9' && isAuthenticated) {
         e.preventDefault();
-        console.log('[BayController] F12 pressed, toggling SGT overlay');
+        console.log('[BayController] F9 pressed, toggling SGT overlay');
         setShowSGTOverlay(prev => !prev);
       }
     };
