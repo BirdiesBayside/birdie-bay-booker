@@ -90,6 +90,7 @@ serve(async (req) => {
         console.log(`Server UTC time: ${now.toISOString()}, Sydney date: ${sydneyDateStr}, Sydney time: ${sydneyTimeStr}`);
 
         // Fetch bookings for this bay from today onwards
+        // Include both confirmed and pending bookings (exclude cancelled only)
         const { data: bookings, error: bookingsError } = await supabase
           .from("bookings")
           .select(`
@@ -103,7 +104,7 @@ serve(async (req) => {
             user_id
           `)
           .eq("bay_id", bay.id)
-          .eq("status", "confirmed")
+          .in("status", ["confirmed", "pending"])
           .gte("booking_date", sydneyDateStr)
           .order("booking_date", { ascending: true })
           .order("start_time", { ascending: true });
