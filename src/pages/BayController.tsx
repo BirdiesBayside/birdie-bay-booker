@@ -72,7 +72,13 @@ interface NotificationConfig {
     minutesBefore: number;
     message: string;
     enabled: boolean;
+    durationSeconds: number; // How long to show the notification
   }[];
+}
+
+interface SGTOverlayConfig {
+  enabled: boolean;
+  displayLabel: string; // Which display to show the SGT icon on (customer-visible)
 }
 
 // ActiveNotification interface removed - now using Electron popup windows
@@ -201,12 +207,23 @@ export default function BayController() {
   // Notification state
   const [notificationConfig, setNotificationConfig] = useState<NotificationConfig>(() => {
     const saved = localStorage.getItem("bayController_notificationConfig");
-    return saved ? JSON.parse(saved) : {
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      // Migrate old config without durationSeconds
+      if (parsed.notifications) {
+        parsed.notifications = parsed.notifications.map((n: any) => ({
+          ...n,
+          durationSeconds: n.durationSeconds || 30 // Default to 30 seconds
+        }));
+      }
+      return parsed;
+    }
+    return {
       enabled: true,
       displayLabel: "",
       notifications: [
-        { id: "5min", minutesBefore: 5, message: "Hi {firstName}, your session ends in 5 minutes. Please book more time now if needed.", enabled: true },
-        { id: "1min", minutesBefore: 1, message: "Hi {firstName}, your session will shutdown in 1 minute.", enabled: true }
+        { id: "5min", minutesBefore: 5, message: "Hi {firstName}, your session ends in 5 minutes. Please book more time now if needed.", enabled: true, durationSeconds: 30 },
+        { id: "1min", minutesBefore: 1, message: "Hi {firstName}, your session will shutdown in 1 minute.", enabled: true, durationSeconds: 30 }
       ]
     };
   });
@@ -219,6 +236,12 @@ export default function BayController() {
   const [sgtIconPosition, setSgtIconPosition] = useState<"top-left" | "top-right" | "bottom-left" | "bottom-right">(() => {
     const saved = localStorage.getItem("bayController_sgtIconPosition");
     return (saved as "top-left" | "top-right" | "bottom-left" | "bottom-right") || "top-right";
+  });
+  
+  // SGT Overlay config (for customer-visible displays)
+  const [sgtOverlayConfig, setSgtOverlayConfig] = useState<SGTOverlayConfig>(() => {
+    const saved = localStorage.getItem("bayController_sgtOverlayConfig");
+    return saved ? JSON.parse(saved) : { enabled: false, displayLabel: "" };
   });
 
   // Helper to add debug log
@@ -302,11 +325,43 @@ export default function BayController() {
   }, [isAuthenticated, activeBooking?.sgt_game_id]);
 
   // Reset sgtIconHidden when a new booking starts (so icon shows for each new SGT-linked booking)
+  // Also manage the Electron SGT icon overlay on customer displays
   useEffect(() => {
     if (activeBooking?.sgt_game_id) {
       setSgtIconHidden(false);
+      
+      // Show SGT icon overlay on customer display if configured
+      if (isElectron && window.electronAPI && sgtOverlayConfig.enabled && sgtOverlayConfig.displayLabel && !sgtIconHidden) {
+        window.electronAPI.showSgtIconOverlay(sgtOverlayConfig.displayLabel, sgtIconPosition)
+          .catch(err => console.error('Failed to show SGT icon overlay:', err));
+      }
+    } else {
+      // Close the overlay when no active SGT booking
+      if (isElectron && window.electronAPI) {
+        window.electronAPI.closeSgtIconOverlay()
+          .catch(err => console.error('Failed to close SGT icon overlay:', err));
+      }
     }
-  }, [activeBooking?.id]);
+  }, [activeBooking?.id, activeBooking?.sgt_game_id, sgtOverlayConfig.enabled, sgtOverlayConfig.displayLabel, sgtIconPosition, isElectron, sgtIconHidden]);
+
+  // Close overlay when icon is hidden
+  useEffect(() => {
+    if (sgtIconHidden && isElectron && window.electronAPI) {
+      window.electronAPI.closeSgtIconOverlay()
+        .catch(err => console.error('Failed to close SGT icon overlay:', err));
+    }
+  }, [sgtIconHidden, isElectron]);
+
+  // Listen for SGT icon click from the overlay window
+  useEffect(() => {
+    if (isElectron && window.electronAPI?.onSgtIconClicked) {
+      const cleanup = window.electronAPI.onSgtIconClicked(() => {
+        console.log('[BayController] SGT icon clicked from overlay');
+        setShowSGTOverlay(true);
+      });
+      return cleanup;
+    }
+  }, [isElectron]);
 
   // Check if running in Electron and load saved credentials/config
   useEffect(() => {
@@ -1176,10 +1231,13 @@ export default function BayController() {
 
     const firstName = booking.customer_name?.split(" ")[0] || "there";
     const message = matchingConfig.message.replace("{firstName}", firstName);
+    
+    // Use configured duration (convert seconds to ms) or default to 30 seconds
+    const durationMs = (matchingConfig.durationSeconds || 30) * 1000;
 
     if (isElectron && window.electronAPI) {
       window.electronAPI
-        .showNotificationPopup(message, notificationConfig.displayLabel, 60_000)
+        .showNotificationPopup(message, notificationConfig.displayLabel, durationMs)
         .catch((err) => {
           console.error("Failed to show notification popup:", err);
         });
@@ -2105,6 +2163,67 @@ export default function BayController() {
               They can click it to view their SGT details for GSPro login.
             </p>
             
+            {/* Enable overlay on customer display */}
+            <div className="flex items-center justify-between">
+              <div>
+                <Label>Show on customer display</Label>
+                <p className="text-sm text-muted-foreground">
+                  Display SGT icon on a customer-visible screen (bypasses password)
+                </p>
+              </div>
+              <Switch
+                checked={sgtOverlayConfig.enabled}
+                onCheckedChange={(checked) => {
+                  const newConfig = { ...sgtOverlayConfig, enabled: checked };
+                  setSgtOverlayConfig(newConfig);
+                  localStorage.setItem("bayController_sgtOverlayConfig", JSON.stringify(newConfig));
+                }}
+              />
+            </div>
+            
+            {/* Display selector for customer-visible SGT icon */}
+            {sgtOverlayConfig.enabled && (
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground flex items-center gap-2">
+                  Customer display
+                  {sgtOverlayConfig.displayLabel && (
+                    displays.some(d => d.label === sgtOverlayConfig.displayLabel) 
+                      ? <Badge variant="default" className="text-[10px] px-1 py-0">Available</Badge>
+                      : <Badge variant="destructive" className="text-[10px] px-1 py-0">Offline</Badge>
+                  )}
+                </Label>
+                <Select 
+                  value={sgtOverlayConfig.displayLabel} 
+                  onValueChange={(v) => {
+                    const newConfig = { ...sgtOverlayConfig, displayLabel: v };
+                    setSgtOverlayConfig(newConfig);
+                    localStorage.setItem("bayController_sgtOverlayConfig", JSON.stringify(newConfig));
+                  }}
+                >
+                  <SelectTrigger className="text-xs">
+                    <SelectValue placeholder="Select display">
+                      {sgtOverlayConfig.displayLabel || "Select display"}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {displays.map((d) => (
+                      <SelectItem key={d.id} value={d.label}>
+                        {d.label} {d.isPrimary ? "(Primary)" : ""}
+                      </SelectItem>
+                    ))}
+                    {sgtOverlayConfig.displayLabel && 
+                     !displays.some(d => d.label === sgtOverlayConfig.displayLabel) && (
+                      <SelectItem value={sgtOverlayConfig.displayLabel} className="text-muted-foreground">
+                        {sgtOverlayConfig.displayLabel} (Saved - Offline)
+                      </SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            
+            <Separator />
+            
             <div className="space-y-2">
               <Label>Icon Position</Label>
               <Select
@@ -2271,6 +2390,32 @@ export default function BayController() {
                     placeholder="Enter notification message..."
                   />
                 </div>
+                
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Display duration</Label>
+                  <Select 
+                    value={notification.durationSeconds?.toString() || "30"}
+                    onValueChange={(v) => {
+                      setNotificationConfig(prev => ({
+                        ...prev,
+                        notifications: prev.notifications.map((n, i) => 
+                          i === index ? { ...n, durationSeconds: parseInt(v) } : n
+                        )
+                      }));
+                    }}
+                  >
+                    <SelectTrigger className="text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[10, 15, 20, 30, 45, 60, 90, 120].map((sec) => (
+                        <SelectItem key={sec} value={sec.toString()}>
+                          {sec < 60 ? `${sec} seconds` : `${sec / 60} minute${sec > 60 ? 's' : ''}`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             ))}
 
@@ -2292,7 +2437,8 @@ export default function BayController() {
                       id: `${newMinutes}min`,
                       minutesBefore: newMinutes,
                       message: `Hi {firstName}, your session ends in ${newMinutes} minute${newMinutes > 1 ? 's' : ''}.`,
-                      enabled: true
+                      enabled: true,
+                      durationSeconds: 30
                     }
                   ]
                 }));

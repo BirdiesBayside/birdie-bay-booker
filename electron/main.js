@@ -1214,7 +1214,7 @@ let notificationWindow = null;
 
 ipcMain.handle('show-notification-popup', async (event, { message, displayLabel, durationMs }) => {
   try {
-    console.log(`Showing notification popup on display: ${displayLabel}`);
+    console.log(`Showing notification popup on display: ${displayLabel}, duration: ${durationMs}ms`);
     
     // Close existing notification if any
     if (notificationWindow && !notificationWindow.isDestroyed()) {
@@ -1330,13 +1330,14 @@ ipcMain.handle('show-notification-popup', async (event, { message, displayLabel,
     
     notificationWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
     
-    // Auto-close after duration
+    // Auto-close after duration (use provided duration or default to 60 seconds)
+    const duration = durationMs || 60000;
     setTimeout(() => {
       if (notificationWindow && !notificationWindow.isDestroyed()) {
         notificationWindow.close();
         notificationWindow = null;
       }
-    }, durationMs || 60000);
+    }, duration);
     
     return { success: true };
   } catch (error) {
@@ -1354,6 +1355,207 @@ ipcMain.handle('close-notification-popup', async () => {
     return { success: true };
   } catch (error) {
     return { success: false, error: error.message };
+  }
+});
+
+// =====================================================
+// SGT ICON OVERLAY WINDOW
+// =====================================================
+
+let sgtIconWindow = null;
+
+// Read the SGT icon for use in the overlay
+function getSgtIconBase64() {
+  try {
+    // Try to find sgt-icon.png in the app directory
+    const possiblePaths = [
+      path.join(__dirname, 'sgt-icon.png'),
+      path.join(process.resourcesPath || '', 'sgt-icon.png'),
+      path.join(app.getAppPath(), 'sgt-icon.png'),
+    ];
+    
+    for (const iconPath of possiblePaths) {
+      if (fs.existsSync(iconPath)) {
+        const buffer = fs.readFileSync(iconPath);
+        return `data:image/png;base64,${buffer.toString('base64')}`;
+      }
+    }
+    console.log('SGT icon not found, using fallback');
+    return null;
+  } catch (err) {
+    console.error('Failed to load SGT icon:', err);
+    return null;
+  }
+}
+
+ipcMain.handle('show-sgt-icon-overlay', async (event, { displayLabel, position }) => {
+  try {
+    console.log(`Showing SGT icon overlay on display: ${displayLabel}, position: ${position}`);
+    
+    // Close existing if any
+    if (sgtIconWindow && !sgtIconWindow.isDestroyed()) {
+      sgtIconWindow.close();
+      sgtIconWindow = null;
+    }
+    
+    // Find the target display by label
+    const displays = screen.getAllDisplays();
+    let targetDisplay = displays[0]; // Default to primary
+    
+    for (const display of displays) {
+      const label = display.label || `Display ${displays.indexOf(display) + 1}`;
+      if (label === displayLabel) {
+        targetDisplay = display;
+        break;
+      }
+    }
+    
+    const { x, y, width, height } = targetDisplay.bounds;
+    
+    // Calculate position based on corner preference
+    const iconSize = 70;
+    const margin = 20;
+    let iconX, iconY;
+    
+    switch (position) {
+      case 'top-left':
+        iconX = x + margin;
+        iconY = y + margin;
+        break;
+      case 'top-right':
+        iconX = x + width - iconSize - margin;
+        iconY = y + margin;
+        break;
+      case 'bottom-left':
+        iconX = x + margin;
+        iconY = y + height - iconSize - margin;
+        break;
+      case 'bottom-right':
+      default:
+        iconX = x + width - iconSize - margin;
+        iconY = y + height - iconSize - margin;
+        break;
+    }
+    
+    // Create frameless, always-on-top, click-through overlay
+    sgtIconWindow = new BrowserWindow({
+      width: iconSize,
+      height: iconSize,
+      x: iconX,
+      y: iconY,
+      frame: false,
+      transparent: true,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      resizable: false,
+      movable: false,
+      focusable: true, // Allow clicking
+      hasShadow: false,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        preload: path.join(__dirname, 'preload.js')
+      }
+    });
+    
+    const iconBase64 = getSgtIconBase64();
+    
+    // Generate HTML for the SGT icon button
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          html, body {
+            background: transparent;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+          }
+          .sgt-button {
+            width: 56px;
+            height: 56px;
+            margin: 7px;
+            border-radius: 50%;
+            border: 3px solid rgba(236, 98, 45, 0.6);
+            background: white;
+            cursor: pointer;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+          .sgt-button:hover {
+            transform: scale(1.1);
+            border-color: #ec622d;
+            box-shadow: 0 6px 25px rgba(236, 98, 45, 0.4);
+          }
+          .sgt-button img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+          }
+          .sgt-button .fallback {
+            font-size: 20px;
+            font-weight: bold;
+            color: #ec622d;
+          }
+        </style>
+      </head>
+      <body>
+        <button class="sgt-button" onclick="window.electronAPI.sgtIconClicked()" title="View SGT Player Info">
+          ${iconBase64 
+            ? `<img src="${iconBase64}" alt="SGT" />`
+            : '<span class="fallback">SGT</span>'
+          }
+        </button>
+      </body>
+      </html>
+    `;
+    
+    sgtIconWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
+    
+    // Allow window to receive mouse events
+    sgtIconWindow.setIgnoreMouseEvents(false);
+    
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to show SGT icon overlay:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('close-sgt-icon-overlay', async () => {
+  try {
+    if (sgtIconWindow && !sgtIconWindow.isDestroyed()) {
+      sgtIconWindow.close();
+      sgtIconWindow = null;
+    }
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('update-sgt-icon-position', async (event, { displayLabel, position }) => {
+  // Close and reopen with new position
+  if (sgtIconWindow && !sgtIconWindow.isDestroyed()) {
+    sgtIconWindow.close();
+    sgtIconWindow = null;
+  }
+  // Will be re-shown by the renderer if needed
+  return { success: true };
+});
+
+// Handle SGT icon click from the overlay window
+ipcMain.on('sgt-icon-clicked', () => {
+  console.log('SGT icon clicked in overlay window');
+  // Send message to main window to show SGT overlay
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('sgt-icon-clicked');
   }
 });
 
