@@ -14,12 +14,13 @@ interface NextBooking {
   customer_name?: string;
   sgt_user_id?: number | null;
   sgt_username?: string | null;
+  sgt_game_id?: string | null;
 }
 
 interface SGTPlayerOverlayProps {
   isOpen: boolean;
   onClose: () => void;
-  sgtUserId: number | null;
+  sgtGameId: string | null;
   sgtUsername: string | null;
   customerName: string | null;
   isElectron: boolean;
@@ -29,7 +30,7 @@ interface SGTPlayerOverlayProps {
 export function SGTPlayerOverlay({
   isOpen,
   onClose,
-  sgtUserId,
+  sgtGameId,
   sgtUsername,
   customerName,
   isElectron,
@@ -153,7 +154,7 @@ export function SGTPlayerOverlay({
   if (!isOpen) return null;
 
   const hasActiveBooking = customerName !== null;
-  const hasSGTAccount = sgtUserId && sgtUsername;
+  const hasSGTAccount = sgtGameId && sgtUsername;
 
   return (
     <div
@@ -225,18 +226,18 @@ export function SGTPlayerOverlay({
                     </div>
                   </div>
 
-                  {/* SGT User ID */}
+                  {/* SGT Game ID (12-digit UID) */}
                   <div className="space-y-2">
-                    <p className="text-xs text-muted-foreground">SGT User ID (UID)</p>
+                    <p className="text-xs text-muted-foreground">SGT Game ID (UID)</p>
                     <div className="flex items-center gap-2">
-                      <code className="flex-1 bg-muted px-3 py-2 rounded text-sm font-mono">
-                        {sgtUserId}
+                      <code className="flex-1 bg-muted px-3 py-2 rounded text-sm font-mono text-xs">
+                        {sgtGameId}
                       </code>
                       <Button
                         size="sm"
                         variant={copiedField === "uid" ? "secondary" : "outline"}
                         className="shrink-0"
-                        onClick={() => copyForPaste("UID", sgtUserId!.toString())}
+                        onClick={() => copyForPaste("UID", sgtGameId!)}
                       >
                         {copiedField === "uid" ? (
                           <Check className="h-4 w-4" />
@@ -298,7 +299,7 @@ export function SGTPlayerOverlay({
                 <Clock className="h-6 w-6 mx-auto mb-2 opacity-50" />
                 <p className="font-medium text-foreground">No Active Booking</p>
                 <p className="text-xs mt-1">
-                  Press F12 again to close this overlay
+                  Press F9 to close this overlay
                 </p>
               </div>
 

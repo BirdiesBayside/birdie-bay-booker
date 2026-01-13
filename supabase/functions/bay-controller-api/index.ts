@@ -153,16 +153,16 @@ serve(async (req) => {
           .filter(p => p.sgt_user_id !== null)
           .map(p => p.sgt_user_id);
         
-        let sgtMembersMap: Record<number, { user_name: string }> = {};
+        let sgtMembersMap: Record<number, { user_name: string; user_game_id: string | null }> = {};
         if (sgtUserIds.length > 0) {
           const { data: sgtMembers } = await supabase
             .from("sgt_members")
-            .select("user_id, user_name")
+            .select("user_id, user_name, user_game_id")
             .in("user_id", sgtUserIds);
           
           if (sgtMembers) {
             sgtMembers.forEach((m: any) => {
-              sgtMembersMap[m.user_id] = { user_name: m.user_name };
+              sgtMembersMap[m.user_id] = { user_name: m.user_name, user_game_id: m.user_game_id };
             });
           }
         }
@@ -184,6 +184,7 @@ serve(async (req) => {
               : 'Unknown',
             sgt_user_id: profile?.sgt_user_id || null,
             sgt_username: sgtMember?.user_name || null,
+            sgt_game_id: sgtMember?.user_game_id || null,
           };
         });
 

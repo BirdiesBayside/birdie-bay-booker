@@ -157,7 +157,7 @@ serve(async (req) => {
     const members = extractArray(membersResponse, ['members', 'results']);
     
     for (const member of members) {
-      const m = member as { user_id: number; user_name: string; user_email?: string; user_active?: number; user_country_code?: string; user_has_avatar?: string };
+      const m = member as { user_id: number; user_name: string; user_email?: string; user_active?: number; user_country_code?: string; user_has_avatar?: string; user_game_id?: string };
       await supabase.from("sgt_members").upsert({
         user_id: m.user_id,
         user_name: m.user_name,
@@ -165,6 +165,7 @@ serve(async (req) => {
         user_active: m.user_active ?? 1,
         user_country_code: m.user_country_code,
         user_has_avatar: m.user_has_avatar,
+        user_game_id: m.user_game_id || null,
         updated_at: new Date().toISOString(),
       }, { onConflict: 'user_id' });
       totalRecords++;
