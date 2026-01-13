@@ -128,20 +128,53 @@ export default function AdminSettings() {
   const { isAdmin, isLoading: authLoading } = useAdminAuth();
   const { toast } = useToast();
 
-  // General settings - load from localStorage
-  const [timezone, setTimezone] = useState(() => {
-    return localStorage.getItem('birdies_timezone') || "Australia/Sydney";
-  });
+  // General settings - load from database
+  const [timezone, setTimezone] = useState("Australia/Sydney");
+  const [isLoadingTimezone, setIsLoadingTimezone] = useState(true);
 
-  // Autosave timezone when it changes
-  const handleTimezoneChange = (value: string) => {
+  // Load timezone from database on mount
+  useEffect(() => {
+    const loadTimezone = async () => {
+      const { data } = await supabase
+        .from("system_settings")
+        .select("timezone")
+        .eq("id", "global")
+        .single();
+      
+      if (data?.timezone) {
+        setTimezone(data.timezone);
+      }
+      setIsLoadingTimezone(false);
+    };
+    
+    if (isAdmin) {
+      loadTimezone();
+    }
+  }, [isAdmin]);
+
+  // Save timezone to database when it changes
+  const handleTimezoneChange = async (value: string) => {
     setTimezone(value);
-    localStorage.setItem('birdies_timezone', value);
-    toast({
-      title: "Settings saved",
-      description: `Timezone updated to ${value}`,
-      duration: 3000,
-    });
+    
+    const { error } = await supabase
+      .from("system_settings")
+      .update({ timezone: value })
+      .eq("id", "global");
+    
+    if (error) {
+      toast({
+        title: "Error saving timezone",
+        description: error.message,
+        variant: "destructive",
+        duration: 4000,
+      });
+    } else {
+      toast({
+        title: "Settings saved",
+        description: `Timezone updated to ${value}. Bay controllers will sync on next refresh.`,
+        duration: 3000,
+      });
+    }
   };
 
   // POS Products

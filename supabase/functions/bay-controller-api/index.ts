@@ -81,13 +81,22 @@ serve(async (req) => {
             app_version: appVersion,
           }, { onConflict: "bay_id" });
 
-        // Get current date and time in Australia/Sydney timezone
-        const now = new Date();
-        const sydneyOptions = { timeZone: 'Australia/Sydney' };
-        const sydneyDateStr = now.toLocaleDateString('en-CA', sydneyOptions); // "YYYY-MM-DD"
-        const sydneyTimeStr = now.toLocaleTimeString('en-GB', { ...sydneyOptions, hour12: false }); // "HH:MM:SS"
+        // Get timezone from system settings
+        const { data: settings } = await supabase
+          .from("system_settings")
+          .select("timezone")
+          .eq("id", "global")
+          .single();
         
-        console.log(`Server UTC time: ${now.toISOString()}, Sydney date: ${sydneyDateStr}, Sydney time: ${sydneyTimeStr}`);
+        const timezone = settings?.timezone || 'Australia/Sydney';
+
+        // Get current date and time in configured timezone
+        const now = new Date();
+        const tzOptions = { timeZone: timezone };
+        const localDateStr = now.toLocaleDateString('en-CA', tzOptions); // "YYYY-MM-DD"
+        const localTimeStr = now.toLocaleTimeString('en-GB', { ...tzOptions, hour12: false }); // "HH:MM:SS"
+        
+        console.log(`Server UTC time: ${now.toISOString()}, Timezone: ${timezone}, Local date: ${localDateStr}, Local time: ${localTimeStr}`);
 
         // Fetch bookings for this bay from today onwards
         // Include both confirmed and pending bookings (exclude cancelled only)
@@ -105,18 +114,18 @@ serve(async (req) => {
           `)
           .eq("bay_id", bay.id)
           .in("status", ["confirmed", "pending"])
-          .gte("booking_date", sydneyDateStr)
+          .gte("booking_date", localDateStr)
           .order("booking_date", { ascending: true })
           .order("start_time", { ascending: true });
 
         // Filter out past bookings for today (only keep bookings that haven't ended yet)
         const filteredBookings = (bookings || []).filter((booking: any) => {
-          if (booking.booking_date > sydneyDateStr) {
+          if (booking.booking_date > localDateStr) {
             // Future date - always include
             return true;
           }
           // Today's date - only include if booking hasn't ended yet
-          return booking.end_time > sydneyTimeStr;
+          return booking.end_time > localTimeStr;
         });
 
         if (bookingsError) {
