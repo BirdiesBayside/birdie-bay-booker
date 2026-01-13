@@ -273,6 +273,9 @@ export function useBooking() {
     const endHour = startHour + durationHours;
     const endTime = `${endHour.toString().padStart(2, "0")}:${startMinute.toString().padStart(2, "0")}`;
 
+    // Auto-confirm if total is $0 (free booking) or paid by balance
+    const shouldAutoConfirm = totalPrice === 0 || paymentMethod === "balance";
+    
     const { data: bookingData, error } = await supabase
       .from("bookings")
       .insert({
@@ -285,8 +288,8 @@ export function useBooking() {
         hourly_rate: hourlyRate,
         total_price: totalPrice,
         player_count: playerCount,
-        payment_method: paymentMethod === "balance" ? "balance" : (balanceDeduction > 0 ? "partial" : "pending"),
-        status: paymentMethod === "balance" ? "confirmed" : "pending",
+        payment_method: totalPrice === 0 ? "free" : (paymentMethod === "balance" ? "balance" : (balanceDeduction > 0 ? "partial" : "pending")),
+        status: shouldAutoConfirm ? "confirmed" : "pending",
       })
       .select()
       .single();
