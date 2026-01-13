@@ -805,6 +805,7 @@ export type Database = {
           user_active: number
           user_country_code: string | null
           user_email: string | null
+          user_game_id: string | null
           user_has_avatar: string | null
           user_id: number
           user_name: string
@@ -816,6 +817,7 @@ export type Database = {
           user_active?: number
           user_country_code?: string | null
           user_email?: string | null
+          user_game_id?: string | null
           user_has_avatar?: string | null
           user_id: number
           user_name: string
@@ -827,6 +829,7 @@ export type Database = {
           user_active?: number
           user_country_code?: string | null
           user_email?: string | null
+          user_game_id?: string | null
           user_has_avatar?: string | null
           user_id?: number
           user_name?: string

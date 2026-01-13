@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format, addMinutes, isBefore, isAfter, parseISO } from "date-fns";
 import { SGTPlayerOverlay } from "@/components/bay-controller/SGTPlayerOverlay";
+import { SGTIconButton } from "@/components/bay-controller/SGTIconButton";
 import { GSProBaselineSettings } from "@/components/bay-controller/GSProBaselineSettings";
 
 interface Booking {
@@ -26,6 +27,7 @@ interface Booking {
   customer_name?: string;
   sgt_user_id?: number | null;
   sgt_username?: string | null;
+  sgt_game_id?: string | null;
 }
 
 interface TapoPlug {
@@ -213,7 +215,12 @@ export default function BayController() {
   
   // SGT Player overlay state
   const [showSGTOverlay, setShowSGTOverlay] = useState(false);
-  
+  const [sgtIconHidden, setSgtIconHidden] = useState(false);
+  const [sgtIconPosition, setSgtIconPosition] = useState<"top-left" | "top-right" | "bottom-left" | "bottom-right">(() => {
+    const saved = localStorage.getItem("bayController_sgtIconPosition");
+    return (saved as "top-left" | "top-right" | "bottom-left" | "bottom-right") || "top-right";
+  });
+
   // Helper to add debug log
   const addLog = useCallback((message: string, type: 'info' | 'error' | 'success' = 'info') => {
     const time = new Date().toLocaleTimeString();
@@ -271,7 +278,8 @@ export default function BayController() {
     return () => window.removeEventListener('keydown', handleF10);
   }, [isElectron]);
 
-  // F12 hotkey to toggle SGT overlay
+  // F9 hotkey to toggle SGT overlay (for authenticated staff)
+  // F7 hotkey to toggle SGT overlay (for customers - works without auth)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // F9 toggles SGT overlay when authenticated (works with or without active booking)
@@ -280,11 +288,25 @@ export default function BayController() {
         console.log('[BayController] F9 pressed, toggling SGT overlay');
         setShowSGTOverlay(prev => !prev);
       }
+      // F7 toggles SGT overlay for customers (works when there's an active SGT-linked booking)
+      if (e.key === 'F7' && activeBooking?.sgt_game_id) {
+        e.preventDefault();
+        console.log('[BayController] F7 pressed, toggling SGT overlay for customer');
+        setShowSGTOverlay(prev => !prev);
+        setSgtIconHidden(false); // Also show the icon again
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isAuthenticated]);
+  }, [isAuthenticated, activeBooking?.sgt_game_id]);
+
+  // Reset sgtIconHidden when a new booking starts (so icon shows for each new SGT-linked booking)
+  useEffect(() => {
+    if (activeBooking?.sgt_game_id) {
+      setSgtIconHidden(false);
+    }
+  }, [activeBooking?.id]);
 
   // Check if running in Electron and load saved credentials/config
   useEffect(() => {
@@ -2075,6 +2097,44 @@ export default function BayController() {
           <GSProBaselineSettings isElectron={isElectron} />
         </CollapsibleSettingsCard>
 
+        {/* SGT Icon Settings - Collapsible */}
+        <CollapsibleSettingsCard title="SGT Icon" icon={<User className="w-5 h-5" />} defaultOpen={false}>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              When a customer with a linked SGT account has an active booking, an SGT icon button appears on screen. 
+              They can click it to view their SGT details for GSPro login.
+            </p>
+            
+            <div className="space-y-2">
+              <Label>Icon Position</Label>
+              <Select
+                value={sgtIconPosition}
+                onValueChange={(value) => {
+                  const pos = value as "top-left" | "top-right" | "bottom-left" | "bottom-right";
+                  setSgtIconPosition(pos);
+                  localStorage.setItem("bayController_sgtIconPosition", pos);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select position" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="top-right">Top Right</SelectItem>
+                  <SelectItem value="top-left">Top Left</SelectItem>
+                  <SelectItem value="bottom-right">Bottom Right</SelectItem>
+                  <SelectItem value="bottom-left">Bottom Left</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-lg space-y-1">
+              <p className="font-medium">Keyboard shortcuts:</p>
+              <p>• F7 - Customers can press to show SGT info</p>
+              <p>• F9 - Staff can press when authenticated</p>
+            </div>
+          </div>
+        </CollapsibleSettingsCard>
+
         {/* Customer Notifications - Collapsible */}
         <CollapsibleSettingsCard title="Notifications" icon={<Bell className="w-5 h-5" />} defaultOpen={false}>
           {/* Enable/Disable toggle */}
@@ -2347,11 +2407,19 @@ export default function BayController() {
         </div>
       )}
 
+      {/* SGT Icon Button - shows when active booking has SGT account linked */}
+      <SGTIconButton
+        isVisible={!!(activeBooking?.sgt_game_id && activeBooking?.sgt_username && !sgtIconHidden && !showSGTOverlay)}
+        onClick={() => setShowSGTOverlay(true)}
+        onClose={() => setSgtIconHidden(true)}
+        position={sgtIconPosition}
+      />
+
       {/* SGT Player Overlay */}
       <SGTPlayerOverlay
         isOpen={showSGTOverlay}
         onClose={() => setShowSGTOverlay(false)}
-        sgtUserId={activeBooking?.sgt_user_id || null}
+        sgtGameId={activeBooking?.sgt_game_id || null}
         sgtUsername={activeBooking?.sgt_username || null}
         customerName={activeBooking?.customer_name || null}
         isElectron={isElectron}
