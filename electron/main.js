@@ -1429,8 +1429,8 @@ async function showSgtInfoOverlay(displayLabel) {
     
     const { x, y, width, height } = targetDisplay.bounds;
     
-    // Create a centered overlay window - larger size to avoid scrolling
-    const overlayWidth = 420;
+    // Create a centered overlay window - wider for better content display
+    const overlayWidth = 500;
     const overlayHeight = 480;
     const overlayX = x + (width - overlayWidth) / 2;
     const overlayY = y + (height - overlayHeight) / 2;
@@ -1740,9 +1740,9 @@ async function showSgtHideConfirmation(displayLabel) {
     
     const { x, y, width, height } = targetDisplay.bounds;
     
-    // Center the dialog on the display - larger size to fit all content
-    const dialogWidth = 380;
-    const dialogHeight = 280;
+    // Center the dialog on the display - taller to fit all content
+    const dialogWidth = 400;
+    const dialogHeight = 340;
     const dialogX = x + (width - dialogWidth) / 2;
     const dialogY = y + (height - dialogHeight) / 2;
     
