@@ -654,28 +654,69 @@ export default function BayController() {
 
   // Update control mode in database
   const updateControlMode = useCallback(async (isManual: boolean) => {
-    if (!bayDeviceId) {
-      console.warn("No bay device ID for mode update");
-      return;
-    }
+    if (!selectedBay) return;
     
     try {
-      const { error } = await supabase
-        .from("bay_devices")
-        .update({ control_mode: isManual ? 'manual' : 'auto' })
-        .eq("id", bayDeviceId);
+      // If we have a bayDeviceId, update directly by id
+      if (bayDeviceId) {
+        const { error } = await supabase
+          .from("bay_devices")
+          .update({ 
+            control_mode: isManual ? 'manual' : 'auto',
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", bayDeviceId);
+        
+        if (error) {
+          console.error("Failed to update control mode:", error);
+          toast.error("Failed to update control mode");
+          return;
+        }
+        
+        console.log(`Updated bay control mode to: ${isManual ? 'manual' : 'auto'}`);
+        return;
+      }
       
-      if (error) {
-        console.error("Failed to update control mode:", error);
+      // No bayDeviceId - need to get bay_id and upsert
+      const { data: bayData } = await supabase
+        .from("bays")
+        .select("id")
+        .eq("bay_number", selectedBay)
+        .maybeSingle();
+      
+      if (!bayData?.id) {
+        console.error("Could not find bay ID");
+        return;
+      }
+      
+      // Upsert bay_device with control_mode
+      const { data: upsertData, error: upsertError } = await supabase
+        .from("bay_devices")
+        .upsert({
+          bay_id: bayData.id,
+          control_mode: isManual ? 'manual' : 'auto',
+          is_online: true,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'bay_id' })
+        .select("id")
+        .single();
+      
+      if (upsertError) {
+        console.error("Failed to upsert control mode:", upsertError);
         toast.error("Failed to update control mode");
         return;
       }
       
-      console.log(`Updated bay control mode to: ${isManual ? 'manual' : 'auto'}`);
+      // Update the bayDeviceId for future updates
+      if (upsertData?.id) {
+        setBayDeviceId(upsertData.id);
+      }
+      
+      console.log(`Upserted bay control mode to: ${isManual ? 'manual' : 'auto'}`);
     } catch (error) {
       console.error("Failed to update control mode:", error);
     }
-  }, [bayDeviceId]);
+  }, [bayDeviceId, selectedBay]);
 
   // Set up real-time subscription for bookings, control mode, heartbeat, and polling fallback
   useEffect(() => {
