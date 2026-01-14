@@ -1519,7 +1519,7 @@ async function showSgtInfoOverlay(displayLabel) {
             -webkit-app-region: no-drag;
             color: white;
             border: none;
-            padding: 8px 16px;
+            padding: 10px 18px;
             border-radius: 8px;
             font-size: 14px;
             font-weight: 500;
@@ -1527,10 +1527,10 @@ async function showSgtInfoOverlay(displayLabel) {
             transition: all 0.2s;
           }
           .copy-btn {
-            background: #6c757d;
+            background: #1f4c25;
           }
           .copy-btn:hover {
-            background: #5a6268;
+            background: #2d6a34;
           }
           .paste-btn {
             background: #ec622d;
@@ -1704,9 +1704,9 @@ async function showSgtHideConfirmation(displayLabel) {
     
     const { x, y, width, height } = targetDisplay.bounds;
     
-    // Center the dialog on the display
-    const dialogWidth = 340;
-    const dialogHeight = 220;
+    // Center the dialog on the display - larger size to fit all content
+    const dialogWidth = 380;
+    const dialogHeight = 280;
     const dialogX = x + (width - dialogWidth) / 2;
     const dialogY = y + (height - dialogHeight) / 2;
     
@@ -1741,45 +1741,48 @@ async function showSgtHideConfirmation(displayLabel) {
           html, body {
             background: transparent;
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            width: 100%;
+            height: 100%;
           }
           .dialog {
             background: white;
             border-radius: 16px;
-            padding: 24px;
+            padding: 28px;
             box-shadow: 0 20px 60px rgba(0,0,0,0.4);
             text-align: center;
           }
           .title {
-            font-size: 18px;
+            font-size: 20px;
             font-weight: 600;
             color: #1f4c25;
-            margin-bottom: 12px;
+            margin-bottom: 16px;
           }
           .text {
-            font-size: 14px;
+            font-size: 15px;
             color: #6c757d;
-            margin-bottom: 12px;
-            line-height: 1.5;
+            margin-bottom: 16px;
+            line-height: 1.6;
           }
           .tip {
-            font-size: 13px;
+            font-size: 14px;
             color: #ec622d;
-            margin-bottom: 20px;
-            padding: 10px;
+            margin-bottom: 24px;
+            padding: 14px;
             background: #fff5e4;
-            border-radius: 8px;
+            border-radius: 10px;
+            line-height: 1.5;
           }
           .buttons {
             display: flex;
-            gap: 12px;
+            gap: 14px;
           }
           .btn {
             flex: 1;
-            padding: 12px;
+            padding: 14px 20px;
             border-radius: 10px;
             border: none;
             cursor: pointer;
-            font-size: 14px;
+            font-size: 15px;
             font-weight: 500;
             transition: all 0.2s;
           }
@@ -1791,11 +1794,11 @@ async function showSgtHideConfirmation(displayLabel) {
             background: #e0e0e0;
           }
           .btn.confirm {
-            background: #dc3545;
+            background: #ec622d;
             color: white;
           }
           .btn.confirm:hover {
-            background: #c82333;
+            background: #d55627;
           }
         </style>
       </head>
@@ -1803,7 +1806,7 @@ async function showSgtHideConfirmation(displayLabel) {
         <div class="dialog">
           <div class="title">Hide SGT Icon?</div>
           <div class="text">The SGT icon will be hidden until a new booking with an SGT-linked account starts.</div>
-          <div class="tip">💡 Tip: Press F7 to open SGT info anytime</div>
+          <div class="tip">💡 <strong>Tip:</strong> If you want to play your SGT tour round, press <strong>F7</strong> to open the SGT info window anytime.</div>
           <div class="buttons">
             <button class="btn cancel" onclick="window.electronAPI.cancelSgtHideConfirm()">Keep Showing</button>
             <button class="btn confirm" onclick="window.electronAPI.sgtIconHideConfirmed()">Hide Icon</button>
