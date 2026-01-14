@@ -40,6 +40,11 @@ declare global {
       closeSgtInfoOverlay: () => Promise<{ success: boolean; error?: string }>;
       toggleSgtInfoOverlay: () => Promise<{ success: boolean; visible?: boolean; error?: string }>;
       updateSgtIconPosition: (displayLabel: string, position: string) => Promise<{ success: boolean }>;
+      // These are called internally by overlay windows
+      sgtIconClicked: () => void;
+      showSgtHideConfirm: () => void;
+      cancelSgtHideConfirm: () => void;
+      sgtIconHideConfirmed: () => void;
       onSgtIconClicked: (callback: () => void) => () => void;
       onSgtIconHidden: (callback: () => void) => () => void;
       // Security / Quit control
