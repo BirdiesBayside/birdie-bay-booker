@@ -330,8 +330,9 @@ export default function BayController() {
 
   // Reset sgtIconHidden when a new booking starts (so icon shows for each new SGT-linked booking)
   // Also manage the Electron SGT icon overlay on customer displays
+  // SGT Icon should only appear when apps are running (1 min before session when apps launch)
   useEffect(() => {
-    if (activeBooking?.sgt_game_id) {
+    if (activeBooking?.sgt_game_id && appsRunning) {
       setSgtIconHidden(false);
       
       // Show SGT icon overlay on customer display if configured
@@ -345,7 +346,7 @@ export default function BayController() {
           .catch(err => console.error('Failed to show SGT icon overlay:', err));
       }
     } else {
-      // Close the overlays when no active SGT booking
+      // Close the overlays when no active SGT booking OR apps are not running
       if (isElectron && window.electronAPI) {
         window.electronAPI.closeSgtIconOverlay()
           .catch(err => console.error('Failed to close SGT icon overlay:', err));
@@ -353,7 +354,7 @@ export default function BayController() {
           .catch(err => console.error('Failed to close SGT info overlay:', err));
       }
     }
-  }, [activeBooking?.id, activeBooking?.sgt_game_id, activeBooking?.customer_name, activeBooking?.sgt_username, sgtOverlayConfig.enabled, sgtOverlayConfig.displayLabel, sgtIconPosition, isElectron, sgtIconHidden]);
+  }, [activeBooking?.id, activeBooking?.sgt_game_id, activeBooking?.customer_name, activeBooking?.sgt_username, sgtOverlayConfig.enabled, sgtOverlayConfig.displayLabel, sgtIconPosition, isElectron, sgtIconHidden, appsRunning]);
 
   // Close overlays when icon is hidden
   useEffect(() => {
