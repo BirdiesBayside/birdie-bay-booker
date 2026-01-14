@@ -126,7 +126,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Send SGT icon click event to main process (called from overlay window)
   sgtIconClicked: () => ipcRenderer.send('sgt-icon-clicked'),
   
-  // Send SGT icon hide confirmation (called from overlay window)
+  // Show SGT hide confirmation dialog (called from icon overlay X button)
+  showSgtHideConfirm: () => ipcRenderer.send('show-sgt-hide-confirm'),
+  
+  // Cancel SGT hide confirmation (called from confirm dialog)
+  cancelSgtHideConfirm: () => ipcRenderer.send('cancel-sgt-hide-confirm'),
+  
+  // Send SGT icon hide confirmation (called from confirm dialog)
   sgtIconHideConfirmed: () => ipcRenderer.send('sgt-icon-hide-confirmed'),
   
   // Listen for SGT icon click event from overlay window

@@ -703,6 +703,7 @@ async function verifyAppsReady(gsproDisplayIndex, proteeDisplayIndex) {
 }
 
 // Run the full app launch sequence with welcome windows
+// Uses a simple 35-second timer to ensure apps have time to load
 async function runAppLaunchSequence(config) {
   const {
     gsproPath,
@@ -721,9 +722,7 @@ async function runAppLaunchSequence(config) {
   
   const results = [];
   appLaunchCancelled = false;
-  const sequenceStartTime = Date.now();
-  const maxSequenceTime = 180000; // 3 minute max for entire sequence
-  const welcomeWindowTimeout = 120000; // 2 minute failsafe for welcome windows
+  const APP_LOAD_TIME = 35000; // 35 seconds for apps to fully load
   
   try {
     // Step 0: Show welcome windows on ALL displays
@@ -733,30 +732,13 @@ async function runAppLaunchSequence(config) {
     await showWelcomeWindows(customerFirstName);
     results.push({ step: 'show_welcome', success: true });
     
-    // Set up 2-minute failsafe timeout for welcome windows
-    const welcomeTimeoutId = setTimeout(async () => {
-      console.log('Welcome window failsafe timeout (2 min) triggered - closing welcome windows');
-      await closeWelcomeWindows();
-    }, welcomeWindowTimeout);
-    
     if (appLaunchCancelled) {
       await closeWelcomeWindows();
       return { success: false, cancelled: true, results };
     }
     
-    // Step 1: Wait for displays to be ready (90 second timeout)
-    console.log('Step 1: Waiting for all displays to be ready...');
-    // Note: By showing welcome windows first, we give displays time to settle
-    await new Promise(resolve => setTimeout(resolve, 5000)); // Brief initial wait
-    results.push({ step: 'wait_displays', success: true });
-    
-    if (appLaunchCancelled) {
-      await closeWelcomeWindows();
-      return { success: false, cancelled: true, results };
-    }
-    
-    // Step 2: Launch GSPRO
-    console.log('Step 2: Launching GSPRO...');
+    // Step 1: Launch GSPRO immediately
+    console.log('Step 1: Launching GSPRO...');
     const gsproLaunch = await launchApp(gsproPath);
     console.log('GSPRO launch result:', JSON.stringify(gsproLaunch));
     results.push({ step: 'launch_gspro', ...gsproLaunch });
@@ -766,26 +748,21 @@ async function runAppLaunchSequence(config) {
       return { success: false, error: 'Failed to launch GSPRO: ' + gsproLaunch.error, results };
     }
     
-    // Wait for GSPRO to load
-    console.log('Waiting 10 seconds for GSPRO to initialize...');
-    await new Promise(resolve => setTimeout(resolve, 10000));
+    // Wait 5 seconds then launch Protee Labs
+    console.log('Waiting 5 seconds before launching Protee Labs...');
+    await new Promise(resolve => setTimeout(resolve, 5000));
     
     if (appLaunchCancelled) {
       await closeWelcomeWindows();
       return { success: false, cancelled: true, results };
     }
     
-    // Step 3: Launch Protee Labs
-    console.log('Step 3: Launching Protee Labs...');
+    // Step 2: Launch Protee Labs
+    console.log('Step 2: Launching Protee Labs...');
     if (proteeLabsPath && proteeLabsPath.trim() !== '') {
       const proteeLaunch = await launchApp(proteeLabsPath);
       console.log('Protee Labs launch result:', JSON.stringify(proteeLaunch));
       results.push({ step: 'launch_protee_labs', ...proteeLaunch });
-      
-      if (proteeLaunch.success) {
-        console.log('Waiting 3 seconds for Protee Labs to start...');
-        await new Promise(resolve => setTimeout(resolve, 3000));
-      }
     } else {
       console.log('Skipping Protee Labs - path not configured');
       results.push({ step: 'launch_protee_labs', skipped: true });
@@ -796,59 +773,45 @@ async function runAppLaunchSequence(config) {
       return { success: false, cancelled: true, results };
     }
     
-    // Step 4: Position windows (minimize United VX, move GSPRO and Protee Labs)
-    console.log('Step 4: Positioning windows...');
-    const positionResult = await checkAndCorrectWindowPositions(gsproDisplay, proteeDisplay);
-    results.push({ step: 'position_windows', ...positionResult });
+    // Step 3: Wait for the remaining time (35 seconds total from sequence start)
+    // This gives apps time to fully load behind the welcome windows
+    const elapsedSoFar = 5000; // We've waited about 5 seconds
+    const remainingWait = APP_LOAD_TIME - elapsedSoFar;
+    console.log(`Step 3: Waiting ${remainingWait / 1000} more seconds for apps to load...`);
     
-    // Step 5: Verify and fix positions (up to 6 retries over 30 seconds)
-    console.log('Step 5: Verifying app positions...');
-    let attempts = 0;
-    const maxAttempts = 6;
-    let appsReady = false;
-    
-    while (attempts < maxAttempts && !appsReady) {
-      // Check for timeout
-      if (Date.now() - sequenceStartTime > maxSequenceTime) {
-        console.log('Sequence timeout reached, proceeding to reveal');
-        break;
-      }
-      
+    // Check for cancellation every 5 seconds during the wait
+    const checkInterval = 5000;
+    let waited = 0;
+    while (waited < remainingWait) {
       if (appLaunchCancelled) {
         await closeWelcomeWindows();
         return { success: false, cancelled: true, results };
       }
-      
-      const status = await verifyAppsReady(gsproDisplay, proteeDisplay);
-      
-      if (status.allReady) {
-        appsReady = true;
-        console.log('All apps ready!');
-        break;
-      }
-      
-      // Not ready, try repositioning
-      console.log(`Attempt ${attempts + 1}/${maxAttempts}: Apps not ready, repositioning...`);
-      await checkAndCorrectWindowPositions(gsproDisplay, proteeDisplay);
-      await new Promise(resolve => setTimeout(resolve, 5000));
-      attempts++;
+      await new Promise(resolve => setTimeout(resolve, checkInterval));
+      waited += checkInterval;
+      console.log(`  ...${Math.round((remainingWait - waited) / 1000)} seconds remaining`);
     }
     
-    results.push({ step: 'verify_apps', success: appsReady, attempts });
+    results.push({ step: 'wait_for_apps', success: true, duration: APP_LOAD_TIME });
     
-    // Step 6: Focus GSPRO (ALWAYS - so control box works immediately)
-    console.log('Step 6: Focusing GSPRO...');
+    // Step 4: Position windows (minimize United VX, move GSPRO and Protee Labs)
+    console.log('Step 4: Positioning windows...');
+    await checkAndCorrectWindowPositions(gsproDisplay, proteeDisplay);
+    results.push({ step: 'position_windows', success: true });
+    
+    // Step 5: Focus GSPRO
+    console.log('Step 5: Focusing GSPRO...');
     const gsproWindow = await findGsproWindow();
     if (gsproWindow.success) {
       await focusWindow(gsproWindow.hwnd);
       results.push({ step: 'focus_gspro', success: true });
     } else {
+      console.log('GSPRO window not found, proceeding anyway');
       results.push({ step: 'focus_gspro', success: false, error: 'Window not found' });
     }
     
-    // Step 7: Close all welcome windows (the big reveal!)
-    console.log('Step 7: Closing welcome windows...');
-    clearTimeout(welcomeTimeoutId); // Clear the failsafe timeout
+    // Step 6: Close all welcome windows (the big reveal!)
+    console.log('Step 6: Closing welcome windows...');
     await closeWelcomeWindows();
     results.push({ step: 'close_welcome', success: true });
     
@@ -862,7 +825,6 @@ async function runAppLaunchSequence(config) {
     return { success: true, results };
   } catch (error) {
     console.error('App launch sequence failed:', error.message);
-    clearTimeout(welcomeTimeoutId); // Clear the failsafe timeout
     await closeWelcomeWindows();
     return { success: false, error: error.message, results };
   }
@@ -1428,9 +1390,9 @@ async function showSgtInfoOverlay(displayLabel) {
     
     const { x, y, width, height } = targetDisplay.bounds;
     
-    // Create a centered overlay window
-    const overlayWidth = 400;
-    const overlayHeight = 350;
+    // Create a centered overlay window - larger size to avoid scrolling
+    const overlayWidth = 420;
+    const overlayHeight = 480;
     const overlayX = x + (width - overlayWidth) / 2;
     const overlayY = y + (height - overlayHeight) / 2;
     
@@ -1716,6 +1678,150 @@ function escapeHtml(text) {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+// Separate confirmation popup window for hiding the SGT icon
+let sgtConfirmWindow = null;
+
+// Show confirmation dialog in a separate centered popup
+async function showSgtHideConfirmation(displayLabel) {
+  try {
+    // Close existing if any
+    if (sgtConfirmWindow && !sgtConfirmWindow.isDestroyed()) {
+      sgtConfirmWindow.close();
+      sgtConfirmWindow = null;
+    }
+    
+    // Find the target display by label
+    const displays = screen.getAllDisplays();
+    let targetDisplay = displays[0];
+    
+    for (const display of displays) {
+      const label = display.label || `Display ${displays.indexOf(display) + 1}`;
+      if (label === displayLabel) {
+        targetDisplay = display;
+        break;
+      }
+    }
+    
+    const { x, y, width, height } = targetDisplay.bounds;
+    
+    // Center the dialog on the display
+    const dialogWidth = 340;
+    const dialogHeight = 220;
+    const dialogX = x + (width - dialogWidth) / 2;
+    const dialogY = y + (height - dialogHeight) / 2;
+    
+    sgtConfirmWindow = new BrowserWindow({
+      width: dialogWidth,
+      height: dialogHeight,
+      x: dialogX,
+      y: dialogY,
+      frame: false,
+      transparent: true,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      resizable: false,
+      movable: false,
+      focusable: true,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        preload: path.join(__dirname, 'preload.js')
+      }
+    });
+    
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          html, body {
+            background: transparent;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+          }
+          .dialog {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+            text-align: center;
+          }
+          .title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1f4c25;
+            margin-bottom: 12px;
+          }
+          .text {
+            font-size: 14px;
+            color: #6c757d;
+            margin-bottom: 12px;
+            line-height: 1.5;
+          }
+          .tip {
+            font-size: 13px;
+            color: #ec622d;
+            margin-bottom: 20px;
+            padding: 10px;
+            background: #fff5e4;
+            border-radius: 8px;
+          }
+          .buttons {
+            display: flex;
+            gap: 12px;
+          }
+          .btn {
+            flex: 1;
+            padding: 12px;
+            border-radius: 10px;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+          }
+          .btn.cancel {
+            background: #f0f0f0;
+            color: #333;
+          }
+          .btn.cancel:hover {
+            background: #e0e0e0;
+          }
+          .btn.confirm {
+            background: #dc3545;
+            color: white;
+          }
+          .btn.confirm:hover {
+            background: #c82333;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="dialog">
+          <div class="title">Hide SGT Icon?</div>
+          <div class="text">The SGT icon will be hidden until a new booking with an SGT-linked account starts.</div>
+          <div class="tip">💡 Tip: Press F7 to open SGT info anytime</div>
+          <div class="buttons">
+            <button class="btn cancel" onclick="window.electronAPI.cancelSgtHideConfirm()">Keep Showing</button>
+            <button class="btn confirm" onclick="window.electronAPI.sgtIconHideConfirmed()">Hide Icon</button>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+    
+    sgtConfirmWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
+    
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to show SGT hide confirmation:', error);
+    return { success: false, error: error.message };
+  }
+}
+
 ipcMain.handle('show-sgt-icon-overlay', async (event, { displayLabel, position, playerData }) => {
   try {
     console.log(`Showing SGT icon overlay on display: ${displayLabel}, position: ${position}`);
@@ -1747,8 +1853,8 @@ ipcMain.handle('show-sgt-icon-overlay', async (event, { displayLabel, position, 
     
     const { x, y, width, height } = targetDisplay.bounds;
     
-    // Calculate position based on corner preference - larger to accommodate close button
-    const iconSize = 90; // Larger to fit close button
+    // Calculate position based on corner preference
+    const iconSize = 90;
     const margin = 20;
     let iconX, iconY;
     
@@ -1795,7 +1901,7 @@ ipcMain.handle('show-sgt-icon-overlay', async (event, { displayLabel, position, 
     
     const iconBase64 = getSgtIconBase64();
     
-    // Generate HTML for the SGT icon button with close button
+    // Generate HTML for the SGT icon button with close button - NO INLINE DIALOG
     const htmlContent = `
       <!DOCTYPE html>
       <html>
@@ -1872,71 +1978,6 @@ ipcMain.handle('show-sgt-icon-overlay', async (event, { displayLabel, position, 
             transform: scale(1.1);
             background: #c82333;
           }
-          
-          /* Confirmation dialog */
-          .confirm-overlay {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0,0,0,0.5);
-            align-items: center;
-            justify-content: center;
-          }
-          .confirm-overlay.show {
-            display: flex;
-          }
-          .confirm-dialog {
-            background: white;
-            border-radius: 12px;
-            padding: 20px;
-            width: 280px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
-            text-align: center;
-          }
-          .confirm-title {
-            font-size: 16px;
-            font-weight: 600;
-            color: #1f4c25;
-            margin-bottom: 10px;
-          }
-          .confirm-text {
-            font-size: 13px;
-            color: #6c757d;
-            margin-bottom: 8px;
-            line-height: 1.4;
-          }
-          .confirm-tip {
-            font-size: 12px;
-            color: #ec622d;
-            margin-bottom: 16px;
-            padding: 8px;
-            background: #fff5e4;
-            border-radius: 6px;
-          }
-          .confirm-buttons {
-            display: flex;
-            gap: 10px;
-          }
-          .confirm-btn {
-            flex: 1;
-            padding: 10px;
-            border-radius: 8px;
-            border: none;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 500;
-          }
-          .confirm-btn.cancel {
-            background: #f0f0f0;
-            color: #333;
-          }
-          .confirm-btn.confirm {
-            background: #dc3545;
-            color: white;
-          }
         </style>
       </head>
       <body>
@@ -1947,32 +1988,8 @@ ipcMain.handle('show-sgt-icon-overlay', async (event, { displayLabel, position, 
               : '<span class="fallback">SGT</span>'
             }
           </button>
-          <button class="close-btn" onclick="showConfirm()" title="Hide SGT icon">×</button>
+          <button class="close-btn" onclick="window.electronAPI.showSgtHideConfirm()" title="Hide SGT icon">×</button>
         </div>
-        
-        <div class="confirm-overlay" id="confirmOverlay">
-          <div class="confirm-dialog">
-            <div class="confirm-title">Hide SGT Icon?</div>
-            <div class="confirm-text">The SGT icon will be hidden until a new booking with an SGT-linked account starts.</div>
-            <div class="confirm-tip">💡 Tip: Press F7 to open SGT info anytime</div>
-            <div class="confirm-buttons">
-              <button class="confirm-btn cancel" onclick="hideConfirm()">Keep Showing</button>
-              <button class="confirm-btn confirm" onclick="confirmHide()">Hide Icon</button>
-            </div>
-          </div>
-        </div>
-        
-        <script>
-          function showConfirm() {
-            document.getElementById('confirmOverlay').classList.add('show');
-          }
-          function hideConfirm() {
-            document.getElementById('confirmOverlay').classList.remove('show');
-          }
-          function confirmHide() {
-            window.electronAPI.sgtIconHideConfirmed();
-          }
-        </script>
       </body>
       </html>
     `;
@@ -2041,6 +2058,21 @@ ipcMain.handle('update-sgt-icon-position', async (event, { displayLabel, positio
   return { success: true };
 });
 
+// Handle showing the SGT hide confirmation dialog
+ipcMain.on('show-sgt-hide-confirm', async () => {
+  console.log('Showing SGT hide confirmation dialog');
+  await showSgtHideConfirmation(currentSgtDisplayLabel);
+});
+
+// Handle cancelling the SGT hide confirmation dialog
+ipcMain.on('cancel-sgt-hide-confirm', () => {
+  console.log('SGT hide confirmation cancelled');
+  if (sgtConfirmWindow && !sgtConfirmWindow.isDestroyed()) {
+    sgtConfirmWindow.close();
+    sgtConfirmWindow = null;
+  }
+});
+
 // Handle SGT icon click from the overlay window - show info overlay
 ipcMain.on('sgt-icon-clicked', async () => {
   console.log('SGT icon clicked in overlay window - showing info overlay');
@@ -2053,11 +2085,18 @@ ipcMain.on('sgt-icon-clicked', async () => {
 
 // Handle SGT icon hide confirmation from the overlay window
 ipcMain.on('sgt-icon-hide-confirmed', () => {
-  console.log('SGT icon hide confirmed - closing overlay and notifying main');
+  console.log('SGT icon hide confirmed - closing overlays and notifying main');
+  // Close the confirmation dialog
+  if (sgtConfirmWindow && !sgtConfirmWindow.isDestroyed()) {
+    sgtConfirmWindow.close();
+    sgtConfirmWindow = null;
+  }
+  // Close the icon overlay
   if (sgtIconWindow && !sgtIconWindow.isDestroyed()) {
     sgtIconWindow.close();
     sgtIconWindow = null;
   }
+  // Close the info overlay
   if (sgtInfoWindow && !sgtInfoWindow.isDestroyed()) {
     sgtInfoWindow.close();
     sgtInfoWindow = null;
