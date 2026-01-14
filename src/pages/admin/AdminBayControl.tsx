@@ -51,6 +51,7 @@ interface BayStatus {
   currentBooking: Booking | null;
   nextBooking: Booking | null;
   plugsOn: boolean;
+  isManualMode: boolean;
 }
 
 // Always have 6 bays to display
@@ -71,6 +72,7 @@ export default function AdminBayControl() {
       currentBooking: null,
       nextBooking: null,
       plugsOn: false,
+      isManualMode: false,
     }))
   );
   const [isLoading, setIsLoading] = useState(true);
@@ -183,6 +185,9 @@ export default function AdminBayControl() {
       // Determine if plugs should be on (simplified - actual state from device)
       const plugsOn = !!currentBooking;
 
+      // Get previous manual mode state to preserve it
+      const previousStatus = bayStatuses.find(s => s.bay.bay_number === bay.bay_number);
+
       return {
         bay,
         device,
@@ -195,6 +200,7 @@ export default function AdminBayControl() {
           profiles: nextBooking.profiles as unknown as { first_name: string; last_name: string }
         } : null,
         plugsOn,
+        isManualMode: previousStatus?.isManualMode ?? false,
       };
     });
 
@@ -258,6 +264,37 @@ export default function AdminBayControl() {
     } catch (err) {
       console.error("Error sending bay command:", err);
       toast.error(`Failed to send command to Bay ${bayNumber}`);
+    }
+  };
+
+  const toggleBayMode = async (bayNumber: number, setToManual: boolean) => {
+    try {
+      // Insert mode command into bay_commands table for bay controller to pick up
+      const { error } = await supabase
+        .from("bay_commands")
+        .insert({
+          bay_number: bayNumber,
+          command: setToManual ? "manual" : "auto",
+          status: "pending"
+        });
+
+      if (error) {
+        console.error("Error sending bay mode command:", error);
+        toast.error(`Failed to send mode command to Bay ${bayNumber}`);
+        return;
+      }
+
+      // Update local state to reflect the change immediately
+      setBayStatuses(prev => prev.map(status => 
+        status.bay.bay_number === bayNumber 
+          ? { ...status, isManualMode: setToManual }
+          : status
+      ));
+
+      toast.success(`Bay ${bayNumber} switched to ${setToManual ? "MANUAL" : "AUTO"} mode`);
+    } catch (err) {
+      console.error("Error sending bay mode command:", err);
+      toast.error(`Failed to send mode command to Bay ${bayNumber}`);
     }
   };
 
@@ -386,6 +423,24 @@ export default function AdminBayControl() {
                       </span>
                     </div>
                   )}
+
+                  {/* Mode Toggle */}
+                  <div className="flex items-center justify-between pt-2 border-t border-border">
+                    <span className="text-xs text-muted-foreground">Control Mode</span>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs font-medium ${!status.isManualMode ? "text-green-600" : "text-muted-foreground"}`}>
+                        Auto
+                      </span>
+                      <Switch
+                        checked={status.isManualMode}
+                        onCheckedChange={(checked) => toggleBayMode(status.bay.bay_number, checked)}
+                        className="data-[state=checked]:bg-orange-500"
+                      />
+                      <span className={`text-xs font-medium ${status.isManualMode ? "text-orange-600" : "text-muted-foreground"}`}>
+                        Manual
+                      </span>
+                    </div>
+                  </div>
 
                   {/* Plug Status Indicator */}
                   <div className="flex items-center justify-between pt-2 border-t border-border">
