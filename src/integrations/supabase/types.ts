@@ -157,6 +157,7 @@ export type Database = {
         Row: {
           app_version: string | null
           bay_id: string
+          control_mode: string
           created_at: string
           id: string
           is_online: boolean
@@ -166,6 +167,7 @@ export type Database = {
         Insert: {
           app_version?: string | null
           bay_id: string
+          control_mode?: string
           created_at?: string
           id?: string
           is_online?: boolean
@@ -175,6 +177,7 @@ export type Database = {
         Update: {
           app_version?: string | null
           bay_id?: string
+          control_mode?: string
           created_at?: string
           id?: string
           is_online?: boolean

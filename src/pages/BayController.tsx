@@ -170,6 +170,7 @@ export default function BayController() {
   const [activeBooking, setActiveBooking] = useState<Booking | null>(null);
   const [plugsStatus, setPlugsStatus] = useState({ monitor: false, projector: false });
   const [manualOverride, setManualOverride] = useState(false); // Prevents auto-control when manually controlling
+  const [bayDeviceId, setBayDeviceId] = useState<string | null>(null); // Track bay_devices record for mode sync
   
   // TAPO credentials state
   const [tapoEmail, setTapoEmail] = useState("");
@@ -620,12 +621,69 @@ export default function BayController() {
     }
   }, [selectedBay]);
 
-  // Set up real-time subscription for bookings, heartbeat, and polling fallback
+  // Fetch and sync control mode from database
+  const fetchControlMode = useCallback(async () => {
+    if (!selectedBay) return;
+    
+    try {
+      // Get bay_id first
+      const { data: bayData } = await supabase
+        .from("bays")
+        .select("id")
+        .eq("bay_number", selectedBay)
+        .maybeSingle();
+      
+      if (!bayData?.id) return;
+      
+      // Get bay_device for this bay
+      const { data: deviceData } = await supabase
+        .from("bay_devices")
+        .select("id, control_mode")
+        .eq("bay_id", bayData.id)
+        .maybeSingle();
+      
+      if (deviceData) {
+        setBayDeviceId(deviceData.id);
+        setManualOverride(deviceData.control_mode === 'manual');
+        console.log(`Bay ${selectedBay} control mode: ${deviceData.control_mode}`);
+      }
+    } catch (error) {
+      console.error("Failed to fetch control mode:", error);
+    }
+  }, [selectedBay]);
+
+  // Update control mode in database
+  const updateControlMode = useCallback(async (isManual: boolean) => {
+    if (!bayDeviceId) {
+      console.warn("No bay device ID for mode update");
+      return;
+    }
+    
+    try {
+      const { error } = await supabase
+        .from("bay_devices")
+        .update({ control_mode: isManual ? 'manual' : 'auto' })
+        .eq("id", bayDeviceId);
+      
+      if (error) {
+        console.error("Failed to update control mode:", error);
+        toast.error("Failed to update control mode");
+        return;
+      }
+      
+      console.log(`Updated bay control mode to: ${isManual ? 'manual' : 'auto'}`);
+    } catch (error) {
+      console.error("Failed to update control mode:", error);
+    }
+  }, [bayDeviceId]);
+
+  // Set up real-time subscription for bookings, control mode, heartbeat, and polling fallback
   useEffect(() => {
     if (!selectedBay) return;
 
     // Initial fetch
     fetchBookings();
+    fetchControlMode();
 
     // Get bay_id for the selected bay number
     const setupRealtimeSubscription = async () => {
@@ -641,7 +699,7 @@ export default function BayController() {
       }
 
       // Subscribe to real-time changes on bookings table for this bay
-      const channel = supabase
+      const bookingChannel = supabase
         .channel(`bay-${selectedBay}-bookings`)
         .on(
           'postgres_changes',
@@ -658,18 +716,43 @@ export default function BayController() {
           }
         )
         .subscribe((status) => {
-          console.log('Realtime subscription status:', status);
+          console.log('Realtime booking subscription status:', status);
           if (status === 'SUBSCRIBED') {
             console.log('Successfully subscribed to real-time booking updates');
           }
         });
 
-      return channel;
+      // Subscribe to real-time changes on bay_devices for mode sync from admin
+      const deviceChannel = supabase
+        .channel(`bay-${selectedBay}-device-mode`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'bay_devices',
+            filter: `bay_id=eq.${bayData.id}`
+          },
+          (payload) => {
+            console.log('Real-time bay_devices update received:', payload);
+            const newMode = (payload.new as { control_mode?: string }).control_mode;
+            if (newMode) {
+              const isManual = newMode === 'manual';
+              setManualOverride(isManual);
+              console.log(`Mode changed via real-time to: ${newMode}`);
+            }
+          }
+        )
+        .subscribe((status) => {
+          console.log('Realtime device mode subscription status:', status);
+        });
+
+      return { bookingChannel, deviceChannel };
     };
 
-    let realtimeChannel: ReturnType<typeof supabase.channel> | undefined;
-    setupRealtimeSubscription().then(channel => {
-      realtimeChannel = channel;
+    let channels: { bookingChannel: ReturnType<typeof supabase.channel>; deviceChannel: ReturnType<typeof supabase.channel> } | undefined;
+    setupRealtimeSubscription().then(result => {
+      channels = result;
     });
 
     // Heartbeat to keep device status updated
@@ -684,11 +767,12 @@ export default function BayController() {
     return () => {
       clearInterval(heartbeatInterval);
       clearInterval(pollingInterval);
-      if (realtimeChannel) {
-        supabase.removeChannel(realtimeChannel);
+      if (channels) {
+        supabase.removeChannel(channels.bookingChannel);
+        supabase.removeChannel(channels.deviceChannel);
       }
     };
-  }, [selectedBay, fetchBookings, sendHeartbeat]);
+  }, [selectedBay, fetchBookings, fetchControlMode, sendHeartbeat]);
 
   // Save bay selection
   useEffect(() => {
@@ -704,6 +788,7 @@ export default function BayController() {
   const isElectronRef = useRef(isElectron);
   const bookingsRef = useRef(bookings);
   const preStartMinutesRef = useRef(preStartMinutes);
+  const bayDeviceIdRef = useRef(bayDeviceId);
   
   // Keep refs in sync with state
   useEffect(() => {
@@ -729,6 +814,25 @@ export default function BayController() {
   useEffect(() => {
     preStartMinutesRef.current = preStartMinutes;
   }, [preStartMinutes]);
+  
+  useEffect(() => {
+    bayDeviceIdRef.current = bayDeviceId;
+  }, [bayDeviceId]);
+
+  // Helper to update control mode in DB (for use in command handler)
+  const updateControlModeInDb = async (isManual: boolean) => {
+    const deviceId = bayDeviceIdRef.current;
+    if (!deviceId) return;
+    
+    try {
+      await supabase
+        .from("bay_devices")
+        .update({ control_mode: isManual ? 'manual' : 'auto' })
+        .eq("id", deviceId);
+    } catch (error) {
+      console.error("Failed to update control mode in DB:", error);
+    }
+  };
 
   // Subscribe to admin commands from bay_commands table
   useEffect(() => {
@@ -857,7 +961,7 @@ export default function BayController() {
               setTimeout(() => executePlugControl('off', command.id), 100);
             }
             
-            // Mark command as executed
+            // Mark command as executed (mode is synced via real-time from admin)
             await supabase
               .from('bay_commands')
               .update({ status: 'executed', executed_at: new Date().toISOString() })
@@ -870,7 +974,7 @@ export default function BayController() {
             setManualOverride(true);
             toast.success('Switched to MANUAL mode');
             
-            // Mark command as executed
+            // Mark command as executed (mode is synced via real-time from admin)
             await supabase
               .from('bay_commands')
               .update({ status: 'executed', executed_at: new Date().toISOString() })
@@ -878,8 +982,9 @@ export default function BayController() {
             return;
           }
 
-          // Execute the command with manual override for on/off commands
+          // For on/off commands, also switch to manual mode and update DB
           setManualOverride(true);
+          updateControlModeInDb(true);
           
           // Small delay to ensure state is updated
           setTimeout(() => {
@@ -1123,9 +1228,12 @@ export default function BayController() {
   }, [currentTime, bookings, preStartMinutes, manualOverride, calculateShouldPlugsBeOn]);
 
   // Resume auto function - checks current booking state and controls plugs accordingly
-  const resumeAuto = useCallback(() => {
+  const resumeAuto = useCallback(async () => {
     console.log('Resuming auto control...');
     setManualOverride(false);
+    
+    // Sync mode to database
+    await updateControlMode(false);
     
     const { shouldBeOn } = calculateShouldPlugsBeOn();
     console.log('Current booking state - should plugs be on:', shouldBeOn);
@@ -1135,7 +1243,15 @@ export default function BayController() {
     } else {
       turnOffPlugs(false, true); // Auto control, show toast
     }
-  }, [calculateShouldPlugsBeOn]);
+  }, [calculateShouldPlugsBeOn, updateControlMode]);
+
+  // Toggle to manual mode - syncs to database and enables manual control
+  const setToManualMode = useCallback(async () => {
+    console.log('Switching to manual control...');
+    setManualOverride(true);
+    await updateControlMode(true);
+    toast.success('Switched to MANUAL mode');
+  }, [updateControlMode]);
 
   // Save TAPO credentials whenever they change
   useEffect(() => {
@@ -1830,23 +1946,52 @@ export default function BayController() {
                 </div>
               </div>
             )}
+            {/* Mode Toggle */}
+            <div className="flex items-center justify-between pt-3 border-t border-border mt-4">
+              <div>
+                <Label className="text-sm">Control Mode</Label>
+                <p className="text-xs text-muted-foreground">
+                  {manualOverride ? "Manual control active" : "Automatic booking-based control"}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`text-xs font-medium ${!manualOverride ? "text-green-600" : "text-muted-foreground"}`}>
+                  Auto
+                </span>
+                <Switch
+                  checked={manualOverride}
+                  onCheckedChange={(checked) => checked ? setToManualMode() : resumeAuto()}
+                  className="data-[state=checked]:bg-orange-500"
+                />
+                <span className={`text-xs font-medium ${manualOverride ? "text-orange-600" : "text-muted-foreground"}`}>
+                  Manual
+                </span>
+              </div>
+            </div>
+            
+            {/* Manual Control Buttons */}
             <div className="flex gap-2 mt-4">
-              <Button onClick={() => turnOnPlugs(true)} disabled={plugsStatus.monitor && plugsStatus.projector} className="flex-1">
+              <Button 
+                onClick={() => turnOnPlugs(true)} 
+                disabled={!manualOverride || (plugsStatus.monitor && plugsStatus.projector)} 
+                className="flex-1"
+                title={!manualOverride ? "Switch to Manual mode to control plugs" : undefined}
+              >
                 <Power className="w-4 h-4 mr-2" /> Turn On
               </Button>
-              <Button onClick={() => turnOffPlugs(true)} disabled={!plugsStatus.monitor && !plugsStatus.projector} variant="outline" className="flex-1">
+              <Button 
+                onClick={() => turnOffPlugs(true)} 
+                disabled={!manualOverride || (!plugsStatus.monitor && !plugsStatus.projector)} 
+                variant="outline" 
+                className="flex-1"
+                title={!manualOverride ? "Switch to Manual mode to control plugs" : undefined}
+              >
                 <Power className="w-4 h-4 mr-2" /> Turn Off
               </Button>
             </div>
-            {manualOverride && (
-              <p className="text-xs text-muted-foreground mt-2">
-                Manual override active - auto-control paused.{" "}
-                <button 
-                  className="text-primary underline" 
-                  onClick={resumeAuto}
-                >
-                  Resume auto
-                </button>
+            {!manualOverride && (
+              <p className="text-xs text-muted-foreground mt-2 text-center">
+                Switch to Manual mode to enable On/Off buttons
               </p>
             )}
           </CardContent>

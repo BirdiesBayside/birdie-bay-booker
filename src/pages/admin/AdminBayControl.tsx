@@ -105,10 +105,10 @@ export default function AdminBayControl() {
       console.warn("Using default bays - bookings won't match");
     }
 
-    // Fetch bay devices - continue even if this fails
-    let devices: BayDevice[] = [];
+    // Fetch bay devices with control_mode - continue even if this fails
+    let devices: (BayDevice & { control_mode?: string })[] = [];
     try {
-      const { data } = await supabase.from("bay_devices").select("*");
+      const { data } = await supabase.from("bay_devices").select("*, control_mode");
       devices = data || [];
     } catch (e) {
       console.error("Error fetching devices:", e);
@@ -185,8 +185,9 @@ export default function AdminBayControl() {
       // Determine if plugs should be on (simplified - actual state from device)
       const plugsOn = !!currentBooking;
 
-      // Get previous manual mode state to preserve it
-      const previousStatus = bayStatuses.find(s => s.bay.bay_number === bay.bay_number);
+      // Get control_mode from device, default to auto
+      const deviceWithMode = device as (BayDevice & { control_mode?: string }) | null;
+      const isManualMode = deviceWithMode?.control_mode === 'manual';
 
       return {
         bay,
@@ -200,7 +201,7 @@ export default function AdminBayControl() {
           profiles: nextBooking.profiles as unknown as { first_name: string; last_name: string }
         } : null,
         plugsOn,
-        isManualMode: previousStatus?.isManualMode ?? false,
+        isManualMode,
       };
     });
 
@@ -269,32 +270,75 @@ export default function AdminBayControl() {
 
   const toggleBayMode = async (bayNumber: number, setToManual: boolean) => {
     try {
-      // Insert mode command into bay_commands table for bay controller to pick up
-      const { error } = await supabase
-        .from("bay_commands")
-        .insert({
-          bay_number: bayNumber,
-          command: setToManual ? "manual" : "auto",
-          status: "pending"
-        });
-
-      if (error) {
-        console.error("Error sending bay mode command:", error);
-        toast.error(`Failed to send mode command to Bay ${bayNumber}`);
-        return;
+      // Get bay_id for this bay number
+      const status = bayStatuses.find(s => s.bay.bay_number === bayNumber);
+      if (!status?.device) {
+        // No device record - need to get bay_id and check/create device
+        const { data: bayData } = await supabase
+          .from("bays")
+          .select("id")
+          .eq("bay_number", bayNumber)
+          .maybeSingle();
+        
+        if (!bayData?.id) {
+          toast.error(`Bay ${bayNumber} not found`);
+          return;
+        }
+        
+        // Upsert bay_device with control_mode
+        const { error } = await supabase
+          .from("bay_devices")
+          .upsert({
+            bay_id: bayData.id,
+            control_mode: setToManual ? 'manual' : 'auto',
+            is_online: false,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'bay_id' });
+        
+        if (error) {
+          console.error("Error updating bay mode:", error);
+          toast.error(`Failed to update mode for Bay ${bayNumber}`);
+          return;
+        }
+      } else {
+        // Update existing device record directly
+        const { error } = await supabase
+          .from("bay_devices")
+          .update({ 
+            control_mode: setToManual ? 'manual' : 'auto',
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", status.device.bay_id);
+        
+        if (error) {
+          // Try by bay_id instead
+          const { error: error2 } = await supabase
+            .from("bay_devices")
+            .update({ 
+              control_mode: setToManual ? 'manual' : 'auto',
+              updated_at: new Date().toISOString()
+            })
+            .eq("bay_id", status.bay.id);
+          
+          if (error2) {
+            console.error("Error updating bay mode:", error2);
+            toast.error(`Failed to update mode for Bay ${bayNumber}`);
+            return;
+          }
+        }
       }
 
       // Update local state to reflect the change immediately
-      setBayStatuses(prev => prev.map(status => 
-        status.bay.bay_number === bayNumber 
-          ? { ...status, isManualMode: setToManual }
-          : status
+      setBayStatuses(prev => prev.map(s => 
+        s.bay.bay_number === bayNumber 
+          ? { ...s, isManualMode: setToManual }
+          : s
       ));
 
       toast.success(`Bay ${bayNumber} switched to ${setToManual ? "MANUAL" : "AUTO"} mode`);
     } catch (err) {
-      console.error("Error sending bay mode command:", err);
-      toast.error(`Failed to send mode command to Bay ${bayNumber}`);
+      console.error("Error updating bay mode:", err);
+      toast.error(`Failed to update mode for Bay ${bayNumber}`);
     }
   };
 
@@ -363,23 +407,25 @@ export default function AdminBayControl() {
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-semibold">Bay {status.bay.bay_number}</h3>
                   
-                  {/* Power Controls */}
+                  {/* Power Controls - only enabled in Manual mode */}
                   <div className="flex items-center gap-2">
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 text-green-600 hover:bg-green-500/10"
+                      className={`h-8 w-8 ${status.isManualMode ? "text-green-600 hover:bg-green-500/10" : "text-muted-foreground"}`}
                       onClick={() => toggleBayPower(status.bay.bay_number, true)}
-                      title="Turn ON"
+                      disabled={!status.isManualMode}
+                      title={status.isManualMode ? "Turn ON" : "Switch to Manual mode first"}
                     >
                       <Power className="h-4 w-4" />
                     </Button>
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 text-destructive hover:bg-destructive/10"
+                      className={`h-8 w-8 ${status.isManualMode ? "text-destructive hover:bg-destructive/10" : "text-muted-foreground"}`}
                       onClick={() => toggleBayPower(status.bay.bay_number, false)}
-                      title="Turn OFF"
+                      disabled={!status.isManualMode}
+                      title={status.isManualMode ? "Turn OFF" : "Switch to Manual mode first"}
                     >
                       <PowerOff className="h-4 w-4" />
                     </Button>
