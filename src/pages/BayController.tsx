@@ -328,43 +328,49 @@ export default function BayController() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isAuthenticated, activeBooking?.sgt_game_id, isElectron]);
 
-  // Reset sgtIconHidden when a new booking starts (so icon shows for each new SGT-linked booking)
-  // Also manage the Electron SGT icon overlay on customer displays
+  // Track previous booking ID to detect when a NEW booking starts
+  const prevBookingIdRef = useRef<string | null>(null);
+  
+  // Reset sgtIconHidden only when a NEW booking starts (different booking ID)
+  useEffect(() => {
+    if (activeBooking?.id && activeBooking.id !== prevBookingIdRef.current) {
+      // New booking started - reset the hidden state so icon can show
+      console.log('[BayController] New booking detected, resetting sgtIconHidden');
+      setSgtIconHidden(false);
+      prevBookingIdRef.current = activeBooking.id;
+    } else if (!activeBooking?.id) {
+      prevBookingIdRef.current = null;
+    }
+  }, [activeBooking?.id]);
+  
+  // Manage the Electron SGT icon overlay on customer displays
   // SGT Icon should only appear when apps are running (1 min before session when apps launch)
   useEffect(() => {
-    if (activeBooking?.sgt_game_id && appsRunning) {
-      setSgtIconHidden(false);
-      
-      // Show SGT icon overlay on customer display if configured
-      if (isElectron && window.electronAPI && sgtOverlayConfig.enabled && sgtOverlayConfig.displayLabel && !sgtIconHidden) {
-        const playerData = {
-          customerName: activeBooking.customer_name || 'Guest',
-          sgtUsername: activeBooking.sgt_username || '',
-          sgtGameId: activeBooking.sgt_game_id || ''
-        };
-        window.electronAPI.showSgtIconOverlay(sgtOverlayConfig.displayLabel, sgtIconPosition, playerData)
-          .catch(err => console.error('Failed to show SGT icon overlay:', err));
-      }
-    } else {
-      // Close the overlays when no active SGT booking OR apps are not running
-      if (isElectron && window.electronAPI) {
-        window.electronAPI.closeSgtIconOverlay()
-          .catch(err => console.error('Failed to close SGT icon overlay:', err));
+    // Only show if: has SGT booking, apps running, not hidden by user, and overlay is configured
+    const shouldShow = activeBooking?.sgt_game_id && appsRunning && !sgtIconHidden && 
+                       sgtOverlayConfig.enabled && sgtOverlayConfig.displayLabel;
+    
+    if (shouldShow && isElectron && window.electronAPI) {
+      const playerData = {
+        customerName: activeBooking.customer_name || 'Guest',
+        sgtUsername: activeBooking.sgt_username || '',
+        sgtGameId: activeBooking.sgt_game_id || ''
+      };
+      window.electronAPI.showSgtIconOverlay(sgtOverlayConfig.displayLabel, sgtIconPosition, playerData)
+        .catch(err => console.error('Failed to show SGT icon overlay:', err));
+    } else if (!shouldShow && isElectron && window.electronAPI) {
+      // Close the overlays when conditions are not met
+      window.electronAPI.closeSgtIconOverlay()
+        .catch(err => console.error('Failed to close SGT icon overlay:', err));
+      // Also close info overlay if no active SGT booking or apps not running
+      if (!activeBooking?.sgt_game_id || !appsRunning) {
         window.electronAPI.closeSgtInfoOverlay()
           .catch(err => console.error('Failed to close SGT info overlay:', err));
       }
     }
   }, [activeBooking?.id, activeBooking?.sgt_game_id, activeBooking?.customer_name, activeBooking?.sgt_username, sgtOverlayConfig.enabled, sgtOverlayConfig.displayLabel, sgtIconPosition, isElectron, sgtIconHidden, appsRunning]);
 
-  // Close overlays when icon is hidden
-  useEffect(() => {
-    if (sgtIconHidden && isElectron && window.electronAPI) {
-      window.electronAPI.closeSgtIconOverlay()
-        .catch(err => console.error('Failed to close SGT icon overlay:', err));
-      window.electronAPI.closeSgtInfoOverlay()
-        .catch(err => console.error('Failed to close SGT info overlay:', err));
-    }
-  }, [sgtIconHidden, isElectron]);
+  // Note: Closing overlays when icon is hidden is now handled by the main SGT overlay effect above
 
   // Listen for SGT icon click from the overlay window
   useEffect(() => {

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Tray, Menu, ipcMain, screen, dialog, clipboard } = require('electron');
+const { app, BrowserWindow, Tray, Menu, ipcMain, screen, dialog, clipboard, globalShortcut } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { exec, spawn } = require('child_process');
@@ -127,6 +127,22 @@ app.setLoginItemSettings({
 app.whenReady().then(() => {
   createWindow();
   createTray();
+  
+  // Register global F7 hotkey to toggle SGT info overlay (works even when app is in tray)
+  globalShortcut.register('F7', async () => {
+    console.log('[GlobalShortcut] F7 pressed - toggling SGT info overlay');
+    if (sgtInfoWindow && !sgtInfoWindow.isDestroyed()) {
+      sgtInfoWindow.close();
+      sgtInfoWindow = null;
+    } else if (currentSgtDisplayLabel) {
+      await showSgtInfoOverlay(currentSgtDisplayLabel);
+    }
+  });
+});
+
+// Unregister shortcuts on quit
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll();
 });
 
 app.on('window-all-closed', () => {
@@ -1408,12 +1424,16 @@ async function showSgtInfoOverlay(displayLabel) {
       resizable: false,
       movable: true,
       focusable: true,
+      hasShadow: false,
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
         preload: path.join(__dirname, 'preload.js')
       }
     });
+    
+    // Set always on top with screen-saver level to appear above fullscreen apps
+    sgtInfoWindow.setAlwaysOnTop(true, 'screen-saver');
     
     const iconBase64 = getSgtIconBase64();
     const playerData = sgtPlayerData || { customerName: 'Guest', sgtUsername: '', sgtGameId: '' };
@@ -1722,12 +1742,16 @@ async function showSgtHideConfirmation(displayLabel) {
       resizable: false,
       movable: false,
       focusable: true,
+      hasShadow: false,
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
         preload: path.join(__dirname, 'preload.js')
       }
     });
+    
+    // Set always on top with screen-saver level to appear above fullscreen apps
+    sgtConfirmWindow.setAlwaysOnTop(true, 'screen-saver');
     
     const htmlContent = `
       <!DOCTYPE html>
@@ -1881,7 +1905,7 @@ ipcMain.handle('show-sgt-icon-overlay', async (event, { displayLabel, position, 
         break;
     }
     
-    // Create frameless, always-on-top overlay
+    // Create frameless, always-on-top overlay (screen-saver level to appear above fullscreen apps)
     sgtIconWindow = new BrowserWindow({
       width: iconSize,
       height: iconSize,
@@ -1901,6 +1925,9 @@ ipcMain.handle('show-sgt-icon-overlay', async (event, { displayLabel, position, 
         preload: path.join(__dirname, 'preload.js')
       }
     });
+    
+    // Set always on top with screen-saver level to appear above fullscreen apps
+    sgtIconWindow.setAlwaysOnTop(true, 'screen-saver');
     
     const iconBase64 = getSgtIconBase64();
     
