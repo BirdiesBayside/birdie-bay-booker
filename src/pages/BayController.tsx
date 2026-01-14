@@ -909,7 +909,8 @@ export default function BayController() {
   const calculateShouldPlugsBeOn = useCallback(() => {
     const now = new Date();
     const today = format(now, "yyyy-MM-dd");
-    const todaysBookings = bookings.filter(b => b.booking_date === today && b.status === 'confirmed');
+    // Include both confirmed AND pending bookings for plug control
+    const todaysBookings = bookings.filter(b => b.booking_date === today && (b.status === 'confirmed' || b.status === 'pending'));
     
     let shouldBeOn = false;
     let currentBooking: Booking | null = null;
@@ -948,7 +949,8 @@ export default function BayController() {
   useEffect(() => {
     const now = currentTime;
     const today = format(now, "yyyy-MM-dd");
-    const todaysBookings = bookings.filter(b => b.booking_date === today && b.status === 'confirmed');
+    // Include both confirmed AND pending bookings for active booking detection and plug control
+    const todaysBookings = bookings.filter(b => b.booking_date === today && (b.status === 'confirmed' || b.status === 'pending'));
     
     const { shouldBeOn, currentBooking } = calculateShouldPlugsBeOn();
 
