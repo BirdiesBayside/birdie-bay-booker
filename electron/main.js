@@ -1547,9 +1547,14 @@ async function showSgtInfoOverlay(displayLabel) {
             color: #212529;
             font-family: monospace;
           }
-          .copy-btn {
+          .action-btns {
+            display: flex;
+            gap: 8px;
+            float: right;
+            margin-top: -40px;
+          }
+          .copy-btn, .paste-btn {
             -webkit-app-region: no-drag;
-            background: #ec622d;
             color: white;
             border: none;
             padding: 8px 16px;
@@ -1557,14 +1562,24 @@ async function showSgtInfoOverlay(displayLabel) {
             font-size: 14px;
             font-weight: 500;
             cursor: pointer;
-            float: right;
-            margin-top: -40px;
             transition: all 0.2s;
           }
+          .copy-btn {
+            background: #6c757d;
+          }
           .copy-btn:hover {
+            background: #5a6268;
+          }
+          .paste-btn {
+            background: #ec622d;
+          }
+          .paste-btn:hover {
             background: #d55627;
           }
-          .copy-btn.copied {
+          .paste-btn.pasting {
+            background: #28a745;
+          }
+          .copy-btn.copied, .paste-btn.pasted {
             background: #28a745;
           }
           .tip {
@@ -1577,6 +1592,22 @@ async function showSgtInfoOverlay(displayLabel) {
           }
           .tip strong {
             color: #ec622d;
+          }
+          .instructions {
+            margin-top: 12px;
+            padding: 12px;
+            background: #e8f4fd;
+            border-radius: 8px;
+            font-size: 12px;
+            color: #1f4c25;
+            line-height: 1.6;
+          }
+          .instructions ol {
+            margin: 0;
+            padding-left: 20px;
+          }
+          .instructions li {
+            margin-bottom: 4px;
           }
         </style>
       </head>
@@ -1598,15 +1629,28 @@ async function showSgtInfoOverlay(displayLabel) {
             <div class="customer-name">${escapeHtml(playerData.customerName || 'Guest')}</div>
             
             <div class="field">
-              <div class="field-label">SGT Username</div>
+              <div class="field-label">1. SGT Username (Player Name)</div>
               <div class="field-value" id="username">${escapeHtml(playerData.sgtUsername || 'Not set')}</div>
-              ${playerData.sgtUsername ? `<button class="copy-btn" onclick="copyField('username', '${escapeHtml(playerData.sgtUsername)}', this)">Copy</button>` : ''}
+              ${playerData.sgtUsername ? `<div class="action-btns">
+                <button class="copy-btn" onclick="copyField('${escapeHtml(playerData.sgtUsername)}', this)">Copy</button>
+                <button class="paste-btn" onclick="pasteField('${escapeHtml(playerData.sgtUsername)}', this)">Paste</button>
+              </div>` : ''}
             </div>
             
             <div class="field">
-              <div class="field-label">Game ID</div>
+              <div class="field-label">2. Simulator Golf Tour ID</div>
               <div class="field-value" id="gameid">${escapeHtml(playerData.sgtGameId || 'Not set')}</div>
-              ${playerData.sgtGameId ? `<button class="copy-btn" onclick="copyField('gameid', '${escapeHtml(playerData.sgtGameId)}', this)">Copy</button>` : ''}
+              ${playerData.sgtGameId ? `<div class="action-btns">
+                <button class="copy-btn" onclick="copyField('${escapeHtml(playerData.sgtGameId)}', this)">Copy</button>
+                <button class="paste-btn" onclick="pasteField('${escapeHtml(playerData.sgtGameId)}', this)">Paste</button>
+              </div>` : ''}
+            </div>
+            
+            <div class="instructions">
+              <ol>
+                <li>Click the <strong>Player Name</strong> field in GSPRO then click <strong>Paste</strong></li>
+                <li>Click the <strong>Simulator Golf Tour ID</strong> field then click <strong>Paste</strong></li>
+              </ol>
             </div>
             
             <div class="tip">
@@ -1616,7 +1660,7 @@ async function showSgtInfoOverlay(displayLabel) {
         </div>
         
         <script>
-          function copyField(fieldId, value, btn) {
+          function copyField(value, btn) {
             navigator.clipboard.writeText(value).then(() => {
               btn.textContent = 'Copied!';
               btn.classList.add('copied');
@@ -1625,6 +1669,32 @@ async function showSgtInfoOverlay(displayLabel) {
                 btn.classList.remove('copied');
               }, 2000);
             });
+          }
+          
+          async function pasteField(value, btn) {
+            btn.textContent = 'Pasting...';
+            btn.classList.add('pasting');
+            
+            try {
+              // Copy to clipboard and trigger auto-paste
+              await window.electronAPI.copyForPaste(value);
+              
+              // Brief delay to let our window lose focus
+              setTimeout(async () => {
+                await window.electronAPI.triggerAutoPaste();
+                btn.textContent = 'Pasted!';
+                btn.classList.remove('pasting');
+                btn.classList.add('pasted');
+                setTimeout(() => {
+                  btn.textContent = 'Paste';
+                  btn.classList.remove('pasted');
+                }, 2000);
+              }, 150);
+            } catch (err) {
+              console.error('Paste failed:', err);
+              btn.textContent = 'Paste';
+              btn.classList.remove('pasting');
+            }
           }
         </script>
       </body>
@@ -1997,12 +2067,6 @@ ipcMain.on('sgt-icon-hide-confirmed', () => {
     mainWindow.webContents.send('sgt-icon-hidden');
   }
 });
-  console.log('SGT icon clicked in overlay window');
-  // Send message to main window to show SGT overlay
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('sgt-icon-clicked');
-  }
-});
 
 // =====================================================
 // CLIPBOARD AND AUTO-PASTE
@@ -2024,7 +2088,7 @@ ipcMain.handle('copy-for-paste', async (event, { text }) => {
 });
 
 // Trigger the auto-paste sequence: Ctrl+A, Delete, then Ctrl+V
-// Uses PowerShell SendKeys for reliability with GSPro
+// First hides the SGT info overlay and focuses GSPRO to ensure keystrokes go there
 ipcMain.handle('trigger-auto-paste', async () => {
   try {
     if (!autoPasteEnabled || !autoPasteText) {
@@ -2033,8 +2097,25 @@ ipcMain.handle('trigger-auto-paste', async () => {
     
     console.log('Triggering auto-paste sequence...');
     
+    // Hide the SGT info window temporarily (don't close, just blur/hide)
+    if (sgtInfoWindow && !sgtInfoWindow.isDestroyed()) {
+      sgtInfoWindow.blur();
+      // Temporarily set not always on top so focus can shift
+      sgtInfoWindow.setAlwaysOnTop(false);
+    }
+    
+    // Find and focus GSPRO window first
+    const gsproWindow = await findGsproWindow();
+    if (gsproWindow.success) {
+      console.log('Focusing GSPRO window before paste...');
+      await focusWindow(gsproWindow.hwnd);
+      // Wait for focus to settle
+      await new Promise(resolve => setTimeout(resolve, 200));
+    } else {
+      console.log('GSPRO window not found, proceeding with paste anyway...');
+    }
+    
     // Create a PowerShell script that sends Ctrl+A, then Delete, then Ctrl+V
-    // We use a short delay between keystrokes for reliability
     const tempScript = path.join(app.getPath('temp'), 'auto_paste.ps1');
     const scriptContent = `
 Add-Type @"
@@ -2080,6 +2161,11 @@ Write-Output "done"
     await execAsync(`powershell -NoProfile -ExecutionPolicy Bypass -File "${tempScript}"`, { timeout: 5000 });
     fs.unlinkSync(tempScript);
     
+    // Restore SGT info window to always on top
+    if (sgtInfoWindow && !sgtInfoWindow.isDestroyed()) {
+      sgtInfoWindow.setAlwaysOnTop(true);
+    }
+    
     // Disarm auto-paste after use
     autoPasteEnabled = false;
     autoPasteText = '';
@@ -2088,6 +2174,10 @@ Write-Output "done"
     return { success: true };
   } catch (error) {
     console.error('Auto-paste failed:', error);
+    // Restore always on top even on error
+    if (sgtInfoWindow && !sgtInfoWindow.isDestroyed()) {
+      sgtInfoWindow.setAlwaysOnTop(true);
+    }
     try { fs.unlinkSync(path.join(app.getPath('temp'), 'auto_paste.ps1')); } catch {}
     return { success: false, error: error.message };
   }
