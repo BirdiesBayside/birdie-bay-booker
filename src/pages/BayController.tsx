@@ -860,6 +860,14 @@ export default function BayController() {
     localStorage.setItem("bayController_notificationConfig", JSON.stringify(notificationConfig));
   }, [notificationConfig]);
 
+  // Ref to track shown notifications to avoid race conditions with state updates
+  const shownNotificationsRef = useRef<Set<string>>(new Set());
+  
+  // Keep ref in sync with state
+  useEffect(() => {
+    shownNotificationsRef.current = shownNotifications;
+  }, [shownNotifications]);
+
   // Check for customer notifications based on booking end time
   useEffect(() => {
     if (!notificationConfig.enabled || !activeBooking || !isElectron) {
@@ -877,10 +885,17 @@ export default function BayController() {
 
         const notificationKey = `${activeBooking.id}-${notification.id}`;
         
+        // Use ref to check - this avoids race conditions with state updates
+        if (shownNotificationsRef.current.has(notificationKey)) {
+          continue; // Already shown, skip
+        }
+        
         // Check if we should show this notification (within 30 seconds of the trigger time)
         if (minutesRemaining <= notification.minutesBefore && 
-            minutesRemaining > notification.minutesBefore - 0.5 &&
-            !shownNotifications.has(notificationKey)) {
+            minutesRemaining > notification.minutesBefore - 0.5) {
+          
+          // Mark as shown IMMEDIATELY in the ref to prevent duplicate triggers
+          shownNotificationsRef.current.add(notificationKey);
           
           // Get customer first name from booking
           const firstName = activeBooking.customer_name?.split(' ')[0] || 'Guest';
@@ -900,6 +915,7 @@ export default function BayController() {
             }
           }
           
+          // Also update state for persistence/UI sync
           setShownNotifications(prev => new Set([...prev, notificationKey]));
         }
       }
@@ -910,7 +926,7 @@ export default function BayController() {
     checkNotifications(); // Check immediately
 
     return () => clearInterval(interval);
-  }, [activeBooking, notificationConfig, shownNotifications, isElectron]);
+  }, [activeBooking, notificationConfig, isElectron]); // Removed shownNotifications from deps to prevent effect re-runs
 
   // Reset shown notifications when booking changes
   useEffect(() => {
