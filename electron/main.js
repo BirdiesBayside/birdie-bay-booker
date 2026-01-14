@@ -723,12 +723,21 @@ async function runAppLaunchSequence(config) {
   appLaunchCancelled = false;
   const sequenceStartTime = Date.now();
   const maxSequenceTime = 180000; // 3 minute max for entire sequence
+  const welcomeWindowTimeout = 120000; // 2 minute failsafe for welcome windows
   
   try {
     // Step 0: Show welcome windows on ALL displays
     console.log('Step 0: Showing welcome windows on all displays...');
-    await showWelcomeWindows(firstName || 'Guest');
+    const customerFirstName = firstName && firstName.trim() !== '' ? firstName.trim() : 'Guest';
+    console.log('Using customer name:', customerFirstName);
+    await showWelcomeWindows(customerFirstName);
     results.push({ step: 'show_welcome', success: true });
+    
+    // Set up 2-minute failsafe timeout for welcome windows
+    const welcomeTimeoutId = setTimeout(async () => {
+      console.log('Welcome window failsafe timeout (2 min) triggered - closing welcome windows');
+      await closeWelcomeWindows();
+    }, welcomeWindowTimeout);
     
     if (appLaunchCancelled) {
       await closeWelcomeWindows();
@@ -839,6 +848,7 @@ async function runAppLaunchSequence(config) {
     
     // Step 7: Close all welcome windows (the big reveal!)
     console.log('Step 7: Closing welcome windows...');
+    clearTimeout(welcomeTimeoutId); // Clear the failsafe timeout
     await closeWelcomeWindows();
     results.push({ step: 'close_welcome', success: true });
     
@@ -852,6 +862,7 @@ async function runAppLaunchSequence(config) {
     return { success: true, results };
   } catch (error) {
     console.error('App launch sequence failed:', error.message);
+    clearTimeout(welcomeTimeoutId); // Clear the failsafe timeout
     await closeWelcomeWindows();
     return { success: false, error: error.message, results };
   }
@@ -1363,6 +1374,10 @@ ipcMain.handle('close-notification-popup', async () => {
 // =====================================================
 
 let sgtIconWindow = null;
+let sgtInfoWindow = null;
+let currentSgtDisplayLabel = null;
+let currentSgtPosition = null;
+let sgtPlayerData = null; // Store player data for info window
 
 // Read the SGT icon for use in the overlay
 function getSgtIconBase64() {
@@ -1388,9 +1403,259 @@ function getSgtIconBase64() {
   }
 }
 
-ipcMain.handle('show-sgt-icon-overlay', async (event, { displayLabel, position }) => {
+// Show the SGT info overlay window on the configured display
+async function showSgtInfoOverlay(displayLabel) {
+  try {
+    console.log('Showing SGT info overlay on display:', displayLabel);
+    
+    // Close existing if any
+    if (sgtInfoWindow && !sgtInfoWindow.isDestroyed()) {
+      sgtInfoWindow.close();
+      sgtInfoWindow = null;
+    }
+    
+    // Find the target display by label
+    const displays = screen.getAllDisplays();
+    let targetDisplay = displays[0]; // Default to primary
+    
+    for (const display of displays) {
+      const label = display.label || `Display ${displays.indexOf(display) + 1}`;
+      if (label === displayLabel) {
+        targetDisplay = display;
+        break;
+      }
+    }
+    
+    const { x, y, width, height } = targetDisplay.bounds;
+    
+    // Create a centered overlay window
+    const overlayWidth = 400;
+    const overlayHeight = 350;
+    const overlayX = x + (width - overlayWidth) / 2;
+    const overlayY = y + (height - overlayHeight) / 2;
+    
+    sgtInfoWindow = new BrowserWindow({
+      width: overlayWidth,
+      height: overlayHeight,
+      x: overlayX,
+      y: overlayY,
+      frame: false,
+      transparent: true,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      resizable: false,
+      movable: true,
+      focusable: true,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        preload: path.join(__dirname, 'preload.js')
+      }
+    });
+    
+    const iconBase64 = getSgtIconBase64();
+    const playerData = sgtPlayerData || { customerName: 'Guest', sgtUsername: '', sgtGameId: '' };
+    
+    // Generate HTML for the SGT info overlay
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          html, body {
+            background: transparent;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+          }
+          .overlay {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 24px;
+            -webkit-app-region: drag;
+          }
+          .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 2px solid #f0f0f0;
+          }
+          .title-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+          }
+          .logo {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+          }
+          .title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #1f4c25;
+          }
+          .close-btn {
+            -webkit-app-region: no-drag;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            border: none;
+            background: #f0f0f0;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+          }
+          .close-btn:hover {
+            background: #dc3545;
+            color: white;
+          }
+          .content {
+            -webkit-app-region: no-drag;
+          }
+          .customer-name {
+            font-size: 24px;
+            font-weight: 600;
+            color: #1f4c25;
+            margin-bottom: 20px;
+          }
+          .field {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+          }
+          .field-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #6c757d;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+          }
+          .field-value {
+            font-size: 18px;
+            font-weight: 500;
+            color: #212529;
+            font-family: monospace;
+          }
+          .copy-btn {
+            -webkit-app-region: no-drag;
+            background: #ec622d;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            float: right;
+            margin-top: -40px;
+            transition: all 0.2s;
+          }
+          .copy-btn:hover {
+            background: #d55627;
+          }
+          .copy-btn.copied {
+            background: #28a745;
+          }
+          .tip {
+            margin-top: 16px;
+            padding: 12px;
+            background: #fff5e4;
+            border-radius: 8px;
+            font-size: 13px;
+            color: #1f4c25;
+          }
+          .tip strong {
+            color: #ec622d;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="overlay">
+          <div class="header">
+            <div class="title-row">
+              ${iconBase64 ? `<img src="${iconBase64}" class="logo" alt="SGT" />` : ''}
+              <span class="title">SGT Player Info</span>
+            </div>
+            <button class="close-btn" onclick="window.electronAPI.closeSgtInfoOverlay()" title="Close">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
+          <div class="content">
+            <div class="customer-name">${escapeHtml(playerData.customerName || 'Guest')}</div>
+            
+            <div class="field">
+              <div class="field-label">SGT Username</div>
+              <div class="field-value" id="username">${escapeHtml(playerData.sgtUsername || 'Not set')}</div>
+              ${playerData.sgtUsername ? `<button class="copy-btn" onclick="copyField('username', '${escapeHtml(playerData.sgtUsername)}', this)">Copy</button>` : ''}
+            </div>
+            
+            <div class="field">
+              <div class="field-label">Game ID</div>
+              <div class="field-value" id="gameid">${escapeHtml(playerData.sgtGameId || 'Not set')}</div>
+              ${playerData.sgtGameId ? `<button class="copy-btn" onclick="copyField('gameid', '${escapeHtml(playerData.sgtGameId)}', this)">Copy</button>` : ''}
+            </div>
+            
+            <div class="tip">
+              <strong>💡 Tip:</strong> Press F7 anytime to toggle this window
+            </div>
+          </div>
+        </div>
+        
+        <script>
+          function copyField(fieldId, value, btn) {
+            navigator.clipboard.writeText(value).then(() => {
+              btn.textContent = 'Copied!';
+              btn.classList.add('copied');
+              setTimeout(() => {
+                btn.textContent = 'Copy';
+                btn.classList.remove('copied');
+              }, 2000);
+            });
+          }
+        </script>
+      </body>
+      </html>
+    `;
+    
+    sgtInfoWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
+    
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to show SGT info overlay:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Helper to escape HTML
+function escapeHtml(text) {
+  if (!text) return '';
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+ipcMain.handle('show-sgt-icon-overlay', async (event, { displayLabel, position, playerData }) => {
   try {
     console.log(`Showing SGT icon overlay on display: ${displayLabel}, position: ${position}`);
+    
+    // Store display info for later use
+    currentSgtDisplayLabel = displayLabel;
+    currentSgtPosition = position;
+    if (playerData) {
+      sgtPlayerData = playerData;
+    }
     
     // Close existing if any
     if (sgtIconWindow && !sgtIconWindow.isDestroyed()) {
@@ -1412,8 +1677,8 @@ ipcMain.handle('show-sgt-icon-overlay', async (event, { displayLabel, position }
     
     const { x, y, width, height } = targetDisplay.bounds;
     
-    // Calculate position based on corner preference
-    const iconSize = 70;
+    // Calculate position based on corner preference - larger to accommodate close button
+    const iconSize = 90; // Larger to fit close button
     const margin = 20;
     let iconX, iconY;
     
@@ -1437,7 +1702,7 @@ ipcMain.handle('show-sgt-icon-overlay', async (event, { displayLabel, position }
         break;
     }
     
-    // Create frameless, always-on-top, click-through overlay
+    // Create frameless, always-on-top overlay
     sgtIconWindow = new BrowserWindow({
       width: iconSize,
       height: iconSize,
@@ -1449,7 +1714,7 @@ ipcMain.handle('show-sgt-icon-overlay', async (event, { displayLabel, position }
       skipTaskbar: true,
       resizable: false,
       movable: false,
-      focusable: true, // Allow clicking
+      focusable: true,
       hasShadow: false,
       webPreferences: {
         nodeIntegration: false,
@@ -1460,7 +1725,7 @@ ipcMain.handle('show-sgt-icon-overlay', async (event, { displayLabel, position }
     
     const iconBase64 = getSgtIconBase64();
     
-    // Generate HTML for the SGT icon button
+    // Generate HTML for the SGT icon button with close button
     const htmlContent = `
       <!DOCTYPE html>
       <html>
@@ -1473,10 +1738,17 @@ ipcMain.handle('show-sgt-icon-overlay', async (event, { displayLabel, position }
             height: 100%;
             overflow: hidden;
           }
+          .container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
           .sgt-button {
             width: 56px;
             height: 56px;
-            margin: 7px;
             border-radius: 50%;
             border: 3px solid rgba(236, 98, 45, 0.6);
             background: white;
@@ -1503,15 +1775,134 @@ ipcMain.handle('show-sgt-icon-overlay', async (event, { displayLabel, position }
             font-weight: bold;
             color: #ec622d;
           }
+          .close-btn {
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            border: none;
+            background: #dc3545;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.2s;
+            font-size: 14px;
+            font-weight: bold;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+          }
+          .container:hover .close-btn {
+            opacity: 1;
+          }
+          .close-btn:hover {
+            transform: scale(1.1);
+            background: #c82333;
+          }
+          
+          /* Confirmation dialog */
+          .confirm-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            align-items: center;
+            justify-content: center;
+          }
+          .confirm-overlay.show {
+            display: flex;
+          }
+          .confirm-dialog {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            width: 280px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            text-align: center;
+          }
+          .confirm-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1f4c25;
+            margin-bottom: 10px;
+          }
+          .confirm-text {
+            font-size: 13px;
+            color: #6c757d;
+            margin-bottom: 8px;
+            line-height: 1.4;
+          }
+          .confirm-tip {
+            font-size: 12px;
+            color: #ec622d;
+            margin-bottom: 16px;
+            padding: 8px;
+            background: #fff5e4;
+            border-radius: 6px;
+          }
+          .confirm-buttons {
+            display: flex;
+            gap: 10px;
+          }
+          .confirm-btn {
+            flex: 1;
+            padding: 10px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+          }
+          .confirm-btn.cancel {
+            background: #f0f0f0;
+            color: #333;
+          }
+          .confirm-btn.confirm {
+            background: #dc3545;
+            color: white;
+          }
         </style>
       </head>
       <body>
-        <button class="sgt-button" onclick="window.electronAPI.sgtIconClicked()" title="View SGT Player Info">
-          ${iconBase64 
-            ? `<img src="${iconBase64}" alt="SGT" />`
-            : '<span class="fallback">SGT</span>'
+        <div class="container">
+          <button class="sgt-button" onclick="window.electronAPI.sgtIconClicked()" title="View SGT Player Info">
+            ${iconBase64 
+              ? `<img src="${iconBase64}" alt="SGT" />`
+              : '<span class="fallback">SGT</span>'
+            }
+          </button>
+          <button class="close-btn" onclick="showConfirm()" title="Hide SGT icon">×</button>
+        </div>
+        
+        <div class="confirm-overlay" id="confirmOverlay">
+          <div class="confirm-dialog">
+            <div class="confirm-title">Hide SGT Icon?</div>
+            <div class="confirm-text">The SGT icon will be hidden until a new booking with an SGT-linked account starts.</div>
+            <div class="confirm-tip">💡 Tip: Press F7 to open SGT info anytime</div>
+            <div class="confirm-buttons">
+              <button class="confirm-btn cancel" onclick="hideConfirm()">Keep Showing</button>
+              <button class="confirm-btn confirm" onclick="confirmHide()">Hide Icon</button>
+            </div>
+          </div>
+        </div>
+        
+        <script>
+          function showConfirm() {
+            document.getElementById('confirmOverlay').classList.add('show');
           }
-        </button>
+          function hideConfirm() {
+            document.getElementById('confirmOverlay').classList.remove('show');
+          }
+          function confirmHide() {
+            window.electronAPI.sgtIconHideConfirmed();
+          }
+        </script>
       </body>
       </html>
     `;
@@ -1540,6 +1931,36 @@ ipcMain.handle('close-sgt-icon-overlay', async () => {
   }
 });
 
+ipcMain.handle('close-sgt-info-overlay', async () => {
+  try {
+    if (sgtInfoWindow && !sgtInfoWindow.isDestroyed()) {
+      sgtInfoWindow.close();
+      sgtInfoWindow = null;
+    }
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('show-sgt-info-overlay', async (event, { displayLabel, playerData }) => {
+  if (playerData) {
+    sgtPlayerData = playerData;
+  }
+  return await showSgtInfoOverlay(displayLabel || currentSgtDisplayLabel);
+});
+
+ipcMain.handle('toggle-sgt-info-overlay', async () => {
+  if (sgtInfoWindow && !sgtInfoWindow.isDestroyed()) {
+    sgtInfoWindow.close();
+    sgtInfoWindow = null;
+    return { success: true, visible: false };
+  } else {
+    await showSgtInfoOverlay(currentSgtDisplayLabel);
+    return { success: true, visible: true };
+  }
+});
+
 ipcMain.handle('update-sgt-icon-position', async (event, { displayLabel, position }) => {
   // Close and reopen with new position
   if (sgtIconWindow && !sgtIconWindow.isDestroyed()) {
@@ -1550,8 +1971,32 @@ ipcMain.handle('update-sgt-icon-position', async (event, { displayLabel, positio
   return { success: true };
 });
 
-// Handle SGT icon click from the overlay window
-ipcMain.on('sgt-icon-clicked', () => {
+// Handle SGT icon click from the overlay window - show info overlay
+ipcMain.on('sgt-icon-clicked', async () => {
+  console.log('SGT icon clicked in overlay window - showing info overlay');
+  await showSgtInfoOverlay(currentSgtDisplayLabel);
+  // Also notify main window
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('sgt-icon-clicked');
+  }
+});
+
+// Handle SGT icon hide confirmation from the overlay window
+ipcMain.on('sgt-icon-hide-confirmed', () => {
+  console.log('SGT icon hide confirmed - closing overlay and notifying main');
+  if (sgtIconWindow && !sgtIconWindow.isDestroyed()) {
+    sgtIconWindow.close();
+    sgtIconWindow = null;
+  }
+  if (sgtInfoWindow && !sgtInfoWindow.isDestroyed()) {
+    sgtInfoWindow.close();
+    sgtInfoWindow = null;
+  }
+  // Notify main window that icon was hidden
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('sgt-icon-hidden');
+  }
+});
   console.log('SGT icon clicked in overlay window');
   // Send message to main window to show SGT overlay
   if (mainWindow && !mainWindow.isDestroyed()) {

@@ -103,11 +103,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // =====================================================
   
   // Show SGT icon overlay on a specific display
-  showSgtIconOverlay: (displayLabel, position) => 
-    ipcRenderer.invoke('show-sgt-icon-overlay', { displayLabel, position }),
+  showSgtIconOverlay: (displayLabel, position, playerData) => 
+    ipcRenderer.invoke('show-sgt-icon-overlay', { displayLabel, position, playerData }),
   
   // Close the SGT icon overlay
   closeSgtIconOverlay: () => ipcRenderer.invoke('close-sgt-icon-overlay'),
+  
+  // Show SGT info overlay on a specific display
+  showSgtInfoOverlay: (displayLabel, playerData) => 
+    ipcRenderer.invoke('show-sgt-info-overlay', { displayLabel, playerData }),
+  
+  // Close the SGT info overlay
+  closeSgtInfoOverlay: () => ipcRenderer.invoke('close-sgt-info-overlay'),
+  
+  // Toggle SGT info overlay
+  toggleSgtInfoOverlay: () => ipcRenderer.invoke('toggle-sgt-info-overlay'),
   
   // Update SGT icon position
   updateSgtIconPosition: (displayLabel, position) => 
@@ -116,10 +126,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Send SGT icon click event to main process (called from overlay window)
   sgtIconClicked: () => ipcRenderer.send('sgt-icon-clicked'),
   
+  // Send SGT icon hide confirmation (called from overlay window)
+  sgtIconHideConfirmed: () => ipcRenderer.send('sgt-icon-hide-confirmed'),
+  
   // Listen for SGT icon click event from overlay window
   onSgtIconClicked: (callback) => {
     ipcRenderer.on('sgt-icon-clicked', () => callback());
     return () => ipcRenderer.removeAllListeners('sgt-icon-clicked');
+  },
+  
+  // Listen for SGT icon hidden event from overlay window
+  onSgtIconHidden: (callback) => {
+    ipcRenderer.on('sgt-icon-hidden', () => callback());
+    return () => ipcRenderer.removeAllListeners('sgt-icon-hidden');
   },
   
   // =====================================================
