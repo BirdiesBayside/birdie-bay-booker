@@ -702,6 +702,8 @@ export default function BayController() {
   const tapoEmailRef = useRef(tapoEmail);
   const tapoPasswordRef = useRef(tapoPassword);
   const isElectronRef = useRef(isElectron);
+  const bookingsRef = useRef(bookings);
+  const preStartMinutesRef = useRef(preStartMinutes);
   
   // Keep refs in sync with state
   useEffect(() => {
@@ -719,6 +721,14 @@ export default function BayController() {
   useEffect(() => {
     isElectronRef.current = isElectron;
   }, [isElectron]);
+  
+  useEffect(() => {
+    bookingsRef.current = bookings;
+  }, [bookings]);
+  
+  useEffect(() => {
+    preStartMinutesRef.current = preStartMinutes;
+  }, [preStartMinutes]);
 
   // Subscribe to admin commands from bay_commands table
   useEffect(() => {
@@ -816,7 +826,59 @@ export default function BayController() {
             return;
           }
 
-          // Execute the command with manual override
+          // Handle mode commands
+          if (command.command === 'auto') {
+            console.log('Switching to AUTO mode');
+            setManualOverride(false);
+            toast.success('Switched to AUTO mode');
+            
+            // Resume auto control - calculate if plugs should be on using refs
+            const now = new Date();
+            const today = format(now, "yyyy-MM-dd");
+            const todaysBookings = bookingsRef.current.filter(b => 
+              b.booking_date === today && (b.status === 'confirmed' || b.status === 'pending')
+            );
+            
+            let shouldBeOn = false;
+            for (const booking of todaysBookings) {
+              const startTime = parseISO(`${booking.booking_date}T${booking.start_time}`);
+              const endTime = parseISO(`${booking.booking_date}T${booking.end_time}`);
+              const preStartTime = addMinutes(startTime, -preStartMinutesRef.current);
+              
+              if (isAfter(now, preStartTime) && isBefore(now, endTime)) {
+                shouldBeOn = true;
+                break;
+              }
+            }
+            
+            if (shouldBeOn) {
+              setTimeout(() => executePlugControl('on', command.id), 100);
+            } else {
+              setTimeout(() => executePlugControl('off', command.id), 100);
+            }
+            
+            // Mark command as executed
+            await supabase
+              .from('bay_commands')
+              .update({ status: 'executed', executed_at: new Date().toISOString() })
+              .eq('id', command.id);
+            return;
+          }
+          
+          if (command.command === 'manual') {
+            console.log('Switching to MANUAL mode');
+            setManualOverride(true);
+            toast.success('Switched to MANUAL mode');
+            
+            // Mark command as executed
+            await supabase
+              .from('bay_commands')
+              .update({ status: 'executed', executed_at: new Date().toISOString() })
+              .eq('id', command.id);
+            return;
+          }
+
+          // Execute the command with manual override for on/off commands
           setManualOverride(true);
           
           // Small delay to ensure state is updated
