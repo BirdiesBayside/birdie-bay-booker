@@ -272,8 +272,10 @@ export default function AdminBayControl() {
     try {
       // Get bay_id for this bay number
       const status = bayStatuses.find(s => s.bay.bay_number === bayNumber);
-      if (!status?.device) {
-        // No device record - need to get bay_id and check/create device
+      const bayId = status?.bay.id;
+      
+      if (!bayId) {
+        // Try to get bay_id from database
         const { data: bayData } = await supabase
           .from("bays")
           .select("id")
@@ -301,27 +303,28 @@ export default function AdminBayControl() {
           return;
         }
       } else {
-        // Update existing device record directly
+        // Update existing device record by bay_id (the correct field)
         const { error } = await supabase
           .from("bay_devices")
           .update({ 
             control_mode: setToManual ? 'manual' : 'auto',
             updated_at: new Date().toISOString()
           })
-          .eq("id", status.device.bay_id);
+          .eq("bay_id", bayId);
         
         if (error) {
-          // Try by bay_id instead
-          const { error: error2 } = await supabase
+          // If no rows updated, create the device record
+          const { error: upsertError } = await supabase
             .from("bay_devices")
-            .update({ 
+            .upsert({
+              bay_id: bayId,
               control_mode: setToManual ? 'manual' : 'auto',
+              is_online: false,
               updated_at: new Date().toISOString()
-            })
-            .eq("bay_id", status.bay.id);
+            }, { onConflict: 'bay_id' });
           
-          if (error2) {
-            console.error("Error updating bay mode:", error2);
+          if (upsertError) {
+            console.error("Error updating bay mode:", upsertError);
             toast.error(`Failed to update mode for Bay ${bayNumber}`);
             return;
           }
