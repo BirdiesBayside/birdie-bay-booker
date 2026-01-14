@@ -131,11 +131,16 @@ app.whenReady().then(() => {
   // Register global F7 hotkey to toggle SGT info overlay (works even when app is in tray)
   globalShortcut.register('F7', async () => {
     console.log('[GlobalShortcut] F7 pressed - toggling SGT info overlay');
+    console.log('[GlobalShortcut] currentSgtDisplayLabel:', currentSgtDisplayLabel);
     if (sgtInfoWindow && !sgtInfoWindow.isDestroyed()) {
+      console.log('[GlobalShortcut] Closing existing SGT info window');
       sgtInfoWindow.close();
       sgtInfoWindow = null;
     } else if (currentSgtDisplayLabel) {
+      console.log('[GlobalShortcut] Opening SGT info window on:', currentSgtDisplayLabel);
       await showSgtInfoOverlay(currentSgtDisplayLabel);
+    } else {
+      console.log('[GlobalShortcut] No currentSgtDisplayLabel set - cannot show SGT info');
     }
   });
 });
@@ -1381,10 +1386,37 @@ function getSgtIconBase64() {
   }
 }
 
+// Helper function to find display by label - shared by all SGT windows
+function findDisplayByLabel(displayLabel) {
+  const displays = screen.getAllDisplays();
+  let targetDisplay = displays[0]; // Default to primary
+  
+  console.log(`[SGT Display Lookup] Looking for: "${displayLabel}"`);
+  console.log(`[SGT Display Lookup] Available displays:`);
+  displays.forEach((d, i) => {
+    const label = d.label || `Display ${i + 1}`;
+    console.log(`  - "${label}" at ${d.bounds.x},${d.bounds.y}`);
+  });
+  
+  for (const display of displays) {
+    const label = display.label || `Display ${displays.indexOf(display) + 1}`;
+    if (label === displayLabel) {
+      targetDisplay = display;
+      console.log(`[SGT Display Lookup] Found match: "${label}"`);
+      break;
+    }
+  }
+  
+  console.log(`[SGT Display Lookup] Using display at: ${targetDisplay.bounds.x},${targetDisplay.bounds.y}`);
+  return targetDisplay;
+}
+
 // Show the SGT info overlay window on the configured display
 async function showSgtInfoOverlay(displayLabel) {
   try {
-    console.log('Showing SGT info overlay on display:', displayLabel);
+    // Use stored display label if none provided
+    const effectiveDisplayLabel = displayLabel || currentSgtDisplayLabel;
+    console.log('Showing SGT info overlay on display:', effectiveDisplayLabel);
     
     // Close existing if any
     if (sgtInfoWindow && !sgtInfoWindow.isDestroyed()) {
@@ -1392,17 +1424,8 @@ async function showSgtInfoOverlay(displayLabel) {
       sgtInfoWindow = null;
     }
     
-    // Find the target display by label
-    const displays = screen.getAllDisplays();
-    let targetDisplay = displays[0]; // Default to primary
-    
-    for (const display of displays) {
-      const label = display.label || `Display ${displays.indexOf(display) + 1}`;
-      if (label === displayLabel) {
-        targetDisplay = display;
-        break;
-      }
-    }
+    // Find the target display by label using shared helper
+    const targetDisplay = findDisplayByLabel(effectiveDisplayLabel);
     
     const { x, y, width, height } = targetDisplay.bounds;
     
@@ -1710,17 +1733,10 @@ async function showSgtHideConfirmation(displayLabel) {
       sgtConfirmWindow = null;
     }
     
-    // Find the target display by label
-    const displays = screen.getAllDisplays();
-    let targetDisplay = displays[0];
-    
-    for (const display of displays) {
-      const label = display.label || `Display ${displays.indexOf(display) + 1}`;
-      if (label === displayLabel) {
-        targetDisplay = display;
-        break;
-      }
-    }
+    // Use stored display label if none provided, use shared helper
+    const effectiveDisplayLabel = displayLabel || currentSgtDisplayLabel;
+    console.log('Showing SGT hide confirmation on display:', effectiveDisplayLabel);
+    const targetDisplay = findDisplayByLabel(effectiveDisplayLabel);
     
     const { x, y, width, height } = targetDisplay.bounds;
     
@@ -1866,17 +1882,9 @@ ipcMain.handle('show-sgt-icon-overlay', async (event, { displayLabel, position, 
       sgtIconWindow = null;
     }
     
-    // Find the target display by label
-    const displays = screen.getAllDisplays();
-    let targetDisplay = displays[0]; // Default to primary
-    
-    for (const display of displays) {
-      const label = display.label || `Display ${displays.indexOf(display) + 1}`;
-      if (label === displayLabel) {
-        targetDisplay = display;
-        break;
-      }
-    }
+    // Use shared helper to find display
+    console.log('Showing SGT icon overlay on display:', displayLabel);
+    const targetDisplay = findDisplayByLabel(displayLabel);
     
     const { x, y, width, height } = targetDisplay.bounds;
     
