@@ -1359,6 +1359,7 @@ ipcMain.handle('close-notification-popup', async () => {
 let sgtIconWindow = null;
 let sgtInfoWindow = null;
 let currentSgtDisplayLabel = null;
+let currentSgtDisplayId = null;
 let currentSgtPosition = null;
 let sgtPlayerData = null; // Store player data for info window
 
