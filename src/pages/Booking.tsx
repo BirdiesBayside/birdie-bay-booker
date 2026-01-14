@@ -156,6 +156,12 @@ export default function Booking() {
 
     const totalPrice = hourlyRate * selectedDuration;
 
+    // Free bookings bypass all payment logic - confirm directly
+    if (totalPrice <= 0) {
+      handleConfirmBooking("balance"); // Will auto-confirm as "free" in useBooking
+      return;
+    }
+
     // If paying with balance and have enough, proceed
     if (selectedPaymentMethod === "balance" && depositBalance >= totalPrice) {
       handleConfirmBooking("balance");
@@ -492,12 +498,20 @@ export default function Booking() {
             {isSubmitting ? (
               <>
                 <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                {selectedPaymentMethod === "balance" ? "Processing..." : "Charging Card..."}
+                {hourlyRate * selectedDuration <= 0 
+                  ? "Confirming..." 
+                  : selectedPaymentMethod === "balance" 
+                    ? "Processing..." 
+                    : "Charging Card..."}
               </>
             ) : (
               (() => {
                 if (!canConfirm) return "Confirm Booking";
                 const totalPrice = hourlyRate * selectedDuration;
+                // Free bookings get special treatment
+                if (totalPrice <= 0) {
+                  return "Confirm Free Booking";
+                }
                 if (selectedPaymentMethod === "balance" && depositBalance >= totalPrice) {
                   return `Confirm Booking - $${totalPrice.toFixed(2)} from Balance`;
                 }
@@ -509,7 +523,7 @@ export default function Booking() {
               })()
             )}
           </Button>
-          {canConfirm && depositBalance === 0 && (
+          {canConfirm && depositBalance === 0 && hourlyRate * selectedDuration > 0 && (
             <p className="text-center text-sm text-muted-foreground">
               {isLoadingSavedCard 
                 ? "Checking payment method..."
