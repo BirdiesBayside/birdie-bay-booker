@@ -145,6 +145,20 @@ Deno.serve(async (req) => {
           });
         }
 
+        // Fetch the tournament to check its status
+        const { data: tournament, error: tournamentError } = await supabase
+          .from("sgt_tournaments")
+          .select("status")
+          .eq("tournament_id", parseInt(tournamentId))
+          .single();
+
+        if (tournamentError) {
+          console.error("[PUBLIC-LEADERBOARD] Error fetching tournament:", tournamentError);
+        }
+
+        // Only mark players as DNF if the tournament is completed
+        const isCompleted = tournament?.status === "Completed";
+
         const isRoundComplete = (holeData: unknown) => {
           if (!holeData || typeof holeData !== "object") return false;
           const data = holeData as Record<string, unknown>;
@@ -222,7 +236,8 @@ Deno.serve(async (req) => {
           .map((p) => {
             const rd1 = p.rounds[1];
             const rd2 = p.rounds[2];
-            const dnf = !rd1.complete || !rd2.complete;
+            // Only mark as DNF if tournament is completed AND player doesn't have both rounds
+            const dnf = isCompleted && (!rd1.complete || !rd2.complete);
 
             const total = dnf || rd1.score === null || rd2.score === null ? null : rd1.score + rd2.score;
             const toPar = dnf || rd1.toPar === null || rd2.toPar === null ? null : rd1.toPar + rd2.toPar;
