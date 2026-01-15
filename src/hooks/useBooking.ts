@@ -1,8 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useMemo } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { calculateHourlyRate, isPeakTime, isWeekdayMemberTime } from "@/lib/pricing-utils";
 import { Capacitor } from "@capacitor/core";
+import { QUERY_KEYS, STALE_TIMES } from "@/lib/query-keys";
 
 export interface Bay {
   id: string;
@@ -43,84 +45,101 @@ const FALLBACK_PRICING: Record<string, number> = {
 
 export type PaymentMethod = "card" | "balance";
 
+// Fetch functions extracted for React Query
+const fetchBays = async (): Promise<Bay[]> => {
+  const { data, error } = await supabase
+    .from("bays")
+    .select("*")
+    .order("bay_number");
+
+  if (error) throw error;
+  return data || [];
+};
+
+const fetchPricing = async (): Promise<Record<string, number>> => {
+  const { data, error } = await supabase
+    .from("pricing_config")
+    .select("tier, hourly_rate");
+
+  if (error) throw error;
+  
+  const pricing: Record<string, number> = {};
+  (data || []).forEach((p: { tier: string; hourly_rate: number }) => {
+    pricing[p.tier] = Number(p.hourly_rate);
+  });
+  return pricing;
+};
+
+const fetchUserProfile = async () => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data } = await supabase
+    .from("profiles")
+    .select("membership_tier, custom_hourly_rate, deposit_balance")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  return {
+    userId: user.id,
+    membershipTier: data?.membership_tier || "visitor",
+    customHourlyRate: data?.custom_hourly_rate ?? null,
+    depositBalance: Number(data?.deposit_balance) || 0,
+  };
+};
+
+const fetchSavedCard = async (): Promise<SavedCard | null> => {
+  const { data, error } = await supabase.functions.invoke("get-payment-methods");
+  if (error || !data?.paymentMethods?.length) return null;
+  
+  const card = data.paymentMethods.find((pm: any) => pm.type === "card");
+  if (!card) return null;
+  
+  return {
+    brand: card.brand,
+    last4: card.last4,
+    expMonth: card.expMonth,
+    expYear: card.expYear,
+  };
+};
+
 export function useBooking() {
-  const [bays, setBays] = useState<Bay[]>([]);
+  const queryClient = useQueryClient();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [userMembershipTier, setUserMembershipTier] = useState<string>("visitor");
-  const [customHourlyRate, setCustomHourlyRate] = useState<number | null>(null);
-  const [depositBalance, setDepositBalance] = useState<number>(0);
-  const [tierPricing, setTierPricing] = useState<Record<string, number>>(FALLBACK_PRICING);
-  const [savedCard, setSavedCard] = useState<SavedCard | null>(null);
-  const [isLoadingSavedCard, setIsLoadingSavedCard] = useState(true);
 
-  const fetchPricing = async () => {
-    const { data, error } = await supabase
-      .from("pricing_config")
-      .select("tier, hourly_rate");
+  // Static data - cached for 30 minutes (bays rarely change)
+  const { data: bays = [] } = useQuery({
+    queryKey: QUERY_KEYS.BAYS,
+    queryFn: fetchBays,
+    staleTime: STALE_TIMES.STATIC,
+  });
 
-    if (!error && data) {
-      const pricing: Record<string, number> = {};
-      data.forEach((p: { tier: string; hourly_rate: number }) => {
-        pricing[p.tier] = Number(p.hourly_rate);
-      });
-      setTierPricing(pricing);
-    }
-  };
+  // Static data - cached for 30 minutes (pricing rarely changes)
+  const { data: tierPricing = FALLBACK_PRICING } = useQuery({
+    queryKey: QUERY_KEYS.PRICING,
+    queryFn: fetchPricing,
+    staleTime: STALE_TIMES.STATIC,
+  });
 
-  const fetchBays = async () => {
-    const { data, error } = await supabase
-      .from("bays")
-      .select("*")
-      .order("bay_number");
+  // User data - cached for 5 minutes
+  const { data: userProfile } = useQuery({
+    queryKey: QUERY_KEYS.USER_PROFILE(),
+    queryFn: fetchUserProfile,
+    staleTime: STALE_TIMES.SEMI_STATIC,
+  });
 
-    if (!error && data) {
-      setBays(data);
-    }
-  };
+  // Saved card - cached for 5 minutes
+  const { data: savedCard, isLoading: isLoadingSavedCard, refetch: refetchSavedCard } = useQuery({
+    queryKey: QUERY_KEYS.SAVED_CARD,
+    queryFn: fetchSavedCard,
+    staleTime: STALE_TIMES.SEMI_STATIC,
+  });
 
-  const fetchUserProfile = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      const { data } = await supabase
-        .from("profiles")
-        .select("membership_tier, custom_hourly_rate, deposit_balance")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      if (data?.membership_tier) {
-        setUserMembershipTier(data.membership_tier);
-      }
-      if (data?.custom_hourly_rate !== undefined) {
-        setCustomHourlyRate(data.custom_hourly_rate);
-      }
-      if (data?.deposit_balance !== undefined) {
-        setDepositBalance(Number(data.deposit_balance) || 0);
-      }
-    }
-  };
-
-  const fetchSavedCard = async () => {
-    setIsLoadingSavedCard(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("get-payment-methods");
-      if (!error && data?.paymentMethods?.length > 0) {
-        const card = data.paymentMethods.find((pm: any) => pm.type === "card");
-        if (card) {
-          setSavedCard({ 
-            brand: card.brand, 
-            last4: card.last4,
-            expMonth: card.expMonth,
-            expYear: card.expYear,
-          });
-        }
-      }
-    } catch (error) {
-      console.error("Error fetching saved card:", error);
-    } finally {
-      setIsLoadingSavedCard(false);
-    }
-  };
+  // Derived values from user profile
+  const userMembershipTier = userProfile?.membershipTier || "visitor";
+  const customHourlyRate = userProfile?.customHourlyRate ?? null;
+  const depositBalance = userProfile?.depositBalance || 0;
 
   const fetchBookingsForDate = async (date: Date) => {
     setIsLoading(true);
@@ -236,36 +255,39 @@ export function useBooking() {
     // Track how much to deduct from balance and charge to card
     let balanceDeduction = 0;
     let cardAmount = totalPrice;
+    let currentDepositBalance = depositBalance;
 
     // If using balance, check if sufficient funds
     if (paymentMethod === "balance") {
-      if (depositBalance < totalPrice) {
+      if (currentDepositBalance < totalPrice) {
         throw new Error("Insufficient balance");
       }
       balanceDeduction = totalPrice;
       cardAmount = 0;
       
-      const newBalance = depositBalance - totalPrice;
+      const newBalance = currentDepositBalance - totalPrice;
       const { error: balanceError } = await supabase
         .from("profiles")
         .update({ deposit_balance: newBalance })
         .eq("user_id", user.id);
       
       if (balanceError) throw new Error("Failed to deduct balance");
-      setDepositBalance(newBalance);
+      // Invalidate user profile cache to refresh balance
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.USER_PROFILE() });
     } else if (partialBalanceAmount && partialBalanceAmount > 0) {
       // Partial balance usage with card payment
       balanceDeduction = Math.min(partialBalanceAmount, totalPrice);
       cardAmount = totalPrice - balanceDeduction;
       
-      const newBalance = depositBalance - balanceDeduction;
+      const newBalance = currentDepositBalance - balanceDeduction;
       const { error: balanceError } = await supabase
         .from("profiles")
         .update({ deposit_balance: newBalance })
         .eq("user_id", user.id);
       
       if (balanceError) throw new Error("Failed to deduct balance");
-      setDepositBalance(newBalance);
+      // Invalidate user profile cache to refresh balance
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.USER_PROFILE() });
     }
 
     const startHour = parseInt(startTime.split(":")[0]);
@@ -318,9 +340,9 @@ export function useBooking() {
         if (balanceDeduction > 0) {
           await supabase
             .from("profiles")
-            .update({ deposit_balance: depositBalance })
+            .update({ deposit_balance: currentDepositBalance })
             .eq("user_id", user.id);
-          setDepositBalance(depositBalance);
+          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.USER_PROFILE() });
         }
         await supabase.from("bookings").delete().eq("id", bookingData.id);
         throw new Error(chargeError.message || "Payment failed");
@@ -331,9 +353,9 @@ export function useBooking() {
         if (balanceDeduction > 0) {
           await supabase
             .from("profiles")
-            .update({ deposit_balance: depositBalance })
+            .update({ deposit_balance: currentDepositBalance })
             .eq("user_id", user.id);
-          setDepositBalance(depositBalance);
+          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.USER_PROFILE() });
         }
         await supabase.from("bookings").delete().eq("id", bookingData.id);
         throw new Error(chargeResult.error);
@@ -362,20 +384,13 @@ export function useBooking() {
     return { booking: bookingData };
   };
 
-  useEffect(() => {
-    fetchBays();
-    fetchUserProfile();
-    fetchPricing();
-    fetchSavedCard();
-  }, []);
-
   return {
     bays,
     bookings,
     isLoading,
     userMembershipTier,
     depositBalance,
-    savedCard,
+    savedCard: savedCard ?? null,
     isLoadingSavedCard,
     tierPricing,
     getHourlyRate,
@@ -384,6 +399,6 @@ export function useBooking() {
     fetchBookingsForDate,
     checkBayAvailability,
     createBooking,
-    refetchSavedCard: fetchSavedCard,
+    refetchSavedCard,
   };
 }
