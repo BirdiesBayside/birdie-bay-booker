@@ -162,6 +162,7 @@ export type Database = {
           id: string
           is_online: boolean
           last_seen: string | null
+          plug_status: string | null
           updated_at: string
         }
         Insert: {
@@ -172,6 +173,7 @@ export type Database = {
           id?: string
           is_online?: boolean
           last_seen?: string | null
+          plug_status?: string | null
           updated_at?: string
         }
         Update: {
@@ -182,6 +184,7 @@ export type Database = {
           id?: string
           is_online?: boolean
           last_seen?: string | null
+          plug_status?: string | null
           updated_at?: string
         }
         Relationships: [
