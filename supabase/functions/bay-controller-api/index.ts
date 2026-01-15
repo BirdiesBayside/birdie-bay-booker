@@ -188,6 +188,7 @@ serve(async (req) => {
             duration_hours: booking.duration_hours,
             player_count: booking.player_count,
             status: booking.status,
+            user_id: booking.user_id,
             customer_name: profile 
               ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim() 
               : 'Unknown',

@@ -24,6 +24,7 @@ interface Booking {
   duration_hours: number;
   player_count: number;
   status: string;
+  user_id?: string;
   customer_name?: string;
   sgt_user_id?: number | null;
   sgt_username?: string | null;
@@ -230,6 +231,9 @@ export default function BayController() {
   });
   // activeNotification state removed - now using Electron popup windows
   const [shownNotifications, setShownNotifications] = useState<Set<string>>(new Set());
+  
+  // Track shown changeover welcomes to prevent duplicates
+  const [shownChangeoverWelcomes, setShownChangeoverWelcomes] = useState<Set<string>>(new Set());
   
   // SGT Player overlay state
   const [showSGTOverlay, setShowSGTOverlay] = useState(false);
@@ -1083,7 +1087,45 @@ export default function BayController() {
     shownNotificationsRef.current = shownNotifications;
   }, [shownNotifications]);
 
+  // Helper to find the final end time for a customer's consecutive bookings (same customer extending)
+  const getFinalEndTimeForCustomer = useCallback((booking: Booking): Date => {
+    const today = format(currentTime, "yyyy-MM-dd");
+    const todaysBookings = bookings.filter(b => 
+      b.booking_date === today && (b.status === 'confirmed' || b.status === 'pending')
+    );
+    
+    let currentEndTime = booking.end_time;
+    let nextBooking = todaysBookings.find(b => 
+      b.start_time === currentEndTime && 
+      b.user_id === booking.user_id
+    );
+    
+    // Walk through consecutive bookings by same customer
+    while (nextBooking) {
+      currentEndTime = nextBooking.end_time;
+      nextBooking = todaysBookings.find(b => 
+        b.start_time === currentEndTime && 
+        b.user_id === booking.user_id
+      );
+    }
+    
+    return parseISO(`${today}T${currentEndTime}`);
+  }, [bookings, currentTime]);
+
+  // Helper to get next booking after current one (regardless of customer)
+  const getNextBooking = useCallback((currentBookingArg: Booking): Booking | null => {
+    const today = format(currentTime, "yyyy-MM-dd");
+    const todaysBookings = bookings.filter(b => 
+      b.booking_date === today && (b.status === 'confirmed' || b.status === 'pending')
+    );
+    
+    return todaysBookings.find(b => 
+      b.start_time === currentBookingArg.end_time
+    ) || null;
+  }, [bookings, currentTime]);
+
   // Check for customer notifications based on booking end time
+  // For same-customer back-to-back bookings, defer notifications until the FINAL session ends
   useEffect(() => {
     if (!notificationConfig.enabled || !activeBooking || !isElectron) {
       return;
@@ -1091,14 +1133,17 @@ export default function BayController() {
 
     const checkNotifications = async () => {
       const now = new Date();
-      const endTime = parseISO(`${activeBooking.booking_date}T${activeBooking.end_time}`);
-      const minutesRemaining = (endTime.getTime() - now.getTime()) / (1000 * 60);
+      
+      // Get the FINAL end time (accounts for same-customer back-to-back bookings)
+      const finalEndTime = getFinalEndTimeForCustomer(activeBooking);
+      const minutesRemaining = (finalEndTime.getTime() - now.getTime()) / (1000 * 60);
 
       // Check each notification trigger
       for (const notification of notificationConfig.notifications) {
         if (!notification.enabled) continue;
 
-        const notificationKey = `${activeBooking.id}-${notification.id}`;
+        // Use a key that includes the final end time to handle extending sessions
+        const notificationKey = `${activeBooking.user_id}-${format(finalEndTime, 'HH:mm')}-${notification.id}`;
         
         // Use ref to check - this avoids race conditions with state updates
         if (shownNotificationsRef.current.has(notificationKey)) {
@@ -1124,7 +1169,7 @@ export default function BayController() {
                 notificationConfig.displayLabel,
                 60000 // 1 minute duration
               );
-              console.log(`Showing notification popup: ${notification.id} for booking ${activeBooking.id} on display ${notificationConfig.displayLabel}`);
+              console.log(`Showing notification popup: ${notification.id} for customer ${activeBooking.user_id} (final end: ${format(finalEndTime, 'HH:mm')}) on display ${notificationConfig.displayLabel}`);
             } catch (err) {
               console.error('Failed to show notification popup:', err);
             }
@@ -1141,23 +1186,70 @@ export default function BayController() {
     checkNotifications(); // Check immediately
 
     return () => clearInterval(interval);
-  }, [activeBooking, notificationConfig, isElectron]); // Removed shownNotifications from deps to prevent effect re-runs
+  }, [activeBooking, notificationConfig, isElectron, getFinalEndTimeForCustomer]); // Removed shownNotifications from deps to prevent effect re-runs
 
-  // Reset shown notifications when booking changes
+  // Reset shown notifications when customer changes (not just booking ID)
   useEffect(() => {
     if (activeBooking) {
-      // Only clear notifications that aren't for the current booking
+      // Clear notifications for different customers only
       setShownNotifications(prev => {
-        const currentBookingNotifications = new Set<string>();
+        const currentCustomerNotifications = new Set<string>();
         prev.forEach(key => {
-          if (key.startsWith(activeBooking.id)) {
-            currentBookingNotifications.add(key);
+          if (key.startsWith(activeBooking.user_id || '')) {
+            currentCustomerNotifications.add(key);
           }
         });
-        return currentBookingNotifications;
+        return currentCustomerNotifications;
       });
     }
-  }, [activeBooking?.id]);
+  }, [activeBooking?.user_id]);
+
+  // Check for upcoming customer changeover - show welcome overlay 30 seconds before different customer's booking
+  useEffect(() => {
+    if (!isElectron || !activeBooking || !appsRunning) return;
+    
+    const checkChangeover = async () => {
+      const now = new Date();
+      const today = format(now, "yyyy-MM-dd");
+      
+      const nextBooking = getNextBooking(activeBooking);
+      if (!nextBooking) return;
+      
+      // Only proceed if it's a DIFFERENT customer
+      if (nextBooking.user_id === activeBooking.user_id) return;
+      
+      const nextStartTime = parseISO(`${today}T${nextBooking.start_time}`);
+      const secondsUntilNextStart = (nextStartTime.getTime() - now.getTime()) / 1000;
+      
+      // Trigger 30 seconds before the next booking starts
+      if (secondsUntilNextStart <= 30 && secondsUntilNextStart > -5) {
+        const changeoverKey = `${activeBooking.id}-${nextBooking.id}`;
+        
+        if (!shownChangeoverWelcomes.has(changeoverKey)) {
+          setShownChangeoverWelcomes(prev => new Set([...prev, changeoverKey]));
+          
+          // Show welcome overlay for the incoming customer
+          const firstName = nextBooking.customer_name?.split(' ')[0] || 'Guest';
+          
+          console.log(`[BayController] Changeover detected: ${activeBooking.customer_name} -> ${nextBooking.customer_name}. Showing welcome for ${firstName}`);
+          
+          if (window.electronAPI) {
+            await window.electronAPI.showWelcomeWindows(firstName);
+            
+            // Auto-close after 30 seconds
+            setTimeout(async () => {
+              await window.electronAPI?.closeWelcomeWindows();
+            }, 30000);
+          }
+        }
+      }
+    };
+    
+    const interval = setInterval(checkChangeover, 5000);
+    checkChangeover();
+    
+    return () => clearInterval(interval);
+  }, [activeBooking, appsRunning, isElectron, shownChangeoverWelcomes, getNextBooking]);
 
   // Helper function to calculate if plugs should be on based on bookings
   const calculateShouldPlugsBeOn = useCallback(() => {
