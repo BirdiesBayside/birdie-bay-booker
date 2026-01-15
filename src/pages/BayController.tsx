@@ -1350,6 +1350,16 @@ export default function BayController() {
     toast.success(`Added ${newPlugType} plug: ${newPlug.name}`);
   };
 
+  // Delete a plug from discovered plugs
+  const handleDeletePlug = (plugId: string) => {
+    setDiscoveredPlugs(prev => {
+      const updated = prev.filter(p => p.id !== plugId);
+      localStorage.setItem("bayController_discoveredPlugs", JSON.stringify(updated));
+      return updated;
+    });
+    toast.success("Plug removed");
+  };
+
   // Test TAPO login credentials
   const testTapoLogin = async () => {
     if (!isElectron || !window.electronAPI) {
@@ -2124,16 +2134,26 @@ export default function BayController() {
                     </div>
                     <p className="text-xs text-muted-foreground">{plug.ip}</p>
                   </div>
-                  <Select onValueChange={(value) => assignPlugToBay(plug, parseInt(value))}>
-                    <SelectTrigger className="w-32">
-                      <SelectValue placeholder="Add to Bay" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {[1, 2, 3, 4, 5, 6].map((bay) => (
-                        <SelectItem key={bay} value={bay.toString()}>Bay {bay}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="flex items-center gap-2">
+                    <Select onValueChange={(value) => assignPlugToBay(plug, parseInt(value))}>
+                      <SelectTrigger className="w-32">
+                        <SelectValue placeholder="Add to Bay" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[1, 2, 3, 4, 5, 6].map((bay) => (
+                          <SelectItem key={bay} value={bay.toString()}>Bay {bay}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDeletePlug(plug.id)}
+                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
