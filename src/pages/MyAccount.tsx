@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Crown, Lock, User, Mail, Phone, Plus, Loader2, Trash2, Pencil, Check, X, Wallet, CreditCard } from "lucide-react";
+import { ArrowLeft, Crown, Lock, User, Mail, Phone, Plus, Loader2, Trash2, Pencil, Check, X, Wallet, CreditCard, Gamepad2, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +25,12 @@ interface Profile {
   phone: string | null;
   membership_tier: string;
   deposit_balance: number;
+  sgt_user_id: number | null;
+}
+
+interface SGTMember {
+  user_name: string;
+  user_game_id: string | null;
 }
 
 interface PaymentMethod {
@@ -56,6 +62,8 @@ const MyAccount = () => {
     last_name: "",
     phone: "",
   });
+  const [sgtMember, setSgtMember] = useState<SGTMember | null>(null);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -91,18 +99,38 @@ const MyAccount = () => {
     try {
       const { data, error } = await supabase
         .from("profiles")
-        .select("first_name, last_name, email, phone, membership_tier, deposit_balance")
+        .select("first_name, last_name, email, phone, membership_tier, deposit_balance, sgt_user_id")
         .eq("user_id", user.id)
         .maybeSingle();
 
       if (error) throw error;
       setProfile(data);
+
+      // If user has SGT account, fetch their SGT member info
+      if (data?.sgt_user_id) {
+        const { data: sgtData, error: sgtError } = await supabase
+          .from("sgt_members")
+          .select("user_name, user_game_id")
+          .eq("user_id", data.sgt_user_id)
+          .maybeSingle();
+
+        if (!sgtError && sgtData) {
+          setSgtMember(sgtData);
+        }
+      }
     } catch (error) {
       console.error("Error fetching profile:", error);
       toast.error("Failed to load profile");
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleCopySGT = (field: string, value: string) => {
+    navigator.clipboard.writeText(value);
+    setCopiedField(field);
+    toast.success(`${field} copied to clipboard`);
+    setTimeout(() => setCopiedField(null), 2000);
   };
 
   const fetchPaymentMethods = async () => {
@@ -334,6 +362,68 @@ const MyAccount = () => {
                       ${(profile?.deposit_balance || 0).toFixed(2)}
                     </p>
                   </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* SGT Info */}
+          {sgtMember && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-lg bg-accent/10 flex items-center justify-center">
+                    <Gamepad2 className="h-5 w-5 text-accent" />
+                  </div>
+                  <div>
+                    <CardTitle>Birdies League Account</CardTitle>
+                    <CardDescription>Your simulator golf tour credentials</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Username</p>
+                      <p className="font-medium">{sgtMember.user_name}</p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleCopySGT("Username", sgtMember.user_name)}
+                      className="h-8 w-8"
+                    >
+                      {copiedField === "Username" ? (
+                        <Check className="h-4 w-4 text-green-500" />
+                      ) : (
+                        <Copy className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                  {sgtMember.user_game_id && (
+                    <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                      <div>
+                        <p className="text-sm text-muted-foreground">Game ID (UID)</p>
+                        <p className="font-medium font-mono">{sgtMember.user_game_id}</p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleCopySGT("Game ID", sgtMember.user_game_id!)}
+                        className="h-8 w-8"
+                      >
+                        {copiedField === "Game ID" ? (
+                          <Check className="h-4 w-4 text-green-500" />
+                        ) : (
+                          <Copy className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Use these details if prompted during your session
+                  </p>
                 </div>
               </CardContent>
             </Card>
