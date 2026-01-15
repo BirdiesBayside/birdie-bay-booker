@@ -54,7 +54,8 @@ const Index = () => {
     handleAuthenticatedUser();
   }, [isAuthenticated, user, giftToken, navigate, toast, isRedeemingGift]);
 
-  if (authLoading) {
+  // Show loading state while checking auth OR if already authenticated (waiting for redirect)
+  if (authLoading || isAuthenticated) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background safe-area-top safe-area-bottom">
         <img src={birdiesLogo} alt="Birdies" className="h-16 mb-6" />
