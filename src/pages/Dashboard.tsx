@@ -1,17 +1,20 @@
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { LogOut, Calendar, Settings, ClipboardList, Trophy, Lock, ExternalLink, Shield, Users } from "lucide-react";
 import birdiesLogo from "@/assets/birdies-logo.png";
 import { supabase } from "@/integrations/supabase/client";
 import { NotificationBell } from "@/components/NotificationBell";
+import { QUERY_KEYS, STALE_TIMES } from "@/lib/query-keys";
 
 type MembershipTier = "visitor" | "weekday" | "birdie" | "eagle";
 
 const Dashboard = () => {
   const { user, isAuthenticated, isLoading, signOut } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [membershipTier, setMembershipTier] = useState<MembershipTier>("visitor");
   const [hasSgtAccount, setHasSgtAccount] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -49,6 +52,36 @@ const Dashboard = () => {
     };
     checkAdminStatus();
   }, [user]);
+
+  // Prefetch booking page data for faster navigation
+  useEffect(() => {
+    // Prefetch bays data (static, rarely changes)
+    queryClient.prefetchQuery({
+      queryKey: QUERY_KEYS.BAYS,
+      queryFn: async () => {
+        const { data } = await supabase
+          .from("bays")
+          .select("*")
+          .eq("is_active", true)
+          .order("bay_number");
+        return data || [];
+      },
+      staleTime: STALE_TIMES.STATIC,
+    });
+
+    // Prefetch pricing data (static, rarely changes)
+    queryClient.prefetchQuery({
+      queryKey: QUERY_KEYS.PRICING,
+      queryFn: async () => {
+        const { data } = await supabase
+          .from("pricing_config")
+          .select("*")
+          .order("display_order");
+        return data || [];
+      },
+      staleTime: STALE_TIMES.STATIC,
+    });
+  }, [queryClient]);
 
   const handleSignOut = async () => {
     await signOut();
