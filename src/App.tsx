@@ -44,7 +44,17 @@ const AdminCustomerImport = lazy(() => import("./pages/admin/AdminCustomerImport
 const AdminAnnouncements = lazy(() => import("./pages/admin/AdminAnnouncements"));
 const AdminSGTManager = lazy(() => import("./pages/admin/AdminSGTManager"));
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5, // 5 minutes default - prevents unnecessary refetches
+      gcTime: 1000 * 60 * 30, // 30 minutes cache retention
+      retry: 2,
+      refetchOnWindowFocus: false, // Disable for commercial reliability
+      refetchOnReconnect: true,
+    },
+  },
+});
 
 // Detect if running in Electron (uses hash routing)
 const isElectron = typeof window !== 'undefined' && (window as any).electronAPI?.isElectron;

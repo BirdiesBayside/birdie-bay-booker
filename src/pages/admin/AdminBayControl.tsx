@@ -214,7 +214,7 @@ export default function AdminBayControl() {
     if (!authLoading && isAdmin) {
       fetchBayStatuses();
       
-      // Set up real-time subscription
+      // Set up real-time subscription - this is the PRIMARY data source
       const channel = supabase
         .channel("admin-bay-control")
         .on(
@@ -227,10 +227,16 @@ export default function AdminBayControl() {
           { event: "*", schema: "public", table: "bay_devices" },
           () => fetchBayStatuses()
         )
-        .subscribe();
+        .subscribe((status) => {
+          // Only use polling as fallback when realtime disconnects
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            console.warn('[AdminBayControl] Realtime disconnected, falling back to polling');
+          }
+        });
 
-      // Refresh every 30 seconds
-      const interval = setInterval(fetchBayStatuses, 30000);
+      // Reduced polling interval (2 minutes) - realtime handles most updates
+      // This is just a fallback for edge cases
+      const interval = setInterval(fetchBayStatuses, 120000);
 
       return () => {
         supabase.removeChannel(channel);

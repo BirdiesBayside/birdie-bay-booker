@@ -810,15 +810,31 @@ export default function BayController() {
     // Heartbeat to keep device status updated
     const heartbeatInterval = setInterval(sendHeartbeat, 30000); // Every 30 seconds
 
-    // Polling fallback - refresh bookings every 20 seconds silently
+    // Track realtime connection status for intelligent polling
+    let isRealtimeConnected = false;
+    
+    // Polling fallback - only active when realtime is disconnected
+    // Reduced to 60 seconds since realtime handles most updates
     const pollingInterval = setInterval(() => {
-      console.log('Polling for booking updates...');
-      fetchBookings();
-    }, 20000); // Every 20 seconds
+      if (!isRealtimeConnected) {
+        console.log('[BayController] Polling fallback - realtime disconnected');
+        fetchBookings();
+      }
+    }, 60000);
+
+    // Monitor realtime connection status
+    const connectionChannel = supabase.channel('bay-controller-status')
+      .subscribe((status) => {
+        isRealtimeConnected = status === 'SUBSCRIBED';
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.warn('[BayController] Realtime disconnected, polling will take over');
+        }
+      });
 
     return () => {
       clearInterval(heartbeatInterval);
       clearInterval(pollingInterval);
+      supabase.removeChannel(connectionChannel);
       if (channels) {
         supabase.removeChannel(channels.bookingChannel);
         supabase.removeChannel(channels.deviceChannel);
