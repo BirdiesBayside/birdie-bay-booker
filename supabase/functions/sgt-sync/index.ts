@@ -147,17 +147,31 @@ serve(async (req) => {
   // supabase client already created above
 
   let totalRecords = 0;
+  const newMemberUserIds: number[] = []; // Track newly discovered members for auto-registration
 
   try {
     console.log("[SGT-SYNC] Starting SGT data sync...");
 
-    // 1. Sync Members
+    // 1. Sync Members and detect new ones
     console.log("[SGT-SYNC] Syncing members...");
     const membersResponse = await sgtRequest("/members/list");
     const members = extractArray(membersResponse, ['members', 'results']);
     
+    // Get existing member IDs from our database
+    const { data: existingMembers } = await supabase
+      .from("sgt_members")
+      .select("user_id");
+    const existingMemberIds = new Set(existingMembers?.map(m => m.user_id) || []);
+    
     for (const member of members) {
       const m = member as { user_id: number; user_name: string; user_email?: string; user_active?: number; user_country_code?: string; user_has_avatar?: string; user_game_id?: string };
+      
+      // Track new members for auto-registration
+      if (!existingMemberIds.has(m.user_id)) {
+        newMemberUserIds.push(m.user_id);
+        console.log(`[SGT-SYNC] New member detected: ${m.user_name} (ID: ${m.user_id})`);
+      }
+      
       await supabase.from("sgt_members").upsert({
         user_id: m.user_id,
         user_name: m.user_name,
@@ -170,7 +184,7 @@ serve(async (req) => {
       }, { onConflict: 'user_id' });
       totalRecords++;
     }
-    console.log(`[SGT-SYNC] Synced ${members.length} members`);
+    console.log(`[SGT-SYNC] Synced ${members.length} members (${newMemberUserIds.length} new)`);
 
     // 2. Sync Tours
     console.log("[SGT-SYNC] Syncing tours...");
@@ -303,11 +317,103 @@ serve(async (req) => {
         
         const existingTournamentIds = new Set(existingTournaments?.map(t => t.tournament_id) || []);
         
+        // AUTO-REGISTER NEW MEMBERS to tour and active/upcoming tournaments
+        if (newMemberUserIds.length > 0 && autoRegisterEnabled) {
+          // First, add new members to the tour itself
+          const tourMembersForReg = extractArray(await sgtRequest("/tours/members", { tourId: t.tourId.toString() }), ['members', 'results']) as { user_id: number }[];
+          const existingTourMemberIds = new Set(tourMembersForReg.map(m => m.user_id));
+          
+          for (const newUserId of newMemberUserIds) {
+            if (!existingTourMemberIds.has(newUserId)) {
+              try {
+                const apiKey = await getApiKey();
+                const formData = new URLSearchParams();
+                formData.append("api-key", apiKey);
+                formData.append("tourId", t.tourId.toString());
+                formData.append("user_id", newUserId.toString());
+                formData.append("useComboCapstring", useComboHcp ? "true" : "false");
+                
+                const addResponse = await fetch(`${SGT_BASE_URL}/${CLUB_URL}/tours/add-member`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                  body: formData.toString(),
+                });
+                
+                const addData = await addResponse.json();
+                if (addData.success || addData.successful) {
+                  console.log(`[SGT-SYNC] ✓ Added new member ${newUserId} to tour ${t.name}`);
+                } else {
+                  console.error(`[SGT-SYNC] ✗ Failed to add member ${newUserId} to tour ${t.name}:`, addData);
+                }
+              } catch (addError) {
+                console.error(`[SGT-SYNC] Error adding member ${newUserId} to tour ${t.name}:`, addError);
+              }
+            }
+          }
+          
+          // Now register new members for active/upcoming tournaments
+          const today = new Date().toISOString().split('T')[0];
+          const activeTournaments = tournaments.filter((tourn: unknown) => {
+            const t = tourn as { status?: string; end_date?: string };
+            const isActive = t.status === "Upcoming" || t.status === "Active" || t.status === "In Progress";
+            const notEnded = !t.end_date || t.end_date >= today;
+            return isActive && notEnded;
+          });
+          
+          console.log(`[SGT-SYNC] Auto-registering ${newMemberUserIds.length} new members to ${activeTournaments.length} active tournaments for tour ${t.name}`);
+          
+          for (const tournament of activeTournaments) {
+            const tourn = tournament as { tournamentId: number; name: string };
+            
+            // Get existing registrations for this tournament
+            const registrationsResponse = await sgtRequest("/registrations/view", { 
+              tournamentId: tourn.tournamentId.toString() 
+            });
+            const existingRegistrations = extractArray(registrationsResponse, ['registrations', 'results']) as { user_id: number }[];
+            const registeredUserIds = new Set(existingRegistrations.map(r => r.user_id));
+            
+            // Register new members who aren't already registered
+            for (const newUserId of newMemberUserIds) {
+              if (registeredUserIds.has(newUserId)) {
+                console.log(`[SGT-SYNC] User ${newUserId} already registered for ${tourn.name}`);
+                continue;
+              }
+              
+              try {
+                const apiKey = await getApiKey();
+                const formData = new URLSearchParams();
+                formData.append("api-key", apiKey);
+                formData.append("tournamentId", tourn.tournamentId.toString());
+                formData.append("tourId", t.tourId.toString());
+                formData.append("registrationList[0][user_id]", newUserId.toString());
+                formData.append("registrationList[0][useComboCap]", useComboHcp ? "true" : "false");
+                formData.append("registrationList[0][useCustomCap]", "false");
+                formData.append("registrationList[0][teeType]", "White");
+                
+                const regResponse = await fetch(`${SGT_BASE_URL}/${CLUB_URL}/registrations/register-members`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                  body: formData.toString(),
+                });
+                
+                const regData = await regResponse.json();
+                if (regData.success || regData.successful) {
+                  console.log(`[SGT-SYNC] ✓ Auto-registered user ${newUserId} to ${tourn.name}`);
+                } else {
+                  console.error(`[SGT-SYNC] ✗ Failed to auto-register user ${newUserId} to ${tourn.name}:`, regData);
+                }
+              } catch (regError) {
+                console.error(`[SGT-SYNC] Error auto-registering user ${newUserId} to ${tourn.name}:`, regError);
+              }
+            }
+          }
+        }
+        
         for (const tournament of tournaments.slice(0, 20)) { // Limit to recent 20 tournaments
           const tourn = tournament as { tournamentId: number; name: string; courseName?: string; status?: string; start_date?: string; end_date?: string };
           
           const isNewTournament = !existingTournamentIds.has(tourn.tournamentId);
-          const isUpcoming = tourn.status === "Upcoming" || tourn.status === "Active";
+          const isUpcoming = tourn.status === "Upcoming" || tourn.status === "Active" || tourn.status === "In Progress";
           
           await supabase.from("sgt_tournaments").upsert({
             tournament_id: tourn.tournamentId,
