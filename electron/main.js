@@ -979,7 +979,6 @@ async function showWelcomeWindows(firstName) {
       y,
       width,
       height,
-      fullscreen: true,
       frame: false,
       alwaysOnTop: true,
       skipTaskbar: true,
@@ -991,10 +990,18 @@ async function showWelcomeWindows(firstName) {
       }
     });
     
+    // Ensure always on top with screen-saver level to appear above everything
+    welcomeWindow.setAlwaysOnTop(true, 'screen-saver');
+    
+    // Set bounds explicitly first, then force fullscreen
+    // This helps with projectors/secondary displays that may not respect initial fullscreen
+    welcomeWindow.setBounds({ x, y, width, height });
+    welcomeWindow.setFullScreen(true);
+    
     welcomeWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
     welcomeWindows.push(welcomeWindow);
     
-    console.log(`Created welcome window on display: ${display.label || 'Unknown'} at ${x},${y}`);
+    console.log(`Created welcome window on display: ${display.label || 'Unknown'} at ${x},${y} size ${width}x${height}`);
   }
   
   console.log(`Created ${welcomeWindows.length} welcome windows`);
