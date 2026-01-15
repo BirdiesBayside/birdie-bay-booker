@@ -1257,6 +1257,9 @@ ipcMain.handle('show-notification-popup', async (event, { message, displayLabel,
       }
     });
     
+    // Set always on top with screen-saver level to appear above fullscreen apps like GSPro
+    notificationWindow.setAlwaysOnTop(true, 'screen-saver');
+    
     // Generate HTML content for the notification
     const htmlContent = `
       <!DOCTYPE html>
