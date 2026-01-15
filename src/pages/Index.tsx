@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import birdiesLogo from "@/assets/birdies-logo.png";
+import birdiesAppIcon from "@/assets/birdies-app-icon.png";
 import { Gift } from "lucide-react";
 
 const Index = () => {
@@ -58,7 +59,7 @@ const Index = () => {
   if (authLoading || isAuthenticated) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background safe-area-top safe-area-bottom">
-        <img src={birdiesLogo} alt="Birdies" className="h-16 mb-6" />
+        <img src={birdiesAppIcon} alt="Birdies" className="h-20 mb-6" />
         <div className="animate-pulse text-muted-foreground">Loading...</div>
       </div>
     );
