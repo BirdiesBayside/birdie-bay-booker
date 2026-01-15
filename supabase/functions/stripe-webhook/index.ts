@@ -13,11 +13,11 @@ const logStep = (step: string, details?: any) => {
   console.log(`[STRIPE-WEBHOOK] ${step}${detailsStr}`);
 };
 
-// Map Stripe price IDs to membership tiers
+// Map Stripe price IDs to membership tiers (from pricing_config table)
 const PRICE_TO_TIER: Record<string, string> = {
   "price_1SlMZXLpXZPXTNVB2aLrl9Qb": "weekday",
-  "price_1SbVrcLpXZPXTNVB5WUvDHZt": "birdie",
-  "price_1SbVroLpXZPXTNVBEwRcbDn7": "eagle",
+  "price_1SlMZjLpXZPXTNVBK7nr4Wsr": "birdie",
+  "price_1SlMZtLpXZPXTNVBfgjiczGa": "eagle",
 };
 
 const TIER_NAMES: Record<string, string> = {
