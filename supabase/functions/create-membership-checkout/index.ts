@@ -131,7 +131,7 @@ serve(async (req) => {
     // No saved payment method - redirect to Stripe Checkout
     logStep("No saved payment method, redirecting to checkout");
 
-    const origin = req.headers.get("origin") || "https://birdies-booking.lovable.app";
+    const origin = req.headers.get("origin") || "https://hub.birdiesbayside.com.au";
 
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
