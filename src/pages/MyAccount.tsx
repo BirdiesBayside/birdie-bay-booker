@@ -10,6 +10,15 @@ import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import birdiesLogo from "@/assets/birdies-logo.png";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const MEMBERSHIP_DETAILS: Record<string, { name: string; color: string; rate: number }> = {
   visitor: { name: "Visitor", color: "bg-muted text-muted-foreground", rate: 35 },
@@ -54,6 +63,7 @@ const MyAccount = () => {
   const [isLoadingPaymentMethods, setIsLoadingPaymentMethods] = useState(true);
   const [isAddingPaymentMethod, setIsAddingPaymentMethod] = useState(false);
   const [deletingPaymentMethodId, setDeletingPaymentMethodId] = useState<string | null>(null);
+  const [showMembershipBlockDialog, setShowMembershipBlockDialog] = useState(false);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
 
@@ -165,6 +175,12 @@ const MyAccount = () => {
   };
 
   const handleDeletePaymentMethod = async (paymentMethodId: string) => {
+    // Block deletion for members - they must contact us
+    if (profile?.membership_tier && profile.membership_tier !== "visitor") {
+      setShowMembershipBlockDialog(true);
+      return;
+    }
+
     setDeletingPaymentMethodId(paymentMethodId);
     try {
       const { data, error } = await supabase.functions.invoke("delete-payment-method", {
@@ -279,6 +295,24 @@ const MyAccount = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
+      {/* Membership Block Dialog */}
+      <AlertDialog open={showMembershipBlockDialog} onOpenChange={setShowMembershipBlockDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cannot Remove Payment Method</AlertDialogTitle>
+            <AlertDialogDescription>
+              Your payment method is linked to your active membership and cannot be removed.
+              To cancel your membership or update your payment details, please contact us directly.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setShowMembershipBlockDialog(false)}>
+              Got it
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Header */}
       <header className="bg-primary py-4 px-6 flex items-center justify-between safe-area-top">
         <div className="flex items-center gap-4">
