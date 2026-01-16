@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
@@ -10,6 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import birdiesLogo from "@/assets/birdies-logo.png";
 import { usePricing, PricingTier } from "@/hooks/usePricing";
 import { VISITOR_PEAK_RATE, VISITOR_OFF_PEAK_RATE } from "@/lib/pricing-utils";
+import { useSavedCard } from "@/hooks/useSavedCard";
+import { NoCardDialog } from "@/components/booking/NoCardDialog";
 
 interface MembershipTierConfig {
   features: string[];
@@ -43,10 +45,14 @@ const TIER_CONFIG: Record<string, MembershipTierConfig> = {
 const Membership = () => {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { pricing, isLoading: pricingLoading, getHourlyRate } = usePricing();
+  const { savedCard, isLoadingSavedCard, refetchSavedCard } = useSavedCard();
   const [currentTier, setCurrentTier] = useState<string>("visitor");
   const [isLoading, setIsLoading] = useState(true);
   const [subscribingTier, setSubscribingTier] = useState<string | null>(null);
+  const [pendingTier, setPendingTier] = useState<PricingTier | null>(null);
+  const [showNoCardDialog, setShowNoCardDialog] = useState(false);
 
   // Get subscription tiers (exclude visitor) from pricing config
   const subscriptionTiers = pricing.filter(p => p.is_subscription && p.tier !== 'visitor');
@@ -88,12 +94,32 @@ const Membership = () => {
     }
   };
 
+  // Show success toast if returning from successful subscription
+  useEffect(() => {
+    if (searchParams.get("success") === "true") {
+      const tier = searchParams.get("tier");
+      toast.success(`Successfully subscribed to ${tier ? tier.charAt(0).toUpperCase() + tier.slice(1) : ''} membership!`);
+      fetchCurrentMembership();
+    }
+  }, [searchParams]);
+
   const handleSubscribe = async (tier: PricingTier) => {
     if (!tier.stripe_price_id) {
       toast.error("Subscription not available for this tier");
       return;
     }
     
+    // Check if user has a saved card - if not, show dialog
+    if (!savedCard && !isLoadingSavedCard) {
+      setPendingTier(tier);
+      setShowNoCardDialog(true);
+      return;
+    }
+
+    await processSubscription(tier);
+  };
+
+  const processSubscription = async (tier: PricingTier) => {
     setSubscribingTier(tier.tier);
 
     try {
@@ -114,19 +140,32 @@ const Membership = () => {
         return;
       }
 
-      // If redirecting to Stripe Checkout (no saved card)
+      // If redirecting to Stripe Checkout (no saved card) - this shouldn't happen now
+      // since we require a card first, but keep as fallback
       if (data.url) {
         window.location.href = data.url;
       }
     } catch (error) {
       console.error("Error creating subscription:", error);
-      toast.error("Failed to subscribe. Please ensure you have a payment method saved.");
+      toast.error("Failed to subscribe. Please try again.");
     } finally {
       setSubscribingTier(null);
     }
   };
 
-  if (authLoading || isLoading || pricingLoading) {
+  const handleCardAdded = () => {
+    refetchSavedCard();
+    // If there was a pending tier, process it after card is added
+    if (pendingTier) {
+      // Small delay to ensure card is fetched
+      setTimeout(() => {
+        processSubscription(pendingTier);
+        setPendingTier(null);
+      }, 500);
+    }
+  };
+
+  if (authLoading || isLoading || pricingLoading || isLoadingSavedCard) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -337,6 +376,17 @@ const Membership = () => {
           </p>
         </div>
       </main>
+
+      {/* No Card Dialog */}
+      <NoCardDialog
+        open={showNoCardDialog}
+        onClose={() => {
+          setShowNoCardDialog(false);
+          setPendingTier(null);
+        }}
+        onCardAdded={handleCardAdded}
+        returnPath="/card-added"
+      />
     </div>
   );
 };
