@@ -61,9 +61,9 @@ serve(async (req) => {
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
 
-    // Find checkout sessions for this booking
+    // Find checkout sessions for this booking (increased limit for high traffic periods)
     const sessions = await stripe.checkout.sessions.list({
-      limit: 10,
+      limit: 50,
     });
 
     const matchingSession = sessions.data.find(

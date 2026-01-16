@@ -76,8 +76,8 @@ serve(async (req) => {
 
     let refundResult = null;
 
-    // Process Stripe refund if payment intent exists
-    if (booking.stripe_payment_intent_id && booking.payment_method === "stripe") {
+    // Process Stripe refund if payment intent exists (check for both "stripe" and "card" payment methods)
+    if (booking.stripe_payment_intent_id && (booking.payment_method === "stripe" || booking.payment_method === "card")) {
       const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
       if (!stripeKey) {
         throw new Error("STRIPE_SECRET_KEY is not configured");
