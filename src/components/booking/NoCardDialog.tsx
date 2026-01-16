@@ -79,16 +79,20 @@ export function NoCardDialog({ open, onClose, onCardAdded, returnPath = "/card-a
     }
   };
 
-  const handleClose = () => {
+  const handleClose = (cardWasAdded: boolean = false) => {
+    const wasRedirectingToStripe = isRedirectingToStripe;
     localStorage.removeItem(CARD_SETUP_PENDING_KEY);
     setIsOpeningStripe(false);
     setIsRedirectingToStripe(false);
-    onCardAdded?.();
+    // Only call onCardAdded if user was returning from Stripe setup (card was added)
+    if (cardWasAdded || wasRedirectingToStripe) {
+      onCardAdded?.();
+    }
     onClose();
   };
 
   return (
-    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && handleClose()}>
+    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && handleClose(false)}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -103,12 +107,12 @@ export function NoCardDialog({ open, onClose, onCardAdded, returnPath = "/card-a
         </DialogHeader>
         <DialogFooter className="flex-col gap-2 sm:flex-row">
           {isRedirectingToStripe ? (
-            <Button onClick={handleClose} className="w-full sm:w-auto">
+            <Button onClick={() => handleClose(true)} className="w-full sm:w-auto">
               Close
             </Button>
           ) : (
             <>
-              <Button variant="outline" onClick={handleClose} className="w-full sm:w-auto">
+              <Button variant="outline" onClick={() => handleClose(false)} className="w-full sm:w-auto">
                 Cancel
               </Button>
               <Button 
