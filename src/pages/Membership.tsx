@@ -153,14 +153,16 @@ const Membership = () => {
     }
   };
 
-  const handleCardAdded = () => {
-    refetchSavedCard();
+  const handleCardAdded = async () => {
+    await refetchSavedCard();
     // If there was a pending tier, process it after card is added
     if (pendingTier) {
       // Small delay to ensure card is fetched
-      setTimeout(() => {
-        processSubscription(pendingTier);
+      setTimeout(async () => {
+        await processSubscription(pendingTier);
         setPendingTier(null);
+        // Refresh membership status after subscription completes
+        await fetchCurrentMembership();
       }, 500);
     }
   };
