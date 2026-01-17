@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-TAPO P110 Smart Plug Control Script
+TAPO Smart Plug Control Script (P100/P105/P110/P115)
 Called by Electron via subprocess (compiled to .exe via PyInstaller).
 
 Usage:
   tapo_control.exe <email> <password> <device_ip> <action>
   tapo_control.exe --scan <email> <password>
-  
+
 Actions: on, off, status
 Scan: Discovers TAPO devices on local network
 
@@ -18,119 +18,189 @@ import asyncio
 import json
 import socket
 import struct
+from typing import Any, Dict, List, Optional, Tuple
+
+DEVICE_TYPES = ["p100", "p110", "p105", "p115"]
+SCRIPT_VERSION = "2026-01-17-1"
+
+
+def _get_tapo_version() -> Optional[str]:
+    try:
+        from importlib.metadata import version
+
+        return version("tapo")
+    except Exception:
+        return None
+
+
+async def connect_any(client, ip: str) -> Tuple[Optional[Any], Optional[Any], Optional[str], List[Dict[str, str]]]:
+    """Try supported device types and return the first one that responds."""
+    attempts: List[Dict[str, str]] = []
+
+    for device_type in DEVICE_TYPES:
+        try:
+            device_method = getattr(client, device_type, None)
+            if device_method is None:
+                attempts.append({"type": device_type, "error": "Unsupported by library"})
+                continue
+
+            device = await device_method(ip)
+            info = await device.get_device_info()
+            return device, info, device_type, attempts
+
+        except Exception as e:
+            attempts.append({"type": device_type, "error": str(e)})
+
+    return None, None, None, attempts
+
+
+def classify_error(raw: str, ip: str) -> Tuple[str, bool]:
+    lower = (raw or "").lower()
+
+    if "auth" in lower or "credential" in lower or "unauthorized" in lower:
+        return f"Authentication failed for {ip}: {raw}", True
+
+    if "timeout" in lower:
+        return f"Timeout talking to {ip}: {raw}", True
+
+    if "connect" in lower or "unreachable" in lower or "refused" in lower:
+        return f"Connection failed to {ip}: {raw}", True
+
+    if "klap" in lower:
+        return f"KLAP handshake failed for {ip}: {raw}", True
+
+    return raw or "Unknown error", False
+
 
 async def control_plug(email: str, password: str, ip: str, action: str):
     try:
         from tapo import ApiClient
-        
+
         client = ApiClient(email, password)
-        
-        # Try P100 first (most common), then fall back to P110
-        device = None
-        last_error = None
-        
-        for device_type in ['p100', 'p110', 'p105', 'p115']:
-            try:
-                device_method = getattr(client, device_type)
-                device = await device_method(ip)
-                # Test connection by getting info
-                await device.get_device_info()
-                break  # Success - use this device type
-            except Exception as e:
-                last_error = e
-                device = None
-                continue
-        
+
+        device, info, connected_as, attempts = await connect_any(client, ip)
         if device is None:
-            raise last_error or Exception("Could not connect to device")
-        
+            raw = attempts[-1]["error"] if attempts else "Could not connect to device"
+            msg, retryable = classify_error(raw, ip)
+            return {
+                "success": False,
+                "error": msg,
+                "retryable": retryable,
+                "debug": {
+                    "script_version": SCRIPT_VERSION,
+                    "tapo_version": _get_tapo_version(),
+                    "attempts": attempts,
+                },
+            }
+
         if action == "on":
             await device.on()
-            return {"success": True, "action": "on"}
         elif action == "off":
             await device.off()
-            return {"success": True, "action": "off"}
         elif action == "status":
-            info = await device.get_device_info()
-            return {"success": True, "isOn": info.device_on}
+            pass
         else:
             return {"success": False, "error": f"Unknown action: {action}"}
-            
+
+        # Verify state (also confirms the session is still valid)
+        info_after = await device.get_device_info()
+
+        return {
+            "success": True,
+            "action": action,
+            "isOn": getattr(info_after, "device_on", None),
+            "connected_as": connected_as,
+            "model": getattr(info_after, "model", None) or getattr(info, "model", None),
+            "script_version": SCRIPT_VERSION,
+        }
+
     except ImportError:
         return {"success": False, "error": "tapo package not installed. Run: pip install tapo"}
+
     except Exception as e:
-        error_msg = str(e)
-        if "Invalid credentials" in error_msg or "authentication" in error_msg.lower():
-            error_msg = "Authentication failed - check email/password"
-        elif "timeout" in error_msg.lower() or "connect" in error_msg.lower():
-            error_msg = f"Cannot connect to device at {ip} - check IP and network"
-        return {"success": False, "error": error_msg}
+        raw = str(e)
+        msg, retryable = classify_error(raw, ip)
+        return {
+            "success": False,
+            "error": msg,
+            "retryable": retryable,
+            "debug": {
+                "script_version": SCRIPT_VERSION,
+                "tapo_version": _get_tapo_version(),
+                "raw_error": raw,
+            },
+        }
+
 
 async def scan_network(email: str, password: str):
     """Scan subnets 1-10 for TAPO devices using direct device probing."""
     try:
         from tapo import ApiClient
-        
+
         # Get local IP to determine base network (e.g., 192.168.x.x)
         local_ip = get_local_ip()
         if not local_ip:
             return {"success": False, "error": "Could not determine local IP address"}
-        
+
         # Get base network (first two octets, e.g., "192.168")
         ip_parts = local_ip.split('.')
         base_network = '.'.join(ip_parts[:2])
-        
+
         found_devices = []
         total_open_ports = 0
         subnets_scanned = []
-        
+
+        # Create client once for the scan
+        client = ApiClient(email, password)
+
         # Scan subnets 1-10, starting from 1
         for subnet in range(1, 11):
             network_prefix = f"{base_network}.{subnet}"
             subnets_scanned.append(f"{network_prefix}.0/24")
-            
-            # Find all IPs with port 80 open (TAPO devices use HTTP)
+
+            # Find all IPs with port 80 open (many TAPO devices expose a local HTTP port)
             open_ips = []
             for i in range(1, 255):
                 ip = f"{network_prefix}.{i}"
-                if check_port_open(ip, 80, timeout=0.3):  # Slightly faster timeout for multi-subnet
+                if check_port_open(ip, 80, timeout=0.3):
                     open_ips.append(ip)
-            
+
             total_open_ports += len(open_ips)
-            
+
             # Try to connect to each open IP as a TAPO device
-            client = ApiClient(email, password)
-            
             for ip in open_ips:
                 try:
-                    device = await asyncio.wait_for(
-                        client.p110(ip),
-                        timeout=5.0
-                    )
-                    info = await asyncio.wait_for(
-                        device.get_device_info(),
-                        timeout=5.0
-                    )
-                    
+                    device, info, connected_as, _attempts = await connect_any(client, ip)
+                    if device is None or info is None:
+                        continue
+
                     found_devices.append({
                         "found": True,
                         "ip": ip,
                         "nickname": getattr(info, 'nickname', 'Unknown'),
-                        "model": getattr(info, 'model', 'P110'),
-                        "isOn": getattr(info, 'device_on', False)
+                        "model": getattr(info, 'model', None) or (connected_as.upper() if connected_as else None),
+                        "isOn": getattr(info, 'device_on', False),
+                        "connected_as": connected_as,
                     })
-                except asyncio.TimeoutError:
-                    continue
                 except Exception:
                     continue
-        
+
         return {
             "success": True,
+            "script_version": SCRIPT_VERSION,
+            "tapo_version": _get_tapo_version(),
             "networks": subnets_scanned,
             "scanned": 254 * 10,  # 10 subnets x 254 IPs
             "open_ports": total_open_ports,
-            "plugs": found_devices
+            "plugs": found_devices,
         }
+
+    except ImportError:
+        return {"success": False, "error": "tapo package not installed. Run: pip install tapo"}
+
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
         
     except ImportError:
         return {"success": False, "error": "tapo package not installed. Run: pip install tapo"}
