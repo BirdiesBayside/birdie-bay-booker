@@ -24,7 +24,25 @@ async def control_plug(email: str, password: str, ip: str, action: str):
         from tapo import ApiClient
         
         client = ApiClient(email, password)
-        device = await client.p110(ip)
+        
+        # Try P100 first (most common), then fall back to P110
+        device = None
+        last_error = None
+        
+        for device_type in ['p100', 'p110', 'p105', 'p115']:
+            try:
+                device_method = getattr(client, device_type)
+                device = await device_method(ip)
+                # Test connection by getting info
+                await device.get_device_info()
+                break  # Success - use this device type
+            except Exception as e:
+                last_error = e
+                device = None
+                continue
+        
+        if device is None:
+            raise last_error or Exception("Could not connect to device")
         
         if action == "on":
             await device.on()
