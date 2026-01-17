@@ -21,7 +21,53 @@ import struct
 from typing import Any, Dict, List, Optional, Tuple
 
 DEVICE_TYPES = ["p100", "p110", "p105", "p115"]
-SCRIPT_VERSION = "2026-01-17-1"
+SCRIPT_VERSION = "2026-01-17-2"
+
+
+async def probe_device_raw(ip: str) -> Dict[str, Any]:
+    """
+    Probe a device at IP without authentication to get basic info.
+    This helps diagnose if the device is a Tapo plug vs something else.
+    """
+    result = {
+        "ip": ip,
+        "port_80_open": check_port_open(ip, 80, timeout=1.0),
+        "port_9999_open": check_port_open(ip, 9999, timeout=1.0),  # Old Kasa protocol
+        "http_response": None,
+        "device_type_guess": None
+    }
+    
+    # Try to get HTTP response to identify device
+    if result["port_80_open"]:
+        try:
+            import urllib.request
+            import urllib.error
+            req = urllib.request.Request(
+                f"http://{ip}/",
+                headers={"User-Agent": "TapoProbe/1.0"}
+            )
+            with urllib.request.urlopen(req, timeout=2) as resp:
+                result["http_response"] = resp.read(500).decode('utf-8', errors='ignore')[:200]
+        except urllib.error.HTTPError as e:
+            result["http_response"] = f"HTTP {e.code}"
+        except Exception as e:
+            result["http_response"] = f"Error: {str(e)[:100]}"
+    
+    # Guess device type based on responses
+    if result["port_9999_open"]:
+        result["device_type_guess"] = "Old Kasa/Tapo (port 9999)"
+    elif result["port_80_open"]:
+        http_resp = (result["http_response"] or "").lower()
+        if "tapo" in http_resp or "tp-link" in http_resp:
+            result["device_type_guess"] = "Tapo device (HTTP)"
+        elif "404" in str(result["http_response"]) or "HTTP 4" in str(result["http_response"]):
+            result["device_type_guess"] = "Possible Tapo (HTTP 4xx)"
+        else:
+            result["device_type_guess"] = "Unknown HTTP device"
+    else:
+        result["device_type_guess"] = "No common ports open"
+    
+    return result
 
 
 def _get_tapo_version() -> Optional[str]:
@@ -46,10 +92,25 @@ async def connect_any(client, ip: str) -> Tuple[Optional[Any], Optional[Any], Op
 
             device = await device_method(ip)
             info = await device.get_device_info()
+            
+            # Extract firmware info for diagnostics
+            fw_ver = getattr(info, 'fw_ver', None) or getattr(info, 'firmware_version', None)
+            hw_ver = getattr(info, 'hw_ver', None) or getattr(info, 'hardware_version', None)
+            
+            attempts.append({
+                "type": device_type, 
+                "success": True,
+                "firmware": fw_ver,
+                "hardware": hw_ver
+            })
             return device, info, device_type, attempts
 
         except Exception as e:
-            attempts.append({"type": device_type, "error": str(e)})
+            error_str = str(e)
+            # Add more context to KLAP errors
+            if "klap" in error_str.lower():
+                error_str = f"KLAP auth failed (firmware may be too new): {error_str}"
+            attempts.append({"type": device_type, "error": error_str})
 
     return None, None, None, attempts
 
@@ -268,13 +329,89 @@ async def test_login(email: str, password: str):
     except Exception as e:
         return {"success": False, "error": str(e)}
 
+
+async def diagnose_device(email: str, password: str, ip: str):
+    """
+    Run comprehensive diagnostics on a specific IP to determine why connection fails.
+    This is useful when plugs work in the Tapo app but not via our script.
+    """
+    result = {
+        "success": True,
+        "ip": ip,
+        "script_version": SCRIPT_VERSION,
+        "tapo_version": _get_tapo_version(),
+        "diagnostics": {}
+    }
+    
+    # Step 1: Raw probe without auth
+    result["diagnostics"]["raw_probe"] = await probe_device_raw(ip)
+    
+    # Step 2: Try to connect with auth
+    try:
+        from tapo import ApiClient
+        client = ApiClient(email, password)
+        
+        device, info, connected_as, attempts = await connect_any(client, ip)
+        
+        result["diagnostics"]["connection_attempts"] = attempts
+        
+        if device is not None and info is not None:
+            result["diagnostics"]["connected"] = True
+            result["diagnostics"]["connected_as"] = connected_as
+            result["diagnostics"]["device_info"] = {
+                "nickname": getattr(info, 'nickname', None),
+                "model": getattr(info, 'model', None),
+                "firmware": getattr(info, 'fw_ver', None) or getattr(info, 'firmware_version', None),
+                "hardware": getattr(info, 'hw_ver', None) or getattr(info, 'hardware_version', None),
+                "mac": getattr(info, 'mac', None),
+                "device_on": getattr(info, 'device_on', None),
+            }
+        else:
+            result["diagnostics"]["connected"] = False
+            # Analyze the failure
+            all_errors = [a.get("error", "") for a in attempts if a.get("error")]
+            
+            if any("klap" in e.lower() for e in all_errors):
+                result["diagnostics"]["likely_cause"] = "KLAP_HANDSHAKE_FAILED"
+                result["diagnostics"]["explanation"] = (
+                    "The plug uses KLAP protocol but handshake failed. "
+                    "This usually means: (1) Wrong credentials, (2) Plug not linked to this Tapo account, "
+                    "or (3) Firmware version incompatible with tapo library. "
+                    "Try updating the tapo Python package: pip install --upgrade tapo"
+                )
+            elif any("timeout" in e.lower() for e in all_errors):
+                result["diagnostics"]["likely_cause"] = "TIMEOUT"
+                result["diagnostics"]["explanation"] = (
+                    "Connection timed out. Device may be offline, IP may be wrong, "
+                    "or firewall may be blocking."
+                )
+            elif any("auth" in e.lower() or "credential" in e.lower() for e in all_errors):
+                result["diagnostics"]["likely_cause"] = "AUTH_FAILED"
+                result["diagnostics"]["explanation"] = (
+                    "Authentication failed. Verify the email/password match exactly what's in the Tapo app. "
+                    "Also ensure the plug is registered to this same Tapo account."
+                )
+            else:
+                result["diagnostics"]["likely_cause"] = "UNKNOWN"
+                result["diagnostics"]["explanation"] = "Unable to determine cause. Check raw errors above."
+                
+    except ImportError:
+        result["success"] = False
+        result["error"] = "tapo package not installed"
+    except Exception as e:
+        result["diagnostics"]["exception"] = str(e)
+    
+    return result
+
+
 async def list_help():
     """Show help information."""
     return {
         "success": True,
         "usage": {
             "control": "tapo_control.exe <email> <password> <ip> <on|off|status>",
-            "scan": "tapo_control.exe --scan <email> <password>"
+            "scan": "tapo_control.exe --scan <email> <password>",
+            "diagnose": "tapo_control.exe --diagnose <email> <password> <ip>"
         }
     }
 
@@ -299,6 +436,15 @@ def main():
             return
         result = asyncio.run(test_login(sys.argv[2], sys.argv[3]))
         print(json.dumps(result))
+        return
+    
+    # Handle --diagnose command
+    if sys.argv[1] == "--diagnose":
+        if len(sys.argv) < 5:
+            print(json.dumps({"success": False, "error": "Usage: --diagnose <email> <password> <ip>"}))
+            return
+        result = asyncio.run(diagnose_device(sys.argv[2], sys.argv[3], sys.argv[4]))
+        print(json.dumps(result, indent=2))
         return
     
     if len(sys.argv) < 5:
