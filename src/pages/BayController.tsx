@@ -812,14 +812,21 @@ export default function BayController() {
     // Track realtime connection status for intelligent polling
     let isRealtimeConnected = false;
     
-    // Polling fallback - only active when realtime is disconnected
-    // Reduced to 60 seconds since realtime handles most updates
+    // Polling fallback - runs when realtime is disconnected OR as a safety net
+    // Use shorter interval (15s) to catch cancellations quickly
     const pollingInterval = setInterval(() => {
       if (!isRealtimeConnected) {
         console.log('[BayController] Polling fallback - realtime disconnected');
         fetchBookings();
       }
-    }, 60000);
+    }, 15000); // Reduced to 15 seconds for faster cancellation detection
+    
+    // Additional active booking poll - when there's an active booking, poll more frequently
+    // This ensures cancellations are detected quickly even if realtime misses an update
+    const activeBookingPollInterval = setInterval(() => {
+      // Always poll every 30 seconds as a safety net, even when realtime is connected
+      fetchBookings();
+    }, 30000);
 
     // Monitor realtime connection status
     const connectionChannel = supabase.channel('bay-controller-status')
@@ -833,6 +840,7 @@ export default function BayController() {
     return () => {
       clearInterval(heartbeatInterval);
       clearInterval(pollingInterval);
+      clearInterval(activeBookingPollInterval);
       supabase.removeChannel(connectionChannel);
       if (channels) {
         supabase.removeChannel(channels.bookingChannel);
@@ -1830,11 +1838,11 @@ export default function BayController() {
   // Auto-launch apps based on booking time (separate effect after functions are defined)
   // CRITICAL: Apps close X seconds BEFORE booking ends to ensure they close while screens are still on
   useEffect(() => {
-    if (!appLaunchConfig.enabled || !isElectron || bookings.length === 0) return;
+    if (!appLaunchConfig.enabled || !isElectron) return;
 
     const now = currentTime;
     const today = format(now, "yyyy-MM-dd");
-    const todaysBookings = bookings.filter(b => b.booking_date === today && b.status === 'confirmed');
+    const todaysBookings = bookings.filter(b => b.booking_date === today && (b.status === 'confirmed' || b.status === 'pending'));
     
     let shouldLaunchApps = false;
     let shouldCloseApps = false;
@@ -1877,7 +1885,8 @@ export default function BayController() {
       console.log(`Closing apps ${appLaunchConfig.appCloseSeconds}s before booking ends (while screens still on)`);
       closeApps();
     } else if (!shouldLaunchApps && !shouldCloseApps && appsRunning) {
-      // Fallback: close apps if no active booking window at all
+      // Fallback: close apps if no active booking window at all (including when all bookings cancelled)
+      console.log('No active booking window - closing apps as fallback');
       closeApps();
     }
   }, [currentTime, bookings, appLaunchConfig.enabled, appLaunchConfig.appLaunchMinutes, appLaunchConfig.appCloseSeconds, appsRunning, isLaunchingApps, isElectron]);
