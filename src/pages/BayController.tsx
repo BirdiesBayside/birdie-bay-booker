@@ -149,7 +149,10 @@ export default function BayController() {
   const [quitPassword, setQuitPassword] = useState("");
   const [quitPasswordError, setQuitPasswordError] = useState("");
   
-  const [selectedBay, setSelectedBay] = useState<number | null>(null);
+  const [selectedBay, setSelectedBay] = useState<number | null>(() => {
+    const saved = localStorage.getItem("bayController_selectedBay");
+    return saved ? parseInt(saved) : null;
+  });
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [isLoadingBookings, setIsLoadingBookings] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<"connected" | "disconnected" | "connecting">("disconnected");
@@ -419,11 +422,7 @@ export default function BayController() {
       setAppLaunchConfig(prev => ({ ...prev, ...parsed }));
     }
     
-    // Load saved bay selection
-    const savedBay = localStorage.getItem("bayController_selectedBay");
-    if (savedBay) {
-      setSelectedBay(parseInt(savedBay));
-    }
+    // Note: selectedBay is now initialized directly from localStorage in useState
     
     // Load saved pre-start minutes
     const savedPreStart = localStorage.getItem("bayController_preStartMinutes");
