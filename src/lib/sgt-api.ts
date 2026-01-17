@@ -98,12 +98,15 @@ export interface TournamentResult {
   hcp: number;
   r1_gross: number | null;
   r1_net: number | null;
+  r1_thru: number | null;
   r2_gross: number | null;
   r2_net: number | null;
+  r2_thru: number | null;
   total_gross: number;
   total_net: number;
   to_par_gross: number;
   to_par_net: number;
+  dnf: boolean;
 }
 
 async function sgtApi<T>(action: string, params: Record<string, string> = {}): Promise<T> {

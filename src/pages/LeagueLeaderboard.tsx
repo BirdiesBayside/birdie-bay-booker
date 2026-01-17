@@ -509,25 +509,41 @@ export default function LeagueLeaderboard() {
 
                     {/* Rounds */}
                     <div className="col-span-2 text-center font-display text-muted-foreground">
-                      {r1 ?? "-"}
+                      {result.dnf && r1 === null ? "DNF" : (
+                        <>
+                          {r1 ?? "-"}
+                          {result.r1_thru && <span className="text-xs ml-0.5">({result.r1_thru})</span>}
+                        </>
+                      )}
                     </div>
                     <div className="col-span-2 text-center font-display text-muted-foreground">
-                      {r2 ?? "-"}
+                      {result.dnf && r2 === null ? "DNF" : (
+                        <>
+                          {r2 ?? "-"}
+                          {result.r2_thru && <span className="text-xs ml-0.5">({result.r2_thru})</span>}
+                        </>
+                      )}
                     </div>
 
                     {/* Total - Desktop */}
                     <div className="hidden md:block col-span-1 text-center font-display font-medium text-foreground">
-                      {total}
+                      {result.dnf ? "DNF" : total}
                     </div>
 
                     {/* To Par */}
                     <div className="col-span-2 text-center">
-                      <span className={cn(
-                        "px-3 py-1.5 rounded-lg font-display text-lg",
-                        toPar < 0 ? "text-green-500" : toPar === 0 ? "text-foreground" : "text-red-500"
-                      )}>
-                        {formatScore(toPar)}
-                      </span>
+                      {result.dnf ? (
+                        <span className="px-3 py-1.5 rounded-lg font-display text-lg text-muted-foreground">
+                          DNF
+                        </span>
+                      ) : (
+                        <span className={cn(
+                          "px-3 py-1.5 rounded-lg font-display text-lg",
+                          toPar < 0 ? "text-green-500" : toPar === 0 ? "text-foreground" : "text-red-500"
+                        )}>
+                          {formatScore(toPar)}
+                        </span>
+                      )}
                     </div>
                   </div>
                 );
