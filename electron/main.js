@@ -347,6 +347,91 @@ async function controlTapoPlug(email, password, deviceIp, action, retryCount = 0
   return result;
 }
 
+// Diagnose a TAPO plug - runs --diagnose command for detailed debugging
+async function diagnoseTapoPlug(email, password, deviceIp) {
+  const { spawn } = require('child_process');
+  const path = require('path');
+  const fs = require('fs');
+  
+  return new Promise((resolve) => {
+    // Validate inputs
+    if (!email || typeof email !== 'string' || email.trim() === '') {
+      resolve({ success: false, ip: deviceIp, error: 'Invalid email address' });
+      return;
+    }
+    if (!password || typeof password !== 'string' || password.trim() === '') {
+      resolve({ success: false, ip: deviceIp, error: 'Invalid password' });
+      return;
+    }
+    if (!deviceIp || typeof deviceIp !== 'string' || deviceIp.trim() === '') {
+      resolve({ success: false, ip: deviceIp, error: 'Invalid device IP address' });
+      return;
+    }
+    
+    const cleanEmail = email.trim();
+    const cleanPassword = password.trim();
+    const cleanIp = deviceIp.trim();
+    
+    console.log(`TAPO diagnose: ${cleanIp}`);
+    
+    // Find the bundled tapo_control.exe
+    const possiblePaths = [
+      path.join(__dirname, 'tapo_control.exe'),
+      path.join(process.resourcesPath || '', 'tapo_control.exe'),
+      path.join(app.getAppPath(), 'tapo_control.exe'),
+    ];
+    
+    const exePath = possiblePaths.find(p => {
+      try {
+        fs.accessSync(p);
+        return true;
+      } catch { return false; }
+    });
+    
+    if (!exePath) {
+      console.error('tapo_control.exe not found in:', possiblePaths);
+      resolve({ success: false, ip: cleanIp, error: 'tapo_control.exe not found. Please reinstall the Bay Controller app.' });
+      return;
+    }
+    
+    console.log('Using tapo_control.exe for diagnose:', exePath);
+    
+    // Run with --diagnose flag
+    const proc = spawn(exePath, ['--diagnose', cleanEmail, cleanPassword, cleanIp], {
+      shell: false,
+      windowsHide: true
+    });
+    
+    let stdout = '';
+    let stderr = '';
+    
+    proc.stdout.on('data', (data) => { stdout += data.toString(); });
+    proc.stderr.on('data', (data) => { stderr += data.toString(); });
+    
+    proc.on('error', (err) => {
+      console.error('tapo_control.exe diagnose error:', err.message);
+      resolve({ success: false, ip: cleanIp, error: `Failed to run tapo_control.exe: ${err.message}` });
+    });
+    
+    proc.on('close', (code) => {
+      console.log('tapo_control.exe diagnose output:', stdout);
+      if (stderr) console.error('tapo_control.exe diagnose stderr:', stderr);
+      
+      try {
+        const result = JSON.parse(stdout.trim());
+        resolve(result);
+      } catch (parseError) {
+        console.error('Failed to parse diagnose output:', stdout);
+        resolve({ 
+          success: false, 
+          ip: cleanIp,
+          error: stderr || stdout || `tapo_control.exe exited with code ${code}`
+        });
+      }
+    });
+  });
+}
+
 // =====================================================
 // APP AUTOMATION - PowerShell-based window management
 // =====================================================
@@ -1169,6 +1254,12 @@ ipcMain.handle('tapo-test-login', async (event, { email, password }) => {
 ipcMain.handle('control-plug', async (event, { email, password, ip, action }) => {
   console.log(`Controlling plug at ${ip}: ${action}`);
   return await controlTapoPlug(email, password, ip, action);
+});
+
+// Diagnose a plug - runs the --diagnose command for detailed debugging
+ipcMain.handle('diagnose-plug', async (event, { email, password, ip }) => {
+  console.log(`Diagnosing plug at ${ip}...`);
+  return await diagnoseTapoPlug(email, password, ip);
 });
 
 ipcMain.handle('check-electron', async () => {
