@@ -1273,6 +1273,8 @@ export default function BayController() {
     // Include both confirmed AND pending bookings for plug control
     const todaysBookings = bookings.filter(b => b.booking_date === today && (b.status === 'confirmed' || b.status === 'pending'));
     
+    console.log(`[calculateShouldPlugsBeOn] Now: ${format(now, "HH:mm:ss")}, Today: ${today}, Bookings today: ${todaysBookings.length}`);
+    
     let shouldBeOn = false;
     let currentBooking: Booking | null = null;
 
@@ -1281,9 +1283,15 @@ export default function BayController() {
       const endTime = parseISO(`${booking.booking_date}T${booking.end_time}`);
       const preStartTime = addMinutes(startTime, -preStartMinutes);
 
-      if (isAfter(now, preStartTime) && isBefore(now, endTime)) {
+      const isAfterPreStart = isAfter(now, preStartTime);
+      const isBeforeEnd = isBefore(now, endTime);
+      
+      console.log(`[calculateShouldPlugsBeOn] Checking booking ${booking.start_time}-${booking.end_time}: preStart=${format(preStartTime, "HH:mm:ss")}, isAfterPreStart=${isAfterPreStart}, isBeforeEnd=${isBeforeEnd}`);
+
+      if (isAfterPreStart && isBeforeEnd) {
         shouldBeOn = true;
         currentBooking = booking;
+        console.log(`[calculateShouldPlugsBeOn] -> ACTIVE booking found!`);
       }
 
       // Check for back-to-back bookings
@@ -1292,7 +1300,7 @@ export default function BayController() {
         b.start_time === booking.end_time
       );
       
-      if (nextBooking && isAfter(now, preStartTime)) {
+      if (nextBooking && isAfterPreStart) {
         const nextEndTime = parseISO(`${nextBooking.booking_date}T${nextBooking.end_time}`);
         if (isBefore(now, nextEndTime)) {
           shouldBeOn = true;
@@ -1300,6 +1308,7 @@ export default function BayController() {
       }
     }
 
+    console.log(`[calculateShouldPlugsBeOn] Result: shouldBeOn=${shouldBeOn}, currentBooking=${currentBooking?.id || 'none'}`);
     return { shouldBeOn, currentBooking };
   }, [bookings, preStartMinutes]);
 
@@ -1385,20 +1394,26 @@ export default function BayController() {
   // Resume auto function - checks current booking state and controls plugs accordingly
   const resumeAuto = useCallback(async () => {
     console.log('Resuming auto control...');
+    console.log('Current bookings count:', bookings.length);
+    console.log('Active booking:', activeBooking ? `${activeBooking.customer_name} (${activeBooking.start_time}-${activeBooking.end_time})` : 'none');
+    
     setManualOverride(false);
     
     // Sync mode to database
     await updateControlMode(false);
     
-    const { shouldBeOn } = calculateShouldPlugsBeOn();
+    const { shouldBeOn, currentBooking } = calculateShouldPlugsBeOn();
     console.log('Current booking state - should plugs be on:', shouldBeOn);
+    console.log('Found current booking:', currentBooking ? `${currentBooking.customer_name} (${currentBooking.start_time}-${currentBooking.end_time})` : 'none');
     
     if (shouldBeOn) {
+      console.log('Auto mode: turning ON plugs');
       turnOnPlugs(false, true); // Auto control, show toast
     } else {
+      console.log('Auto mode: turning OFF plugs - no active booking in window');
       turnOffPlugs(false, true); // Auto control, show toast
     }
-  }, [calculateShouldPlugsBeOn, updateControlMode]);
+  }, [calculateShouldPlugsBeOn, updateControlMode, bookings.length, activeBooking]);
 
   // Toggle to manual mode - syncs to database and enables manual control
   const setToManualMode = useCallback(async () => {
