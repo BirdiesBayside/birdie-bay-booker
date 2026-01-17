@@ -327,13 +327,35 @@ serve(async (req) => {
         const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
         const adminClient = createClient(supabaseUrl, serviceKey);
         
+        // Get tournament status
+        const { data: tournament } = await adminClient
+          .from("sgt_tournaments")
+          .select("status")
+          .eq("tournament_id", parseInt(params.tournamentId))
+          .single();
+        
+        const isCompleted = tournament?.status === "Completed";
+        
         const { data: scorecards, error } = await adminClient
           .from("sgt_scorecards")
-          .select("player_name, hcp_index, round, total_gross, total_net, to_par_gross, to_par_net")
+          .select("player_name, hcp_index, round, total_gross, total_net, to_par_gross, to_par_net, hole_data")
           .eq("tournament_id", parseInt(params.tournamentId))
           .order("round");
         
         if (error) throw error;
+        
+        // Helper to count completed holes
+        const countHoles = (holeData: unknown, scoreType: "gross" | "net"): number => {
+          if (!holeData || typeof holeData !== "object") return 0;
+          const d = holeData as Record<string, unknown>;
+          let count = 0;
+          for (let h = 1; h <= 18; h++) {
+            const val = d[`hole${h}_${scoreType}`];
+            const num = typeof val === "number" ? val : Number(val);
+            if (Number.isFinite(num) && num > 0) count++;
+          }
+          return count;
+        };
         
         // Group scorecards by player
         const playerMap = new Map<string, {
@@ -341,34 +363,49 @@ serve(async (req) => {
           hcp: number;
           r1_gross: number | null;
           r1_net: number | null;
+          r1_thru: number | null;
           r2_gross: number | null;
           r2_net: number | null;
+          r2_thru: number | null;
           total_gross: number;
           total_net: number;
           to_par_gross: number;
           to_par_net: number;
+          completedRounds: number;
         }>();
         
+        const grossOrNet = (params.grossOrNet === "net" ? "net" : "gross") as "gross" | "net";
+        
         for (const sc of scorecards || []) {
+          const holesCompleted = countHoles(sc.hole_data, grossOrNet);
+          const isRoundComplete = holesCompleted === 18;
+          
           const existing = playerMap.get(sc.player_name) || {
             player_name: sc.player_name,
             hcp: sc.hcp_index,
             r1_gross: null,
             r1_net: null,
+            r1_thru: null,
             r2_gross: null,
             r2_net: null,
+            r2_thru: null,
             total_gross: 0,
             total_net: 0,
             to_par_gross: 0,
             to_par_net: 0,
+            completedRounds: 0,
           };
           
           if (sc.round === 1) {
             existing.r1_gross = sc.total_gross;
             existing.r1_net = sc.total_net;
+            existing.r1_thru = isRoundComplete ? null : (holesCompleted > 0 ? holesCompleted : null);
+            if (isRoundComplete) existing.completedRounds++;
           } else if (sc.round === 2) {
             existing.r2_gross = sc.total_gross;
             existing.r2_net = sc.total_net;
+            existing.r2_thru = isRoundComplete ? null : (holesCompleted > 0 ? holesCompleted : null);
+            if (isRoundComplete) existing.completedRounds++;
           }
           
           existing.total_gross += sc.total_gross || 0;
@@ -379,11 +416,21 @@ serve(async (req) => {
           playerMap.set(sc.player_name, existing);
         }
         
+        // Determine max rounds in tournament
+        const maxRound = Math.max(1, ...(scorecards?.map(s => s.round || 1) || [1]));
+        
         // Sort by gross or net score
         const sortBy = params.grossOrNet === "net" ? "to_par_net" : "to_par_gross";
-        const sorted = Array.from(playerMap.values()).sort((a, b) => {
-          return (a[sortBy] ?? 999) - (b[sortBy] ?? 999);
-        });
+        const sorted = Array.from(playerMap.values())
+          .map(p => ({
+            ...p,
+            dnf: isCompleted && p.completedRounds < maxRound,
+          }))
+          .sort((a, b) => {
+            // DNFs at bottom
+            if (a.dnf !== b.dnf) return a.dnf ? 1 : -1;
+            return (a[sortBy] ?? 999) - (b[sortBy] ?? 999);
+          });
         
         // Add positions
         data = sorted.map((player, index) => ({

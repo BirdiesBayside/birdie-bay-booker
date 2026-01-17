@@ -46,12 +46,15 @@ interface TournamentResult {
   hcp: number | null;
   rd1: number | null;
   rd1ToPar: number | null;
+  rd1Thru: number | null;
   rd2: number | null;
   rd2ToPar: number | null;
+  rd2Thru: number | null;
   total: number | null;
   toPar: number | null;
   courseName: string | null;
   dnf: boolean;
+  thru: number | null;
 }
 
 async function fetchPublicLeaderboard(action: string, params: Record<string, string> = {}) {
@@ -475,12 +478,22 @@ export default function EmbedLeaderboard() {
 
                   {/* Rd1 */}
                   <div className="col-span-2 text-center text-xs sm:text-sm text-[hsl(128,20%,40%)]">
-                    {result.dnf && result.rd1 === null ? "DNF" : result.rd1 ?? "-"}
+                    {result.dnf && result.rd1 === null ? "DNF" : (
+                      <>
+                        {result.rd1 ?? "-"}
+                        {result.rd1Thru && <span className="text-[10px] ml-0.5">({result.rd1Thru})</span>}
+                      </>
+                    )}
                   </div>
 
                   {/* Rd2 */}
                   <div className="col-span-2 text-center text-xs sm:text-sm text-[hsl(128,20%,40%)]">
-                    {result.dnf && result.rd2 === null ? "DNF" : result.rd2 ?? "-"}
+                    {result.dnf && result.rd2 === null ? "DNF" : (
+                      <>
+                        {result.rd2 ?? "-"}
+                        {result.rd2Thru && <span className="text-[10px] ml-0.5">({result.rd2Thru})</span>}
+                      </>
+                    )}
                   </div>
 
                   {/* Total */}

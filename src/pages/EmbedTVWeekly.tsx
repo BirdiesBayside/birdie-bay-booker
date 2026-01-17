@@ -23,10 +23,13 @@ interface TournamentResult {
   playerName: string;
   hcp: number | null;
   rd1: number | null;
+  rd1Thru: number | null;
   rd2: number | null;
+  rd2Thru: number | null;
   total: number | null;
   toPar: number | null;
   dnf: boolean;
+  thru: number | null;
 }
 
 async function fetchPublicLeaderboard(action: string, params: Record<string, string> = {}) {
@@ -170,10 +173,20 @@ export default function EmbedTVWeekly() {
                 {result.hcp ?? "-"}
               </div>
               <div className="col-span-2 text-center text-xl text-[hsl(128,20%,40%)]">
-                {result.dnf && result.rd1 === null ? "DNF" : result.rd1 ?? "-"}
+                {result.dnf && result.rd1 === null ? "DNF" : (
+                  <>
+                    {result.rd1 ?? "-"}
+                    {result.rd1Thru && <span className="text-sm ml-1">({result.rd1Thru})</span>}
+                  </>
+                )}
               </div>
               <div className="col-span-2 text-center text-xl text-[hsl(128,20%,40%)]">
-                {result.dnf && result.rd2 === null ? "DNF" : result.rd2 ?? "-"}
+                {result.dnf && result.rd2 === null ? "DNF" : (
+                  <>
+                    {result.rd2 ?? "-"}
+                    {result.rd2Thru && <span className="text-sm ml-1">({result.rd2Thru})</span>}
+                  </>
+                )}
               </div>
               <div className="col-span-1 text-center font-bold text-2xl text-[hsl(128,42%,21%)]">
                 {result.dnf ? "DNF" : result.total ?? "-"}

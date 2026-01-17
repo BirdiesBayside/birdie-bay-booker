@@ -174,9 +174,25 @@ Deno.serve(async (req) => {
         // Determine total rounds expected based on scorecard data
         const maxRound = Math.max(1, ...(scorecards?.map(s => s.round || 1) || [1]));
         
+        // Helper to count completed holes from hole_data
+        const countCompletedHoles = (holeData: unknown, scoreType: "gross" | "net"): number => {
+          if (!holeData || typeof holeData !== "object") return 0;
+          const data = holeData as Record<string, unknown>;
+          let count = 0;
+          for (let hole = 1; hole <= 18; hole++) {
+            const key = `hole${hole}_${scoreType}`;
+            const raw = data[key];
+            const num = typeof raw === "number" ? raw : Number(raw);
+            if (Number.isFinite(num) && num > 0) count++;
+          }
+          return count;
+        };
+        
         type RoundInfo = {
           score: number | null;
           toPar: number | null;
+          holesCompleted: number;
+          isComplete: boolean;
         };
 
         const playerMap = new Map<
@@ -192,6 +208,10 @@ Deno.serve(async (req) => {
 
         for (const card of scorecards || []) {
           const roundNum = card.round || 1;
+          
+          // Count holes completed in this round
+          const holesCompleted = countCompletedHoles(card.hole_data, grossOrNet);
+          const isRoundComplete = holesCompleted === 18;
           
           // Check if this round has actual scores (not just a placeholder)
           const hasScore = grossOrNet === "gross" 
@@ -217,16 +237,21 @@ Deno.serve(async (req) => {
             player.rounds[roundNum] = {
               score,
               toPar,
+              holesCompleted,
+              isComplete: isRoundComplete,
             };
-            player.completedRounds++;
+            // Only count as completed round if all 18 holes are done
+            if (isRoundComplete) {
+              player.completedRounds++;
+            }
           }
         }
 
         const results = Array.from(playerMap.values())
           .filter((p) => p.playerName)
           .map((p) => {
-            const rd1 = p.rounds[1] || { score: null, toPar: null };
-            const rd2 = p.rounds[2] || { score: null, toPar: null };
+            const rd1 = p.rounds[1] || { score: null, toPar: null, holesCompleted: 0, isComplete: false };
+            const rd2 = p.rounds[2] || { score: null, toPar: null, holesCompleted: 0, isComplete: false };
             
             // Calculate totals from completed rounds
             let total: number | null = null;
@@ -242,22 +267,42 @@ Deno.serve(async (req) => {
               }
             }
 
-            // For completed tournaments, mark as DNF if they didn't finish all rounds
+            // For completed tournaments, mark as DNF if they didn't finish all expected rounds
             // For in-progress tournaments, just show their current total
             const dnf = isCompleted && p.completedRounds < maxRound;
+            
+            // Figure out the "thru" status - which hole they're on in their current round
+            let thru: number | null = null;
+            if (!isCompleted) {
+              // If round 2 exists but incomplete
+              if (rd2.score !== null && !rd2.isComplete) {
+                thru = rd2.holesCompleted;
+              }
+              // If round 1 exists but incomplete (and no round 2)
+              else if (rd1.score !== null && !rd1.isComplete && rd2.score === null) {
+                thru = rd1.holesCompleted;
+              }
+              // If round 1 complete but no round 2 started in a multi-round tournament
+              else if (rd1.isComplete && rd2.score === null && maxRound >= 2) {
+                thru = null; // They've finished Rd1, waiting for Rd2
+              }
+            }
 
             return {
               playerName: p.playerName,
               hcp: p.hcp,
               rd1: rd1.score,
               rd1ToPar: rd1.toPar,
+              rd1Thru: rd1.isComplete ? null : (rd1.holesCompleted > 0 ? rd1.holesCompleted : null),
               rd2: rd2.score,
               rd2ToPar: rd2.toPar,
+              rd2Thru: rd2.isComplete ? null : (rd2.holesCompleted > 0 ? rd2.holesCompleted : null),
               total: dnf ? null : total,
               toPar: dnf ? null : toPar,
               courseName: p.courseName,
               dnf,
               roundsCompleted: p.completedRounds,
+              thru,
             };
           })
           .sort((a, b) => {
