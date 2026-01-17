@@ -145,10 +145,10 @@ Deno.serve(async (req) => {
           });
         }
 
-        // Fetch the tournament to check its status
+        // Fetch the tournament to check its status and get expected rounds
         const { data: tournament, error: tournamentError } = await supabase
           .from("sgt_tournaments")
-          .select("status")
+          .select("status, name")
           .eq("tournament_id", parseInt(tournamentId))
           .single();
 
@@ -156,25 +156,10 @@ Deno.serve(async (req) => {
           console.error("[PUBLIC-LEADERBOARD] Error fetching tournament:", tournamentError);
         }
 
-        // Only mark players as DNF if the tournament is completed
         const isCompleted = tournament?.status === "Completed";
+        const isInProgress = tournament?.status === "In Progress";
 
-        const isRoundComplete = (holeData: unknown) => {
-          if (!holeData || typeof holeData !== "object") return false;
-          const data = holeData as Record<string, unknown>;
-
-          for (let hole = 1; hole <= 18; hole++) {
-            const key = `hole${hole}_${grossOrNet}`;
-            const raw = data[key];
-            const num = typeof raw === "number" ? raw : Number(raw);
-            // Golf strokes can't be 0; 0/NaN/null means no score recorded.
-            if (!Number.isFinite(num) || num <= 0) return false;
-          }
-
-          return true;
-        };
-
-        // Get scorecards for this tournament, including per-hole data so we can detect DNFs
+        // Get scorecards for this tournament
         const { data: scorecards, error } = await supabase
           .from("sgt_scorecards")
           .select(
@@ -186,11 +171,12 @@ Deno.serve(async (req) => {
 
         if (error) throw error;
 
-        type RoundNum = 1 | 2;
+        // Determine total rounds expected based on scorecard data
+        const maxRound = Math.max(1, ...(scorecards?.map(s => s.round || 1) || [1]));
+        
         type RoundInfo = {
           score: number | null;
           toPar: number | null;
-          complete: boolean;
         };
 
         const playerMap = new Map<
@@ -199,48 +185,66 @@ Deno.serve(async (req) => {
             playerName: string;
             hcp: number | null;
             courseName: string | null;
-            rounds: Record<RoundNum, RoundInfo>;
+            rounds: Record<number, RoundInfo>;
+            completedRounds: number;
           }
         >();
 
         for (const card of scorecards || []) {
-          const roundNum = (card.round === 2 ? 2 : 1) as RoundNum;
-          const complete = isRoundComplete(card.hole_data);
+          const roundNum = card.round || 1;
+          
+          // Check if this round has actual scores (not just a placeholder)
+          const hasScore = grossOrNet === "gross" 
+            ? card.total_gross !== null && card.total_gross > 0
+            : card.total_net !== null && card.total_net > 0;
 
           if (!playerMap.has(card.player_id)) {
             playerMap.set(card.player_id, {
               playerName: card.player_name,
               hcp: card.hcp_index,
               courseName: card.course_name,
-              rounds: {
-                1: { score: null, toPar: null, complete: false },
-                2: { score: null, toPar: null, complete: false },
-              },
+              rounds: {},
+              completedRounds: 0,
             });
           }
 
           const player = playerMap.get(card.player_id)!;
+          
+          if (hasScore) {
+            const score = grossOrNet === "gross" ? card.total_gross : card.total_net;
+            const toPar = grossOrNet === "gross" ? card.to_par_gross : card.to_par_net;
 
-          const score = grossOrNet === "gross" ? card.total_gross : card.total_net;
-          const toPar = grossOrNet === "gross" ? card.to_par_gross : card.to_par_net;
-
-          player.rounds[roundNum] = {
-            score: complete ? score : null,
-            toPar: complete ? toPar : null,
-            complete,
-          };
+            player.rounds[roundNum] = {
+              score,
+              toPar,
+            };
+            player.completedRounds++;
+          }
         }
 
         const results = Array.from(playerMap.values())
           .filter((p) => p.playerName)
           .map((p) => {
-            const rd1 = p.rounds[1];
-            const rd2 = p.rounds[2];
-            // Only mark as DNF if tournament is completed AND player doesn't have both rounds
-            const dnf = isCompleted && (!rd1.complete || !rd2.complete);
+            const rd1 = p.rounds[1] || { score: null, toPar: null };
+            const rd2 = p.rounds[2] || { score: null, toPar: null };
+            
+            // Calculate totals from completed rounds
+            let total: number | null = null;
+            let toPar: number | null = null;
+            
+            if (rd1.score !== null) {
+              total = rd1.score;
+              toPar = rd1.toPar;
+              
+              if (rd2.score !== null) {
+                total += rd2.score;
+                toPar = (rd1.toPar || 0) + (rd2.toPar || 0);
+              }
+            }
 
-            const total = dnf || rd1.score === null || rd2.score === null ? null : rd1.score + rd2.score;
-            const toPar = dnf || rd1.toPar === null || rd2.toPar === null ? null : rd1.toPar + rd2.toPar;
+            // For completed tournaments, mark as DNF if they didn't finish all rounds
+            // For in-progress tournaments, just show their current total
+            const dnf = isCompleted && p.completedRounds < maxRound;
 
             return {
               playerName: p.playerName,
@@ -249,18 +253,30 @@ Deno.serve(async (req) => {
               rd1ToPar: rd1.toPar,
               rd2: rd2.score,
               rd2ToPar: rd2.toPar,
-              total,
-              toPar,
+              total: dnf ? null : total,
+              toPar: dnf ? null : toPar,
               courseName: p.courseName,
               dnf,
+              roundsCompleted: p.completedRounds,
             };
           })
           .sort((a, b) => {
-            if (a.dnf !== b.dnf) return a.dnf ? 1 : -1; // DNFs always bottom
-            if (a.total === null && b.total === null) return a.playerName.localeCompare(b.playerName);
-            if (a.total === null) return 1;
-            if (b.total === null) return -1;
-            return a.total - b.total;
+            // DNFs always at the bottom
+            if (a.dnf !== b.dnf) return a.dnf ? 1 : -1;
+            
+            // Sort by toPar (lowest first for golf)
+            if (a.toPar !== null && b.toPar !== null) {
+              if (a.toPar !== b.toPar) return a.toPar - b.toPar;
+              // If same toPar, player with more rounds completed ranks higher
+              if (a.roundsCompleted !== b.roundsCompleted) return b.roundsCompleted - a.roundsCompleted;
+            }
+            
+            // Players with scores before those without
+            if (a.toPar === null && b.toPar !== null) return 1;
+            if (a.toPar !== null && b.toPar === null) return -1;
+            
+            // Alphabetical as last resort
+            return a.playerName.localeCompare(b.playerName);
           })
           .map((player, index) => ({
             position: index + 1,
