@@ -15,6 +15,7 @@ import { format, addMinutes, isBefore, isAfter, parseISO } from "date-fns";
 import { SGTPlayerOverlay } from "@/components/bay-controller/SGTPlayerOverlay";
 import { SGTIconButton } from "@/components/bay-controller/SGTIconButton";
 import { GSProBaselineSettings } from "@/components/bay-controller/GSProBaselineSettings";
+import { PlugDiagnostics } from "@/components/bay-controller/PlugDiagnostics";
 
 interface Booking {
   id: string;
@@ -106,29 +107,38 @@ function CollapsibleSettingsCard({
   title, 
   icon, 
   children, 
-  defaultOpen = true 
+  defaultOpen = true,
+  headerAction
 }: { 
   title: string; 
   icon: React.ReactNode; 
   children: React.ReactNode; 
   defaultOpen?: boolean;
+  headerAction?: React.ReactNode;
 }) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
       <Card>
-        <CollapsibleTrigger asChild>
-          <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
-            <CardTitle className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
+        <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+          <CardTitle className="flex items-center justify-between">
+            <CollapsibleTrigger asChild>
+              <div className="flex items-center gap-2 flex-1">
                 {icon}
                 {title}
               </div>
-              {isOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-            </CardTitle>
-          </CardHeader>
-        </CollapsibleTrigger>
+            </CollapsibleTrigger>
+            <div className="flex items-center gap-2">
+              {headerAction}
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-6 w-6">
+                  {isOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </Button>
+              </CollapsibleTrigger>
+            </div>
+          </CardTitle>
+        </CardHeader>
         <CollapsibleContent>
           <CardContent className="space-y-4 pt-0">
             {children}
@@ -2187,7 +2197,18 @@ export default function BayController() {
         </Card>
 
         {/* TAPO Smart Plugs - Collapsible */}
-        <CollapsibleSettingsCard title="TAPO Smart Plugs" icon={<Wifi className="w-5 h-5" />} defaultOpen={true}>
+        <CollapsibleSettingsCard 
+          title="TAPO Smart Plugs" 
+          icon={<Wifi className="w-5 h-5" />} 
+          defaultOpen={true}
+          headerAction={
+            <PlugDiagnostics 
+              tapoEmail={tapoEmail} 
+              tapoPassword={tapoPassword} 
+              isElectron={isElectron} 
+            />
+          }
+        >
           {/* Assigned plugs for this bay */}
           {selectedBay && getAssignedPlugsForBay(selectedBay).length > 0 && (
             <div className="space-y-2">
