@@ -237,12 +237,16 @@ async function testTapoLogin(email, password) {
 
 // Control a specific TAPO plug using bundled tapo_control.exe
 // P110 plugs require the Python 'tapo' library - bundled as standalone .exe via PyInstaller
-async function controlTapoPlug(email, password, deviceIp, action) {
+// Includes retry logic for transient KLAP authentication failures
+async function controlTapoPlug(email, password, deviceIp, action, retryCount = 0) {
   const { spawn } = require('child_process');
   const path = require('path');
   const fs = require('fs');
   
-  return new Promise((resolve) => {
+  const MAX_RETRIES = 3;
+  const RETRY_DELAYS = [500, 1500, 3000]; // Exponential backoff in ms
+  
+  const attemptControl = () => new Promise((resolve) => {
     // Validate inputs
     if (!email || typeof email !== 'string' || email.trim() === '') {
       resolve({ success: false, error: 'Invalid email address' });
@@ -261,7 +265,7 @@ async function controlTapoPlug(email, password, deviceIp, action) {
     const cleanPassword = password.trim();
     const cleanIp = deviceIp.trim();
     
-    console.log(`TAPO control: ${cleanIp} -> ${action}`);
+    console.log(`TAPO control: ${cleanIp} -> ${action} (attempt ${retryCount + 1}/${MAX_RETRIES + 1})`);
     
     // Find the bundled tapo_control.exe
     const possiblePaths = [
@@ -298,7 +302,7 @@ async function controlTapoPlug(email, password, deviceIp, action) {
     
     proc.on('error', (err) => {
       console.error('tapo_control.exe error:', err.message);
-      resolve({ success: false, error: `Failed to run tapo_control.exe: ${err.message}` });
+      resolve({ success: false, error: `Failed to run tapo_control.exe: ${err.message}`, retryable: true });
     });
     
     proc.on('close', (code) => {
@@ -307,16 +311,40 @@ async function controlTapoPlug(email, password, deviceIp, action) {
       
       try {
         const result = JSON.parse(stdout.trim());
+        // Mark authentication failures as retryable (KLAP handshake can be flaky)
+        if (!result.success && result.error && 
+            (result.error.toLowerCase().includes('authentication') || 
+             result.error.toLowerCase().includes('timeout') ||
+             result.error.toLowerCase().includes('connect'))) {
+          result.retryable = true;
+        }
         resolve(result);
       } catch (parseError) {
         console.error('Failed to parse output:', stdout);
         resolve({ 
           success: false, 
-          error: stderr || stdout || `tapo_control.exe exited with code ${code}`
+          error: stderr || stdout || `tapo_control.exe exited with code ${code}`,
+          retryable: true
         });
       }
     });
   });
+  
+  // Execute the attempt
+  const result = await attemptControl();
+  
+  // If failed and retryable, try again with backoff
+  if (!result.success && result.retryable && retryCount < MAX_RETRIES) {
+    const delay = RETRY_DELAYS[retryCount] || 3000;
+    console.log(`TAPO control failed for ${deviceIp}, retrying in ${delay}ms... (${retryCount + 1}/${MAX_RETRIES})`);
+    
+    await new Promise(r => setTimeout(r, delay));
+    return controlTapoPlug(email, password, deviceIp, action, retryCount + 1);
+  }
+  
+  // Clean up the retryable flag before returning
+  delete result.retryable;
+  return result;
 }
 
 // =====================================================
