@@ -110,45 +110,37 @@ export default function AdminPOS() {
   // Handle booking data from navigation (from timetable)
   useEffect(() => {
     const navState = location.state as { bookingData?: BookingDataFromNav } | null;
-    if (navState?.bookingData && products.length > 0 && processedNavBooking !== navState.bookingData.bookingId) {
+    if (navState?.bookingData && processedNavBooking !== navState.bookingData.bookingId) {
       const bookingData = navState.bookingData;
       
-      // Find the matching hour booking product
-      const productName = `${bookingData.duration} Hour Booking`;
-      const matchingProduct = products.find(p => p.name === productName && p.family === 'Golf');
+      // Set customer
+      setSelectedCustomer(bookingData.customerId);
       
-      if (matchingProduct) {
-        // Set customer
-        setSelectedCustomer(bookingData.customerId);
-        
-        // Set selected booking for tracking
-        setSelectedBooking({
-          id: bookingData.bookingId,
-          booking_date: bookingData.bookingDate,
-          start_time: bookingData.startTime,
-          end_time: '',
-          total_price: bookingData.totalPrice,
-          bay_name: bookingData.bayName,
-          customer_name: bookingData.customerName,
-          customer_id: bookingData.customerId,
-        });
-        
-        // Add to cart
-        setCart([{
-          id: matchingProduct.id,
-          name: `${matchingProduct.name}: ${bookingData.bayName} - ${format(new Date(bookingData.bookingDate), 'dd/MM')} ${bookingData.startTime.slice(0, 5)}`,
-          price: matchingProduct.price,
-          quantity: 1,
-          bookingId: bookingData.bookingId,
-        }]);
-        
-        setProcessedNavBooking(bookingData.bookingId);
-        toast.success(`Added ${bookingData.duration} hour booking to cart`);
-      } else {
-        toast.error(`Could not find ${productName} product`);
-      }
+      // Set selected booking for tracking
+      setSelectedBooking({
+        id: bookingData.bookingId,
+        booking_date: bookingData.bookingDate,
+        start_time: bookingData.startTime,
+        end_time: '',
+        total_price: bookingData.totalPrice,
+        bay_name: bookingData.bayName,
+        customer_name: bookingData.customerName,
+        customer_id: bookingData.customerId,
+      });
+      
+      // Add booking as custom cart item with actual calculated price
+      setCart([{
+        id: `booking-${bookingData.bookingId}`,
+        name: `${bookingData.duration}hr Booking: ${bookingData.bayName} - ${format(new Date(bookingData.bookingDate), 'dd/MM')} ${bookingData.startTime.slice(0, 5)}`,
+        price: bookingData.totalPrice,
+        quantity: 1,
+        bookingId: bookingData.bookingId,
+      }]);
+      
+      setProcessedNavBooking(bookingData.bookingId);
+      toast.success(`Added ${bookingData.duration}hr booking ($${bookingData.totalPrice}) to cart`);
     }
-  }, [location.state, products, processedNavBooking]);
+  }, [location.state, processedNavBooking]);
 
   const fetchProducts = async () => {
     const { data, error } = await supabase
