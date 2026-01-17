@@ -15,6 +15,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   controlPlug: (email, password, ip, action) => 
     ipcRenderer.invoke('control-plug', { email, password, ip, action }),
   
+  // Diagnose a plug (detailed connection debugging)
+  diagnosePlug: (email, password, ip) => 
+    ipcRenderer.invoke('diagnose-plug', { email, password, ip }),
+  
   // Check if running in Electron environment
   checkElectron: () => ipcRenderer.invoke('check-electron'),
   

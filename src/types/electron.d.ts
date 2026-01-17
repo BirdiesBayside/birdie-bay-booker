@@ -15,6 +15,27 @@ declare global {
       tapoInit: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
       tapoTestLogin: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
       controlPlug: (email: string, password: string, ip: string, action: 'on' | 'off' | 'status') => Promise<{ success: boolean; isOn?: boolean; error?: string }>;
+      diagnosePlug: (email: string, password: string, ip: string) => Promise<{
+        success: boolean;
+        ip: string;
+        raw_probe?: {
+          port_80_open: boolean;
+          port_9999_open: boolean;
+          http_response?: string;
+          likely_device?: string;
+        };
+        connection_attempts?: {
+          device_type: string;
+          success: boolean;
+          error?: string;
+          firmware_version?: string;
+          hardware_version?: string;
+        }[];
+        final_status?: string;
+        likely_cause?: string;
+        recommendation?: string;
+        error?: string;
+      }>;
       // App automation
       getDisplays: () => Promise<DisplayInfo[]>;
       launchApp: (exePath: string) => Promise<{ success: boolean; pid?: number; error?: string }>;
