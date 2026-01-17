@@ -24,6 +24,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CalendarIcon, Plus, UserPlus, Ban } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { calculateHourlyRate, isWeekdayMemberTime, getPricingLabel } from "@/lib/pricing-utils";
 
 interface Bay {
   id: string;
@@ -38,6 +39,7 @@ interface Profile {
   email: string;
   phone: string | null;
   membership_tier: string;
+  custom_hourly_rate: number | null;
 }
 
 interface AddBookingDialogProps {
@@ -187,7 +189,7 @@ export function AddBookingDialog({
     
     const { data, error } = await supabase
       .from("profiles")
-      .select("user_id, first_name, last_name, email, phone, membership_tier")
+      .select("user_id, first_name, last_name, email, phone, membership_tier, custom_hourly_rate")
       .or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%,email.ilike.%${search}%`)
       .order("first_name")
       .limit(10);
@@ -214,14 +216,57 @@ export function AddBookingDialog({
     return `${endHour.toString().padStart(2, "0")}:${min.toString().padStart(2, "0")}`;
   };
 
-  const getHourlyRate = (tier: string): number => {
-    return tierRates[tier.toLowerCase()] || tierRates.visitor || FALLBACK_RATES.visitor;
+  // Calculate hourly rate considering custom rate, peak/off-peak, and membership tier
+  const getCalculatedHourlyRate = (): number => {
+    if (!selectedCustomer || !bookingDate || !startTime) return 0;
+    
+    // Custom rate always takes priority
+    if (selectedCustomer.custom_hourly_rate !== null) {
+      return Number(selectedCustomer.custom_hourly_rate);
+    }
+    
+    // Use the pricing-utils function for tier-based + peak/off-peak calculation
+    return calculateHourlyRate(
+      selectedCustomer.membership_tier,
+      bookingDate,
+      startTime,
+      tierRates
+    );
   };
 
   const calculateTotalPrice = (): number => {
     if (!selectedCustomer) return 0;
-    const hourlyRate = getHourlyRate(selectedCustomer.membership_tier);
+    const hourlyRate = getCalculatedHourlyRate();
     return hourlyRate * parseInt(duration);
+  };
+
+  // Get pricing context info for display
+  const getPricingInfo = (): { label: string; isRestricted: boolean } | null => {
+    if (!selectedCustomer || !bookingDate || !startTime) return null;
+    
+    const tier = selectedCustomer.membership_tier.toLowerCase();
+    
+    // Custom rate - no peak/off-peak applies
+    if (selectedCustomer.custom_hourly_rate !== null) {
+      return { label: "custom rate", isRestricted: false };
+    }
+    
+    // Weekday members have restrictions
+    if (tier === "weekday") {
+      const canUseRate = isWeekdayMemberTime(bookingDate, startTime);
+      if (!canUseRate) {
+        return { label: "visitor rate (outside weekday hours)", isRestricted: true };
+      }
+      return { label: "weekday member rate", isRestricted: false };
+    }
+    
+    // Visitors have peak/off-peak
+    if (tier === "visitor") {
+      return { label: getPricingLabel(bookingDate, startTime), isRestricted: false };
+    }
+    
+    // Other members (birdie, eagle) - flat rate
+    return { label: `${tier} member rate`, isRestricted: false };
   };
 
   const getMembershipColor = (tier: string) => {
@@ -406,7 +451,7 @@ export function AddBookingDialog({
     }
 
     try {
-      const hourlyRate = getHourlyRate(selectedCustomer?.membership_tier || "visitor");
+      const hourlyRate = getCalculatedHourlyRate();
       const totalPrice = hourlyRate * parseInt(duration);
 
       const { data: booking, error } = await supabase
@@ -616,7 +661,7 @@ export function AddBookingDialog({
                         {selectedCustomer.first_name} {selectedCustomer.last_name}
                       </span>
                       <Badge className={getMembershipColor(selectedCustomer.membership_tier)}>
-                        {selectedCustomer.membership_tier} - ${getHourlyRate(selectedCustomer.membership_tier)}/hr
+                        {selectedCustomer.membership_tier} - ${getCalculatedHourlyRate()}/hr
                       </Badge>
                     </div>
                   </div>
@@ -785,9 +830,16 @@ export function AddBookingDialog({
             {selectedCustomer && (
               <div className="p-3 bg-muted/50 rounded-lg">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">
-                    {duration} hour{parseInt(duration) > 1 ? "s" : ""} @ ${getHourlyRate(selectedCustomer.membership_tier)}/hr
-                  </span>
+                  <div className="flex flex-col">
+                    <span className="text-muted-foreground">
+                      {duration} hour{parseInt(duration) > 1 ? "s" : ""} @ ${getCalculatedHourlyRate()}/hr
+                    </span>
+                    {getPricingInfo() && (
+                      <span className={`text-xs ${getPricingInfo()?.isRestricted ? 'text-orange-500' : 'text-muted-foreground'}`}>
+                        ({getPricingInfo()?.label})
+                      </span>
+                    )}
+                  </div>
                   <span className="font-bold text-lg">${calculateTotalPrice()}</span>
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
