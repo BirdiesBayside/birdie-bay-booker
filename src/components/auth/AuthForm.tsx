@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,10 +29,18 @@ interface AuthFormProps {
 }
 
 export function AuthForm({ defaultToSignUp = false }: AuthFormProps) {
+  const [searchParams] = useSearchParams();
   const [isSignUp, setIsSignUp] = useState(defaultToSignUp);
   const [isLoading, setIsLoading] = useState(false);
   const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+
+  // Check for forgot=true query param to auto-show forgot password form
+  useEffect(() => {
+    if (searchParams.get("forgot") === "true") {
+      setIsForgotPassword(true);
+    }
+  }, [searchParams]);
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
