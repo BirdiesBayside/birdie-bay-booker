@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Crown, Lock, User, Mail, Phone, Plus, Loader2, Trash2, Pencil, Check, X, Wallet, CreditCard, Gamepad2, Copy } from "lucide-react";
+import { ArrowLeft, Crown, Lock, User, Mail, Phone, Plus, Loader2, Trash2, Pencil, Check, X, Wallet, CreditCard, Gamepad2, Copy, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -58,7 +58,6 @@ const MyAccount = () => {
   const [searchParams] = useSearchParams();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [isLoadingPaymentMethods, setIsLoadingPaymentMethods] = useState(true);
   const [isAddingPaymentMethod, setIsAddingPaymentMethod] = useState(false);
@@ -66,6 +65,10 @@ const MyAccount = () => {
   const [showMembershipBlockDialog, setShowMembershipBlockDialog] = useState(false);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({ newPassword: "", confirmPassword: "" });
+  const [showPassword, setShowPassword] = useState(false);
 
   const [editForm, setEditForm] = useState({
     first_name: "",
@@ -245,22 +248,38 @@ const MyAccount = () => {
     }
   };
 
-  const handlePasswordReset = async () => {
-    if (!user?.email) return;
+  const handlePasswordChange = async () => {
+    if (!passwordForm.newPassword || !passwordForm.confirmPassword) {
+      toast.error("Please fill in both password fields");
+      return;
+    }
 
-    setIsResettingPassword(true);
+    if (passwordForm.newPassword.length < 6) {
+      toast.error("Password must be at least 6 characters");
+      return;
+    }
+
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      toast.error("Passwords do not match");
+      return;
+    }
+
+    setIsChangingPassword(true);
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
-        redirectTo: `${window.location.origin}/`,
+      const { error } = await supabase.auth.updateUser({
+        password: passwordForm.newPassword,
       });
 
       if (error) throw error;
-      toast.success("Password reset email sent! Check your inbox.");
+      
+      toast.success("Password updated successfully!");
+      setShowPasswordDialog(false);
+      setPasswordForm({ newPassword: "", confirmPassword: "" });
     } catch (error) {
-      console.error("Error sending reset email:", error);
-      toast.error("Failed to send reset email");
+      console.error("Error updating password:", error);
+      toast.error("Failed to update password. Please try again.");
     } finally {
-      setIsResettingPassword(false);
+      setIsChangingPassword(false);
     }
   };
 
@@ -684,24 +703,93 @@ const MyAccount = () => {
             </CardHeader>
             <CardContent className="space-y-6">
 
-              {/* Password Reset */}
+              {/* Password Change */}
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
                   <p className="font-medium">Password</p>
                   <p className="text-sm text-muted-foreground">
-                    Send a password reset link to your email
+                    Update your account password
                   </p>
                 </div>
                 <Button
                   variant="outline"
-                  onClick={handlePasswordReset}
-                  disabled={isResettingPassword}
+                  onClick={() => setShowPasswordDialog(true)}
                 >
-                  {isResettingPassword ? "Sending..." : "Reset Password"}
+                  Change Password
                 </Button>
               </div>
             </CardContent>
           </Card>
+
+          {/* Password Change Dialog */}
+          <AlertDialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Change Password</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Enter your new password below. Must be at least 6 characters.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="new-password">New Password</Label>
+                  <div className="relative">
+                    <Input
+                      id="new-password"
+                      type={showPassword ? "text" : "password"}
+                      value={passwordForm.newPassword}
+                      onChange={(e) => setPasswordForm(prev => ({ ...prev, newPassword: e.target.value }))}
+                      placeholder="Enter new password"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-0 top-0 h-full px-3"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="confirm-password">Confirm Password</Label>
+                  <Input
+                    id="confirm-password"
+                    type={showPassword ? "text" : "password"}
+                    value={passwordForm.confirmPassword}
+                    onChange={(e) => setPasswordForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                    placeholder="Confirm new password"
+                  />
+                </div>
+              </div>
+              <AlertDialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowPasswordDialog(false);
+                    setPasswordForm({ newPassword: "", confirmPassword: "" });
+                  }}
+                  disabled={isChangingPassword}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handlePasswordChange}
+                  disabled={isChangingPassword}
+                >
+                  {isChangingPassword ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Updating...
+                    </>
+                  ) : (
+                    "Update Password"
+                  )}
+                </Button>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </main>
 
