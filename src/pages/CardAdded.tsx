@@ -1,7 +1,19 @@
 import { CheckCircle } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import birdiesLogo from "@/assets/birdies-logo.png";
+import { Button } from "@/components/ui/button";
 
 export default function CardAdded() {
+  const navigate = useNavigate();
+
+  const handleContinue = () => {
+    // Clear any setup flags
+    localStorage.removeItem("stripe_setup_return");
+    localStorage.removeItem("stripe_setup_return_path");
+    // Navigate to booking page
+    navigate("/booking");
+  };
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <header className="bg-primary text-primary-foreground py-4 px-4 safe-area-top">
@@ -23,10 +35,15 @@ export default function CardAdded() {
             <p className="text-muted-foreground text-lg">
               Your payment method has been saved successfully.
             </p>
-            <p className="text-xl font-medium text-primary">
-              Please return to the Birdies app to continue booking.
-            </p>
           </div>
+
+          <Button 
+            onClick={handleContinue}
+            size="lg"
+            className="w-full text-lg py-6"
+          >
+            Continue Booking
+          </Button>
         </div>
       </main>
     </div>
