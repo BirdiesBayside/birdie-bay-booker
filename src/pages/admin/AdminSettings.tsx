@@ -25,8 +25,10 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Pencil, Trash2, Settings, ShoppingCart, Bell, DollarSign, X, Copy, Check, Eye, BarChart3 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Plus, Pencil, Trash2, Settings, ShoppingCart, Bell, DollarSign, X, Copy, Check, Eye, BarChart3, AlertTriangle, Loader2 } from "lucide-react";
 import { SalesReporting } from "@/components/admin/SalesReporting";
+import { format } from "date-fns";
 
 // Template types and their available placeholder tags
 const TEMPLATE_TAGS: Record<string, { tag: string; description: string }[]> = {
@@ -123,6 +125,23 @@ interface CustomerProfile {
   custom_hourly_rate: number | null;
 }
 
+interface Bay {
+  id: string;
+  bay_number: number;
+  name: string;
+  is_active: boolean;
+}
+
+interface BayBooking {
+  id: string;
+  booking_date: string;
+  start_time: string;
+  end_time: string;
+  profiles: {
+    first_name: string;
+    last_name: string;
+  } | null;
+}
 
 export default function AdminSettings() {
   const { isAdmin, isLoading: authLoading } = useAdminAuth();
@@ -195,6 +214,12 @@ export default function AdminSettings() {
   const [selectedPricingCustomer, setSelectedPricingCustomer] = useState<CustomerProfile | null>(null);
   const [newCustomRate, setNewCustomRate] = useState("");
   const [isSavingRate, setIsSavingRate] = useState(false);
+
+  // Bay Management
+  const [bays, setBays] = useState<Bay[]>([]);
+  const [isLoadingBays, setIsLoadingBays] = useState(true);
+  const [bayBookings, setBayBookings] = useState<Record<string, BayBooking[]>>({});
+  const [togglingBay, setTogglingBay] = useState<string | null>(null);
 
 
   // Get unique families from products
@@ -301,8 +326,80 @@ export default function AdminSettings() {
     setIsSavingTemplate(false);
   };
 
+  // Fetch bays and their upcoming bookings
+  const fetchBays = async () => {
+    setIsLoadingBays(true);
+    const { data, error } = await supabase
+      .from("bays")
+      .select("id, bay_number, name, is_active")
+      .order("bay_number");
+
+    if (!error && data) {
+      setBays(data);
+      // Fetch upcoming bookings for each bay
+      const today = format(new Date(), "yyyy-MM-dd");
+      const bookingsMap: Record<string, BayBooking[]> = {};
+      
+      for (const bay of data) {
+        const { data: bookings } = await supabase
+          .from("bookings")
+          .select("id, booking_date, start_time, end_time, profiles!inner(first_name, last_name)")
+          .eq("bay_id", bay.id)
+          .eq("status", "confirmed")
+          .gte("booking_date", today)
+          .order("booking_date")
+          .order("start_time")
+          .limit(5);
+        
+        bookingsMap[bay.id] = (bookings || []) as unknown as BayBooking[];
+      }
+      setBayBookings(bookingsMap);
+    }
+    setIsLoadingBays(false);
+  };
+
+  const toggleBayStatus = async (bay: Bay) => {
+    // If trying to take offline, check for bookings
+    if (bay.is_active) {
+      const upcomingBookings = bayBookings[bay.id] || [];
+      if (upcomingBookings.length > 0) {
+        toast({
+          title: "Cannot take bay offline",
+          description: `${bay.name} has ${upcomingBookings.length} upcoming booking(s). Please move them to another bay first.`,
+          variant: "destructive",
+          duration: 5000,
+        });
+        return;
+      }
+    }
+
+    setTogglingBay(bay.id);
+    const { error } = await supabase
+      .from("bays")
+      .update({ is_active: !bay.is_active })
+      .eq("id", bay.id);
+
+    if (error) {
+      toast({
+        title: "Error updating bay",
+        description: error.message,
+        variant: "destructive",
+        duration: 4000,
+      });
+    } else {
+      toast({
+        title: bay.is_active ? "Bay taken offline" : "Bay brought online",
+        description: `${bay.name} is now ${bay.is_active ? "offline" : "online"}.`,
+        duration: 3000,
+      });
+      fetchBays();
+    }
+    setTogglingBay(null);
+  };
+
   useEffect(() => {
     if (isAdmin) {
+      fetchBays();
       fetchProducts();
       fetchCustomers();
       fetchEmailTemplates();
@@ -583,6 +680,88 @@ export default function AdminSettings() {
                     Contact support to modify operating hours
                   </p>
                 </div>
+              </CardContent>
+            </Card>
+
+            {/* Bay Management */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Bay Management</CardTitle>
+                <CardDescription>Control bay availability for customers. Take bays offline for maintenance.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {isLoadingBays ? (
+                  <div className="space-y-3">
+                    {[1, 2, 3].map((i) => (
+                      <Skeleton key={i} className="h-16" />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {bays.map((bay) => {
+                      const upcomingBookings = bayBookings[bay.id] || [];
+                      const hasBookings = upcomingBookings.length > 0;
+                      const isToggling = togglingBay === bay.id;
+
+                      return (
+                        <div
+                          key={bay.id}
+                          className={`p-4 border rounded-lg ${bay.is_active ? "bg-background" : "bg-muted/50"}`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className={`w-3 h-3 rounded-full ${bay.is_active ? "bg-green-500" : "bg-red-500"}`} />
+                              <div>
+                                <span className="font-medium">{bay.name}</span>
+                                <Badge variant={bay.is_active ? "default" : "secondary"} className="ml-2">
+                                  {bay.is_active ? "Online" : "Offline"}
+                                </Badge>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              {isToggling ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Switch
+                                  checked={bay.is_active}
+                                  onCheckedChange={() => toggleBayStatus(bay)}
+                                  disabled={isToggling}
+                                />
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Show warning if there are upcoming bookings and bay is online */}
+                          {bay.is_active && hasBookings && (
+                            <div className="mt-3 p-3 bg-amber-500/10 border border-amber-500/30 rounded-md">
+                              <div className="flex items-start gap-2">
+                                <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
+                                <div className="text-sm">
+                                  <p className="font-medium text-amber-600 dark:text-amber-400">
+                                    {upcomingBookings.length} upcoming booking{upcomingBookings.length > 1 ? "s" : ""}
+                                  </p>
+                                  <p className="text-muted-foreground text-xs mt-1">
+                                    Move bookings before taking offline:
+                                  </p>
+                                  <ul className="mt-1 space-y-1 text-xs text-muted-foreground">
+                                    {upcomingBookings.slice(0, 3).map((booking) => (
+                                      <li key={booking.id}>
+                                        {format(new Date(booking.booking_date), "EEE, d MMM")} at {booking.start_time.slice(0, 5)} - {booking.profiles?.first_name} {booking.profiles?.last_name}
+                                      </li>
+                                    ))}
+                                    {upcomingBookings.length > 3 && (
+                                      <li className="italic">...and {upcomingBookings.length - 3} more</li>
+                                    )}
+                                  </ul>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
