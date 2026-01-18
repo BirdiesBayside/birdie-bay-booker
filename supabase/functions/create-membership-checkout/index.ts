@@ -47,9 +47,10 @@ serve(async (req) => {
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
 
-    // Generate idempotency key based on user ID and tier to prevent duplicate subscriptions
-    // This key is valid for 24 hours in Stripe
-    const idempotencyKey = `membership_${user.id}_${tierKey}_${new Date().toISOString().split('T')[0]}`;
+    // Generate idempotency key to prevent duplicate subscriptions
+    // NOTE: include a version + priceId so changes in parameters don't collide with previous idempotent attempts
+    const dateKey = new Date().toISOString().split("T")[0];
+    const idempotencyKey = `membership_v2_${user.id}_${tierKey}_${priceId}_${dateKey}`;
     logStep("Using idempotency key", { idempotencyKey });
 
     // Check if customer already exists
