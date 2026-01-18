@@ -50,6 +50,7 @@ const fetchBays = async (): Promise<Bay[]> => {
   const { data, error } = await supabase
     .from("bays")
     .select("*")
+    .eq("is_active", true)
     .order("bay_number");
 
   if (error) throw error;
