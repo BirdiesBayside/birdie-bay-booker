@@ -89,13 +89,13 @@ Deno.serve(async (req) => {
           });
         }
 
-        // Get tournaments that have started or completed
-        const today = new Date().toISOString().split('T')[0];
+        // Get tournaments that have actually started (In Progress) or completed
+        // Upcoming tournaments should NOT appear until they are marked "In Progress"
         const { data: tournaments, error } = await supabase
           .from("sgt_tournaments")
           .select("tournament_id, name, course_name, start_date, end_date, status")
           .eq("tour_id", parseInt(tourId))
-          .or(`status.eq.Completed,status.eq.In Progress,start_date.lte.${today}`)
+          .or("status.eq.Completed,status.eq.In Progress")
           .order("start_date", { ascending: false });
 
         if (error) throw error;
