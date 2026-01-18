@@ -146,6 +146,7 @@ serve(async (req) => {
         },
       ],
       mode: "subscription",
+      discounts: [{ coupon: 'ScFMsNsB' }], // Launch promo - first week free
       success_url: `${origin}/membership?success=true&tier=${tierKey}`,
       cancel_url: `${origin}/membership?cancelled=true`,
       metadata: {
