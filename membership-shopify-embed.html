@@ -140,15 +140,20 @@
     
     /* Membership Grid */
     .membership-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      display: flex;
+      flex-direction: row;
       gap: 1.5rem;
       margin-bottom: 2rem;
     }
     
+    .membership-grid .membership-card {
+      flex: 1;
+      min-width: 0;
+    }
+    
     @media (max-width: 768px) {
       .membership-grid {
-        grid-template-columns: 1fr;
+        flex-direction: column;
       }
       
       .birdies-heading {
