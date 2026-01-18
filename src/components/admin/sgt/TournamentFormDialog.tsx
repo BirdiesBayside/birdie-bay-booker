@@ -79,9 +79,8 @@ const tournamentFormSchema = z.object({
   // Tournament settings
   numberrounds: z.number().min(1).max(4).default(1),
   registrationon: z.boolean().default(true),
-  statson: z.boolean().default(true),
+  statson: z.boolean().default(true), // Include in WGR & tour statistics
   clubcombo: z.boolean().default(true),
-  clubwgr: z.boolean().default(true), // Include in Club WGR rankings
   points: z.enum(POINTS_OPTIONS).default("Tour"),
   gameplay: z.enum(GAMEPLAY_OPTIONS).default("Normal"),
   stableford: z.boolean().default(false),
@@ -339,7 +338,6 @@ export function TournamentFormDialog({
       registrationon: true,
       statson: true,
       clubcombo: true,
-      clubwgr: true,
       points: "Tour",
       gameplay: "Normal",
       stableford: false,
@@ -411,10 +409,8 @@ export function TournamentFormDialog({
           tournamentname: tournament.name,
           tourId: tournament.tour_id.toString(),
           numberrounds: 1,
-          registrationon: true,
           statson: true,
           clubcombo: true,
-          clubwgr: true,
           points: "Tour",
           gameplay: "Normal",
           stableford: false,
@@ -440,10 +436,8 @@ export function TournamentFormDialog({
               tournamentname: details.tournamentname || details.tournament_name || tournament.name,
               tourId: (details.tourId || details.tour_id || tournament.tour_id).toString(),
               numberrounds: numRounds,
-              registrationon: details.registrationon === 1 || details.registration_on === 1 || details.registrationon === "1",
               statson: details.statson === 1 || details.stats_on === 1 || details.statson === "1",
               clubcombo: details.clubcombo === 1 || details.club_combo === 1 || details.clubcombo === "1",
-              clubwgr: details.clubwgr === 1 || details.club_wgr === 1 || details.clubwgr === "1" || details.clubwgr === undefined, // Default to true if not present
               points: (details.points || "Tour") as typeof POINTS_OPTIONS[number],
               gameplay: (details.gameplay || "Normal") as typeof GAMEPLAY_OPTIONS[number],
               stableford: details.stableford === 1 || details.stableford === "1",
@@ -489,7 +483,6 @@ export function TournamentFormDialog({
           registrationon: true,
           statson: true,
           clubcombo: true,
-          clubwgr: true,
           points: "Tour",
           gameplay: "Normal",
           stableford: false,
@@ -526,9 +519,8 @@ export function TournamentFormDialog({
         // Tournament settings
         numberrounds: values.numberrounds,
         registrationon: values.registrationon ? 1 : 0,
-        statson: values.statson ? 1 : 0,
+        statson: values.statson ? 1 : 0, // Include in WGR & tour statistics
         clubcombo: values.clubcombo ? 1 : 0,
-        clubwgr: values.clubwgr ? 1 : 0,
         points: values.points,
         gameplay: values.gameplay,
         stableford: values.stableford ? 1 : 0,
@@ -926,8 +918,8 @@ export function TournamentFormDialog({
                       render={({ field }) => (
                         <FormItem className="flex items-center justify-between rounded-lg border p-3">
                           <div className="space-y-0.5">
-                            <FormLabel>Include in Stats</FormLabel>
-                            <FormDescription className="text-xs">Count for HCP & standings</FormDescription>
+                            <FormLabel>Include in WGR & Stats</FormLabel>
+                            <FormDescription className="text-xs">Count for HCP, standings & Club WGR</FormDescription>
                           </div>
                           <FormControl>
                             <Switch checked={field.value} onCheckedChange={field.onChange} />
@@ -952,21 +944,6 @@ export function TournamentFormDialog({
                       )}
                     />
 
-                    <FormField
-                      control={form.control}
-                      name="clubwgr"
-                      render={({ field }) => (
-                        <FormItem className="flex items-center justify-between rounded-lg border p-3">
-                          <div className="space-y-0.5">
-                            <FormLabel>Include in Club WGR</FormLabel>
-                            <FormDescription className="text-xs">Count towards Club World Golf Ranking</FormDescription>
-                          </div>
-                          <FormControl>
-                            <Switch checked={field.value} onCheckedChange={field.onChange} />
-                          </FormControl>
-                        </FormItem>
-                      )}
-                    />
 
                     <FormField
                       control={form.control}

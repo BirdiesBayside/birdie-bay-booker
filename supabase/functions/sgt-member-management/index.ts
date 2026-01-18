@@ -627,9 +627,8 @@ serve(async (req) => {
           // Tournament settings
           numberrounds: (numberrounds ?? 1).toString(),
           registrationon: (registrationon ?? 1).toString(),
-          statson: (statson ?? 1).toString(),
+          statson: (statson ?? 1).toString(), // Include in WGR & tour statistics
           clubcombo: (clubcombo ?? 1).toString(),
-          clubwgr: (clubwgr ?? 1).toString(), // Include in Club WGR
           points: points ?? "Tour",
           gameplay: gameplay ?? "Normal",
           stableford: (stableford ?? 0).toString(),
@@ -809,9 +808,8 @@ serve(async (req) => {
           // Tournament settings
           numberrounds: (numberrounds ?? 1).toString(),
           registrationon: (registrationon ?? 1).toString(),
-          statson: (statson ?? 1).toString(),
+          statson: (statson ?? 1).toString(), // Include in WGR & tour statistics
           clubcombo: (clubcombo ?? 1).toString(),
-          clubwgr: (clubwgr ?? 1).toString(), // Include in Club WGR
           points: points ?? "Tour",
           gameplay: gameplay ?? "Normal",
           stableford: (stableford ?? 0).toString(),
