@@ -108,7 +108,7 @@ serve(async (req) => {
           customer: customerId,
           items: [{ price: priceId }],
           default_payment_method: defaultPaymentMethod,
-          coupon: 'ScFMsNsB', // Launch promo - first week free
+          discounts: [{ coupon: 'ScFMsNsB' }], // Launch promo - first week free
           metadata: {
             user_id: user.id,
             tier_key: tierKey,
