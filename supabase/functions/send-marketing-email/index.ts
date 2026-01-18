@@ -154,6 +154,128 @@ const buildEmailTemplate = (heading: string, bodyContent: string, ctaButton?: { 
 </html>`;
 };
 
+// Background task to send all emails
+async function sendEmailsInBackground(
+  campaign_id: string,
+  subject: string,
+  html_content: string,
+  recipients: Recipient[]
+) {
+  console.log(`[BACKGROUND] Starting email send for campaign ${campaign_id} to ${recipients.length} recipients`);
+  
+  // Check if the template contains {reset_link} - if so, we need to generate reset links
+  const needsResetLink = html_content.includes('{reset_link}');
+  console.log(`[BACKGROUND] Template needs reset links: ${needsResetLink}`);
+
+  // Initialize Supabase admin client if we need to generate reset links
+  let supabaseAdmin: any = null;
+  if (needsResetLink) {
+    supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+      { auth: { persistSession: false } }
+    );
+  }
+
+  // Also create admin client to update campaign status
+  const supabaseForUpdate = createClient(
+    Deno.env.get("SUPABASE_URL") ?? "",
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+    { auth: { persistSession: false } }
+  );
+
+  let successCount = 0;
+  let failCount = 0;
+
+  // Process in larger batches for efficiency (Resend batch API supports up to 100 emails)
+  const batchSize = 50;
+  
+  for (let i = 0; i < recipients.length; i += batchSize) {
+    const batch = recipients.slice(i, i + batchSize);
+    console.log(`[BACKGROUND] Processing batch ${Math.floor(i / batchSize) + 1} of ${Math.ceil(recipients.length / batchSize)}`);
+    
+    // Prepare all emails in this batch
+    const emailPromises = batch.map(async (recipient) => {
+      try {
+        // Generate reset link if needed
+        let resetLink: string | undefined;
+        if (needsResetLink && supabaseAdmin) {
+          const link = await generateResetLink(supabaseAdmin, recipient.email);
+          if (link) {
+            resetLink = link;
+          } else {
+            // If we can't generate a reset link, use a fallback URL with forgot=true
+            resetLink = "https://hub.birdiesbayside.com.au/?forgot=true";
+            console.warn(`[BACKGROUND] Using fallback URL for ${recipient.email}`);
+          }
+        }
+
+        const personalizedContent = replaceTemplateTags(html_content, recipient, resetLink);
+        const personalizedSubject = replaceTemplateTags(subject, recipient);
+        
+        // Wrap the marketing content in branded template
+        const bodyContent = `
+            <div style="font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25;">
+              ${personalizedContent}
+            </div>
+        `;
+        
+        const brandedHtml = buildEmailTemplate(personalizedSubject, bodyContent, {
+          text: "Book Now",
+          url: "https://hub.birdiesbayside.com.au/booking"
+        });
+
+        return {
+          from: "Birdies Bayside <info@birdiesbayside.com.au>",
+          to: [recipient.email],
+          subject: personalizedSubject,
+          html: brandedHtml,
+        };
+      } catch (error) {
+        console.error(`[BACKGROUND] Error preparing email for ${recipient.email}:`, error);
+        return null;
+      }
+    });
+
+    const preparedEmails = (await Promise.all(emailPromises)).filter(e => e !== null);
+    
+    // Send each email individually (Resend batch API requires different format)
+    for (const emailData of preparedEmails) {
+      try {
+        await resend.emails.send(emailData);
+        successCount++;
+      } catch (error) {
+        failCount++;
+        console.error(`[BACKGROUND] Failed to send to ${emailData.to}:`, error);
+      }
+    }
+    
+    console.log(`[BACKGROUND] Batch complete. Progress: ${successCount + failCount}/${recipients.length}`);
+    
+    // Small delay between batches to avoid rate limits
+    if (i + batchSize < recipients.length) {
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
+  }
+
+  console.log(`[BACKGROUND] Campaign ${campaign_id} completed. Success: ${successCount}, Failed: ${failCount}`);
+
+  // Update campaign status in database
+  try {
+    await supabaseForUpdate
+      .from("marketing_campaigns")
+      .update({
+        status: "sent",
+        sent_at: new Date().toISOString(),
+        recipient_count: successCount,
+      })
+      .eq("id", campaign_id);
+    console.log(`[BACKGROUND] Campaign status updated in database`);
+  } catch (error) {
+    console.error(`[BACKGROUND] Failed to update campaign status:`, error);
+  }
+}
+
 const handler = async (req: Request): Promise<Response> => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
@@ -163,99 +285,47 @@ const handler = async (req: Request): Promise<Response> => {
   try {
     const { campaign_id, subject, html_content, recipients }: MarketingEmailRequest = await req.json();
 
-    console.log(`Starting marketing email campaign: ${campaign_id}`);
-    console.log(`Recipients count: ${recipients.length}`);
+    console.log(`[SEND-MARKETING-EMAIL] Starting campaign: ${campaign_id}`);
+    console.log(`[SEND-MARKETING-EMAIL] Recipients count: ${recipients.length}`);
 
-    // Check if the template contains {reset_link} - if so, we need to generate reset links
-    const needsResetLink = html_content.includes('{reset_link}');
-    console.log(`Template needs reset links: ${needsResetLink}`);
-
-    // Initialize Supabase admin client if we need to generate reset links
-    let supabaseAdmin: any = null;
-    if (needsResetLink) {
-      supabaseAdmin = createClient(
-        Deno.env.get("SUPABASE_URL") ?? "",
-        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-        { auth: { persistSession: false } }
+    // Use EdgeRuntime.waitUntil to process emails in background
+    // This allows us to return immediately while emails are sent
+    // @ts-ignore - EdgeRuntime is available in Supabase Edge Functions
+    if (typeof EdgeRuntime !== "undefined" && EdgeRuntime.waitUntil) {
+      // @ts-ignore
+      EdgeRuntime.waitUntil(sendEmailsInBackground(campaign_id, subject, html_content, recipients));
+      
+      console.log(`[SEND-MARKETING-EMAIL] Background task started, returning immediately`);
+      
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: `Sending ${recipients.length} emails in background`,
+          queued: recipients.length
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        }
+      );
+    } else {
+      // Fallback for environments without EdgeRuntime.waitUntil
+      console.log(`[SEND-MARKETING-EMAIL] EdgeRuntime.waitUntil not available, processing synchronously`);
+      await sendEmailsInBackground(campaign_id, subject, html_content, recipients);
+      
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          sent: recipients.length
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        }
       );
     }
-
-    let successCount = 0;
-    let failCount = 0;
-
-    // Send emails in batches to avoid rate limits
-    const batchSize = 10;
-    for (let i = 0; i < recipients.length; i += batchSize) {
-      const batch = recipients.slice(i, i + batchSize);
-      
-      const promises = batch.map(async (recipient) => {
-        try {
-          // Generate reset link if needed
-          let resetLink: string | undefined;
-          if (needsResetLink && supabaseAdmin) {
-            const link = await generateResetLink(supabaseAdmin, recipient.email);
-            if (link) {
-              resetLink = link;
-            } else {
-              // If we can't generate a reset link, use a fallback URL
-              resetLink = "https://hub.birdiesbayside.com.au";
-              console.warn(`Using fallback URL for ${recipient.email} - reset link generation failed`);
-            }
-          }
-
-          const personalizedContent = replaceTemplateTags(html_content, recipient, resetLink);
-          const personalizedSubject = replaceTemplateTags(subject, recipient);
-          
-          // Wrap the marketing content in branded template
-          const bodyContent = `
-              <div style="font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25;">
-                ${personalizedContent}
-              </div>
-          `;
-          
-          const brandedHtml = buildEmailTemplate(personalizedSubject, bodyContent, {
-            text: "Book Now",
-            url: "https://hub.birdiesbayside.com.au/booking"
-          });
-          
-          await resend.emails.send({
-            from: "Birdies Bayside <info@birdiesbayside.com.au>",
-            to: [recipient.email],
-            subject: personalizedSubject,
-            html: brandedHtml,
-          });
-          
-          successCount++;
-          console.log(`Email sent to: ${recipient.email}`);
-        } catch (error) {
-          failCount++;
-          console.error(`Failed to send to ${recipient.email}:`, error);
-        }
-      });
-
-      await Promise.all(promises);
-      
-      // Small delay between batches to avoid rate limits
-      if (i + batchSize < recipients.length) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-    }
-
-    console.log(`Campaign ${campaign_id} completed. Success: ${successCount}, Failed: ${failCount}`);
-
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        sent: successCount, 
-        failed: failCount 
-      }),
-      {
-        status: 200,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
-      }
-    );
   } catch (error: any) {
-    console.error("Error in send-marketing-email function:", error);
+    console.error("[SEND-MARKETING-EMAIL] Error:", error);
     return new Response(
       JSON.stringify({ error: error.message }),
       {
