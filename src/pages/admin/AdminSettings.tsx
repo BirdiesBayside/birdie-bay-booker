@@ -343,7 +343,7 @@ export default function AdminSettings() {
       for (const bay of data) {
         const { data: bookings } = await supabase
           .from("bookings")
-          .select("id, booking_date, start_time, end_time, profiles!inner(first_name, last_name)")
+          .select("id, booking_date, start_time, end_time, user_id")
           .eq("bay_id", bay.id)
           .eq("status", "confirmed")
           .gte("booking_date", today)
@@ -351,7 +351,26 @@ export default function AdminSettings() {
           .order("start_time")
           .limit(5);
         
-        bookingsMap[bay.id] = (bookings || []) as unknown as BayBooking[];
+        // Fetch profile info for each booking
+        const bookingsWithProfiles: BayBooking[] = [];
+        if (bookings) {
+          for (const booking of bookings) {
+            const { data: profile } = await supabase
+              .from("profiles")
+              .select("first_name, last_name")
+              .eq("user_id", booking.user_id)
+              .single();
+            
+            bookingsWithProfiles.push({
+              id: booking.id,
+              booking_date: booking.booking_date,
+              start_time: booking.start_time,
+              end_time: booking.end_time,
+              profiles: profile || null,
+            });
+          }
+        }
+        bookingsMap[bay.id] = bookingsWithProfiles;
       }
       setBayBookings(bookingsMap);
     }
