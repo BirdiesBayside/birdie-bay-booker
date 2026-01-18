@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { Resend } from "https://esm.sh/resend@2.0.0";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
@@ -22,11 +23,43 @@ interface MarketingEmailRequest {
 }
 
 // Replace template tags with actual values
-function replaceTemplateTags(html: string, recipient: Recipient): string {
-  return html
+function replaceTemplateTags(html: string, recipient: Recipient, resetLink?: string): string {
+  let result = html
     .replace(/{first_name}/g, recipient.first_name || "there")
     .replace(/{last_name}/g, recipient.last_name || "")
     .replace(/{email}/g, recipient.email || "");
+  
+  // Replace reset_link if provided
+  if (resetLink) {
+    result = result.replace(/{reset_link}/g, resetLink);
+  }
+  
+  return result;
+}
+
+// Generate password reset link for a user
+async function generateResetLink(supabaseAdmin: any, email: string): Promise<string | null> {
+  try {
+    const siteUrl = Deno.env.get("SITE_URL") || "https://hub.birdiesbayside.com.au";
+    
+    const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+      type: "recovery",
+      email: email,
+      options: {
+        redirectTo: `${siteUrl}/reset-password`,
+      },
+    });
+
+    if (linkError) {
+      console.error(`Error generating reset link for ${email}:`, linkError.message);
+      return null;
+    }
+
+    return linkData.properties.action_link;
+  } catch (error) {
+    console.error(`Exception generating reset link for ${email}:`, error);
+    return null;
+  }
 }
 
 // Build branded email wrapper
@@ -133,6 +166,20 @@ const handler = async (req: Request): Promise<Response> => {
     console.log(`Starting marketing email campaign: ${campaign_id}`);
     console.log(`Recipients count: ${recipients.length}`);
 
+    // Check if the template contains {reset_link} - if so, we need to generate reset links
+    const needsResetLink = html_content.includes('{reset_link}');
+    console.log(`Template needs reset links: ${needsResetLink}`);
+
+    // Initialize Supabase admin client if we need to generate reset links
+    let supabaseAdmin: any = null;
+    if (needsResetLink) {
+      supabaseAdmin = createClient(
+        Deno.env.get("SUPABASE_URL") ?? "",
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+        { auth: { persistSession: false } }
+      );
+    }
+
     let successCount = 0;
     let failCount = 0;
 
@@ -143,7 +190,20 @@ const handler = async (req: Request): Promise<Response> => {
       
       const promises = batch.map(async (recipient) => {
         try {
-          const personalizedContent = replaceTemplateTags(html_content, recipient);
+          // Generate reset link if needed
+          let resetLink: string | undefined;
+          if (needsResetLink && supabaseAdmin) {
+            const link = await generateResetLink(supabaseAdmin, recipient.email);
+            if (link) {
+              resetLink = link;
+            } else {
+              // If we can't generate a reset link, use a fallback URL
+              resetLink = "https://hub.birdiesbayside.com.au";
+              console.warn(`Using fallback URL for ${recipient.email} - reset link generation failed`);
+            }
+          }
+
+          const personalizedContent = replaceTemplateTags(html_content, recipient, resetLink);
           const personalizedSubject = replaceTemplateTags(subject, recipient);
           
           // Wrap the marketing content in branded template
