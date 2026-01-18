@@ -6,8 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Eye, EyeOff, Lock, Check, AlertCircle, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Lock, Check, AlertCircle, Loader2, Mail } from "lucide-react";
 import birdieLogo from "@/assets/birdies-logo.png";
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 export default function ResetPassword() {
   const navigate = useNavigate();
@@ -19,6 +21,9 @@ export default function ResetPassword() {
   const [isValidating, setIsValidating] = useState(true);
   const [isValidSession, setIsValidSession] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [resetEmail, setResetEmail] = useState("");
+  const [isRequestingLink, setIsRequestingLink] = useState(false);
+  const [linkRequested, setLinkRequested] = useState(false);
 
   useEffect(() => {
     const handleTokenExchange = async () => {
@@ -184,20 +189,115 @@ export default function ResetPassword() {
     );
   }
 
-  // Error state
+  const handleRequestNewLink = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!resetEmail) {
+      toast.error("Please enter your email address");
+      return;
+    }
+
+    setIsRequestingLink(true);
+
+    try {
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/send-password-reset`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email: resetEmail }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to send reset link");
+      }
+
+      setLinkRequested(true);
+      toast.success("Password reset link sent! Check your email.");
+    } catch (error: any) {
+      console.error("Request new link error:", error);
+      toast.error(error.message || "Failed to send reset link");
+    } finally {
+      setIsRequestingLink(false);
+    }
+  };
+
+  // Error state with request new link option
   if (errorMessage) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md">
-          <CardContent className="pt-6 text-center">
+          <CardHeader className="text-center">
+            <img src={birdieLogo} alt="Birdies" className="h-12 mx-auto mb-4" />
             <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center mx-auto mb-4">
               <AlertCircle className="h-8 w-8 text-destructive" />
             </div>
-            <h2 className="text-xl font-display uppercase tracking-wide mb-2">Link Expired</h2>
-            <p className="text-muted-foreground mb-6">{errorMessage}</p>
-            <Button onClick={() => navigate("/")} variant="outline">
-              Go to Login
-            </Button>
+            <CardTitle className="font-display text-xl uppercase tracking-wide">
+              {linkRequested ? "Check Your Email" : "Link Expired"}
+            </CardTitle>
+            <CardDescription>
+              {linkRequested 
+                ? "We've sent you a new password reset link. Please check your inbox."
+                : errorMessage
+              }
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {linkRequested ? (
+              <div className="text-center">
+                <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
+                  <Check className="h-8 w-8 text-green-600" />
+                </div>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Didn't receive the email? Check your spam folder or try again.
+                </p>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setLinkRequested(false)}
+                  className="w-full"
+                >
+                  Request Another Link
+                </Button>
+              </div>
+            ) : (
+              <form onSubmit={handleRequestNewLink} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="resetEmail">Email Address</Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="resetEmail"
+                      type="email"
+                      value={resetEmail}
+                      onChange={(e) => setResetEmail(e.target.value)}
+                      placeholder="Enter your email"
+                      className="pl-10"
+                      required
+                    />
+                  </div>
+                </div>
+                <Button type="submit" className="w-full" disabled={isRequestingLink}>
+                  {isRequestingLink ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Sending...
+                    </>
+                  ) : (
+                    "Request New Link"
+                  )}
+                </Button>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  className="w-full"
+                  onClick={() => navigate("/")}
+                >
+                  Back to Login
+                </Button>
+              </form>
+            )}
           </CardContent>
         </Card>
       </div>
