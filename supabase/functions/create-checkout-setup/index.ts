@@ -38,13 +38,23 @@ serve(async (req) => {
       apiVersion: "2025-08-27.basil",
     });
 
-    // Check if customer already exists
+    // Check if customer already exists, or create one
     const customers = await stripe.customers.list({ email: user.email, limit: 1 });
-    let customerId: string | undefined;
+    let customerId: string;
 
     if (customers.data.length > 0) {
       customerId = customers.data[0].id;
       logStep("Found existing customer", { customerId });
+    } else {
+      // Create new customer so the payment method is properly attached
+      const newCustomer = await stripe.customers.create({
+        email: user.email,
+        metadata: {
+          supabase_user_id: user.id,
+        },
+      });
+      customerId = newCustomer.id;
+      logStep("Created new customer", { customerId });
     }
 
     const origin = req.headers.get("origin") || "https://hub.birdiesbayside.com.au";
@@ -68,7 +78,6 @@ serve(async (req) => {
     // Create a Checkout session in setup mode to save card
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
-      customer_email: customerId ? undefined : user.email,
       mode: "setup",
       payment_method_types: ["card"],
       success_url: successUrl,
