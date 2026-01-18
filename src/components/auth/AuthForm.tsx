@@ -147,11 +147,14 @@ export function AuthForm({ defaultToSignUp = false }: AuthFormProps) {
 
         if (error) {
           if (error.message.includes("already registered")) {
+            // Auto-redirect to forgot password with email pre-filled
+            setIsForgotPassword(true);
+            setIsLoading(false);
             toast({
-              title: "Account exists",
-              description: "This email is already registered. Please sign in instead.",
-              variant: "destructive",
+              title: "You already have an account!",
+              description: "Just set your password below to get started.",
             });
+            return;
           } else {
             toast({
               title: "Sign up failed",
