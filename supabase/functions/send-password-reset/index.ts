@@ -38,7 +38,7 @@ serve(async (req) => {
 
     // Generate a password recovery link using Supabase Admin API
     // Use the SITE_URL environment variable or fall back to the published URL
-    const siteUrl = Deno.env.get("SITE_URL") || "https://birdie-bay-bookings.lovable.app";
+    const siteUrl = Deno.env.get("SITE_URL") || "https://hub.birdiesbayside.com.au";
     
     const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
       type: "recovery",
