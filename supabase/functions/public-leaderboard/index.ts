@@ -89,13 +89,20 @@ Deno.serve(async (req) => {
           });
         }
 
-        // Get tournaments that have actually started (In Progress) or completed
-        // Upcoming tournaments should NOT appear until they are marked "In Progress"
+        // Get current date in Brisbane timezone (AEST/AEDT)
+        const brisbaneNow = new Date().toLocaleString("en-AU", { timeZone: "Australia/Brisbane" });
+        const brisbaneParts = brisbaneNow.split(/[/,\s:]+/);
+        // Format: DD/MM/YYYY, HH:MM:SS AM/PM -> YYYY-MM-DD
+        const brisbaneToday = `${brisbaneParts[2]}-${brisbaneParts[1].padStart(2, '0')}-${brisbaneParts[0].padStart(2, '0')}`;
+        console.log(`[PUBLIC-LEADERBOARD] Brisbane today: ${brisbaneToday}`);
+
+        // Get tournaments that have actually started (start_date <= today) or completed
         const { data: tournaments, error } = await supabase
           .from("sgt_tournaments")
           .select("tournament_id, name, course_name, start_date, end_date, status")
           .eq("tour_id", parseInt(tourId))
           .or("status.eq.Completed,status.eq.In Progress")
+          .lte("start_date", brisbaneToday)
           .order("start_date", { ascending: false });
 
         if (error) throw error;
