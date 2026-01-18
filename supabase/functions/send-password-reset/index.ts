@@ -37,11 +37,14 @@ serve(async (req) => {
     logStep("Generating password reset link", { email });
 
     // Generate a password recovery link using Supabase Admin API
+    // Use the SITE_URL environment variable or fall back to the published URL
+    const siteUrl = Deno.env.get("SITE_URL") || "https://birdie-bay-bookings.lovable.app";
+    
     const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
       type: "recovery",
       email: email,
       options: {
-        redirectTo: redirectUrl || `${req.headers.get("origin")}/reset-password`,
+        redirectTo: redirectUrl || `${siteUrl}/reset-password`,
       },
     });
 
