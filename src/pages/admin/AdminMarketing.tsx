@@ -82,6 +82,12 @@ const BOOKING_OPTIONS = [
   { value: "10+", label: "10+ Bookings" },
 ];
 
+const SEGMENT_OPTIONS = [
+  { value: "all", label: "All Customers" },
+  { value: "hub_launch_missed", label: "Hub Launch Missed (622)" },
+  { value: "none", label: "No Segment Only" },
+];
+
 export default function AdminMarketing() {
   const { isLoading: authLoading, isAdmin } = useAdminAuth();
   const { toast } = useToast();
@@ -99,6 +105,7 @@ export default function AdminMarketing() {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
   const [membershipFilter, setMembershipFilter] = useState("all");
   const [bookingFilter, setBookingFilter] = useState("all");
+  const [segmentFilter, setSegmentFilter] = useState("all");
   const [recipientCount, setRecipientCount] = useState(0);
   const [isSending, setIsSending] = useState(false);
   const [isCountingRecipients, setIsCountingRecipients] = useState(false);
@@ -118,7 +125,7 @@ export default function AdminMarketing() {
     if (composerOpen) {
       countRecipients();
     }
-  }, [membershipFilter, bookingFilter, composerOpen]);
+  }, [membershipFilter, bookingFilter, segmentFilter, composerOpen]);
 
   const fetchCampaigns = async () => {
     setIsLoading(true);
@@ -156,6 +163,13 @@ export default function AdminMarketing() {
     if (membershipFilter !== "all") {
       query = query.eq("membership_tier", membershipFilter as "visitor" | "weekday" | "birdie" | "eagle");
     }
+
+    // Apply segment filter
+    if (segmentFilter === "hub_launch_missed") {
+      query = query.eq("custom_segment", "hub_launch_missed");
+    } else if (segmentFilter === "none") {
+      query = query.is("custom_segment", null);
+    }
     
     const { count, error } = await query;
     
@@ -182,6 +196,7 @@ export default function AdminMarketing() {
     setSelectedTemplateId(template?.id || "");
     setMembershipFilter("all");
     setBookingFilter("all");
+    setSegmentFilter("all");
     setComposerOpen(true);
   };
 
@@ -245,6 +260,13 @@ export default function AdminMarketing() {
       
       if (membershipFilter !== "all") {
         recipientQuery = recipientQuery.eq("membership_tier", membershipFilter as "visitor" | "weekday" | "birdie" | "eagle");
+      }
+
+      // Apply segment filter
+      if (segmentFilter === "hub_launch_missed") {
+        recipientQuery = recipientQuery.eq("custom_segment", "hub_launch_missed");
+      } else if (segmentFilter === "none") {
+        recipientQuery = recipientQuery.is("custom_segment", null);
       }
 
       const { data: recipients, error: recipientError } = await recipientQuery;
@@ -553,7 +575,23 @@ export default function AdminMarketing() {
               <div className="space-y-3 p-4 bg-muted/50 rounded-lg">
                 <Label className="text-base font-medium">Recipients</Label>
                 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Custom Segment</Label>
+                    <Select value={segmentFilter} onValueChange={setSegmentFilter}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SEGMENT_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
                   <div className="space-y-1">
                     <Label className="text-xs">Membership Tier</Label>
                     <Select value={membershipFilter} onValueChange={setMembershipFilter}>
