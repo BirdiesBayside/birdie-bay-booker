@@ -103,10 +103,12 @@ serve(async (req) => {
         }
 
         // Create subscription directly using saved payment method with idempotency key
+        // Launch promo: Apply coupon for first week free
         const subscription = await stripe.subscriptions.create({
           customer: customerId,
           items: [{ price: priceId }],
           default_payment_method: defaultPaymentMethod,
+          coupon: 'ScFMsNsB', // Launch promo - first week free
           metadata: {
             user_id: user.id,
             tier_key: tierKey,
