@@ -132,9 +132,9 @@
     text-wrap: balance;
   }
 
-  /* iOS Safe Area padding */
+  /* iOS Safe Area padding - with fallback for Safari web */
   .safe-area-top {
-    padding-top: env(safe-area-inset-top);
+    padding-top: max(0.5rem, env(safe-area-inset-top, 0px));
   }
   
   .safe-area-bottom {
