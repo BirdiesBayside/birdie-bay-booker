@@ -107,132 +107,144 @@ export default function AdminDashboard() {
     }
   };
 
-  useEffect(() => {
-    const fetchStats = async () => {
-      setLoadingStats(true);
-      
-      // Fetch bookings based on filter
-      const bookingsRange = getDateRange(bookingsFilter);
-      const { data: bookingsData } = await supabase
-        .from('bookings')
-        .select('total_price, duration_hours, status')
-        .gte('booking_date', bookingsRange.start)
-        .lte('booking_date', bookingsRange.end)
-        .neq('status', 'cancelled');
+  const fetchStats = async (showLoading = true) => {
+    if (showLoading) setLoadingStats(true);
+    
+    // Fetch bookings based on filter
+    const bookingsRange = getDateRange(bookingsFilter);
+    const { data: bookingsData } = await supabase
+      .from('bookings')
+      .select('total_price, duration_hours, status')
+      .gte('booking_date', bookingsRange.start)
+      .lte('booking_date', bookingsRange.end)
+      .neq('status', 'cancelled');
 
-      const bookings = bookingsData?.length || 0;
+    const bookings = bookingsData?.length || 0;
 
-      // Fetch revenue based on filter
-      const revenueRange = getDateRange(revenueFilter);
-      const { data: revenueData } = await supabase
-        .from('bookings')
-        .select('total_price')
-        .gte('booking_date', revenueRange.start)
-        .lte('booking_date', revenueRange.end)
-        .neq('status', 'cancelled');
+    // Fetch revenue based on filter
+    const revenueRange = getDateRange(revenueFilter);
+    const { data: revenueData } = await supabase
+      .from('bookings')
+      .select('total_price')
+      .gte('booking_date', revenueRange.start)
+      .lte('booking_date', revenueRange.end)
+      .neq('status', 'cancelled');
 
-      const revenue = revenueData?.reduce((sum, b) => sum + Number(b.total_price), 0) || 0;
+    const revenue = revenueData?.reduce((sum, b) => sum + Number(b.total_price), 0) || 0;
 
-      // Fetch occupancy based on filter
-      const occupancyRange = getDateRange(occupancyFilter);
-      const { data: occupancyData } = await supabase
-        .from('bookings')
-        .select('duration_hours')
-        .gte('booking_date', occupancyRange.start)
-        .lte('booking_date', occupancyRange.end)
-        .neq('status', 'cancelled');
+    // Fetch occupancy based on filter
+    const occupancyRange = getDateRange(occupancyFilter);
+    const { data: occupancyData } = await supabase
+      .from('bookings')
+      .select('duration_hours')
+      .gte('booking_date', occupancyRange.start)
+      .lte('booking_date', occupancyRange.end)
+      .neq('status', 'cancelled');
 
-      const days = getDaysInRange(occupancyFilter);
-      const totalHoursAvailable = 6 * 18 * days; // 6 bays * 18 hours * days
-      const bookedHours = occupancyData?.reduce((sum, b) => sum + b.duration_hours, 0) || 0;
-      const occupancy = totalHoursAvailable > 0 ? Math.round((bookedHours / totalHoursAvailable) * 100) : 0;
+    const days = getDaysInRange(occupancyFilter);
+    const totalHoursAvailable = 6 * 18 * days; // 6 bays * 18 hours * days
+    const bookedHours = occupancyData?.reduce((sum, b) => sum + b.duration_hours, 0) || 0;
+    const occupancy = totalHoursAvailable > 0 ? Math.round((bookedHours / totalHoursAvailable) * 100) : 0;
 
-      // Fetch member count based on tier filter
-      let membersQuery = supabase
+    // Fetch member count based on tier filter
+    let membersQuery = supabase
+      .from('profiles')
+      .select('membership_tier')
+      .neq('membership_tier', 'visitor');
+    
+    if (memberTierFilter !== "all") {
+      membersQuery = supabase
         .from('profiles')
         .select('membership_tier')
-        .neq('membership_tier', 'visitor');
-      
-      if (memberTierFilter !== "all") {
-        membersQuery = supabase
-          .from('profiles')
-          .select('membership_tier')
-          .eq('membership_tier', memberTierFilter);
-      }
-      
-      const { data: members } = await membersQuery;
-      const memberCount = members?.length || 0;
+        .eq('membership_tier', memberTierFilter);
+    }
+    
+    const { data: members } = await membersQuery;
+    const memberCount = members?.length || 0;
 
-      // Calculate member revenue based on filter
-      const weeklyFees: Record<string, number> = {
-        weekday: 15,
-        birdie: 27,
-        eagle: 35,
-      };
-      
-      const { data: allMembers } = await supabase
-        .from('profiles')
-        .select('membership_tier')
-        .neq('membership_tier', 'visitor');
-
-      const weeklyTotal = allMembers?.reduce((sum, m) => {
-        const fee = weeklyFees[m.membership_tier as string] || 0;
-        return sum + fee;
-      }, 0) || 0;
-
-      let memberRevenue = weeklyTotal;
-      if (memberRevenueFilter === "monthly") {
-        memberRevenue = weeklyTotal * 4;
-      } else if (memberRevenueFilter === "quarterly") {
-        memberRevenue = weeklyTotal * 13;
-      }
-
-      // Calculate MoM growth
-      const today = new Date();
-      const todayStr = format(today, 'yyyy-MM-dd');
-      const currentDay = today.getDate();
-      const currentMonthStart = format(new Date(today.getFullYear(), today.getMonth(), 1), 'yyyy-MM-dd');
-      const lastMonthStart = format(new Date(today.getFullYear(), today.getMonth() - 1, 1), 'yyyy-MM-dd');
-      const lastMonthSameDay = format(new Date(today.getFullYear(), today.getMonth() - 1, currentDay), 'yyyy-MM-dd');
-
-      const { data: currentMonthBookings } = await supabase
-        .from('bookings')
-        .select('duration_hours')
-        .gte('booking_date', currentMonthStart)
-        .lte('booking_date', todayStr)
-        .neq('status', 'cancelled');
-
-      const { data: lastMonthBookings } = await supabase
-        .from('bookings')
-        .select('duration_hours')
-        .gte('booking_date', lastMonthStart)
-        .lte('booking_date', lastMonthSameDay)
-        .neq('status', 'cancelled');
-
-      const currentMonthHours = currentMonthBookings?.reduce((sum, b) => sum + b.duration_hours, 0) || 0;
-      const lastMonthHours = lastMonthBookings?.reduce((sum, b) => sum + b.duration_hours, 0) || 0;
-      
-      let momGrowth = 0;
-      if (lastMonthHours > 0) {
-        momGrowth = Math.round(((currentMonthHours - lastMonthHours) / lastMonthHours) * 100);
-      } else if (currentMonthHours > 0) {
-        momGrowth = 100;
-      }
-
-      setStats({
-        bookings,
-        revenue,
-        occupancy,
-        memberCount,
-        memberRevenue,
-        momGrowth,
-      });
-      setLoadingStats(false);
+    // Calculate member revenue based on filter
+    const weeklyFees: Record<string, number> = {
+      weekday: 15,
+      birdie: 27,
+      eagle: 35,
     };
+    
+    const { data: allMembers } = await supabase
+      .from('profiles')
+      .select('membership_tier')
+      .neq('membership_tier', 'visitor');
 
+    const weeklyTotal = allMembers?.reduce((sum, m) => {
+      const fee = weeklyFees[m.membership_tier as string] || 0;
+      return sum + fee;
+    }, 0) || 0;
+
+    let memberRevenue = weeklyTotal;
+    if (memberRevenueFilter === "monthly") {
+      memberRevenue = weeklyTotal * 4;
+    } else if (memberRevenueFilter === "quarterly") {
+      memberRevenue = weeklyTotal * 13;
+    }
+
+    // Calculate MoM growth
+    const today = new Date();
+    const todayStr = format(today, 'yyyy-MM-dd');
+    const currentDay = today.getDate();
+    const currentMonthStart = format(new Date(today.getFullYear(), today.getMonth(), 1), 'yyyy-MM-dd');
+    const lastMonthStart = format(new Date(today.getFullYear(), today.getMonth() - 1, 1), 'yyyy-MM-dd');
+    const lastMonthSameDay = format(new Date(today.getFullYear(), today.getMonth() - 1, currentDay), 'yyyy-MM-dd');
+
+    const { data: currentMonthBookings } = await supabase
+      .from('bookings')
+      .select('duration_hours')
+      .gte('booking_date', currentMonthStart)
+      .lte('booking_date', todayStr)
+      .neq('status', 'cancelled');
+
+    const { data: lastMonthBookings } = await supabase
+      .from('bookings')
+      .select('duration_hours')
+      .gte('booking_date', lastMonthStart)
+      .lte('booking_date', lastMonthSameDay)
+      .neq('status', 'cancelled');
+
+    const currentMonthHours = currentMonthBookings?.reduce((sum, b) => sum + b.duration_hours, 0) || 0;
+    const lastMonthHours = lastMonthBookings?.reduce((sum, b) => sum + b.duration_hours, 0) || 0;
+    
+    let momGrowth = 0;
+    if (lastMonthHours > 0) {
+      momGrowth = Math.round(((currentMonthHours - lastMonthHours) / lastMonthHours) * 100);
+    } else if (currentMonthHours > 0) {
+      momGrowth = 100;
+    }
+
+    setStats({
+      bookings,
+      revenue,
+      occupancy,
+      memberCount,
+      memberRevenue,
+      momGrowth,
+    });
+    setLoadingStats(false);
+  };
+
+  // Fetch stats on mount and when filters change
+  useEffect(() => {
     if (isAdmin) {
       fetchStats();
     }
+  }, [isAdmin, bookingsFilter, revenueFilter, occupancyFilter, memberTierFilter, memberRevenueFilter]);
+
+  // Auto-refresh every 30 seconds (silent refresh - no loading indicator)
+  useEffect(() => {
+    if (!isAdmin) return;
+    
+    const interval = setInterval(() => {
+      fetchStats(false);
+    }, 30000);
+    
+    return () => clearInterval(interval);
   }, [isAdmin, bookingsFilter, revenueFilter, occupancyFilter, memberTierFilter, memberRevenueFilter]);
 
   if (isLoading) {
