@@ -347,68 +347,75 @@ export default function AdminPOS() {
         // Poll for payment status
         let attempts = 0;
         const maxAttempts = 30; // 1 minute timeout (30 * 2 seconds)
-        let hasSeenProcessing = false; // Track if payment is actively being processed
+        let lastStatus = '';
 
         const checkStatus = async () => {
-          const { data: statusData } = await supabase.functions.invoke('stripe-terminal', {
-            body: { action: 'check_payment_status', paymentIntentId },
-          });
-
-          if (statusData?.paid) {
-            clearInterval(countdownInterval);
-            await saveTransaction(method, paymentIntentId);
-            setShowPaymentDialog(false);
-            setTerminalPaymentIntentId(null);
-            setTerminalCountdown(null);
-            clearCart();
-            setIsProcessing(false);
-            // Show success toast AFTER clearing state so it's visible
-            toast.success("Payment successful!", {
-              description: `$${total.toFixed(2)} paid via card terminal`,
-              duration: 5000,
+          try {
+            const { data: statusData, error: statusError } = await supabase.functions.invoke('stripe-terminal', {
+              body: { action: 'check_payment_status', paymentIntentId },
             });
-            return;
-          }
 
-          // Track if we've seen the payment start processing (card presented)
-          if (statusData?.status === 'processing') {
-            hasSeenProcessing = true;
-          }
+            if (statusError) {
+              console.error('Status check error:', statusError);
+              // Continue polling on error
+              attempts++;
+              if (attempts < maxAttempts) {
+                setTimeout(checkStatus, 2000);
+              }
+              return;
+            }
 
-          // Only show error if payment was explicitly cancelled (not just waiting)
-          // or if it failed AFTER processing started
-          if (statusData?.status === 'canceled') {
-            clearInterval(countdownInterval);
-            toast.error("Payment was cancelled");
-            setTerminalPaymentIntentId(null);
-            setTerminalCountdown(null);
-            setIsProcessing(false);
-            return;
-          }
+            console.log('Payment status:', statusData);
+            lastStatus = statusData?.status || '';
 
-          // If payment failed after processing started, show error
-          if (statusData?.status === 'requires_payment_method' && hasSeenProcessing) {
-            clearInterval(countdownInterval);
-            toast.error("Payment failed - card declined or error");
-            setTerminalPaymentIntentId(null);
-            setTerminalCountdown(null);
-            setIsProcessing(false);
-            return;
-          }
+            if (statusData?.paid) {
+              clearInterval(countdownInterval);
+              await saveTransaction(method, paymentIntentId);
+              setShowPaymentDialog(false);
+              setTerminalPaymentIntentId(null);
+              setTerminalCountdown(null);
+              clearCart();
+              setIsProcessing(false);
+              // Show success toast AFTER clearing state so it's visible
+              toast.success("Payment successful!", {
+                description: `$${total.toFixed(2)} paid via card terminal`,
+                duration: 5000,
+              });
+              return;
+            }
 
-          attempts++;
-          if (attempts < maxAttempts) {
-            setTimeout(checkStatus, 2000);
-          } else {
-            clearInterval(countdownInterval);
-            // Cancel the reader action on timeout
-            await supabase.functions.invoke('stripe-terminal', {
-              body: { action: 'cancel_reader_action' },
-            });
-            toast.error("Payment timed out");
-            setTerminalPaymentIntentId(null);
-            setTerminalCountdown(null);
-            setIsProcessing(false);
+            // Only show error if payment was explicitly cancelled
+            if (statusData?.status === 'canceled') {
+              clearInterval(countdownInterval);
+              toast.error("Payment was cancelled");
+              setTerminalPaymentIntentId(null);
+              setTerminalCountdown(null);
+              setIsProcessing(false);
+              return;
+            }
+
+            // Continue polling for any other status (requires_payment_method, processing, etc.)
+            attempts++;
+            if (attempts < maxAttempts) {
+              setTimeout(checkStatus, 2000);
+            } else {
+              clearInterval(countdownInterval);
+              // Cancel the reader action on timeout
+              await supabase.functions.invoke('stripe-terminal', {
+                body: { action: 'cancel_reader_action' },
+              });
+              toast.error("Payment timed out");
+              setTerminalPaymentIntentId(null);
+              setTerminalCountdown(null);
+              setIsProcessing(false);
+            }
+          } catch (err) {
+            console.error('Polling error:', err);
+            // Continue polling on error
+            attempts++;
+            if (attempts < maxAttempts) {
+              setTimeout(checkStatus, 2000);
+            }
           }
         };
 
