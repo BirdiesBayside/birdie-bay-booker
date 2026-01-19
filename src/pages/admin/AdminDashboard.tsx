@@ -121,16 +121,28 @@ export default function AdminDashboard() {
 
     const bookings = bookingsData?.length || 0;
 
-    // Fetch revenue based on filter
+    // Fetch revenue based on filter (Bookings + POS, excluding memberships)
     const revenueRange = getDateRange(revenueFilter);
-    const { data: revenueData } = await supabase
+    const { data: bookingRevenueData } = await supabase
       .from('bookings')
       .select('total_price')
       .gte('booking_date', revenueRange.start)
       .lte('booking_date', revenueRange.end)
       .neq('status', 'cancelled');
 
-    const revenue = revenueData?.reduce((sum, b) => sum + Number(b.total_price), 0) || 0;
+    const bookingRevenue = bookingRevenueData?.reduce((sum, b) => sum + Number(b.total_price), 0) || 0;
+
+    // Fetch POS revenue for the same period
+    const { data: posRevenueData } = await supabase
+      .from('pos_transactions')
+      .select('total')
+      .gte('created_at', `${revenueRange.start}T00:00:00`)
+      .lte('created_at', `${revenueRange.end}T23:59:59`)
+      .eq('status', 'completed');
+
+    const posRevenue = posRevenueData?.reduce((sum, t) => sum + Number(t.total), 0) || 0;
+
+    const revenue = bookingRevenue + posRevenue;
 
     // Fetch occupancy based on filter
     const occupancyRange = getDateRange(occupancyFilter);
