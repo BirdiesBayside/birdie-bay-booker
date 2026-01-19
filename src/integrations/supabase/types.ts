@@ -1216,6 +1216,7 @@ export type Database = {
       }
     }
     Functions: {
+      cleanup_stale_pending_bookings: { Args: never; Returns: number }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
