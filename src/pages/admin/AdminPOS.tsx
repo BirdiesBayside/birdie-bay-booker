@@ -683,14 +683,14 @@ export default function AdminPOS() {
                 </div>
               ) : selectedFamily === 'categories' ? (
                 /* Category Selection View */
-                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                   {ALL_FAMILIES.map(family => {
                     const productCount = products.filter(p => p.family === family).length;
                     return (
                       <button
                         key={family}
                         onClick={() => setSelectedFamily(family)}
-                        className="aspect-square bg-card border rounded-lg p-4 flex flex-col items-center justify-center text-center active:bg-muted transition-colors"
+                        className="bg-card border rounded-lg p-6 flex flex-col items-center justify-center text-center active:bg-muted transition-colors min-h-[120px]"
                       >
                         <span className="font-display text-lg uppercase tracking-wide">{family}</span>
                         <span className="text-muted-foreground text-base mt-1">
@@ -708,12 +708,12 @@ export default function AdminPOS() {
                 </div>
               ) : (
                 /* Products Grid */
-                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                   {filteredProducts.map(product => (
                     <button
                       key={product.id}
                       onClick={() => addToCart(product)}
-                      className="aspect-square bg-card border rounded-lg p-4 flex flex-col items-center justify-center text-center active:bg-muted transition-colors"
+                      className="bg-card border rounded-lg p-6 flex flex-col items-center justify-center text-center active:bg-muted transition-colors min-h-[120px]"
                     >
                       <span className="font-medium text-lg line-clamp-2">{product.name}</span>
                       <span className="text-primary font-bold text-xl mt-2">${product.price.toFixed(2)}</span>
