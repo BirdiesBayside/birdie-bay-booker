@@ -224,29 +224,33 @@ export default function Booking() {
       return;
     }
 
-    // If paying with balance and have enough, proceed
+    // If paying with balance and have enough, proceed directly (no pending needed)
     if (selectedPaymentMethod === "balance" && depositBalance >= totalPrice) {
       handleConfirmBooking("balance");
       return;
     }
 
-    // For card payment, check if they have a saved card
-    if (!savedCard && !isLoadingSavedCard) {
-      // Create pending booking FIRST to lock the slot
-      setIsSubmitting(true);
-      const newPendingBookingId = await createPendingReservation();
+    // ALWAYS create a pending booking first to lock the slot
+    setIsSubmitting(true);
+    const newPendingBookingId = await createPendingReservation();
+    
+    if (!newPendingBookingId) {
       setIsSubmitting(false);
-      
-      if (newPendingBookingId) {
-        setPendingBookingId(newPendingBookingId);
-        localStorage.setItem(PENDING_BOOKING_KEY, newPendingBookingId);
-        setShowNoCardDialog(true);
-      }
+      return; // Error already shown in createPendingReservation
+    }
+    
+    setPendingBookingId(newPendingBookingId);
+    localStorage.setItem(PENDING_BOOKING_KEY, newPendingBookingId);
+
+    // If no saved card, show the add card dialog
+    if (!savedCard && !isLoadingSavedCard) {
+      setIsSubmitting(false);
+      setShowNoCardDialog(true);
       return;
     }
 
-    // Has saved card - proceed with booking
-    handleConfirmBooking("card", usePartialBalance);
+    // Has saved card - complete the pending booking immediately
+    await completePendingBooking(newPendingBookingId);
   };
 
   // Complete a pending booking after card is added

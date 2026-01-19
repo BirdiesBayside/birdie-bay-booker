@@ -230,13 +230,13 @@ export default function AdminTimetable() {
     
     const dateStr = format(selectedDate, "yyyy-MM-dd");
 
-    // Fetch bookings and blocks in parallel
+    // Fetch bookings (both confirmed AND pending) and blocks in parallel
     const [bookingsResult, blocksResult] = await Promise.all([
       supabase
         .from("bookings")
         .select("*")
         .eq("booking_date", dateStr)
-        .eq("status", "confirmed")
+        .in("status", ["confirmed", "pending"])
         .order("start_time"),
       supabase
         .from("bay_blocks")
@@ -764,24 +764,37 @@ export default function AdminTimetable() {
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setSelectedBooking(booking);
+                                  // Only allow clicking on confirmed bookings
+                                  if (booking.status === 'confirmed') {
+                                    setSelectedBooking(booking);
+                                  }
                                 }}
-                                className="absolute inset-x-0.5 top-0.5 rounded-sm bg-primary border border-primary/40 px-1.5 py-0.5 text-left hover:bg-primary/90 transition-colors z-10 overflow-hidden"
+                                className={`absolute inset-x-0.5 top-0.5 rounded-sm border px-1.5 py-0.5 text-left transition-colors z-10 overflow-hidden ${
+                                  booking.status === 'pending'
+                                    ? "bg-muted/60 border-muted-foreground/30 cursor-default"
+                                    : "bg-primary border-primary/40 hover:bg-primary/90"
+                                }`}
                                 style={{
                                   height: `calc(${getBookingSlotSpan(booking) * SLOT_HEIGHT}px - 4px)`,
                                 }}
                               >
-                                {/* Payment Status Indicator */}
+                                {/* Payment/Status Indicator */}
                                 <div className={`absolute top-1 right-1 w-2.5 h-2.5 rounded-full border border-white/30 ${
-                                  isBookingPaid(booking) 
-                                    ? "bg-green-400" 
-                                    : "bg-red-400"
-                                }`} title={isBookingPaid(booking) ? "Paid" : "Unpaid"} />
+                                  booking.status === 'pending'
+                                    ? "bg-amber-400"
+                                    : isBookingPaid(booking) 
+                                      ? "bg-green-400" 
+                                      : "bg-red-400"
+                                }`} title={booking.status === 'pending' ? "Pending Payment" : isBookingPaid(booking) ? "Paid" : "Unpaid"} />
                                 
-                                <p className="text-[10px] font-medium text-primary-foreground truncate leading-tight pr-4">
-                                  {booking.profile?.first_name} {booking.profile?.last_name}
+                                <p className={`text-[10px] font-medium truncate leading-tight pr-4 ${
+                                  booking.status === 'pending' ? "text-muted-foreground" : "text-primary-foreground"
+                                }`}>
+                                  {booking.status === 'pending' ? "Processing..." : `${booking.profile?.first_name} ${booking.profile?.last_name}`}
                                 </p>
-                                <p className="text-[9px] text-primary-foreground/70 truncate leading-tight">
+                                <p className={`text-[9px] truncate leading-tight ${
+                                  booking.status === 'pending' ? "text-muted-foreground/70" : "text-primary-foreground/70"
+                                }`}>
                                   {formatTime(booking.start_time)} - {formatTime(booking.end_time)}
                                 </p>
                               </button>
