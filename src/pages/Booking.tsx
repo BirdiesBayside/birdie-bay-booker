@@ -33,6 +33,7 @@ const MEMBERSHIP_DISPLAY: Record<string, string> = {
 };
 
 const CARD_SETUP_PENDING_KEY = "bb:cardSetupPending";
+const PENDING_BOOKING_KEY = "bb:pendingBookingId";
 
 export default function Booking() {
   const navigate = useNavigate();
@@ -64,12 +65,18 @@ export default function Booking() {
   const [showNoCardDialog, setShowNoCardDialog] = useState(false);
   const [isOpeningStripe, setIsOpeningStripe] = useState(false);
   const [isRedirectingToStripe, setIsRedirectingToStripe] = useState(false);
+  const [pendingBookingId, setPendingBookingId] = useState<string | null>(null);
+  
   // If iOS reloads the app after going to Safari, reopen the dialog so the user can
   // hit Close to refresh their saved card.
   useEffect(() => {
+    const storedPendingBookingId = localStorage.getItem(PENDING_BOOKING_KEY);
     if (localStorage.getItem(CARD_SETUP_PENDING_KEY) === "1") {
       setShowNoCardDialog(true);
       setIsRedirectingToStripe(true);
+      if (storedPendingBookingId) {
+        setPendingBookingId(storedPendingBookingId);
+      }
     }
   }, []);
 
@@ -145,7 +152,61 @@ export default function Booking() {
     setSelectedPlayers(players);
   };
 
-  const handleConfirmClick = () => {
+  // Create a pending booking to lock the slot before redirecting to add card
+  const createPendingReservation = async (): Promise<string | null> => {
+    if (!selectedDate || !selectedTime || !selectedBayId) return null;
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      
+      const currentHourlyRate = getHourlyRate(userMembershipTier, selectedDate, selectedTime);
+      const totalPrice = currentHourlyRate * selectedDuration;
+      
+      const startHour = parseInt(selectedTime.split(":")[0]);
+      const startMinute = parseInt(selectedTime.split(":")[1]);
+      const endHour = startHour + selectedDuration;
+      const endTime = `${endHour.toString().padStart(2, "0")}:${startMinute.toString().padStart(2, "0")}`;
+      
+      const { data: bookingData, error } = await supabase
+        .from("bookings")
+        .insert({
+          user_id: user.id,
+          bay_id: selectedBayId,
+          booking_date: format(selectedDate, "yyyy-MM-dd"),
+          start_time: selectedTime,
+          end_time: endTime,
+          duration_hours: selectedDuration,
+          hourly_rate: currentHourlyRate,
+          total_price: totalPrice,
+          player_count: selectedPlayers,
+          payment_method: "pending",
+          status: "pending",
+        })
+        .select()
+        .single();
+      
+      if (error) {
+        // Check if it's a slot conflict
+        if (error.message?.includes("no longer available")) {
+          toast({
+            title: "Slot Unavailable",
+            description: "This time slot was just booked. Please select a different time or bay.",
+            variant: "destructive",
+          });
+          fetchBookingsForDate(selectedDate);
+        }
+        throw error;
+      }
+      
+      return bookingData.id;
+    } catch (error: any) {
+      console.error("Failed to create pending reservation:", error);
+      return null;
+    }
+  };
+
+  const handleConfirmClick = async () => {
     if (!selectedDate || !selectedTime || !selectedBayId) {
       toast({
         title: "Missing selection",
@@ -171,7 +232,16 @@ export default function Booking() {
 
     // For card payment, check if they have a saved card
     if (!savedCard && !isLoadingSavedCard) {
-      setShowNoCardDialog(true);
+      // Create pending booking FIRST to lock the slot
+      setIsSubmitting(true);
+      const newPendingBookingId = await createPendingReservation();
+      setIsSubmitting(false);
+      
+      if (newPendingBookingId) {
+        setPendingBookingId(newPendingBookingId);
+        localStorage.setItem(PENDING_BOOKING_KEY, newPendingBookingId);
+        setShowNoCardDialog(true);
+      }
       return;
     }
 
@@ -179,12 +249,113 @@ export default function Booking() {
     handleConfirmBooking("card", usePartialBalance);
   };
 
-  const handleCloseCardDialog = () => {
+  // Complete a pending booking after card is added
+  const completePendingBooking = async (bookingId: string) => {
+    try {
+      setIsSubmitting(true);
+      
+      // First verify the booking still exists and is pending
+      const { data: booking, error: fetchError } = await supabase
+        .from("bookings")
+        .select("*")
+        .eq("id", bookingId)
+        .eq("status", "pending")
+        .single();
+      
+      if (fetchError || !booking) {
+        throw new Error("Booking reservation expired. Please try again.");
+      }
+      
+      // Get bay name for description
+      const bay = bays.find(b => b.id === booking.bay_id);
+      const bayName = bay?.name || "Bay";
+      const bookingDate = new Date(booking.booking_date);
+      const description = `${bayName} - ${format(bookingDate, "PPP")} at ${booking.start_time} (${booking.duration_hours}hr)`;
+      
+      // Charge the booking
+      const { data: chargeResult, error: chargeError } = await supabase.functions.invoke("charge-booking", {
+        body: {
+          bookingId: bookingId,
+          amount: booking.total_price,
+          description,
+        },
+      });
+
+      if (chargeError) {
+        throw new Error(chargeError.message || "Payment failed");
+      }
+
+      if (chargeResult.error) {
+        throw new Error(chargeResult.error);
+      }
+
+      if (chargeResult.requiresCheckout) {
+        // Redirect to Stripe checkout
+        window.location.href = chargeResult.checkoutUrl;
+        return;
+      }
+      
+      // Payment successful - send notification
+      try {
+        await supabase.functions.invoke("send-booking-notification", {
+          body: {
+            booking_id: bookingId,
+            notification_type: "confirmation",
+          },
+        });
+      } catch (notificationError) {
+        console.error("Failed to send booking notification:", notificationError);
+      }
+
+      toast({
+        title: "Booking confirmed!",
+        description: `Your bay is booked for ${format(bookingDate, "PPP")} at ${booking.start_time}.`,
+      });
+      navigate("/dashboard");
+    } catch (error: any) {
+      toast({
+        title: "Booking failed",
+        description: error.message || "Unable to complete booking. Please try again.",
+        variant: "destructive",
+      });
+      // Clean up the pending booking
+      if (bookingId) {
+        await supabase.from("bookings").delete().eq("id", bookingId).eq("status", "pending");
+      }
+    } finally {
+      setIsSubmitting(false);
+      localStorage.removeItem(PENDING_BOOKING_KEY);
+      setPendingBookingId(null);
+    }
+  };
+
+  const handleCloseCardDialog = async () => {
     setShowNoCardDialog(false);
     setIsOpeningStripe(false);
     setIsRedirectingToStripe(false);
-    // Refresh saved card data in case they added one
-    refetchSavedCard();
+    
+    // Refresh saved card data
+    const { data: refreshedCard } = await refetchSavedCard();
+    
+    // If we have a pending booking and user now has a card, complete it
+    const storedBookingId = pendingBookingId || localStorage.getItem(PENDING_BOOKING_KEY);
+    if (storedBookingId && refreshedCard) {
+      await completePendingBooking(storedBookingId);
+    } else if (storedBookingId && !refreshedCard) {
+      // User didn't add a card - clean up the pending booking
+      toast({
+        title: "Booking cancelled",
+        description: "Card not added. Your slot reservation has been released.",
+        variant: "destructive",
+      });
+      await supabase.from("bookings").delete().eq("id", storedBookingId).eq("status", "pending");
+      localStorage.removeItem(PENDING_BOOKING_KEY);
+      setPendingBookingId(null);
+      // Refresh availability
+      if (selectedDate) {
+        fetchBookingsForDate(selectedDate);
+      }
+    }
   };
 
   const handleConfirmBooking = async (paymentMethod: PaymentMethod, applyPartialBalance: boolean = false) => {
