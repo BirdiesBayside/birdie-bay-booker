@@ -71,15 +71,17 @@ serve(async (req) => {
 
       case "bookings":
       default: {
-        // Update device status
-        await supabase
+        // Update device status and get current control_mode
+        const { data: deviceData } = await supabase
           .from("bay_devices")
           .upsert({
             bay_id: bay.id,
             is_online: true,
             last_seen: new Date().toISOString(),
             app_version: appVersion,
-          }, { onConflict: "bay_id" });
+          }, { onConflict: "bay_id" })
+          .select("control_mode")
+          .single();
 
         // Get timezone from system settings
         const { data: settings } = await supabase
@@ -208,6 +210,7 @@ serve(async (req) => {
               name: bay.name,
             },
             bookings: bookingsWithNames,
+            control_mode: deviceData?.control_mode || 'auto',
             server_time: new Date().toISOString(),
           }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
