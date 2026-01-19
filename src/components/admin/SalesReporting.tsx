@@ -46,7 +46,7 @@ export function SalesReporting() {
   const [isExporting, setIsExporting] = useState(false);
 
   // Filters
-  const [datePreset, setDatePreset] = useState<DatePreset>("last7");
+  const [datePreset, setDatePreset] = useState<DatePreset>("today");
   const [customStartDate, setCustomStartDate] = useState("");
   const [customEndDate, setCustomEndDate] = useState("");
   const [saleType, setSaleType] = useState<SaleType>("all");
