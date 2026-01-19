@@ -613,6 +613,14 @@ export default function BayController() {
 
       setBookings(data.bookings || []);
       setConnectionStatus("connected");
+      
+      // Sync control_mode from server response (reliable fallback if realtime fails)
+      if (data.control_mode) {
+        const isManual = data.control_mode === 'manual';
+        setManualOverride(isManual);
+        console.log(`Synced control mode from API: ${data.control_mode}`);
+      }
+      
       console.log(`Fetched ${data.bookings?.length || 0} bookings for bay ${selectedBay}`);
     } catch (error) {
       console.error("Failed to fetch bookings:", error);
