@@ -87,12 +87,29 @@ serve(async (req) => {
       if (!paymentIntentId) throw new Error("Payment intent ID required");
 
       const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
-      logStep("Payment status checked", { status: paymentIntent.status });
+      
+      // Also check the reader status to see if action is still in progress
+      let readerStatus = null;
+      try {
+        const reader = await stripe.terminal.readers.retrieve(readerId);
+        readerStatus = reader.action?.status;
+        logStep("Reader status", { readerStatus, actionType: reader.action?.type });
+      } catch (e) {
+        logStep("Could not get reader status", { error: String(e) });
+      }
+      
+      logStep("Payment status checked", { 
+        status: paymentIntent.status, 
+        readerStatus,
+        amount: paymentIntent.amount,
+        id: paymentIntent.id 
+      });
 
       return new Response(JSON.stringify({
         success: true,
         status: paymentIntent.status,
         paid: paymentIntent.status === "succeeded",
+        readerStatus,
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 200,
