@@ -885,7 +885,7 @@ async function runAppLaunchSequence(config) {
     // Wait for ProTee United VX window to appear before launching Protee Labs
     // This ensures Protee Labs connector can see the GSPRO API window
     console.log('Step 2: Waiting for ProTee United VX API window to appear before launching Protee Labs...');
-    const maxWaitForApiWindow = 60000; // 60 second timeout
+    const maxWaitForApiWindow = 30000; // 30 second timeout - keeps sessions on schedule
     const apiWaitStartTime = Date.now();
     let apiWindowFound = false;
     
