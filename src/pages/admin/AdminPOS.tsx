@@ -347,6 +347,7 @@ export default function AdminPOS() {
         // Poll for payment status
         let attempts = 0;
         const maxAttempts = 30; // 1 minute timeout (30 * 2 seconds)
+        let hasSeenProcessing = false; // Track if payment is actively being processed
 
         const checkStatus = async () => {
           const { data: statusData } = await supabase.functions.invoke('stripe-terminal', {
@@ -356,18 +357,39 @@ export default function AdminPOS() {
           if (statusData?.paid) {
             clearInterval(countdownInterval);
             await saveTransaction(method, paymentIntentId);
-            toast.success("Payment successful!");
             setShowPaymentDialog(false);
             setTerminalPaymentIntentId(null);
             setTerminalCountdown(null);
             clearCart();
             setIsProcessing(false);
+            // Show success toast AFTER clearing state so it's visible
+            toast.success("Payment successful!", {
+              description: `$${total.toFixed(2)} paid via card terminal`,
+              duration: 5000,
+            });
             return;
           }
 
-          if (statusData?.status === 'canceled' || statusData?.status === 'requires_payment_method') {
+          // Track if we've seen the payment start processing (card presented)
+          if (statusData?.status === 'processing') {
+            hasSeenProcessing = true;
+          }
+
+          // Only show error if payment was explicitly cancelled (not just waiting)
+          // or if it failed AFTER processing started
+          if (statusData?.status === 'canceled') {
             clearInterval(countdownInterval);
-            toast.error("Payment was cancelled or failed");
+            toast.error("Payment was cancelled");
+            setTerminalPaymentIntentId(null);
+            setTerminalCountdown(null);
+            setIsProcessing(false);
+            return;
+          }
+
+          // If payment failed after processing started, show error
+          if (statusData?.status === 'requires_payment_method' && hasSeenProcessing) {
+            clearInterval(countdownInterval);
+            toast.error("Payment failed - card declined or error");
             setTerminalPaymentIntentId(null);
             setTerminalCountdown(null);
             setIsProcessing(false);
@@ -771,24 +793,35 @@ export default function AdminPOS() {
               <span>Card Terminal</span>
             </Button>
           </div>
-          {isProcessing && (
-            <div className="text-center py-4 space-y-3">
-              <p className="text-muted-foreground">Processing payment...</p>
+          {isProcessing && terminalPaymentIntentId && (
+            <div className="text-center py-6 space-y-4 border-t mt-4">
+              <div className="flex items-center justify-center gap-3">
+                <div className="animate-pulse">
+                  <CreditCard className="h-10 w-10 text-primary" />
+                </div>
+                <div className="text-left">
+                  <p className="font-medium text-lg">Awaiting tap or insert...</p>
+                  <p className="text-sm text-muted-foreground">Present card on terminal</p>
+                </div>
+              </div>
               {terminalCountdown !== null && (
-                <div className="text-2xl font-bold text-primary">
+                <div className="text-3xl font-bold text-primary">
                   {Math.floor(terminalCountdown / 60)}:{(terminalCountdown % 60).toString().padStart(2, '0')}
                 </div>
               )}
-              {terminalPaymentIntentId && (
-                <Button
-                  variant="destructive"
-                  onClick={handleCancelTerminal}
-                  className="w-full"
-                >
-                  <X className="h-4 w-4 mr-2" />
-                  Cancel Payment
-                </Button>
-              )}
+              <Button
+                variant="destructive"
+                onClick={handleCancelTerminal}
+                className="w-full"
+              >
+                <X className="h-4 w-4 mr-2" />
+                Cancel Payment
+              </Button>
+            </div>
+          )}
+          {isProcessing && !terminalPaymentIntentId && (
+            <div className="text-center py-4">
+              <p className="text-muted-foreground">Processing payment...</p>
             </div>
           )}
         </DialogContent>
