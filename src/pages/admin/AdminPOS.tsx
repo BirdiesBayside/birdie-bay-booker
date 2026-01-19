@@ -676,21 +676,21 @@ export default function AdminPOS() {
             {/* Main Content */}
             <div className="flex-1 overflow-y-auto">
               {loadingProducts ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-3 gap-6 w-full">
                   {[...Array(6)].map((_, i) => (
-                    <Skeleton key={i} className="aspect-square" />
+                    <Skeleton key={i} className="h-32" />
                   ))}
                 </div>
               ) : selectedFamily === 'categories' ? (
                 /* Category Selection View */
-              <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-3 gap-6 w-full">
                   {ALL_FAMILIES.map(family => {
                     const productCount = products.filter(p => p.family === family).length;
                     return (
                       <button
                         key={family}
                         onClick={() => setSelectedFamily(family)}
-                        className="bg-card border rounded-lg p-6 flex flex-col items-center justify-center text-center active:bg-muted transition-colors min-h-[120px]"
+                        className="w-full bg-card border rounded-lg p-8 flex flex-col items-center justify-center text-center active:bg-muted transition-colors min-h-[140px]"
                       >
                         <span className="font-display text-lg uppercase tracking-wide">{family}</span>
                         <span className="text-muted-foreground text-base mt-1">
@@ -708,12 +708,12 @@ export default function AdminPOS() {
                 </div>
               ) : (
                 /* Products Grid */
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-3 gap-6 w-full">
                   {filteredProducts.map(product => (
                     <button
                       key={product.id}
                       onClick={() => addToCart(product)}
-                      className="bg-card border rounded-lg p-6 flex flex-col items-center justify-center text-center active:bg-muted transition-colors min-h-[120px]"
+                      className="w-full bg-card border rounded-lg p-8 flex flex-col items-center justify-center text-center active:bg-muted transition-colors min-h-[140px]"
                     >
                       <span className="font-medium text-lg line-clamp-2">{product.name}</span>
                       <span className="text-primary font-bold text-xl mt-2">${product.price.toFixed(2)}</span>
