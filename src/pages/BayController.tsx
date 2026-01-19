@@ -1409,7 +1409,81 @@ export default function BayController() {
     }
   }, [currentTime, bookings, preStartMinutes, manualOverride, calculateShouldPlugsBeOn]);
 
-  // Resume auto function - checks current booking state and controls plugs accordingly
+  // PRECISION SCHEDULER: Schedule exact timeouts for upcoming booking transitions
+  // This ensures plugs turn on/off at the exact second rather than waiting for next poll
+  const scheduledTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
+  
+  useEffect(() => {
+    if (manualOverride || !isElectron) return;
+    
+    const now = new Date();
+    const today = format(now, "yyyy-MM-dd");
+    const todaysBookings = bookings.filter(b => 
+      b.booking_date === today && (b.status === 'confirmed' || b.status === 'pending')
+    );
+    
+    // Clear old timeouts that are no longer relevant
+    scheduledTimeoutsRef.current.forEach((timeout, key) => {
+      const [bookingId] = key.split('-');
+      if (!todaysBookings.find(b => b.id === bookingId)) {
+        clearTimeout(timeout);
+        scheduledTimeoutsRef.current.delete(key);
+      }
+    });
+    
+    // Schedule precise timeouts for each booking transition
+    for (const booking of todaysBookings) {
+      const startTime = parseISO(`${booking.booking_date}T${booking.start_time}`);
+      const endTime = parseISO(`${booking.booking_date}T${booking.end_time}`);
+      const preStartTime = addMinutes(startTime, -preStartMinutes);
+      
+      // Schedule plug ON at pre-start time
+      const preStartKey = `${booking.id}-prestart`;
+      const msUntilPreStart = preStartTime.getTime() - now.getTime();
+      
+      if (msUntilPreStart > 0 && msUntilPreStart < 300000 && !scheduledTimeoutsRef.current.has(preStartKey)) {
+        // Only schedule if within 5 minutes and not already scheduled
+        console.log(`[PrecisionScheduler] Scheduling plug ON for booking ${booking.id} in ${Math.round(msUntilPreStart / 1000)}s`);
+        const timeout = setTimeout(() => {
+          console.log(`[PrecisionScheduler] EXECUTING: Turning ON plugs for booking ${booking.id}`);
+          if (!manualOverride) {
+            turnOnPlugs(false, false);
+          }
+          scheduledTimeoutsRef.current.delete(preStartKey);
+        }, msUntilPreStart);
+        scheduledTimeoutsRef.current.set(preStartKey, timeout);
+      }
+      
+      // Schedule plug OFF at end time (only if no back-to-back booking)
+      const hasNextBooking = todaysBookings.some(b => 
+        b.id !== booking.id && b.start_time === booking.end_time
+      );
+      
+      if (!hasNextBooking) {
+        const endKey = `${booking.id}-end`;
+        const msUntilEnd = endTime.getTime() - now.getTime();
+        
+        if (msUntilEnd > 0 && msUntilEnd < 300000 && !scheduledTimeoutsRef.current.has(endKey)) {
+          // Only schedule if within 5 minutes and not already scheduled
+          console.log(`[PrecisionScheduler] Scheduling plug OFF for booking ${booking.id} in ${Math.round(msUntilEnd / 1000)}s`);
+          const timeout = setTimeout(() => {
+            console.log(`[PrecisionScheduler] EXECUTING: Turning OFF plugs after booking ${booking.id}`);
+            if (!manualOverride) {
+              turnOffPlugs(false, false);
+            }
+            scheduledTimeoutsRef.current.delete(endKey);
+          }, msUntilEnd);
+          scheduledTimeoutsRef.current.set(endKey, timeout);
+        }
+      }
+    }
+    
+    // Cleanup function to clear all timeouts when component unmounts or deps change
+    return () => {
+      scheduledTimeoutsRef.current.forEach((timeout) => clearTimeout(timeout));
+    };
+  }, [bookings, preStartMinutes, manualOverride, isElectron]);
+
   const resumeAuto = useCallback(async () => {
     console.log('Resuming auto control...');
     console.log('Current bookings count:', bookings.length);
@@ -1560,34 +1634,43 @@ export default function BayController() {
       
       const newStatus = { monitor: false, projector: false };
       
-      for (const plug of bayPlugs) {
+      // PARALLEL plug control - send all commands simultaneously for faster response
+      const plugPromises = bayPlugs.map(async (plug) => {
         // Validate plug data
         if (!plug.ip || typeof plug.ip !== 'string' || plug.ip.trim() === '') {
           console.error(`Invalid IP for plug ${plug.name}:`, plug);
           if (showToast) toast.error(`Invalid IP address for ${plug.name || 'plug'}`);
-          continue;
+          return { plug, success: false, error: 'Invalid IP' };
         }
         
         const cleanIp = plug.ip.trim();
         console.log(`Attempting to turn ON plug: ${plug.name} (${plug.type}) at ${cleanIp}`);
-        console.log(`Using credentials: email=${tapoEmail}, password=${tapoPassword ? '***' : 'MISSING'}`);
         
         try {
           const result = await window.electronAPI.controlPlug(tapoEmail, tapoPassword, cleanIp, 'on');
           console.log(`Control result for ${plug.name}:`, result);
-          if (!result.success) {
-            if (showToast) toast.error(`Failed to turn on ${plug.name}: ${result.error}`);
-          } else {
-            if (showToast) toast.success(`Turned ON: ${plug.name}`);
-            newStatus[plug.type] = true;
-          }
+          return { plug, success: result.success, error: result.error };
         } catch (error) {
           console.error(`Failed to turn on ${plug.name}:`, error);
-          if (showToast) toast.error(`Error controlling ${plug.name}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          return { plug, success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+        }
+      });
+      
+      // Wait for all plug commands to complete in parallel
+      const results = await Promise.all(plugPromises);
+      
+      // Process results and update status
+      const newStatusUpdated = { monitor: false, projector: false };
+      for (const { plug, success, error } of results) {
+        if (!success) {
+          if (showToast) toast.error(`Failed to turn on ${plug.name}: ${error}`);
+        } else {
+          if (showToast) toast.success(`Turned ON: ${plug.name}`);
+          newStatusUpdated[plug.type] = true;
         }
       }
       
-      setPlugsStatus(newStatus);
+      setPlugsStatus(newStatusUpdated);
     } else {
       console.log("Not in Electron or no bay selected");
       setPlugsStatus({ monitor: true, projector: true });
@@ -1613,26 +1696,35 @@ export default function BayController() {
       
       const newStatus = { monitor: false, projector: false };
       
-      for (const plug of bayPlugs) {
+      // PARALLEL plug control - send all commands simultaneously for faster response
+      const plugPromises = bayPlugs.map(async (plug) => {
         console.log(`Attempting to turn OFF plug: ${plug.name} (${plug.type}) at ${plug.ip}`);
         try {
           const result = await window.electronAPI.controlPlug(tapoEmail, tapoPassword, plug.ip, 'off');
           console.log(`Control result for ${plug.name}:`, result);
-          if (!result.success) {
-            if (showToast) toast.error(`Failed to turn off ${plug.name}: ${result.error}`);
-            // Keep as on if failed
-            newStatus[plug.type] = true;
-          } else {
-            if (showToast) toast.success(`Turned OFF: ${plug.name}`);
-          }
+          return { plug, success: result.success, error: result.error };
         } catch (error) {
           console.error(`Failed to turn off ${plug.name}:`, error);
-          if (showToast) toast.error(`Error controlling ${plug.name}`);
-          newStatus[plug.type] = true;
+          return { plug, success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+        }
+      });
+      
+      // Wait for all plug commands to complete in parallel
+      const results = await Promise.all(plugPromises);
+      
+      // Process results and update status
+      const newStatusUpdated = { monitor: false, projector: false };
+      for (const { plug, success, error } of results) {
+        if (!success) {
+          if (showToast) toast.error(`Failed to turn off ${plug.name}: ${error}`);
+          // Keep as on if failed
+          newStatusUpdated[plug.type] = true;
+        } else {
+          if (showToast) toast.success(`Turned OFF: ${plug.name}`);
         }
       }
       
-      setPlugsStatus(newStatus);
+      setPlugsStatus(newStatusUpdated);
     } else {
       setPlugsStatus({ monitor: false, projector: false });
     }
