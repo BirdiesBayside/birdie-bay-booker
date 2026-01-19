@@ -856,7 +856,7 @@ async function runAppLaunchSequence(config) {
   
   const results = [];
   appLaunchCancelled = false;
-  const APP_LOAD_TIME = 35000; // 35 seconds for apps to fully load
+  // Removed fixed APP_LOAD_TIME - now we wait for ProTee United VX window dynamically
   
   try {
     // Step 0: Show welcome windows on ALL displays
@@ -882,17 +882,48 @@ async function runAppLaunchSequence(config) {
       return { success: false, error: 'Failed to launch GSPRO: ' + gsproLaunch.error, results };
     }
     
-    // Wait 5 seconds then launch Protee Labs
-    console.log('Waiting 5 seconds before launching Protee Labs...');
-    await new Promise(resolve => setTimeout(resolve, 5000));
+    // Wait for ProTee United VX window to appear before launching Protee Labs
+    // This ensures Protee Labs connector can see the GSPRO API window
+    console.log('Step 2: Waiting for ProTee United VX API window to appear before launching Protee Labs...');
+    const maxWaitForApiWindow = 60000; // 60 second timeout
+    const apiWaitStartTime = Date.now();
+    let apiWindowFound = false;
     
-    if (appLaunchCancelled) {
-      await closeWelcomeWindows();
-      return { success: false, cancelled: true, results };
+    while (Date.now() - apiWaitStartTime < maxWaitForApiWindow) {
+      if (appLaunchCancelled) {
+        await closeWelcomeWindows();
+        return { success: false, cancelled: true, results };
+      }
+      
+      // Look for ProTee United VX window
+      const windowList = await getAllVisibleWindows();
+      const unifiedVxWindow = windowList.find(w => 
+        w.title && w.title.toLowerCase().includes('united vx')
+      );
+      
+      if (unifiedVxWindow) {
+        console.log(`ProTee United VX API window detected: "${unifiedVxWindow.title}"`);
+        apiWindowFound = true;
+        // Wait 2 more seconds for window to fully initialize
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        break;
+      }
+      
+      const elapsed = Math.round((Date.now() - apiWaitStartTime) / 1000);
+      if (elapsed % 5 === 0) {
+        console.log(`  ...waiting for ProTee United VX window (${elapsed}s elapsed)...`);
+      }
+      await new Promise(resolve => setTimeout(resolve, 2000));
     }
     
-    // Step 2: Launch Protee Labs
-    console.log('Step 2: Launching Protee Labs...');
+    if (!apiWindowFound) {
+      console.log('ProTee United VX window not found after 60s, proceeding anyway with Protee Labs launch');
+    }
+    
+    results.push({ step: 'wait_for_api_window', success: apiWindowFound, duration: Date.now() - apiWaitStartTime });
+    
+    // Step 3: Launch Protee Labs (NOW that API window is ready)
+    console.log('Step 3: Launching Protee Labs...');
     if (proteeLabsPath && proteeLabsPath.trim() !== '') {
       const proteeLaunch = await launchApp(proteeLabsPath);
       console.log('Protee Labs launch result:', JSON.stringify(proteeLaunch));
@@ -907,34 +938,33 @@ async function runAppLaunchSequence(config) {
       return { success: false, cancelled: true, results };
     }
     
-    // Step 3: Wait for the remaining time (35 seconds total from sequence start)
-    // This gives apps time to fully load behind the welcome windows
-    const elapsedSoFar = 5000; // We've waited about 5 seconds
-    const remainingWait = APP_LOAD_TIME - elapsedSoFar;
-    console.log(`Step 3: Waiting ${remainingWait / 1000} more seconds for apps to load...`);
+    // Step 4: Wait 20 more seconds for Protee Labs to fully load
+    // (API window wait already provided loading time for GSPRO)
+    const PROTEE_LOAD_TIME = 20000;
+    console.log(`Step 4: Waiting ${PROTEE_LOAD_TIME / 1000} seconds for Protee Labs to load...`);
     
     // Check for cancellation every 5 seconds during the wait
     const checkInterval = 5000;
     let waited = 0;
-    while (waited < remainingWait) {
+    while (waited < PROTEE_LOAD_TIME) {
       if (appLaunchCancelled) {
         await closeWelcomeWindows();
         return { success: false, cancelled: true, results };
       }
       await new Promise(resolve => setTimeout(resolve, checkInterval));
       waited += checkInterval;
-      console.log(`  ...${Math.round((remainingWait - waited) / 1000)} seconds remaining`);
+      console.log(`  ...${Math.round((PROTEE_LOAD_TIME - waited) / 1000)} seconds remaining`);
     }
     
-    results.push({ step: 'wait_for_apps', success: true, duration: APP_LOAD_TIME });
+    results.push({ step: 'wait_for_protee_labs', success: true, duration: PROTEE_LOAD_TIME });
     
-    // Step 4: Position windows (minimize United VX, move GSPRO and Protee Labs)
-    console.log('Step 4: Positioning windows...');
+    // Step 5: Position windows (minimize United VX, move GSPRO and Protee Labs)
+    console.log('Step 5: Positioning windows...');
     await checkAndCorrectWindowPositions(gsproDisplay, proteeDisplay);
     results.push({ step: 'position_windows', success: true });
     
-    // Step 5: Focus GSPRO
-    console.log('Step 5: Focusing GSPRO...');
+    // Step 6: Focus GSPRO
+    console.log('Step 6: Focusing GSPRO...');
     const gsproWindow = await findGsproWindow();
     if (gsproWindow.success) {
       await focusWindow(gsproWindow.hwnd);
@@ -944,8 +974,8 @@ async function runAppLaunchSequence(config) {
       results.push({ step: 'focus_gspro', success: false, error: 'Window not found' });
     }
     
-    // Step 6: Close all welcome windows (the big reveal!)
-    console.log('Step 6: Closing welcome windows...');
+    // Step 7: Close all welcome windows (the big reveal!)
+    console.log('Step 7: Closing welcome windows...');
     await closeWelcomeWindows();
     results.push({ step: 'close_welcome', success: true });
     
