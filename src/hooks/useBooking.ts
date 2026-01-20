@@ -23,6 +23,14 @@ export interface Booking {
   status: string;
 }
 
+export interface BayBlock {
+  id: string;
+  bay_id: string;
+  block_date: string;
+  start_time: string;
+  end_time: string;
+}
+
 export interface MembershipPricing {
   tier: string;
   hourlyRate: number;
@@ -107,6 +115,7 @@ const fetchSavedCard = async (): Promise<SavedCard | null> => {
 export function useBooking() {
   const queryClient = useQueryClient();
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [bayBlocks, setBayBlocks] = useState<BayBlock[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   // Static data - cached for 30 minutes (bays rarely change)
@@ -146,13 +155,20 @@ export function useBooking() {
     setIsLoading(true);
     const dateStr = format(date, "yyyy-MM-dd");
 
-    const { data, error } = await supabase
-      .from("booking_availability")
-      .select("bay_id, booking_date, start_time, end_time")
-      .eq("booking_date", dateStr);
+    // Fetch both bookings and bay blocks in parallel
+    const [bookingsResult, blocksResult] = await Promise.all([
+      supabase
+        .from("booking_availability")
+        .select("bay_id, booking_date, start_time, end_time")
+        .eq("booking_date", dateStr),
+      supabase
+        .from("bay_blocks")
+        .select("id, bay_id, block_date, start_time, end_time")
+        .eq("block_date", dateStr)
+    ]);
 
-    if (!error && data) {
-      setBookings(data.map(b => ({
+    if (!bookingsResult.error && bookingsResult.data) {
+      setBookings(bookingsResult.data.map(b => ({
         id: '',
         bay_id: b.bay_id,
         booking_date: b.booking_date,
@@ -162,6 +178,17 @@ export function useBooking() {
         status: 'confirmed'
       })));
     }
+
+    if (!blocksResult.error && blocksResult.data) {
+      setBayBlocks(blocksResult.data.map(b => ({
+        id: b.id,
+        bay_id: b.bay_id,
+        block_date: b.block_date,
+        start_time: b.start_time,
+        end_time: b.end_time,
+      })));
+    }
+
     setIsLoading(false);
   };
 
@@ -217,8 +244,8 @@ export function useBooking() {
     const startMinutes = startHour * 60 + startMinute;
     const endMinutes = startMinutes + durationHours * 60;
 
+    // Check existing bookings
     const bayBookings = bookings.filter((b) => b.bay_id === bayId);
-
     for (const booking of bayBookings) {
       const bookingStartHour = parseInt(booking.start_time.split(":")[0]);
       const bookingStartMin = parseInt(booking.start_time.split(":")[1]);
@@ -229,6 +256,22 @@ export function useBooking() {
       const bookingEndMinutes = bookingEndHour * 60 + bookingEndMin;
 
       if (startMinutes < bookingEndMinutes && endMinutes > bookingStartMinutes) {
+        return false;
+      }
+    }
+
+    // Check bay blocks - blocked bays cannot be booked
+    const bayBlocksForBay = bayBlocks.filter((b) => b.bay_id === bayId);
+    for (const block of bayBlocksForBay) {
+      const blockStartHour = parseInt(block.start_time.split(":")[0]);
+      const blockStartMin = parseInt(block.start_time.split(":")[1]);
+      const blockEndHour = parseInt(block.end_time.split(":")[0]);
+      const blockEndMin = parseInt(block.end_time.split(":")[1]);
+
+      const blockStartMinutes = blockStartHour * 60 + blockStartMin;
+      const blockEndMinutes = blockEndHour * 60 + blockEndMin;
+
+      if (startMinutes < blockEndMinutes && endMinutes > blockStartMinutes) {
         return false;
       }
     }
