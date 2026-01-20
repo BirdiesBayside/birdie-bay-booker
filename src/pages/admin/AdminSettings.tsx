@@ -337,8 +337,10 @@ export default function AdminSettings() {
 
     if (!error && data) {
       setBays(data);
-      // Fetch upcoming bookings for each bay
-      const today = format(new Date(), "yyyy-MM-dd");
+      // Fetch only truly upcoming bookings (end time in the future)
+      const now = new Date();
+      const today = format(now, "yyyy-MM-dd");
+      const currentTime = format(now, "HH:mm:ss");
       const bookingsMap: Record<string, BayBooking[]> = {};
       
       for (const bay of data) {
@@ -350,26 +352,31 @@ export default function AdminSettings() {
           .gte("booking_date", today)
           .order("booking_date")
           .order("start_time")
-          .limit(5);
+          .limit(10); // Fetch more to filter locally
         
-        // Fetch profile info for each booking
+        // Filter out past bookings (where end_time has passed for today's bookings)
+        const upcomingOnly = (bookings || []).filter(booking => {
+          if (booking.booking_date > today) return true;
+          // For today's bookings, check if end_time is still in the future
+          return booking.end_time > currentTime;
+        }).slice(0, 5);
+        
+        // Fetch profile info for each upcoming booking
         const bookingsWithProfiles: BayBooking[] = [];
-        if (bookings) {
-          for (const booking of bookings) {
-            const { data: profile } = await supabase
-              .from("profiles")
-              .select("first_name, last_name")
-              .eq("user_id", booking.user_id)
-              .single();
-            
-            bookingsWithProfiles.push({
-              id: booking.id,
-              booking_date: booking.booking_date,
-              start_time: booking.start_time,
-              end_time: booking.end_time,
-              profiles: profile || null,
-            });
-          }
+        for (const booking of upcomingOnly) {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("first_name, last_name")
+            .eq("user_id", booking.user_id)
+            .single();
+          
+          bookingsWithProfiles.push({
+            id: booking.id,
+            booking_date: booking.booking_date,
+            start_time: booking.start_time,
+            end_time: booking.end_time,
+            profiles: profile || null,
+          });
         }
         bookingsMap[bay.id] = bookingsWithProfiles;
       }
@@ -667,43 +674,10 @@ export default function AdminSettings() {
 
           {/* General Settings */}
           <TabsContent value="general" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>General Settings</CardTitle>
-                <CardDescription>Configure basic platform settings</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="max-w-sm space-y-2">
-                  <Label htmlFor="timezone">Timezone</Label>
-                  <Select value={timezone} onValueChange={handleTimezoneChange}>
-                    <SelectTrigger id="timezone">
-                      <SelectValue placeholder="Select timezone" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Australia/Sydney">Australia/Sydney (AEST)</SelectItem>
-                      <SelectItem value="Australia/Melbourne">Australia/Melbourne (AEST)</SelectItem>
-                      <SelectItem value="Australia/Brisbane">Australia/Brisbane (AEST)</SelectItem>
-                      <SelectItem value="Australia/Perth">Australia/Perth (AWST)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    Timezone used for booking times and notifications
-                  </p>
-                </div>
+            {/* Activity Log - First */}
+            <ActivityLog />
 
-                <div className="max-w-sm space-y-2">
-                  <Label>Operating Hours</Label>
-                  <p className="text-sm text-muted-foreground">
-                    5:00 AM - 11:00 PM daily
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Contact support to modify operating hours
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Bay Management */}
+            {/* Bay Management - Second */}
             <Card>
               <CardHeader>
                 <CardTitle>Bay Management</CardTitle>
@@ -785,8 +759,42 @@ export default function AdminSettings() {
               </CardContent>
             </Card>
 
-            {/* Activity Log */}
-            <ActivityLog />
+            {/* Timezone Settings - Third */}
+            <Card>
+              <CardHeader>
+                <CardTitle>General Settings</CardTitle>
+                <CardDescription>Configure basic platform settings</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="max-w-sm space-y-2">
+                  <Label htmlFor="timezone">Timezone</Label>
+                  <Select value={timezone} onValueChange={handleTimezoneChange}>
+                    <SelectTrigger id="timezone">
+                      <SelectValue placeholder="Select timezone" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Australia/Sydney">Australia/Sydney (AEST)</SelectItem>
+                      <SelectItem value="Australia/Melbourne">Australia/Melbourne (AEST)</SelectItem>
+                      <SelectItem value="Australia/Brisbane">Australia/Brisbane (AEST)</SelectItem>
+                      <SelectItem value="Australia/Perth">Australia/Perth (AWST)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Timezone used for booking times and notifications
+                  </p>
+                </div>
+
+                <div className="max-w-sm space-y-2">
+                  <Label>Operating Hours</Label>
+                  <p className="text-sm text-muted-foreground">
+                    5:00 AM - 11:00 PM daily
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Contact support to modify operating hours
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* Reporting Section */}
