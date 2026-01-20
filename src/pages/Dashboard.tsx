@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
-import { LogOut, Calendar, Settings, ClipboardList, Trophy, Lock, ExternalLink, Shield, Users } from "lucide-react";
+import { LogOut, Calendar, Settings, ClipboardList, Trophy, Lock, ExternalLink, Shield, Users, Info } from "lucide-react";
 import birdiesLogo from "@/assets/birdies-logo.png";
 import { supabase } from "@/integrations/supabase/client";
 import { NotificationBell } from "@/components/NotificationBell";
@@ -185,8 +185,18 @@ const Dashboard = () => {
 
             {/* Birdies League Section */}
             <div className={`bg-card rounded-lg p-6 shadow-md border relative ${!hasLeagueAccess ? "border-border opacity-60" : "border-league-primary/30"}`}>
+              {/* Info icon - always visible */}
+              <a 
+                href="/how-to-use-birdies-shopify-embed.html" 
+                target="_blank"
+                rel="noopener noreferrer"
+                className="absolute top-3 right-3 h-6 w-6 rounded-full bg-muted hover:bg-muted/80 flex items-center justify-center transition-colors"
+                title="How to use the simulators"
+              >
+                <Info className="h-4 w-4 text-muted-foreground" />
+              </a>
               {!hasLeagueAccess && (
-                <div className="absolute top-3 right-3">
+                <div className="absolute top-3 right-12">
                   <div className="flex items-center gap-1 text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full">
                     <Lock className="h-3 w-3" />
                     <span>Members Only</span>
