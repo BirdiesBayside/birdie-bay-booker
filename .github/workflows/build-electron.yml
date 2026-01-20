@@ -1,5 +1,5 @@
 name: Build Windows Installer
-# Build v2
+# Build v3
 
 on:
   push:
@@ -54,13 +54,6 @@ jobs:
       - name: Build Windows installer
         working-directory: ./electron
         run: npm run build
-
-      - name: Upload installer artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: BirdiesBayController-Windows
-          path: electron/dist-electron/*.exe
-          retention-days: 3
 
       - name: Create Release
         if: github.ref == 'refs/heads/main'
