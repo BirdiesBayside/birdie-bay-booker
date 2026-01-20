@@ -465,7 +465,8 @@ export default function AdminTimetable() {
 
     setIsSaving(true);
 
-    const newEndTime = calculateEndTime(editStartTime, parseInt(editDuration));
+    const newDuration = parseInt(editDuration);
+    const newEndTime = calculateEndTime(editStartTime, newDuration);
     const endHour = parseInt(newEndTime.split(":")[0]);
     
     // Validate end time doesn't exceed operating hours (11pm)
@@ -480,15 +481,21 @@ export default function AdminTimetable() {
       return;
     }
 
+    // Recalculate total price using existing hourly rate and new duration
+    const hourlyRate = selectedBooking.total_price / selectedBooking.duration_hours;
+    const newTotalPrice = hourlyRate * newDuration;
+
     const { error } = await supabase
       .from("bookings")
       .update({
         booking_date: format(editDate, "yyyy-MM-dd"),
         start_time: editStartTime,
         end_time: newEndTime,
-        duration_hours: parseInt(editDuration),
+        duration_hours: newDuration,
         bay_id: editBayId,
         player_count: parseInt(editPlayerCount),
+        total_price: newTotalPrice,
+        hourly_rate: hourlyRate,
       })
       .eq("id", selectedBooking.id);
 
