@@ -645,9 +645,12 @@ public class WinAPI { [DllImport("user32.dll")] public static extern bool ShowWi
   }
 }
 
-// Focus a window
+// Focus a window (without changing its size/state - preserves maximized windows)
 async function focusWindow(hwnd) {
   const tempScript = path.join(app.getPath('temp'), 'focus_window.ps1');
+  // Use ShowWindow with SW_SHOWNOACTIVATE (4) first to ensure it's visible without changing state,
+  // then use SetForegroundWindow to bring it to front
+  // SW_RESTORE (9) was causing maximized windows to un-maximize
   const scriptContent = `
 Add-Type @"
 using System;
@@ -655,10 +658,22 @@ using System.Runtime.InteropServices;
 public class WinAPI {
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
     [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+    [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr hWnd);
+    [DllImport("user32.dll")] public static extern int GetWindowLong(IntPtr hWnd, int nIndex);
 }
 "@
 $h = [IntPtr]${hwnd}
-[WinAPI]::ShowWindow($h, 9)
+# Check if window is minimized (0x20000000 = WS_MINIMIZE in style)
+$style = [WinAPI]::GetWindowLong($h, -16)
+$isMinimized = ($style -band 0x20000000) -ne 0
+if ($isMinimized) {
+    # Only restore if minimized - SW_RESTORE (9)
+    [WinAPI]::ShowWindow($h, 9)
+} else {
+    # If not minimized, just show it without changing state - SW_SHOW (5)
+    [WinAPI]::ShowWindow($h, 5)
+}
+[WinAPI]::BringWindowToTop($h)
 [WinAPI]::SetForegroundWindow($h)
 `;
   
