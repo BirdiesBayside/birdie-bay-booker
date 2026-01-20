@@ -645,36 +645,32 @@ public class WinAPI { [DllImport("user32.dll")] public static extern bool ShowWi
   }
 }
 
-// Focus a window (without changing its size/state - preserves maximized windows)
+// Focus a window (preserves fullscreen apps - avoids ShowWindow which disrupts fullscreen)
 async function focusWindow(hwnd) {
   const tempScript = path.join(app.getPath('temp'), 'focus_window.ps1');
-  // Use ShowWindow with SW_SHOWNOACTIVATE (4) first to ensure it's visible without changing state,
-  // then use SetForegroundWindow to bring it to front
-  // SW_RESTORE (9) was causing maximized windows to un-maximize
+  // For fullscreen apps like GSPro, avoid ShowWindow entirely as it can disrupt fullscreen state
+  // Just use SetForegroundWindow and BringWindowToTop to bring focus without changing window state
+  // AttachThreadInput helps SetForegroundWindow work reliably even when our app isn't in focus
   const scriptContent = `
 Add-Type @"
 using System;
 using System.Runtime.InteropServices;
 public class WinAPI {
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
-    [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
     [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr hWnd);
-    [DllImport("user32.dll")] public static extern int GetWindowLong(IntPtr hWnd, int nIndex);
+    [DllImport("user32.dll")] public static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+    [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, IntPtr lpdwProcessId);
+    [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
 }
 "@
 $h = [IntPtr]${hwnd}
-# Check if window is minimized (0x20000000 = WS_MINIMIZE in style)
-$style = [WinAPI]::GetWindowLong($h, -16)
-$isMinimized = ($style -band 0x20000000) -ne 0
-if ($isMinimized) {
-    # Only restore if minimized - SW_RESTORE (9)
-    [WinAPI]::ShowWindow($h, 9)
-} else {
-    # If not minimized, just show it without changing state - SW_SHOW (5)
-    [WinAPI]::ShowWindow($h, 5)
-}
+# Attach to the target window's thread to allow SetForegroundWindow to work reliably
+$targetThread = [WinAPI]::GetWindowThreadProcessId($h, [IntPtr]::Zero)
+$currentThread = [WinAPI]::GetCurrentThreadId()
+[WinAPI]::AttachThreadInput($currentThread, $targetThread, $true)
 [WinAPI]::BringWindowToTop($h)
 [WinAPI]::SetForegroundWindow($h)
+[WinAPI]::AttachThreadInput($currentThread, $targetThread, $false)
 `;
   
   try {
