@@ -1,11 +1,10 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { calculateHourlyRate, isPeakTime, isWeekdayMemberTime } from "@/lib/pricing-utils";
 import { Capacitor } from "@capacitor/core";
 import { QUERY_KEYS, STALE_TIMES } from "@/lib/query-keys";
-
 export interface Bay {
   id: string;
   bay_number: number;
@@ -117,6 +116,8 @@ export function useBooking() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [bayBlocks, setBayBlocks] = useState<BayBlock[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [currentDateStr, setCurrentDateStr] = useState<string | null>(null);
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   // Static data - cached for 30 minutes (bays rarely change)
   const { data: bays = [] } = useQuery({
@@ -151,9 +152,9 @@ export function useBooking() {
   const customHourlyRate = userProfile?.customHourlyRate ?? null;
   const depositBalance = userProfile?.depositBalance || 0;
 
-  const fetchBookingsForDate = async (date: Date) => {
+  // Memoized fetch function to avoid recreating on every render
+  const fetchBookingsForDateInternal = useCallback(async (dateStr: string) => {
     setIsLoading(true);
-    const dateStr = format(date, "yyyy-MM-dd");
 
     // Fetch both bookings and bay blocks in parallel
     const [bookingsResult, blocksResult] = await Promise.all([
@@ -190,7 +191,82 @@ export function useBooking() {
     }
 
     setIsLoading(false);
-  };
+  }, []);
+
+  const fetchBookingsForDate = useCallback(async (date: Date) => {
+    const dateStr = format(date, "yyyy-MM-dd");
+    setCurrentDateStr(dateStr);
+    await fetchBookingsForDateInternal(dateStr);
+  }, [fetchBookingsForDateInternal]);
+
+  // Real-time subscription to booking changes for consistency across all users
+  useEffect(() => {
+    if (!currentDateStr) return;
+
+    // Clean up previous channel if exists
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+    }
+
+    // Subscribe to real-time booking changes
+    const channel = supabase
+      .channel(`customer-booking-availability-${currentDateStr}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'bookings',
+        },
+        (payload) => {
+          // Only refetch if the change affects the current date
+          const newRecord = payload.new as { booking_date?: string } | null;
+          const oldRecord = payload.old as { booking_date?: string } | null;
+          
+          if (
+            newRecord?.booking_date === currentDateStr ||
+            oldRecord?.booking_date === currentDateStr
+          ) {
+            console.log('[useBooking] Real-time booking update, refreshing availability');
+            fetchBookingsForDateInternal(currentDateStr);
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'bay_blocks',
+        },
+        (payload) => {
+          const newRecord = payload.new as { block_date?: string } | null;
+          const oldRecord = payload.old as { block_date?: string } | null;
+          
+          if (
+            newRecord?.block_date === currentDateStr ||
+            oldRecord?.block_date === currentDateStr
+          ) {
+            console.log('[useBooking] Real-time bay block update, refreshing availability');
+            fetchBookingsForDateInternal(currentDateStr);
+          }
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('[useBooking] Subscribed to real-time booking availability');
+        }
+      });
+
+    channelRef.current = channel;
+
+    return () => {
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+    };
+  }, [currentDateStr, fetchBookingsForDateInternal]);
 
   /**
    * Get hourly rate based on membership tier, date, and time.
