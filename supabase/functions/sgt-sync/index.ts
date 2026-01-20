@@ -186,6 +186,67 @@ serve(async (req) => {
     }
     console.log(`[SGT-SYNC] Synced ${members.length} members (${newMemberUserIds.length} new)`);
 
+    // AUTO-LINK: Match SGT members to Birdies profiles by email
+    // This handles cases where users registered on SGT directly and weren't linked
+    console.log("[SGT-SYNC] Checking for unlinked profiles to auto-link...");
+    let linkedCount = 0;
+    
+    // Get all profiles that don't have an sgt_user_id set
+    const { data: unlinkedProfiles } = await supabase
+      .from("profiles")
+      .select("user_id, email, first_name, last_name")
+      .is("sgt_user_id", null);
+    
+    if (unlinkedProfiles && unlinkedProfiles.length > 0) {
+      // Get all SGT members with emails for matching
+      const { data: sgtMembersWithEmail } = await supabase
+        .from("sgt_members")
+        .select("user_id, user_email, user_name")
+        .not("user_email", "is", null);
+      
+      if (sgtMembersWithEmail && sgtMembersWithEmail.length > 0) {
+        // Create email-to-sgt_user_id lookup map (case-insensitive)
+        const emailToSgtId = new Map<string, { user_id: number; user_name: string }>();
+        for (const member of sgtMembersWithEmail) {
+          if (member.user_email) {
+            emailToSgtId.set(member.user_email.toLowerCase(), {
+              user_id: member.user_id,
+              user_name: member.user_name
+            });
+          }
+        }
+        
+        // Check each unlinked profile for a matching SGT account
+        for (const profile of unlinkedProfiles) {
+          const sgtMatch = emailToSgtId.get(profile.email.toLowerCase());
+          
+          if (sgtMatch) {
+            console.log(`[SGT-SYNC] 🔗 Auto-linking ${profile.first_name} ${profile.last_name} (${profile.email}) to SGT account "${sgtMatch.user_name}" (ID: ${sgtMatch.user_id})`);
+            
+            // Update the profile with the SGT user ID
+            // This will trigger the on_sgt_user_id_set trigger which calls sgt-auto-register
+            const { error: linkError } = await supabase
+              .from("profiles")
+              .update({ sgt_user_id: sgtMatch.user_id })
+              .eq("user_id", profile.user_id);
+            
+            if (linkError) {
+              console.error(`[SGT-SYNC] ✗ Failed to link ${profile.email}:`, linkError);
+            } else {
+              console.log(`[SGT-SYNC] ✓ Successfully linked ${profile.email} to SGT ID ${sgtMatch.user_id}`);
+              linkedCount++;
+            }
+          }
+        }
+      }
+    }
+    
+    if (linkedCount > 0) {
+      console.log(`[SGT-SYNC] Auto-linked ${linkedCount} profiles to SGT accounts`);
+    } else {
+      console.log("[SGT-SYNC] No unlinked profiles found with matching SGT accounts");
+    }
+
     // 2. Sync Tours
     console.log("[SGT-SYNC] Syncing tours...");
     const toursResponse = await sgtRequest("/tours/list");
