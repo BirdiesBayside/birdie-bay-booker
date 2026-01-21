@@ -61,7 +61,8 @@ import {
   X,
   UserX,
   Gift,
-  Users
+  Users,
+  Shield
 } from "lucide-react";
 import { GiftCardsSection } from "@/components/admin/GiftCardsSection";
 import { format } from "date-fns";
@@ -146,6 +147,9 @@ export default function AdminCustomers() {
   const [showCancelMembershipConfirm, setShowCancelMembershipConfirm] = useState(false);
   const [sendCancellationEmail, setSendCancellationEmail] = useState(true);
   const [isCancellingMembership, setIsCancellingMembership] = useState(false);
+
+  // Make admin state
+  const [isTogglingAdmin, setIsTogglingAdmin] = useState(false);
 
   // Tab state
   const [activeTab, setActiveTab] = useState("customers");
@@ -531,6 +535,65 @@ export default function AdminCustomers() {
     setSelectedCustomers(new Set());
     fetchCustomers();
     setIsDeleting(false);
+  };
+
+  // Toggle admin role for a customer
+  const toggleAdminRole = async (customer: Customer) => {
+    setIsTogglingAdmin(true);
+    
+    try {
+      // Check if user already has admin role
+      const { data: existingRole, error: checkError } = await supabase
+        .from("user_roles")
+        .select("id")
+        .eq("user_id", customer.user_id)
+        .eq("role", "admin")
+        .maybeSingle();
+
+      if (checkError) throw checkError;
+
+      if (existingRole) {
+        // User is already admin, remove the role
+        const { error: deleteError } = await supabase
+          .from("user_roles")
+          .delete()
+          .eq("id", existingRole.id);
+
+        if (deleteError) throw deleteError;
+
+        toast({
+          title: "Admin role removed",
+          description: `${customer.first_name} ${customer.last_name} is no longer an admin.`,
+          duration: 4000,
+        });
+      } else {
+        // User is not admin, add the role
+        const { error: insertError } = await supabase
+          .from("user_roles")
+          .insert({
+            user_id: customer.user_id,
+            role: "admin"
+          });
+
+        if (insertError) throw insertError;
+
+        toast({
+          title: "Admin role granted",
+          description: `${customer.first_name} ${customer.last_name} is now an admin.`,
+          duration: 4000,
+        });
+      }
+    } catch (error: any) {
+      console.error("Error toggling admin role:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update admin role.",
+        variant: "destructive",
+        duration: 4000,
+      });
+    }
+
+    setIsTogglingAdmin(false);
   };
 
   // Navigate to bulk email page
@@ -959,6 +1022,14 @@ export default function AdminCustomers() {
                                 Call
                               </DropdownMenuItem>
                             )}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem 
+                              onClick={() => toggleAdminRole(customer)}
+                              disabled={isTogglingAdmin}
+                            >
+                              <Shield className="h-4 w-4 mr-2" />
+                              Make Admin
+                            </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
