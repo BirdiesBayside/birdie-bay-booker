@@ -50,6 +50,9 @@ export default function ResetPassword() {
 
         // If we have tokens in the hash with type=recovery, this is a valid recovery flow
         if (accessToken && refreshToken && type === "recovery") {
+          // First sign out any existing session to avoid conflicts
+          await supabase.auth.signOut();
+          
           const { error } = await supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken,
@@ -62,6 +65,9 @@ export default function ResetPassword() {
             return;
           }
 
+          // Clear the hash from URL to prevent re-processing
+          window.history.replaceState(null, '', window.location.pathname);
+          
           // Mark that we came from a valid recovery link
           sessionStorage.setItem("password_reset_in_progress", "true");
           setIsValidSession(true);
@@ -69,12 +75,23 @@ export default function ResetPassword() {
           return;
         }
 
+        // Check if we already have a recovery in progress (came from useAuth redirect)
+        const isRecoveryFlow = sessionStorage.getItem("password_reset_in_progress") === "true";
+        
+        if (isRecoveryFlow) {
+          // We came from the useAuth PASSWORD_RECOVERY redirect
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session) {
+            setIsValidSession(true);
+            setIsValidating(false);
+            return;
+          }
+        }
+
         // Listen for auth state changes that include RECOVERY events
-        // This catches when Supabase redirects with tokens automatically processed
         const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
           console.log("Auth event during reset:", event);
           if (event === "PASSWORD_RECOVERY") {
-            // This event fires when the recovery link is being processed
             sessionStorage.setItem("password_reset_in_progress", "true");
             setIsValidSession(true);
             setIsValidating(false);
@@ -82,36 +99,13 @@ export default function ResetPassword() {
         });
 
         // Give time for the auth state change to fire
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise(resolve => setTimeout(resolve, 1000));
 
-        // Check if we have a session AND came from a recovery flow
+        // Final check for existing session
         const { data: { session } } = await supabase.auth.getSession();
-        const isRecoveryFlow = sessionStorage.getItem("password_reset_in_progress") === "true";
         
-        if (session && isRecoveryFlow) {
-          // Valid recovery session
+        if (session && sessionStorage.getItem("password_reset_in_progress") === "true") {
           setIsValidSession(true);
-          setIsValidating(false);
-          subscription.unsubscribe();
-          return;
-        }
-        
-        if (session && !isRecoveryFlow) {
-          // User has an existing session but didn't come from a recovery link
-          // Check if there's a recovery token in the URL hash that Supabase might have auto-processed
-          const hash = window.location.hash;
-          if (hash.includes("type=recovery") || hash.includes("access_token")) {
-            // Supabase auto-processed the recovery - allow password reset
-            sessionStorage.setItem("password_reset_in_progress", "true");
-            setIsValidSession(true);
-            setIsValidating(false);
-            subscription.unsubscribe();
-            return;
-          }
-          
-          // Regular logged-in user, not a recovery flow - redirect to dashboard
-          console.log("User already logged in without recovery token, redirecting to dashboard");
-          setErrorMessage("You're already logged in. If you need to reset your password, please log out first and use the forgot password feature.");
           setIsValidating(false);
           subscription.unsubscribe();
           return;
@@ -130,11 +124,6 @@ export default function ResetPassword() {
     };
 
     handleTokenExchange();
-    
-    // Clean up the recovery flag on unmount
-    return () => {
-      // Don't clear immediately - only clear after successful password update
-    };
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
