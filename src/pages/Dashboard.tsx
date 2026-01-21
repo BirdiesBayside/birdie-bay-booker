@@ -84,8 +84,15 @@ const Dashboard = () => {
   }, [queryClient]);
 
   const handleSignOut = async () => {
+    // Clear local state first to prevent stale data display
+    setMembershipTier("visitor");
+    setHasSgtAccount(false);
+    setIsAdmin(false);
+    
     await signOut();
-    navigate("/");
+    
+    // Force navigation after sign out completes
+    navigate("/", { replace: true });
   };
 
   if (isLoading) {
