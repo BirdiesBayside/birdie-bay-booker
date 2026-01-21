@@ -77,6 +77,7 @@ serve(async (req) => {
     });
 
     let refundResult = null;
+    let creditRefundResult = null;
 
     // Process Stripe refund if payment intent exists (check for both "stripe" and "card" payment methods)
     if (booking.stripe_payment_intent_id && (booking.payment_method === "stripe" || booking.payment_method === "card")) {
@@ -101,8 +102,49 @@ serve(async (req) => {
       };
 
       console.log("[REFUND-BOOKING] Stripe refund created:", refundResult);
-    } else {
-      console.log("[REFUND-BOOKING] No Stripe payment to refund (payment_method:", booking.payment_method, ")");
+    } 
+    
+    // Process credit balance refund for "balance" or "partial" payments
+    if (booking.payment_method === "balance" || booking.payment_method === "partial") {
+      const refundAmount = parseFloat(booking.total_price) || 0;
+      
+      if (refundAmount > 0) {
+        console.log("[REFUND-BOOKING] Refunding credit balance:", refundAmount, "to user:", booking.user_id);
+        
+        // Get current deposit balance
+        const { data: profile, error: profileError } = await supabaseClient
+          .from("profiles")
+          .select("deposit_balance")
+          .eq("user_id", booking.user_id)
+          .single();
+        
+        if (profileError) {
+          throw new Error(`Failed to get user profile: ${profileError.message}`);
+        }
+        
+        const currentBalance = parseFloat(profile?.deposit_balance) || 0;
+        const newBalance = currentBalance + refundAmount;
+        
+        // Update deposit balance
+        const { error: updateBalanceError } = await supabaseClient
+          .from("profiles")
+          .update({ deposit_balance: newBalance })
+          .eq("user_id", booking.user_id);
+        
+        if (updateBalanceError) {
+          throw new Error(`Failed to refund credit balance: ${updateBalanceError.message}`);
+        }
+        
+        creditRefundResult = {
+          previous_balance: currentBalance,
+          refund_amount: refundAmount,
+          new_balance: newBalance,
+        };
+        
+        console.log("[REFUND-BOOKING] Credit balance refunded:", creditRefundResult);
+      }
+    } else if (!booking.stripe_payment_intent_id) {
+      console.log("[REFUND-BOOKING] No payment to refund (payment_method:", booking.payment_method, ")");
     }
 
     // Update booking status to cancelled
@@ -156,6 +198,7 @@ serve(async (req) => {
         success: true,
         booking_id,
         refund: refundResult,
+        credit_refund: creditRefundResult,
         notification_sent: send_notification,
       }),
       {
