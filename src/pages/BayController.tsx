@@ -1092,8 +1092,105 @@ export default function BayController() {
         }
       });
 
+    // Polling fallback for commands (in case realtime drops)
+    const pollPendingCommands = async () => {
+      try {
+        const { data: pendingCommands, error } = await supabase
+          .from('bay_commands')
+          .select('*')
+          .eq('bay_number', selectedBay)
+          .eq('status', 'pending')
+          .order('created_at', { ascending: true })
+          .limit(5);
+
+        if (error) {
+          console.error('Error polling pending commands:', error);
+          return;
+        }
+
+        if (pendingCommands && pendingCommands.length > 0) {
+          console.log(`Found ${pendingCommands.length} pending command(s) via polling`);
+          
+          for (const command of pendingCommands) {
+            // Check if command is older than 5 seconds (give realtime a chance first)
+            const commandAge = Date.now() - new Date(command.created_at).getTime();
+            if (commandAge < 5000) {
+              console.log('Command too recent, waiting for realtime...');
+              continue;
+            }
+
+            console.log('Processing pending command via polling:', command);
+
+            // Handle mode commands
+            if (command.command === 'auto') {
+              console.log('Polling: Switching to AUTO mode');
+              setManualOverride(false);
+              toast.success('Switched to AUTO mode (via polling)');
+              
+              // Resume auto control
+              const now = new Date();
+              const today = format(now, "yyyy-MM-dd");
+              const todaysBookings = bookingsRef.current.filter(b => 
+                b.booking_date === today && (b.status === 'confirmed' || b.status === 'pending')
+              );
+              
+              let shouldBeOn = false;
+              for (const booking of todaysBookings) {
+                const startTime = parseISO(`${booking.booking_date}T${booking.start_time}`);
+                const endTime = parseISO(`${booking.booking_date}T${booking.end_time}`);
+                const preStartTime = addMinutes(startTime, -preStartMinutesRef.current);
+                
+                if (isAfter(now, preStartTime) && isBefore(now, endTime)) {
+                  shouldBeOn = true;
+                  break;
+                }
+              }
+              
+              if (shouldBeOn) {
+                await executePlugControl('on', command.id);
+              } else {
+                await executePlugControl('off', command.id);
+              }
+              
+              await supabase
+                .from('bay_commands')
+                .update({ status: 'executed', executed_at: new Date().toISOString() })
+                .eq('id', command.id);
+              continue;
+            }
+            
+            if (command.command === 'manual') {
+              console.log('Polling: Switching to MANUAL mode');
+              setManualOverride(true);
+              toast.success('Switched to MANUAL mode (via polling)');
+              
+              await supabase
+                .from('bay_commands')
+                .update({ status: 'executed', executed_at: new Date().toISOString() })
+                .eq('id', command.id);
+              continue;
+            }
+
+            // For on/off commands
+            setManualOverride(true);
+            updateControlModeInDb(true);
+            await executePlugControl(command.command as 'on' | 'off', command.id);
+          }
+        }
+      } catch (err) {
+        console.error('Error in command polling:', err);
+      }
+    };
+
+    // Poll for pending commands every 10 seconds as fallback
+    const pollInterval = setInterval(pollPendingCommands, 10000);
+    
+    // Also run once on mount to catch any missed commands
+    setTimeout(pollPendingCommands, 2000);
+
     return () => {
       supabase.removeChannel(commandChannel);
+      clearInterval(pollInterval);
     };
   }, [selectedBay]);
   // Save plug assignments and discovered plugs to localStorage
