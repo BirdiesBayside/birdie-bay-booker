@@ -14,6 +14,14 @@ export function useAuth() {
         setSession(session);
         setUser(session?.user ?? null);
         setIsLoading(false);
+
+        // Handle PASSWORD_RECOVERY event - redirect to reset password page
+        if (event === "PASSWORD_RECOVERY") {
+          // Set a flag so the reset password page knows this is valid
+          sessionStorage.setItem("password_reset_in_progress", "true");
+          // Redirect to reset password page
+          window.location.href = "/reset-password";
+        }
       }
     );
 
