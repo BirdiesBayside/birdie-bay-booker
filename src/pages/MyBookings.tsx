@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Calendar, Clock, MapPin, X } from "lucide-react";
+import { ArrowLeft, Calendar, Clock, MapPin, X, RefreshCw } from "lucide-react";
 import { format, parseISO, isPast, isToday } from "date-fns";
 import { toast } from "sonner";
 import birdiesLogo from "@/assets/birdies-logo.png";
@@ -18,6 +18,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { RescheduleDialog } from "@/components/booking/RescheduleDialog";
 
 interface Booking {
   id: string;
@@ -40,6 +41,7 @@ const MyBookings = () => {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [rescheduleBooking, setRescheduleBooking] = useState<Booking | null>(null);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -246,17 +248,27 @@ const MyBookings = () => {
                           </span>
                         </div>
                       </div>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground"
-                          >
-                            <X className="h-4 w-4 mr-1" />
-                            Cancel
-                          </Button>
-                        </AlertDialogTrigger>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setRescheduleBooking(booking)}
+                          className="text-primary border-primary hover:bg-primary hover:text-primary-foreground"
+                        >
+                          <RefreshCw className="h-4 w-4 mr-1" />
+                          Reschedule
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground"
+                            >
+                              <X className="h-4 w-4 mr-1" />
+                              Cancel
+                            </Button>
+                          </AlertDialogTrigger>
                         <AlertDialogContent>
                           <AlertDialogHeader>
                             <AlertDialogTitle>Cancel Booking?</AlertDialogTitle>
@@ -288,6 +300,7 @@ const MyBookings = () => {
                           </AlertDialogFooter>
                         </AlertDialogContent>
                       </AlertDialog>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -359,6 +372,16 @@ const MyBookings = () => {
           © {new Date().getFullYear()} Birdies. All rights reserved.
         </p>
       </footer>
+
+      {/* Reschedule Dialog */}
+      {rescheduleBooking && (
+        <RescheduleDialog
+          booking={rescheduleBooking}
+          open={!!rescheduleBooking}
+          onOpenChange={(open) => !open && setRescheduleBooking(null)}
+          onSuccess={fetchBookings}
+        />
+      )}
     </div>
   );
 };
