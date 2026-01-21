@@ -27,6 +27,7 @@ interface Booking {
   end_time: string;
   duration_hours: number;
   total_price: number;
+  hourly_rate: number;
   status: string;
   bay_id: string;
   bay_name?: string;
@@ -69,6 +70,7 @@ const MyBookings = () => {
           end_time,
           duration_hours,
           total_price,
+          hourly_rate,
           status,
           bay_id,
           payment_method,

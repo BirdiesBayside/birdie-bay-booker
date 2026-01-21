@@ -19,9 +19,10 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { CalendarIcon, Clock, MapPin, Loader2 } from "lucide-react";
+import { CalendarIcon, Clock, MapPin, Loader2, ArrowUp, ArrowDown } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { calculateHourlyRate, isPeakTime, getPricingLabel } from "@/lib/pricing-utils";
 
 interface Booking {
   id: string;
@@ -30,6 +31,7 @@ interface Booking {
   end_time: string;
   duration_hours: number;
   total_price: number;
+  hourly_rate: number;
   bay_id: string;
   bay_number?: number;
   bay_name?: string;
@@ -39,6 +41,12 @@ interface Bay {
   id: string;
   name: string;
   bay_number: number;
+}
+
+interface UserProfile {
+  membership_tier: string;
+  custom_hourly_rate: number | null;
+  deposit_balance: number;
 }
 
 interface RescheduleDialogProps {
@@ -78,6 +86,8 @@ export const RescheduleDialog = ({
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [pricingConfig, setPricingConfig] = useState<Record<string, number>>({});
 
   // Reset state when dialog opens
   useEffect(() => {
@@ -86,6 +96,8 @@ export const RescheduleDialog = ({
       setSelectedTime("");
       setSelectedBayId("");
       fetchBays();
+      fetchUserProfile();
+      fetchPricing();
     }
   }, [open]);
 
@@ -105,6 +117,35 @@ export const RescheduleDialog = ({
 
     if (!error && data) {
       setBays(data);
+    }
+  };
+
+  const fetchUserProfile = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("membership_tier, custom_hourly_rate, deposit_balance")
+      .eq("user_id", user.id)
+      .single();
+
+    if (!error && data) {
+      setUserProfile(data);
+    }
+  };
+
+  const fetchPricing = async () => {
+    const { data, error } = await supabase
+      .from("pricing_config")
+      .select("tier, hourly_rate");
+
+    if (!error && data) {
+      const config: Record<string, number> = {};
+      data.forEach((row) => {
+        config[row.tier.toLowerCase()] = row.hourly_rate;
+      });
+      setPricingConfig(config);
     }
   };
 
@@ -215,6 +256,28 @@ export const RescheduleDialog = ({
     return bays.filter((bay) => isSlotAvailable(bay.id, selectedTime));
   };
 
+  // Calculate new price based on selected date/time
+  const calculateNewPrice = (): { hourlyRate: number; totalPrice: number; isPeak: boolean } | null => {
+    if (!selectedDate || !selectedTime || !userProfile) return null;
+
+    const newHourlyRate = calculateHourlyRate(
+      userProfile.membership_tier,
+      selectedDate,
+      selectedTime,
+      pricingConfig
+    );
+
+    return {
+      hourlyRate: newHourlyRate,
+      totalPrice: newHourlyRate * booking.duration_hours,
+      isPeak: isPeakTime(selectedDate, selectedTime),
+    };
+  };
+
+  const newPriceInfo = calculateNewPrice();
+  const priceDifference = newPriceInfo ? newPriceInfo.totalPrice - booking.total_price : 0;
+  const hasCustomRate = userProfile?.custom_hourly_rate != null && userProfile.custom_hourly_rate > 0;
+
   const handleSubmit = async () => {
     if (!selectedDate || !selectedTime || !selectedBayId) {
       toast.error("Please select a date, time, and bay");
@@ -238,7 +301,22 @@ export const RescheduleDialog = ({
       if (data?.error) throw new Error(data.error);
 
       toast.dismiss(toastId);
-      toast.success("Booking rescheduled successfully!");
+
+      // Show detailed success message
+      let successMessage = "Booking rescheduled successfully!";
+      if (data?.priceChanged) {
+        if (data.priceDifference > 0) {
+          if (data.payment?.chargedToCard) {
+            successMessage = `Rescheduled! $${data.payment.chargedToCard.toFixed(2)} charged to your card.`;
+          } else if (data.payment?.chargedFromBalance) {
+            successMessage = `Rescheduled! $${data.payment.chargedFromBalance.toFixed(2)} deducted from your balance.`;
+          }
+        } else if (data.priceDifference < 0) {
+          successMessage = `Rescheduled! $${data.payment?.refundedToBalance?.toFixed(2)} added to your balance.`;
+        }
+      }
+
+      toast.success(successMessage);
       onSuccess();
       onOpenChange(false);
     } catch (error) {
@@ -253,14 +331,24 @@ export const RescheduleDialog = ({
   const availableTimeSlots = getAvailableTimeSlots();
   const availableBays = getAvailableBays();
 
+  // Determine if price changes apply (visitor or weekday member only)
+  const showPriceChanges = userProfile && 
+    (userProfile.membership_tier === "visitor" || userProfile.membership_tier === "weekday") &&
+    !hasCustomRate;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Reschedule Booking</DialogTitle>
           <DialogDescription>
-            Choose a new date, time, and bay. Your booking duration ({booking.duration_hours} hour
-            {booking.duration_hours > 1 ? "s" : ""}) and price (${booking.total_price.toFixed(2)}) will remain the same.
+            Choose a new date, time, and bay for your {booking.duration_hours} hour
+            {booking.duration_hours > 1 ? "s" : ""} session.
+            {showPriceChanges && (
+              <span className="text-xs block mt-1 text-muted-foreground">
+                Note: Price may vary based on peak/off-peak times.
+              </span>
+            )}
           </DialogDescription>
         </DialogHeader>
 
@@ -271,6 +359,9 @@ export const RescheduleDialog = ({
             <p className="text-muted-foreground">
               {format(new Date(booking.booking_date), "EEE, MMM d")} at{" "}
               {formatTime(booking.start_time)} - Bay {booking.bay_number}
+            </p>
+            <p className="text-muted-foreground">
+              ${booking.total_price.toFixed(2)} ({booking.duration_hours}hr × ${booking.hourly_rate}/hr)
             </p>
           </div>
 
@@ -369,15 +460,50 @@ export const RescheduleDialog = ({
             </Select>
           </div>
 
-          {/* Summary */}
-          {selectedDate && selectedTime && selectedBayId && (
-            <div className="bg-primary/10 rounded-lg p-3 text-sm">
+          {/* Summary with price change */}
+          {selectedDate && selectedTime && selectedBayId && newPriceInfo && (
+            <div className={cn(
+              "rounded-lg p-3 text-sm",
+              priceDifference > 0 ? "bg-amber-500/10 border border-amber-500/20" :
+              priceDifference < 0 ? "bg-green-500/10 border border-green-500/20" :
+              "bg-primary/10"
+            )}>
               <p className="font-medium mb-1">New booking:</p>
               <p>
                 {format(selectedDate, "EEE, MMM d")} at {formatTime(selectedTime)} -{" "}
                 {formatTime(calculateEndTime(selectedTime, booking.duration_hours))}
               </p>
               <p>Bay {bays.find((b) => b.id === selectedBayId)?.bay_number}</p>
+              
+              {/* Price info */}
+              <div className="mt-2 pt-2 border-t border-current/10">
+                <p className="font-medium">
+                  ${newPriceInfo.totalPrice.toFixed(2)}
+                  <span className="font-normal text-muted-foreground ml-1">
+                    ({booking.duration_hours}hr × ${newPriceInfo.hourlyRate}/hr
+                    {showPriceChanges && ` • ${newPriceInfo.isPeak ? "peak" : "off-peak"}`})
+                  </span>
+                </p>
+                
+                {priceDifference !== 0 && (
+                  <p className={cn(
+                    "flex items-center gap-1 mt-1",
+                    priceDifference > 0 ? "text-amber-600" : "text-green-600"
+                  )}>
+                    {priceDifference > 0 ? (
+                      <>
+                        <ArrowUp className="h-3 w-3" />
+                        ${priceDifference.toFixed(2)} extra will be charged
+                      </>
+                    ) : (
+                      <>
+                        <ArrowDown className="h-3 w-3" />
+                        ${Math.abs(priceDifference).toFixed(2)} will be refunded to your balance
+                      </>
+                    )}
+                  </p>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -395,6 +521,10 @@ export const RescheduleDialog = ({
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 Rescheduling...
               </>
+            ) : priceDifference > 0 ? (
+              `Confirm (+$${priceDifference.toFixed(2)})`
+            ) : priceDifference < 0 ? (
+              `Confirm (-$${Math.abs(priceDifference).toFixed(2)})`
             ) : (
               "Confirm Reschedule"
             )}
