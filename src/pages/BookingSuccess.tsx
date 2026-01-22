@@ -210,9 +210,7 @@ const BookingSuccess = () => {
                 Check out our guide for everything you need to know about accessing the facility and using the simulators.
               </p>
               <a 
-                href="https://birdiesbayside.com.au/pages/how-to-use-birdies" 
-                target="_blank" 
-                rel="noopener noreferrer"
+                href="/birdies-guide" 
                 className="inline-block px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
               >
                 View the Guide
