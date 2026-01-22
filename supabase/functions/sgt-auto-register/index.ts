@@ -315,16 +315,35 @@ serve(async (req) => {
     let totalTournamentRegistrations = 0;
     const allErrors: string[] = [];
 
+    // Check if the player has any scorecards (meaning they've played rounds)
+    const { data: existingScorecards, error: scError } = await supabase
+      .from("sgt_scorecards")
+      .select("id")
+      .eq("user_id", sgt_user_id)
+      .limit(1);
+
+    const hasPlayedRounds = !scError && existingScorecards && existingScorecards.length > 0;
+    
+    if (hasPlayedRounds) {
+      console.log(`[SGT-AUTO-REG] Player has played rounds - will use Combo HCP for future tournaments`);
+    }
+
     // Process each tour the member is in
     for (const tourId of memberTourIds) {
       console.log(`[SGT-AUTO-REG] Processing tour ID: ${tourId}`);
 
       // Get the custom handicap for this tour
       const customHcp = tourHcpMap.get(tourId);
-      const useCustomCap = customHcp !== null && customHcp !== undefined;
+      
+      // Use custom HCP only if:
+      // 1. A custom HCP is set AND
+      // 2. The player has NOT played any rounds yet (first tournament)
+      const useCustomCap = !hasPlayedRounds && customHcp !== null && customHcp !== undefined;
 
       if (useCustomCap) {
-        console.log(`[SGT-AUTO-REG] Using custom handicap ${customHcp} for user ${sgt_user_id} in tour ${tourId}`);
+        console.log(`[SGT-AUTO-REG] First tournament - using custom handicap ${customHcp} for user ${sgt_user_id} in tour ${tourId}`);
+      } else if (hasPlayedRounds) {
+        console.log(`[SGT-AUTO-REG] Player has history - using Combo HCP for user ${sgt_user_id} in tour ${tourId}`);
       }
 
       // Get all tournaments for this tour
