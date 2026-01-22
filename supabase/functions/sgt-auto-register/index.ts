@@ -9,16 +9,47 @@ const corsHeaders = {
 const SGT_BASE_URL = "https://simulatorgolftour.com/sgt-api/club-admin";
 const CLUB_URL = "birdiesbayside";
 
-let cachedApiKey: string | null = null;
-let apiKeyExpiry: number = 0;
+let cachedApiKey: { key: string; expiresAt: Date } | null = null;
 
-async function getApiKey(): Promise<string> {
-  const now = Date.now();
+// Try to refresh an existing API key before it expires
+async function refreshApiKey(existingKey: string): Promise<{ key: string; expiresAt: Date } | null> {
+  const formData = new URLSearchParams();
+  formData.append("api-key", existingKey);
+
+  console.log(`[SGT-AUTO-REG] Attempting to refresh API key...`);
   
-  if (cachedApiKey && apiKeyExpiry > now + 300000) {
-    return cachedApiKey;
-  }
+  try {
+    const response = await fetch(`${SGT_BASE_URL}/${CLUB_URL}/apikey/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: formData.toString(),
+    });
 
+    if (!response.ok) {
+      console.log(`[SGT-AUTO-REG] Refresh failed with status ${response.status}`);
+      return null;
+    }
+
+    const data = await response.json();
+    
+    if (!data.success || !data.key) {
+      console.log(`[SGT-AUTO-REG] Refresh unsuccessful:`, data);
+      return null;
+    }
+
+    console.log(`[SGT-AUTO-REG] API key refreshed successfully`);
+    return {
+      key: data.key,
+      expiresAt: new Date(Date.now() + (data.expires * 1000)),
+    };
+  } catch (e) {
+    console.error(`[SGT-AUTO-REG] Refresh error:`, e);
+    return null;
+  }
+}
+
+// Create a new API key using username/password
+async function createNewApiKey(): Promise<{ key: string; expiresAt: Date }> {
   const username = Deno.env.get("SGT_USERNAME");
   const password = Deno.env.get("SGT_PASSWORD");
 
@@ -30,7 +61,7 @@ async function getApiKey(): Promise<string> {
   formData.append("username", username);
   formData.append("password", password);
 
-  console.log("[SGT-AUTO-REG] Requesting new API key...");
+  console.log("[SGT-AUTO-REG] Creating new API key...");
   
   const response = await fetch(`${SGT_BASE_URL}/${CLUB_URL}/apikey/create`, {
     method: "POST",
@@ -44,11 +75,80 @@ async function getApiKey(): Promise<string> {
     throw new Error("Failed to authenticate with SGT API");
   }
 
-  cachedApiKey = data.key;
-  apiKeyExpiry = now + (data.expires * 1000);
-  
-  console.log("[SGT-AUTO-REG] API key obtained successfully");
-  return cachedApiKey as string;
+  console.log("[SGT-AUTO-REG] New API key created successfully");
+  return {
+    key: data.key,
+    expiresAt: new Date(Date.now() + (data.expires * 1000)),
+  };
+}
+
+async function getApiKey(supabase?: any): Promise<string> {
+  const BUFFER_MS = 5 * 60 * 1000; // 5 minute buffer
+
+  // Check if cached key is still valid
+  if (cachedApiKey && cachedApiKey.expiresAt.getTime() > Date.now() + BUFFER_MS) {
+    return cachedApiKey.key;
+  }
+
+  // Try to get from database first (if supabase client provided)
+  if (supabase) {
+    const { data: config } = await supabase
+      .from("sgt_api_config")
+      .select("api_key, expires_at")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (config?.api_key) {
+      const expiresAt = new Date(config.expires_at);
+      const timeUntilExpiry = expiresAt.getTime() - Date.now();
+
+      // If key is still valid with buffer, use it
+      if (timeUntilExpiry > BUFFER_MS) {
+        cachedApiKey = { key: config.api_key, expiresAt };
+        return config.api_key;
+      }
+
+      // Key exists but expiring soon - try to REFRESH it first
+      console.log(`[SGT-AUTO-REG] Key expiring in ${Math.round(timeUntilExpiry / 1000)}s, attempting refresh...`);
+      const refreshed = await refreshApiKey(config.api_key);
+      
+      if (refreshed) {
+        // Store refreshed key in DB
+        await supabase.from("sgt_api_config").upsert({
+          api_key: refreshed.key,
+          expires_at: refreshed.expiresAt.toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+        cachedApiKey = refreshed;
+        return refreshed.key;
+      }
+      
+      console.log(`[SGT-AUTO-REG] Refresh failed, creating new key...`);
+    }
+  } else if (cachedApiKey) {
+    // No supabase but have cached key - try refresh
+    const refreshed = await refreshApiKey(cachedApiKey.key);
+    if (refreshed) {
+      cachedApiKey = refreshed;
+      return refreshed.key;
+    }
+  }
+
+  // No valid key or refresh failed - create new one
+  const newKey = await createNewApiKey();
+  cachedApiKey = newKey;
+
+  // Store in database if supabase client provided
+  if (supabase) {
+    await supabase.from("sgt_api_config").upsert({
+      api_key: newKey.key,
+      expires_at: newKey.expiresAt.toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+  }
+
+  return newKey.key;
 }
 
 async function sgtGetRequest(endpoint: string, params: Record<string, string> = {}): Promise<unknown> {
