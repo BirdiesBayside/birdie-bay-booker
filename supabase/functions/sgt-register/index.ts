@@ -10,8 +10,8 @@ const corsHeaders = {
 const SGT_BASE_URL = "https://simulatorgolftour.com/sgt-api/club-admin";
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
-// Build branded email for new member notification
-function buildNewMemberEmail(data: { username: string; email: string; sgtUserId: number; registeredAt: string }): string {
+// Build branded email for new member notification with onboarding link
+function buildNewMemberEmail(data: { username: string; email: string; sgtUserId: number; registeredAt: string; onboardingUrl: string }): string {
   const registrationDate = new Date(data.registeredAt).toLocaleString("en-AU", {
     timeZone: "Australia/Brisbane",
     dateStyle: "full",
@@ -24,7 +24,7 @@ function buildNewMemberEmail(data: { username: string; email: string; sgtUserId:
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="x-apple-disable-message-reformatting" />
-  <title>New League Member</title>
+  <title>New League Member - Action Required</title>
   <style>
     @import url("https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;600&display=swap");
   </style>
@@ -50,10 +50,13 @@ function buildNewMemberEmail(data: { username: string; email: string; sgtUserId:
           <tr>
             <td style="background-color:#FFF5E4; padding:26px 22px; border-left:1px solid rgba(31,76,37,0.12); border-right:1px solid rgba(31,76,37,0.12);">
               <h1 style="margin:0 0 14px; font-family:Anton, Impact, Arial Black, sans-serif; font-size:34px; line-height:1.1; color:#1F4C25; text-align:center;">
-                🎉 New League Member!
+                🆕 New League Member!
               </h1>
-              <p style="margin:0 0 18px; font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">
+              <p style="margin:0 0 8px; font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">
                 A new member has joined the Birdies League via the app.
+              </p>
+              <p style="margin:0 0 18px; font-family:Inter, Arial, sans-serif; font-size:14px; line-height:1.6; color:#EC622D; text-align:center; font-weight:600;">
+                ⚠️ Action Required: Set their handicap to complete onboarding
               </p>
               
               <!-- MEMBER DETAILS BOX -->
@@ -99,8 +102,21 @@ function buildNewMemberEmail(data: { username: string; email: string; sgtUserId:
                 </tr>
               </table>
               
-              <p style="margin:18px 0 0; font-family:Inter, Arial, sans-serif; font-size:14px; line-height:1.6; color:#666; text-align:center;">
-                This is an automated notification from the Birdies Hub.
+              <!-- CTA BUTTON -->
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td align="center" style="padding:10px 0 20px;">
+                    <a href="${data.onboardingUrl}" 
+                       style="display:inline-block; background-color:#EC622D; color:#FFFFFF; font-family:Anton, Impact, Arial Black, sans-serif; font-size:18px; padding:14px 32px; text-decoration:none; border-radius:8px; letter-spacing:0.5px;">
+                      ONBOARD PLAYER →
+                    </a>
+                  </td>
+                </tr>
+              </table>
+              
+              <p style="margin:18px 0 0; font-family:Inter, Arial, sans-serif; font-size:13px; line-height:1.6; color:#666; text-align:center;">
+                The member will be held in a "pending" state until you set their handicap.<br/>
+                Once onboarded, they'll be automatically registered for all active tours and tournaments.
               </p>
             </td>
           </tr>
@@ -508,42 +524,32 @@ serve(async (req) => {
 
       console.log(`[SGT-REGISTER] Successfully linked SGT account ${sgtUserId} to user ${user.id}`);
 
-      // Check if new member email notification is enabled
-      const { data: notificationSettings } = await adminClient
-        .from("sgt_notification_settings")
-        .select("new_member_email_enabled")
-        .limit(1)
-        .maybeSingle();
+      // Always send notification email for new members (action required)
+      console.log("[SGT-REGISTER] Sending onboarding notification email...");
+      
+      // Build the onboarding URL - points to the SGT Manager Registrations tab
+      const siteUrl = Deno.env.get("SITE_URL") || "https://birdie-bay-bookings.lovable.app";
+      const onboardingUrl = `${siteUrl}/admin/sgt-manager?tab=registrations`;
+      
+      try {
+        const emailHtml = buildNewMemberEmail({
+          username,
+          email: user.email!,
+          sgtUserId,
+          registeredAt: new Date().toISOString(),
+          onboardingUrl,
+        });
 
-      if (notificationSettings?.new_member_email_enabled) {
-        console.log("[SGT-REGISTER] Sending new member notification email...");
-        
-        // Get admin email from the current authenticated user's session or use a default
-        const { data: adminProfile } = await adminClient
-          .from("profiles")
-          .select("email")
-          .eq("user_id", user.id)
-          .single();
-
-        try {
-          const emailHtml = buildNewMemberEmail({
-            username,
-            email: user.email!,
-            sgtUserId,
-            registeredAt: new Date().toISOString(),
-          });
-
-          await resend.emails.send({
-            from: "Birdies Bayside <info@birdiesbayside.com.au>",
-            to: ["info@birdiesbayside.com.au"],
-            subject: `🎉 New League Member: ${username}`,
-            html: emailHtml,
-          });
-          console.log("[SGT-REGISTER] New member notification email sent");
-        } catch (emailError) {
-          console.error("[SGT-REGISTER] Failed to send notification email:", emailError);
-          // Don't fail the registration if email fails
-        }
+        await resend.emails.send({
+          from: "Birdies Bayside <info@birdiesbayside.com.au>",
+          to: ["info@birdiesbayside.com.au"],
+          subject: `🆕 Action Required: Onboard ${username} to Birdies League`,
+          html: emailHtml,
+        });
+        console.log("[SGT-REGISTER] Onboarding notification email sent");
+      } catch (emailError) {
+        console.error("[SGT-REGISTER] Failed to send notification email:", emailError);
+        // Don't fail the registration if email fails
       }
 
       return new Response(

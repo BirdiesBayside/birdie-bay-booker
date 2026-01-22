@@ -274,62 +274,57 @@ serve(async (req) => {
       );
     }
 
-    console.log(`[SGT-AUTO-REG] Starting auto-registration for SGT user ${sgt_user_id} to ALL active tours and tournaments`);
+    console.log(`[SGT-AUTO-REG] Processing registration for SGT user ${sgt_user_id}`);
 
-    // Get ALL active tours from SGT API
-    const toursResponse = await sgtGetRequest("/tours/list");
-    const allTours = extractArray(toursResponse, ['tours', 'results']) as { 
-      tourId: number; 
-      name: string; 
-      active: number; 
-      start_date?: string 
-    }[];
-    
-    const activeTours = allTours.filter(t => t.active === 1);
-    console.log(`[SGT-AUTO-REG] Found ${activeTours.length} active tours`);
+    // Check if this member has been onboarded (exists in sgt_tour_members)
+    const { data: tourMemberRecords, error: tmError } = await supabase
+      .from("sgt_tour_members")
+      .select("tour_id, custom_hcp")
+      .eq("user_id", sgt_user_id);
 
-    if (activeTours.length === 0) {
-      console.log("[SGT-AUTO-REG] No active tours found");
+    if (tmError) {
+      console.error("[SGT-AUTO-REG] Error checking tour members:", tmError);
+      throw tmError;
+    }
+
+    // If member is NOT in any tours, they're pending onboarding - skip auto-registration
+    if (!tourMemberRecords || tourMemberRecords.length === 0) {
+      console.log(`[SGT-AUTO-REG] User ${sgt_user_id} not yet onboarded (not in any tours). Skipping auto-registration.`);
       return new Response(
-        JSON.stringify({ success: false, message: "No active tours found" }),
+        JSON.stringify({ 
+          success: false, 
+          message: "Member not yet onboarded. Awaiting admin to set handicap.",
+          pending: true 
+        }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    let totalTourRegistrations = 0;
+    // Member IS onboarded - proceed with tournament registration
+    console.log(`[SGT-AUTO-REG] User ${sgt_user_id} is onboarded in ${tourMemberRecords.length} tour(s). Registering for tournaments...`);
+
+    // Build a map of tour_id -> custom_hcp for quick lookup
+    const tourHcpMap = new Map<number, number | null>();
+    for (const tm of tourMemberRecords) {
+      tourHcpMap.set(tm.tour_id, tm.custom_hcp);
+    }
+
+    // Get tours this member belongs to
+    const memberTourIds = Array.from(tourHcpMap.keys());
+
     let totalTournamentRegistrations = 0;
     const allErrors: string[] = [];
 
-    // Process each active tour
-    for (const tour of activeTours) {
-      const tourId = tour.tourId;
-      console.log(`[SGT-AUTO-REG] Processing tour ${tour.name} (ID: ${tourId})`);
+    // Process each tour the member is in
+    for (const tourId of memberTourIds) {
+      console.log(`[SGT-AUTO-REG] Processing tour ID: ${tourId}`);
 
-      // Check if user is already a member of this tour
-      const tourMembersResponse = await sgtGetRequest("/tours/members", { tourId: tourId.toString() });
-      const tourMembers = extractArray(tourMembersResponse, ['members', 'results']) as { user_id: number }[];
-      
-      const isAlreadyMember = tourMembers.some(m => m.user_id === sgt_user_id);
+      // Get the custom handicap for this tour
+      const customHcp = tourHcpMap.get(tourId);
+      const useCustomCap = customHcp !== null && customHcp !== undefined;
 
-      if (!isAlreadyMember) {
-        // Add user to the tour with combo handicap
-        console.log(`[SGT-AUTO-REG] Adding user ${sgt_user_id} to tour ${tour.name}`);
-        try {
-          const addMemberResult = await sgtPostRequest("/tours/add-member", {
-            tourId: tourId,
-            user_id: sgt_user_id,
-            useComboCapstring: "true",
-          });
-          console.log(`[SGT-AUTO-REG] Add member result:`, addMemberResult);
-          totalTourRegistrations++;
-        } catch (error) {
-          const errorMsg = `Failed to add to tour ${tour.name}: ${error instanceof Error ? error.message : 'Unknown error'}`;
-          console.error(`[SGT-AUTO-REG] ${errorMsg}`);
-          allErrors.push(errorMsg);
-          continue; // Skip tournament registration if tour registration failed
-        }
-      } else {
-        console.log(`[SGT-AUTO-REG] User ${sgt_user_id} is already a member of tour ${tour.name}`);
+      if (useCustomCap) {
+        console.log(`[SGT-AUTO-REG] Using custom handicap ${customHcp} for user ${sgt_user_id} in tour ${tourId}`);
       }
 
       // Get all tournaments for this tour
@@ -351,22 +346,7 @@ serve(async (req) => {
         return isNotClosed && isFutureOrToday;
       });
 
-      console.log(`[SGT-AUTO-REG] Found ${activeTournaments.length} active tournaments for tour ${tour.name}`);
-
-      // Check for custom handicap in our database
-      const { data: tourMemberData } = await supabase
-        .from("sgt_tour_members")
-        .select("custom_hcp")
-        .eq("user_id", sgt_user_id)
-        .eq("tour_id", tourId)
-        .maybeSingle();
-      
-      const customHcp = tourMemberData?.custom_hcp;
-      const useCustomCap = customHcp !== null && customHcp !== undefined;
-      
-      if (useCustomCap) {
-        console.log(`[SGT-AUTO-REG] Using custom handicap ${customHcp} for user ${sgt_user_id} in tour ${tour.name}`);
-      }
+      console.log(`[SGT-AUTO-REG] Found ${activeTournaments.length} active tournaments for tour ${tourId}`);
 
       // Register user for each active tournament
       for (const tournament of activeTournaments) {
@@ -433,8 +413,8 @@ serve(async (req) => {
 
     const result = {
       success: true,
-      toursRegistered: totalTourRegistrations,
       tournamentsRegistered: totalTournamentRegistrations,
+      toursProcessed: memberTourIds.length,
       errors: allErrors.length > 0 ? allErrors : undefined,
     };
 
