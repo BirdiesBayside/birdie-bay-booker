@@ -231,42 +231,6 @@ export function SGTDashboard() {
         </Button>
       </div>
 
-      {/* Notification Settings Card */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <Bell className="h-5 w-5 text-primary" />
-            <CardTitle>Notifications</CardTitle>
-          </div>
-          <CardDescription>
-            Configure email notifications for SGT events
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <Mail className="h-4 w-4 text-primary" />
-              </div>
-              <div>
-                <Label htmlFor="new-member-email" className="text-sm font-medium">
-                  New Member Email
-                </Label>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Receive an email when a new member joins the Birdies League
-                </p>
-              </div>
-            </div>
-            <Switch
-              id="new-member-email"
-              checked={notificationSettings?.new_member_email_enabled ?? false}
-              onCheckedChange={(checked) => updateNotificationMutation.mutate(checked)}
-              disabled={updateNotificationMutation.isPending}
-            />
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         {stats.map((stat) => {
@@ -335,6 +299,42 @@ export function SGTDashboard() {
           ) : (
             <p className="text-muted-foreground text-center py-8">No tournaments found</p>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Notification Settings Card */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Bell className="h-5 w-5 text-primary" />
+            <CardTitle>Notifications</CardTitle>
+          </div>
+          <CardDescription>
+            Configure email notifications for SGT events
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Mail className="h-4 w-4 text-primary" />
+              </div>
+              <div>
+                <Label htmlFor="new-member-email" className="text-sm font-medium">
+                  New Member Email
+                </Label>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Receive an email when a new member joins the Birdies League
+                </p>
+              </div>
+            </div>
+            <Switch
+              id="new-member-email"
+              checked={notificationSettings?.new_member_email_enabled ?? false}
+              onCheckedChange={(checked) => updateNotificationMutation.mutate(checked)}
+              disabled={updateNotificationMutation.isPending}
+            />
+          </div>
         </CardContent>
       </Card>
     </div>
