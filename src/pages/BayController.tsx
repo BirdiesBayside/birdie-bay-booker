@@ -1342,9 +1342,15 @@ export default function BayController() {
     }
   }, [activeBooking?.user_id]);
 
-  // Check for upcoming customer changeover - show welcome overlay 30 seconds before different customer's booking
+  // Check for upcoming customer changeover - 1 minute before different customer's booking:
+  // 1. Show welcome overlay with new customer's name (masks the screen)
+  // 2. Close apps (triggers GSPro baseline settings reset)
+  // 3. Relaunch apps behind the welcome screen
+  // 4. Welcome screen auto-closes 30 seconds after the new booking starts
+  const changeoverInProgressRef = useRef<string | null>(null);
+  
   useEffect(() => {
-    if (!isElectron || !activeBooking || !appsRunning) return;
+    if (!isElectron || !activeBooking) return;
     
     const checkChangeover = async () => {
       const now = new Date();
@@ -1353,31 +1359,93 @@ export default function BayController() {
       const nextBooking = getNextBooking(activeBooking);
       if (!nextBooking) return;
       
-      // Only proceed if it's a DIFFERENT customer
+      // Only proceed if it's a DIFFERENT customer (back-to-back with same customer doesn't need reset)
       if (nextBooking.user_id === activeBooking.user_id) return;
       
       const nextStartTime = parseISO(`${today}T${nextBooking.start_time}`);
       const secondsUntilNextStart = (nextStartTime.getTime() - now.getTime()) / 1000;
       
-      // Trigger 30 seconds before the next booking starts
-      if (secondsUntilNextStart <= 30 && secondsUntilNextStart > -5) {
+      // Trigger 60 seconds before the next booking starts (T-1m)
+      if (secondsUntilNextStart <= 60 && secondsUntilNextStart > -5) {
         const changeoverKey = `${activeBooking.id}-${nextBooking.id}`;
         
-        if (!shownChangeoverWelcomes.has(changeoverKey)) {
-          setShownChangeoverWelcomes(prev => new Set([...prev, changeoverKey]));
-          
-          // Show welcome overlay for the incoming customer
-          const firstName = nextBooking.customer_name?.split(' ')[0] || 'Guest';
-          
-          console.log(`[BayController] Changeover detected: ${activeBooking.customer_name} -> ${nextBooking.customer_name}. Showing welcome for ${firstName}`);
-          
-          if (window.electronAPI) {
+        // Prevent duplicate changeover sequences
+        if (shownChangeoverWelcomes.has(changeoverKey) || changeoverInProgressRef.current === changeoverKey) return;
+        
+        changeoverInProgressRef.current = changeoverKey;
+        setShownChangeoverWelcomes(prev => new Set([...prev, changeoverKey]));
+        
+        const firstName = nextBooking.customer_name?.split(' ')[0] || 'Guest';
+        
+        console.log(`[BayController] Back-to-back changeover: ${activeBooking.customer_name} -> ${nextBooking.customer_name}`);
+        console.log(`[BayController] Starting changeover sequence at T-${Math.round(secondsUntilNextStart)}s`);
+        
+        if (window.electronAPI) {
+          try {
+            // Step 1: Show welcome overlay immediately (masks the screen for current customer)
+            console.log(`[Changeover] Step 1: Showing welcome screen for ${firstName}`);
             await window.electronAPI.showWelcomeWindows(firstName);
             
-            // Auto-close after 30 seconds
+            // Step 2: Close apps (triggers GSPro baseline reset in electron main.js)
+            if (appsRunning) {
+              console.log(`[Changeover] Step 2: Closing apps to trigger baseline reset`);
+              await window.electronAPI.closeApps(["GSPro.exe", "ProteeLabs.exe"]);
+              setAppsRunning(false);
+              setAppLaunchStatus(null);
+            }
+            
+            // Step 3: Wait a moment for baseline restore to complete, then relaunch apps
             setTimeout(async () => {
+              console.log(`[Changeover] Step 3: Relaunching apps behind welcome screen`);
+              // Apps will launch using the standard sequence
+              if (appLaunchConfig.enabled && window.electronAPI) {
+                setIsLaunchingApps(true);
+                setAppLaunchStatus("Relaunching apps for new session...");
+                
+                try {
+                  // Get fresh display info and convert labels to indices
+                  const freshDisplays = await window.electronAPI.getDisplays();
+                  const gsproDisplayIndex = freshDisplays.findIndex(d => d.label === appLaunchConfig.gsproDisplayLabel);
+                  const proteeDisplayIndex = freshDisplays.findIndex(d => d.label === appLaunchConfig.proteeDisplayLabel);
+                  
+                  const result = await window.electronAPI.runAppSequence({
+                    gsproPath: appLaunchConfig.gsproPath,
+                    proteeLabsPath: appLaunchConfig.proteeLabsPath,
+                    gsproDisplay: gsproDisplayIndex >= 0 ? gsproDisplayIndex : 0,
+                    proteeDisplay: proteeDisplayIndex >= 0 ? proteeDisplayIndex : 0,
+                    postLaunchDelay: 3000,
+                    firstName: firstName,
+                  });
+                  
+                  if (result.success) {
+                    setAppsRunning(true);
+                    setAppLaunchStatus("Apps ready for new session");
+                    console.log(`[Changeover] Apps relaunched successfully`);
+                  } else {
+                    console.error(`[Changeover] App relaunch failed:`, result.error);
+                    setAppLaunchStatus(`Relaunch failed: ${result.error}`);
+                  }
+                } catch (err) {
+                  console.error(`[Changeover] App relaunch error:`, err);
+                } finally {
+                  setIsLaunchingApps(false);
+                }
+              }
+            }, 3000); // 3 second delay for baseline restore
+            
+            // Step 4: Close welcome screen 30 seconds AFTER the new booking starts
+            const msUntilNextStart = nextStartTime.getTime() - now.getTime();
+            const closeWelcomeDelay = Math.max(msUntilNextStart + 30000, 30000); // At least 30s from now
+            
+            setTimeout(async () => {
+              console.log(`[Changeover] Step 4: Closing welcome screen`);
               await window.electronAPI?.closeWelcomeWindows();
-            }, 30000);
+              changeoverInProgressRef.current = null;
+            }, closeWelcomeDelay);
+            
+          } catch (err) {
+            console.error(`[Changeover] Error during changeover sequence:`, err);
+            changeoverInProgressRef.current = null;
           }
         }
       }
@@ -1387,7 +1455,7 @@ export default function BayController() {
     checkChangeover();
     
     return () => clearInterval(interval);
-  }, [activeBooking, appsRunning, isElectron, shownChangeoverWelcomes, getNextBooking]);
+  }, [activeBooking, appsRunning, isElectron, shownChangeoverWelcomes, getNextBooking, appLaunchConfig]);
 
   // Helper function to calculate if plugs should be on based on bookings
   const calculateShouldPlugsBeOn = useCallback(() => {
@@ -2044,6 +2112,8 @@ export default function BayController() {
 
   // Auto-launch apps based on booking time (separate effect after functions are defined)
   // CRITICAL: Apps close X seconds BEFORE booking ends to ensure they close while screens are still on
+  // NOTE: For back-to-back bookings with DIFFERENT customers, the changeover effect handles
+  // the close/relaunch sequence at T-1m. This effect only handles same-customer back-to-back.
   useEffect(() => {
     if (!appLaunchConfig.enabled || !isElectron) return;
 
@@ -2072,18 +2142,34 @@ export default function BayController() {
         shouldCloseApps = true;
       }
 
-      // Check for back-to-back - keep apps running through consecutive bookings
+      // Check for back-to-back - handle based on whether it's same or different customer
       const nextBooking = todaysBookings.find(b => b.id !== booking.id && b.start_time === booking.end_time);
       if (nextBooking) {
+        const isSameCustomer = nextBooking.user_id === booking.user_id;
         const nextEndTime = parseISO(`${nextBooking.booking_date}T${nextBooking.end_time}`);
         const nextAppCloseTime = new Date(nextEndTime.getTime() - (appLaunchConfig.appCloseSeconds * 1000));
         
-        // If there's a back-to-back, don't close until the last booking's close time
-        if (isBefore(now, nextAppCloseTime)) {
-          shouldLaunchApps = true;
-          shouldCloseApps = false; // Override close since there's a next booking
+        if (isSameCustomer) {
+          // Same customer back-to-back: keep apps running continuously
+          if (isBefore(now, nextAppCloseTime)) {
+            shouldLaunchApps = true;
+            shouldCloseApps = false;
+          }
+        } else {
+          // Different customer back-to-back: the changeover effect handles the reset at T-1m
+          // This effect should just ensure apps stay "logically running" through the transition
+          // The changeover effect will handle the actual close/relaunch
+          if (isBefore(now, nextAppCloseTime)) {
+            shouldLaunchApps = true;
+            shouldCloseApps = false; // Don't auto-close - changeover handles it
+          }
         }
       }
+    }
+
+    // Don't auto-launch if changeover is in progress (it handles the relaunch)
+    if (changeoverInProgressRef.current) {
+      return;
     }
 
     if (shouldLaunchApps && !appsRunning && !isLaunchingApps) {
