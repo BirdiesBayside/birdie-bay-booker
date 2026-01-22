@@ -15,7 +15,8 @@ export default function LeagueRegister() {
   
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [usernameStatus, setUsernameStatus] = useState<"idle" | "checking" | "available" | "taken">("idle");
+  const [usernameStatus, setUsernameStatus] = useState<"idle" | "checking" | "available" | "taken" | "error">("idle");
+  const [usernameError, setUsernameError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [checkTimeout, setCheckTimeout] = useState<NodeJS.Timeout | null>(null);
 
@@ -53,16 +54,19 @@ export default function LeagueRegister() {
 
     if (!username || username.length < 2) {
       setUsernameStatus("idle");
+      setUsernameError(null);
       return;
     }
 
     // Validate format
     if (!/^[a-zA-Z0-9_]+$/.test(username)) {
       setUsernameStatus("idle");
+      setUsernameError(null);
       return;
     }
 
     setUsernameStatus("checking");
+    setUsernameError(null);
 
     const timeout = setTimeout(async () => {
       try {
@@ -72,10 +76,19 @@ export default function LeagueRegister() {
 
         if (error) throw error;
 
+        if (data.error) {
+          console.error("Username check error:", data.error);
+          setUsernameStatus("error");
+          setUsernameError(data.error);
+          return;
+        }
+
         setUsernameStatus(data.available ? "available" : "taken");
-      } catch (error) {
+        setUsernameError(null);
+      } catch (error: any) {
         console.error("Username check failed:", error);
-        setUsernameStatus("idle");
+        setUsernameStatus("error");
+        setUsernameError(error.message || "Unable to check username. Please try again.");
       }
     }, 500);
 
@@ -197,6 +210,9 @@ export default function LeagueRegister() {
                     {usernameStatus === "taken" && (
                       <XCircle className="h-4 w-4 text-destructive" />
                     )}
+                    {usernameStatus === "error" && (
+                      <XCircle className="h-4 w-4 text-amber-500" />
+                    )}
                   </div>
                 </div>
                 <p className="text-xs text-muted-foreground font-inter">
@@ -205,6 +221,11 @@ export default function LeagueRegister() {
                 {usernameStatus === "taken" && (
                   <p className="text-xs text-destructive font-inter">
                     This username is already taken. Please try another.
+                  </p>
+                )}
+                {usernameStatus === "error" && usernameError && (
+                  <p className="text-xs text-amber-600 font-inter">
+                    {usernameError}
                   </p>
                 )}
               </div>
