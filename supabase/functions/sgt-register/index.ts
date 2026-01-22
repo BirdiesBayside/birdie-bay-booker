@@ -127,26 +127,52 @@ function buildNewMemberEmail(data: { username: string; email: string; sgtUserId:
 // Cache for API key
 let cachedApiKey: { key: string; expiresAt: Date } | null = null;
 
-async function getApiKey(supabase: any, clubUrl: string): Promise<string> {
-  // Check if cached key is still valid (with 5 min buffer)
-  if (cachedApiKey && cachedApiKey.expiresAt > new Date(Date.now() + 5 * 60 * 1000)) {
-    return cachedApiKey.key;
+// Try to refresh an existing API key before it expires
+async function refreshApiKey(existingKey: string, clubUrl: string): Promise<{ key: string; expiresAt: Date } | null> {
+  const formData = new URLSearchParams();
+  formData.append("api-key", existingKey);
+
+  console.log(`[SGT-REGISTER] Attempting to refresh API key...`);
+  
+  try {
+    const response = await fetch(`${SGT_BASE_URL}/${clubUrl}/apikey/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: formData.toString(),
+    });
+
+    if (!response.ok) {
+      console.log(`[SGT-REGISTER] Refresh failed with status ${response.status}`);
+      return null;
+    }
+
+    const responseText = await response.text();
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch {
+      console.log(`[SGT-REGISTER] Refresh returned non-JSON: ${responseText.substring(0, 100)}`);
+      return null;
+    }
+
+    if (!data.success || !data.key) {
+      console.log(`[SGT-REGISTER] Refresh unsuccessful:`, data);
+      return null;
+    }
+
+    console.log(`[SGT-REGISTER] API key refreshed successfully`);
+    return {
+      key: data.key,
+      expiresAt: new Date(Date.now() + (data.expires * 1000)),
+    };
+  } catch (e) {
+    console.error(`[SGT-REGISTER] Refresh error:`, e);
+    return null;
   }
+}
 
-  // Try to get from database first
-  const { data: config } = await supabase
-    .from("sgt_api_config")
-    .select("api_key, expires_at")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (config && new Date(config.expires_at) > new Date(Date.now() + 5 * 60 * 1000)) {
-    cachedApiKey = { key: config.api_key, expiresAt: new Date(config.expires_at) };
-    return config.api_key;
-  }
-
-  // Need to authenticate and get new key
+// Create a new API key using username/password
+async function createNewApiKey(supabase: any, clubUrl: string): Promise<{ key: string; expiresAt: Date }> {
   const username = Deno.env.get("SGT_USERNAME");
   const password = Deno.env.get("SGT_PASSWORD");
 
@@ -158,8 +184,7 @@ async function getApiKey(supabase: any, clubUrl: string): Promise<string> {
   formData.append("username", username);
   formData.append("password", password);
 
-  // Use the correct endpoint: apikey/create (matching sgt-sync)
-  console.log(`[SGT-REGISTER] Requesting API key from ${SGT_BASE_URL}/${clubUrl}/apikey/create`);
+  console.log(`[SGT-REGISTER] Creating new API key...`);
   
   const response = await fetch(`${SGT_BASE_URL}/${clubUrl}/apikey/create`, {
     method: "POST",
@@ -170,7 +195,7 @@ async function getApiKey(supabase: any, clubUrl: string): Promise<string> {
   const responseText = await response.text();
   
   if (!response.ok) {
-    console.error(`[SGT-REGISTER] API key request failed: ${response.status}, body: ${responseText.substring(0, 200)}`);
+    console.error(`[SGT-REGISTER] API key create failed: ${response.status}, body: ${responseText.substring(0, 200)}`);
     throw new Error(`SGT API temporarily unavailable. Please try again in a few minutes.`);
   }
 
@@ -182,23 +207,73 @@ async function getApiKey(supabase: any, clubUrl: string): Promise<string> {
     throw new Error("SGT API returned invalid response. Please try again in a few minutes.");
   }
   
-  // Response format is { success: boolean, key: string, expires: number }
   if (!data.success || !data.key) {
     console.error(`[SGT-REGISTER] API key auth failed:`, data);
     throw new Error("Failed to authenticate with SGT API");
   }
 
-  // Store in database - use expires from response (in seconds)
   const expiresAt = new Date(Date.now() + (data.expires * 1000));
+  console.log(`[SGT-REGISTER] New API key created successfully`);
+  
+  return { key: data.key, expiresAt };
+}
+
+async function getApiKey(supabase: any, clubUrl: string): Promise<string> {
+  const BUFFER_MS = 5 * 60 * 1000; // 5 minute buffer
+
+  // Check if cached key is still valid
+  if (cachedApiKey && cachedApiKey.expiresAt.getTime() > Date.now() + BUFFER_MS) {
+    return cachedApiKey.key;
+  }
+
+  // Try to get from database first
+  const { data: config } = await supabase
+    .from("sgt_api_config")
+    .select("api_key, expires_at")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (config?.api_key) {
+    const expiresAt = new Date(config.expires_at);
+    const timeUntilExpiry = expiresAt.getTime() - Date.now();
+
+    // If key is still valid with buffer, use it
+    if (timeUntilExpiry > BUFFER_MS) {
+      cachedApiKey = { key: config.api_key, expiresAt };
+      return config.api_key;
+    }
+
+    // Key exists but expiring soon - try to REFRESH it first
+    console.log(`[SGT-REGISTER] Key expiring in ${Math.round(timeUntilExpiry / 1000)}s, attempting refresh...`);
+    const refreshed = await refreshApiKey(config.api_key, clubUrl);
+    
+    if (refreshed) {
+      // Store refreshed key in DB
+      await supabase.from("sgt_api_config").upsert({
+        api_key: refreshed.key,
+        expires_at: refreshed.expiresAt.toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+      cachedApiKey = refreshed;
+      return refreshed.key;
+    }
+    
+    console.log(`[SGT-REGISTER] Refresh failed, creating new key...`);
+  }
+
+  // No valid key or refresh failed - create new one
+  const newKey = await createNewApiKey(supabase, clubUrl);
+
+  // Store in database
   await supabase.from("sgt_api_config").upsert({
-    api_key: data.key,
-    expires_at: expiresAt.toISOString(),
+    api_key: newKey.key,
+    expires_at: newKey.expiresAt.toISOString(),
     updated_at: new Date().toISOString(),
   });
 
-  cachedApiKey = { key: data.key, expiresAt };
-  console.log("[SGT-REGISTER] API key obtained successfully");
-  return data.key;
+  cachedApiKey = newKey;
+  return newKey.key;
 }
 
 serve(async (req) => {
