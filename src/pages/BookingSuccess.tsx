@@ -203,6 +203,22 @@ const BookingSuccess = () => {
               </span>
             </div>
 
+            {/* How to Use Guide */}
+            <div className="mt-6 p-4 bg-muted/50 rounded-lg border text-center">
+              <p className="font-display text-lg text-foreground mb-2">First Time at Birdies?</p>
+              <p className="text-sm text-muted-foreground mb-3">
+                Check out our guide for everything you need to know about accessing the facility and using the simulators.
+              </p>
+              <a 
+                href="https://birdiesbayside.com.au/pages/how-to-use-birdies" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="inline-block px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+              >
+                View the Guide
+              </a>
+            </div>
+
             {/* Action Buttons */}
             <div className="mt-6 space-y-3">
               <Button 
