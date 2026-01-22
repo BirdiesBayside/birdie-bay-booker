@@ -194,9 +194,7 @@ const Dashboard = () => {
             <div className={`bg-card rounded-lg p-6 shadow-md border relative ${!hasLeagueAccess ? "border-border opacity-60" : "border-league-primary/30"}`}>
               {/* Info icon - always visible */}
               <a 
-                href="/how-to-use-birdies-shopify-embed.html" 
-                target="_blank"
-                rel="noopener noreferrer"
+                href="/birdies-guide" 
                 className="absolute top-3 right-3 h-6 w-6 rounded-full bg-muted hover:bg-muted/80 flex items-center justify-center transition-colors"
                 title="How to use the simulators"
               >

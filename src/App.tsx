@@ -30,6 +30,7 @@ const EmbedTVStandings = lazy(() => import("./pages/EmbedTVStandings"));
 const EmbedTVLastWeek = lazy(() => import("./pages/EmbedTVLastWeek"));
 const CardAdded = lazy(() => import("./pages/CardAdded"));
 const WelcomePreview = lazy(() => import("./pages/WelcomePreview"));
+const BirdiesGuide = lazy(() => import("./pages/BirdiesGuide"));
 
 // Admin pages
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
@@ -183,6 +184,7 @@ const App = () => (
             <Route path="/bay-controller" element={<BayController />} />
             <Route path="/card-added" element={<CardAdded />} />
             <Route path="/welcome-preview" element={<WelcomePreview />} />
+            <Route path="/birdies-guide" element={<BirdiesGuide />} />
             {/* Admin Routes */}
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/admin/timetable" element={<AdminTimetable />} />
