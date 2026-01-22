@@ -288,65 +288,98 @@ serve(async (req) => {
         );
       }
 
-       // Register the new user with SGT
-       // IMPORTANT: SGT expects api-key in the query string (same as members/list)
-       // Sending it in form-encoded body can result in "INVALID API KEY" responses.
-       const formData = new URLSearchParams();
-       formData.append("user_name", username);
-       formData.append("user_email", user.email!);
-       formData.append("user_password_new", password);
+      // Register the new user with SGT
+      // According to API docs: all params go in form-encoded body including api-key
+      // Endpoint: POST /{clubUrl}/members/register-new
+      // Body: api-key, user_name, user_email, user_password_new
+      const formData = new URLSearchParams();
+      formData.append("api-key", apiKey);
+      formData.append("user_name", username);
+      formData.append("user_email", user.email!);
+      formData.append("user_password_new", password);
 
       console.log(`[SGT-REGISTER] Registering user: ${username} with email: ${user.email}`);
+      console.log(`[SGT-REGISTER] POST ${SGT_BASE_URL}/${clubUrl}/members/register-new`);
 
-       const registerResponse = await fetch(
-         `${SGT_BASE_URL}/${clubUrl}/members/register-new?api-key=${encodeURIComponent(apiKey)}`,
-         {
-           method: "POST",
-           headers: { "Content-Type": "application/x-www-form-urlencoded" },
-           body: formData.toString(),
-         }
-       );
+      const registerResponse = await fetch(
+        `${SGT_BASE_URL}/${clubUrl}/members/register-new`,
+        {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Accept": "*/*"
+          },
+          body: formData.toString(),
+        }
+      );
 
-       const registerText = await registerResponse.text();
-       let registerData: any = null;
-       try {
-         registerData = JSON.parse(registerText);
-       } catch {
-         registerData = registerText;
-       }
+      const registerText = await registerResponse.text();
+      console.log(`[SGT-REGISTER] Raw response (${registerResponse.status}): ${registerText.substring(0, 500)}`);
+      
+      let registerData: any = null;
+      try {
+        registerData = JSON.parse(registerText);
+      } catch {
+        // Response is not JSON - could be error message
+        console.error(`[SGT-REGISTER] Non-JSON response: ${registerText}`);
+      }
 
-       console.log(`[SGT-REGISTER] Register response (${registerResponse.status}):`,
-         typeof registerData === "string" ? registerData.substring(0, 200) : registerData
-       );
+      console.log(`[SGT-REGISTER] Parsed register response:`, registerData);
 
-       // Handle upstream auth errors explicitly for clearer UI messaging
-       if (typeof registerData === "string" && registerData.toUpperCase().includes("INVALID API KEY")) {
-         return new Response(
-           JSON.stringify({
-             error: "SGT authentication failed (invalid API key). Please try again in a few minutes.",
-             details: registerData,
-           }),
-           { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-         );
-       }
+      // Handle non-JSON responses (usually error messages)
+      if (registerData === null) {
+        const upperText = registerText.toUpperCase();
+        if (upperText.includes("INVALID API KEY")) {
+          // Clear cached key and suggest retry
+          cachedApiKey = null;
+          return new Response(
+            JSON.stringify({
+              error: "SGT authentication expired. Please try again.",
+              details: registerText,
+            }),
+            { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        return new Response(
+          JSON.stringify({
+            error: "SGT API returned an unexpected response. Please try again.",
+            details: registerText,
+          }),
+          { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
 
-       if (!registerResponse.ok) {
-         return new Response(
-           JSON.stringify({
-             error: "SGT API temporarily unavailable. Please try again in a few minutes.",
-             details: typeof registerData === "string" ? registerData : registerData,
-           }),
-           { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-         );
-       }
+      // Check HTTP status
+      if (!registerResponse.ok) {
+        return new Response(
+          JSON.stringify({
+            error: registerData?.feedback || "SGT API error. Please try again.",
+            details: registerData,
+          }),
+          { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
 
-      if (!registerData.successful) {
+      // Check API success flag - response format: { successful: boolean, feedback: string, userData: { user_game_id, username } }
+      if (registerData.successful === false) {
         return new Response(
           JSON.stringify({ 
             error: registerData.feedback || "Registration failed",
             details: registerData 
           }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // If successful is not explicitly true, something unexpected happened
+      if (registerData.successful !== true) {
+        console.warn(`[SGT-REGISTER] Unexpected response format:`, registerData);
+        return new Response(
+          JSON.stringify({ 
+            error: "Unexpected response from SGT. Please try again.",
+            details: registerData 
+          }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
