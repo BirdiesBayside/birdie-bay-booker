@@ -96,11 +96,19 @@ async function sgtPostRequest(endpoint: string, body: Record<string, string | nu
   return response.json();
 }
 
+interface RegistrationItem {
+  user_id: number;
+  useComboCap: string;
+  useCustomCap: string;
+  customCap?: number;
+  teeType: string;
+}
+
 async function sgtPostRequestWithRegistrationList(
   endpoint: string, 
   tournamentId: number,
   tourId: number,
-  registrationList: { user_id: number; useComboCap: string; useCustomCap: string; teeType: string }[]
+  registrationList: RegistrationItem[]
 ): Promise<unknown> {
   const apiKey = await getApiKey();
   
@@ -113,6 +121,9 @@ async function sgtPostRequestWithRegistrationList(
     formData.append(`registrationList[${index}][user_id]`, reg.user_id.toString());
     formData.append(`registrationList[${index}][useComboCap]`, reg.useComboCap);
     formData.append(`registrationList[${index}][useCustomCap]`, reg.useCustomCap);
+    if (reg.useCustomCap === "true" && reg.customCap !== undefined) {
+      formData.append(`registrationList[${index}][customCap]`, reg.customCap.toString());
+    }
     formData.append(`registrationList[${index}][teeType]`, reg.teeType);
   });
 
@@ -242,6 +253,21 @@ serve(async (req) => {
 
       console.log(`[SGT-AUTO-REG] Found ${activeTournaments.length} active tournaments for tour ${tour.name}`);
 
+      // Check for custom handicap in our database
+      const { data: tourMemberData } = await supabase
+        .from("sgt_tour_members")
+        .select("custom_hcp")
+        .eq("user_id", sgt_user_id)
+        .eq("tour_id", tourId)
+        .maybeSingle();
+      
+      const customHcp = tourMemberData?.custom_hcp;
+      const useCustomCap = customHcp !== null && customHcp !== undefined;
+      
+      if (useCustomCap) {
+        console.log(`[SGT-AUTO-REG] Using custom handicap ${customHcp} for user ${sgt_user_id} in tour ${tour.name}`);
+      }
+
       // Register user for each active tournament
       for (const tournament of activeTournaments) {
         try {
@@ -256,19 +282,26 @@ serve(async (req) => {
             continue;
           }
 
+          // Build registration with custom handicap if available
+          const registrationItem: RegistrationItem = {
+            user_id: sgt_user_id,
+            useComboCap: useCustomCap ? "false" : "true",
+            useCustomCap: useCustomCap ? "true" : "false",
+            teeType: "White"
+          };
+          
+          if (useCustomCap && customHcp !== null) {
+            registrationItem.customCap = customHcp;
+          }
+
           // Register for tournament
-          console.log(`[SGT-AUTO-REG] Registering user for tournament ${tournament.name} (ID: ${tournament.tournamentId})`);
+          console.log(`[SGT-AUTO-REG] Registering user for tournament ${tournament.name} (ID: ${tournament.tournamentId})${useCustomCap ? ` with custom HCP ${customHcp}` : ''}`);
           
           const registerResult = await sgtPostRequestWithRegistrationList(
             "/registrations/register-members",
             tournament.tournamentId,
             tourId,
-            [{
-              user_id: sgt_user_id,
-              useComboCap: "true",
-              useCustomCap: "false",
-              teeType: "White"
-            }]
+            [registrationItem]
           );
 
           console.log(`[SGT-AUTO-REG] Registration result for ${tournament.name}:`, registerResult);
