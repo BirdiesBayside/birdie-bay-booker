@@ -238,7 +238,7 @@ serve(async (req) => {
 
     const apiKey = await getApiKey(adminClient, clubUrl);
 
-    if (action === "check-username") {
+     if (action === "check-username") {
       // Check if username is available by checking existing members
       const membersResponse = await fetch(
         `${SGT_BASE_URL}/${clubUrl}/members/list?api-key=${encodeURIComponent(apiKey)}`,
@@ -246,6 +246,8 @@ serve(async (req) => {
       );
 
       if (!membersResponse.ok) {
+        const body = await membersResponse.text();
+        console.error(`[SGT-REGISTER] members/list failed: ${membersResponse.status} ${body.substring(0, 200)}`);
         throw new Error("Failed to fetch members list");
       }
 
@@ -262,7 +264,7 @@ serve(async (req) => {
       );
     }
 
-    if (action === "register") {
+     if (action === "register") {
       if (!username || !password) {
         return new Response(
           JSON.stringify({ error: "Username and password are required" }),
@@ -286,26 +288,57 @@ serve(async (req) => {
         );
       }
 
-      // Register the new user with SGT
-      const formData = new URLSearchParams();
-      formData.append("api-key", apiKey);
-      formData.append("user_name", username);
-      formData.append("user_email", user.email!);
-      formData.append("user_password_new", password);
+       // Register the new user with SGT
+       // IMPORTANT: SGT expects api-key in the query string (same as members/list)
+       // Sending it in form-encoded body can result in "INVALID API KEY" responses.
+       const formData = new URLSearchParams();
+       formData.append("user_name", username);
+       formData.append("user_email", user.email!);
+       formData.append("user_password_new", password);
 
       console.log(`[SGT-REGISTER] Registering user: ${username} with email: ${user.email}`);
 
-      const registerResponse = await fetch(
-        `${SGT_BASE_URL}/${clubUrl}/members/register-new`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: formData.toString(),
-        }
-      );
+       const registerResponse = await fetch(
+         `${SGT_BASE_URL}/${clubUrl}/members/register-new?api-key=${encodeURIComponent(apiKey)}`,
+         {
+           method: "POST",
+           headers: { "Content-Type": "application/x-www-form-urlencoded" },
+           body: formData.toString(),
+         }
+       );
 
-      const registerData = await registerResponse.json();
-      console.log("[SGT-REGISTER] Register response:", registerData);
+       const registerText = await registerResponse.text();
+       let registerData: any = null;
+       try {
+         registerData = JSON.parse(registerText);
+       } catch {
+         registerData = registerText;
+       }
+
+       console.log(`[SGT-REGISTER] Register response (${registerResponse.status}):`,
+         typeof registerData === "string" ? registerData.substring(0, 200) : registerData
+       );
+
+       // Handle upstream auth errors explicitly for clearer UI messaging
+       if (typeof registerData === "string" && registerData.toUpperCase().includes("INVALID API KEY")) {
+         return new Response(
+           JSON.stringify({
+             error: "SGT authentication failed (invalid API key). Please try again in a few minutes.",
+             details: registerData,
+           }),
+           { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+         );
+       }
+
+       if (!registerResponse.ok) {
+         return new Response(
+           JSON.stringify({
+             error: "SGT API temporarily unavailable. Please try again in a few minutes.",
+             details: typeof registerData === "string" ? registerData : registerData,
+           }),
+           { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+         );
+       }
 
       if (!registerData.successful) {
         return new Response(
