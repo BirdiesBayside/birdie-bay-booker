@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -12,7 +13,19 @@ import { LayoutDashboard, Trophy, Calendar, Users, FileText, ClipboardList } fro
 
 export default function AdminSGTManager() {
   const { isLoading } = useAdminAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState("dashboard");
+
+  // Handle URL tab parameter (for email links)
+  useEffect(() => {
+    const tabParam = searchParams.get("tab");
+    if (tabParam && ["dashboard", "registrations", "tours", "tournaments", "members", "scorecards"].includes(tabParam)) {
+      setActiveTab(tabParam);
+      // Clean up URL after reading
+      searchParams.delete("tab");
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   if (isLoading) {
     return (

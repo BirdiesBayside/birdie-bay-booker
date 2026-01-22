@@ -4,11 +4,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Settings, Users, Trophy, Search, Save, X, Edit2, Check } from "lucide-react";
+import { UserPlus, Users, Search, Check, Loader2, AlertCircle } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -18,504 +16,421 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@/components/ui/alert";
 
-interface TourSettings {
-  id: string;
-  tour_id: number;
-  auto_register_members: boolean;
-  auto_register_tournaments: boolean;
-  use_combo_handicap: boolean;
+interface PendingMember {
+  user_id: string;
+  sgt_user_id: number;
+  first_name: string;
+  last_name: string;
+  email: string;
+  display_name: string | null;
+  created_at: string;
 }
 
-interface Tour {
-  tour_id: number;
-  name: string;
-  active: number;
-}
-
-interface TourMember {
+interface OnboardedMember {
   id: string;
   user_id: number;
   user_name: string | null;
-  tour_id: number;
   custom_hcp: number | null;
-  hcp_index: number | null;
-}
-
-interface Member {
-  user_id: number;
-  user_name: string;
-  user_active: number;
+  tour_count: number;
 }
 
 export function SGTRegistrations() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedTourId, setSelectedTourId] = useState<number | null>(null);
-  const [editingMemberId, setEditingMemberId] = useState<number | null>(null);
-  const [editingHcp, setEditingHcp] = useState<string>("");
+  const [onboardingMemberId, setOnboardingMemberId] = useState<number | null>(null);
+  const [handicapValue, setHandicapValue] = useState<string>("");
 
-  // Fetch active tours
-  const { data: tours } = useQuery({
-    queryKey: ["sgt-tours-active"],
+  // Fetch pending members (have sgt_user_id but NOT in any sgt_tour_members)
+  const { data: pendingMembers, isLoading: pendingLoading } = useQuery({
+    queryKey: ["sgt-pending-members"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("sgt_tours")
-        .select("tour_id, name, active")
-        .eq("active", 1)
-        .order("name");
-      if (error) throw error;
-      return data as Tour[];
+      // Get all profiles with sgt_user_id
+      const { data: profiles, error: profilesError } = await supabase
+        .from("profiles")
+        .select("user_id, sgt_user_id, first_name, last_name, email, display_name, created_at")
+        .not("sgt_user_id", "is", null)
+        .order("created_at", { ascending: false });
+
+      if (profilesError) throw profilesError;
+      if (!profiles || profiles.length === 0) return [];
+
+      // Get all unique user_ids that are already in tour_members
+      const { data: tourMembers, error: tourMembersError } = await supabase
+        .from("sgt_tour_members")
+        .select("user_id");
+
+      if (tourMembersError) throw tourMembersError;
+
+      const onboardedUserIds = new Set((tourMembers || []).map(tm => tm.user_id));
+
+      // Filter to only pending (not in any tour)
+      const pending = profiles.filter(p => 
+        p.sgt_user_id && !onboardedUserIds.has(p.sgt_user_id)
+      );
+
+      return pending as PendingMember[];
     },
   });
 
-  // Set default selected tour
-  if (tours && tours.length > 0 && selectedTourId === null) {
-    setSelectedTourId(tours[0].tour_id);
-  }
-
-  // Fetch tour settings
-  const { data: tourSettings } = useQuery({
-    queryKey: ["sgt-tour-settings"],
+  // Fetch onboarded members (in at least one tour)
+  const { data: onboardedMembers, isLoading: onboardedLoading } = useQuery({
+    queryKey: ["sgt-onboarded-members"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("sgt_tour_settings")
-        .select("*");
-      if (error) throw error;
-      return data as TourSettings[];
-    },
-  });
-
-  // Fetch tour members for selected tour
-  const { data: tourMembers, isLoading: membersLoading } = useQuery({
-    queryKey: ["sgt-tour-members", selectedTourId],
-    queryFn: async () => {
-      if (!selectedTourId) return [];
       const { data, error } = await supabase
         .from("sgt_tour_members")
-        .select("id, user_id, user_name, tour_id, custom_hcp, hcp_index")
-        .eq("tour_id", selectedTourId)
-        .order("user_name");
-      if (error) throw error;
-      return data as TourMember[];
-    },
-    enabled: !!selectedTourId,
-  });
+        .select("id, user_id, user_name, custom_hcp, tour_id");
 
-  // Fetch all members for reference
-  const { data: allMembers } = useQuery({
-    queryKey: ["sgt-members-list"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("sgt_members")
-        .select("user_id, user_name, user_active")
-        .eq("user_active", 1)
-        .order("user_name");
       if (error) throw error;
-      return data as Member[];
-    },
-  });
 
-  // Mutation to update tour settings
-  const updateSettingsMutation = useMutation({
-    mutationFn: async ({ 
-      tourId, 
-      field, 
-      value 
-    }: { 
-      tourId: number; 
-      field: keyof Omit<TourSettings, 'id' | 'tour_id' | 'created_at' | 'updated_at'>; 
-      value: boolean 
-    }) => {
-      const existingSettings = tourSettings?.find(s => s.tour_id === tourId);
-      
-      if (existingSettings) {
-        const { error } = await supabase
-          .from("sgt_tour_settings")
-          .update({ 
-            [field]: value,
-            updated_at: new Date().toISOString()
-          })
-          .eq("id", existingSettings.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from("sgt_tour_settings")
-          .insert({ 
-            tour_id: tourId,
-            [field]: value,
+      // Group by user_id and count tours
+      const memberMap = new Map<number, OnboardedMember>();
+      (data || []).forEach(tm => {
+        if (!memberMap.has(tm.user_id)) {
+          memberMap.set(tm.user_id, {
+            id: tm.id,
+            user_id: tm.user_id,
+            user_name: tm.user_name,
+            custom_hcp: tm.custom_hcp,
+            tour_count: 1,
           });
-        if (error) throw error;
+        } else {
+          const existing = memberMap.get(tm.user_id)!;
+          existing.tour_count++;
+          // Keep the custom_hcp if set on any tour
+          if (tm.custom_hcp !== null) {
+            existing.custom_hcp = tm.custom_hcp;
+          }
+        }
+      });
+
+      return Array.from(memberMap.values()).sort((a, b) => 
+        (a.user_name || "").localeCompare(b.user_name || "")
+      );
+    },
+  });
+
+  // Mutation to onboard a member (set HCP and trigger registration)
+  const onboardMutation = useMutation({
+    mutationFn: async ({ sgtUserId, customHcp }: { sgtUserId: number; customHcp: number }) => {
+      console.log(`[SGT-ONBOARD] Onboarding member ${sgtUserId} with HCP ${customHcp}`);
+
+      // Get all active tours
+      const { data: activeTours, error: toursError } = await supabase
+        .from("sgt_tours")
+        .select("tour_id, name")
+        .eq("active", 1);
+
+      if (toursError) throw toursError;
+      if (!activeTours || activeTours.length === 0) {
+        throw new Error("No active tours found");
       }
+
+      // Get member info from sgt_members
+      const { data: memberInfo } = await supabase
+        .from("sgt_members")
+        .select("user_name")
+        .eq("user_id", sgtUserId)
+        .maybeSingle();
+
+      // Add member to all active tours with custom HCP
+      for (const tour of activeTours) {
+        const { error: insertError } = await supabase
+          .from("sgt_tour_members")
+          .upsert({
+            user_id: sgtUserId,
+            tour_id: tour.tour_id,
+            user_name: memberInfo?.user_name || null,
+            custom_hcp: customHcp,
+            updated_at: new Date().toISOString(),
+          }, {
+            onConflict: "user_id,tour_id",
+          });
+
+        if (insertError) {
+          console.error(`Failed to add to tour ${tour.name}:`, insertError);
+          throw insertError;
+        }
+      }
+
+      // Trigger the auto-registration edge function to register for tournaments
+      const { error: autoRegError } = await supabase.functions.invoke("sgt-auto-register", {
+        body: { sgt_user_id: sgtUserId },
+      });
+
+      if (autoRegError) {
+        console.error("Auto-registration failed:", autoRegError);
+        // Don't throw - they're in tours now, tournaments can be added later
+      }
+
+      return { sgtUserId, tourCount: activeTours.length };
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["sgt-tour-settings"] });
-      toast({ title: "Settings updated" });
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["sgt-pending-members"] });
+      queryClient.invalidateQueries({ queryKey: ["sgt-onboarded-members"] });
+      queryClient.invalidateQueries({ queryKey: ["sgt-tour-members"] });
+      setOnboardingMemberId(null);
+      setHandicapValue("");
+      toast({ 
+        title: "Member onboarded successfully",
+        description: `Added to ${data.tourCount} active tour(s) and registered for open tournaments.`,
+      });
     },
     onError: (error) => {
-      toast({ 
-        title: "Failed to update settings", 
+      toast({
+        title: "Failed to onboard member",
         description: error instanceof Error ? error.message : "Unknown error",
-        variant: "destructive" 
+        variant: "destructive",
       });
     },
   });
 
-  // Mutation to update custom handicap
-  const updateCustomHcpMutation = useMutation({
-    mutationFn: async ({ 
-      memberId, 
-      customHcp 
-    }: { 
-      memberId: string; 
-      customHcp: number | null 
-    }) => {
-      const { error } = await supabase
-        .from("sgt_tour_members")
-        .update({ 
-          custom_hcp: customHcp,
-          updated_at: new Date().toISOString()
-        })
-        .eq("id", memberId);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["sgt-tour-members", selectedTourId] });
-      setEditingMemberId(null);
-      setEditingHcp("");
-      toast({ title: "Custom handicap updated" });
-    },
-    onError: (error) => {
-      toast({ 
-        title: "Failed to update handicap", 
-        description: error instanceof Error ? error.message : "Unknown error",
-        variant: "destructive" 
-      });
-    },
-  });
-
-  const getSettingsForTour = (tourId: number): TourSettings | undefined => {
-    return tourSettings?.find(s => s.tour_id === tourId);
-  };
-
-  const handleEditHcp = (member: TourMember) => {
-    setEditingMemberId(member.user_id);
-    setEditingHcp(member.custom_hcp?.toString() || "");
-  };
-
-  const handleSaveHcp = (member: TourMember) => {
-    const hcpValue = editingHcp.trim() === "" ? null : parseFloat(editingHcp);
+  const handleOnboard = (sgtUserId: number) => {
+    const hcp = parseFloat(handicapValue);
     
-    if (hcpValue !== null && (isNaN(hcpValue) || hcpValue < -10 || hcpValue > 54)) {
-      toast({ 
-        title: "Invalid handicap", 
-        description: "Handicap must be between -10 and 54",
-        variant: "destructive" 
+    if (isNaN(hcp) || hcp < -10 || hcp > 54) {
+      toast({
+        title: "Invalid handicap",
+        description: "Please enter a handicap between -10 and 54",
+        variant: "destructive",
       });
       return;
     }
-    
-    updateCustomHcpMutation.mutate({ 
-      memberId: member.id, 
-      customHcp: hcpValue 
-    });
+
+    onboardMutation.mutate({ sgtUserId, customHcp: hcp });
   };
 
-  const handleCancelEdit = () => {
-    setEditingMemberId(null);
-    setEditingHcp("");
-  };
-
-  const filteredMembers = tourMembers?.filter(member => 
-    member.user_name?.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredPending = pendingMembers?.filter(m =>
+    m.first_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    m.last_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    m.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    m.display_name?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const membersWithCustomHcp = tourMembers?.filter(m => m.custom_hcp !== null).length || 0;
+  const filteredOnboarded = onboardedMembers?.filter(m =>
+    m.user_name?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <div className="space-y-6">
-      {/* Auto-Registration Settings */}
+      {/* Info Alert */}
+      <Alert>
+        <AlertCircle className="h-4 w-4" />
+        <AlertTitle>How Onboarding Works</AlertTitle>
+        <AlertDescription>
+          New league members appear in "Pending" until you set their handicap. Once onboarded, 
+          they're automatically added to all active tours and open tournaments. Future tournaments 
+          will also auto-register them.
+        </AlertDescription>
+      </Alert>
+
+      {/* Pending Members */}
       <Card>
         <CardHeader>
-          <div className="flex items-center gap-2">
-            <Settings className="h-5 w-5 text-primary" />
-            <CardTitle>Auto-Registration Settings</CardTitle>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <UserPlus className="h-5 w-5 text-amber-500" />
+              <CardTitle>Pending Members</CardTitle>
+            </div>
+            {pendingMembers && pendingMembers.length > 0 && (
+              <Badge variant="secondary" className="bg-amber-100 text-amber-800">
+                {pendingMembers.length} awaiting onboarding
+              </Badge>
+            )}
           </div>
           <CardDescription>
-            Configure automatic registration behavior for new members joining tours
+            These members have registered for the league but need a handicap before being added to tours
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {tours && tours.length > 0 ? (
-            <div className="space-y-4">
-              {tours.map((tour) => {
-                const settings = getSettingsForTour(tour.tour_id);
-                return (
-                  <div 
-                    key={tour.tour_id} 
-                    className="p-4 rounded-lg bg-muted/50 space-y-4"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Trophy className="h-4 w-4 text-amber-500" />
-                      <span className="font-medium">{tour.name}</span>
-                    </div>
-                    
-                    <div className="grid gap-4 sm:grid-cols-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <Label htmlFor={`auto-members-${tour.tour_id}`} className="text-sm">
-                          Auto-register to Tour
-                        </Label>
-                        <Switch
-                          id={`auto-members-${tour.tour_id}`}
-                          checked={settings?.auto_register_members ?? false}
-                          onCheckedChange={(checked) => 
-                            updateSettingsMutation.mutate({ 
-                              tourId: tour.tour_id, 
-                              field: "auto_register_members", 
-                              value: checked 
-                            })
-                          }
-                          disabled={updateSettingsMutation.isPending}
-                        />
-                      </div>
-                      
-                      <div className="flex items-center justify-between gap-2">
-                        <Label htmlFor={`auto-tournaments-${tour.tour_id}`} className="text-sm">
-                          Auto-register to Tournaments
-                        </Label>
-                        <Switch
-                          id={`auto-tournaments-${tour.tour_id}`}
-                          checked={settings?.auto_register_tournaments ?? false}
-                          onCheckedChange={(checked) => 
-                            updateSettingsMutation.mutate({ 
-                              tourId: tour.tour_id, 
-                              field: "auto_register_tournaments", 
-                              value: checked 
-                            })
-                          }
-                          disabled={updateSettingsMutation.isPending}
-                        />
-                      </div>
-                      
-                      <div className="flex items-center justify-between gap-2">
-                        <Label htmlFor={`combo-hcp-${tour.tour_id}`} className="text-sm">
-                          Use Combo Handicap
-                        </Label>
-                        <Switch
-                          id={`combo-hcp-${tour.tour_id}`}
-                          checked={settings?.use_combo_handicap ?? true}
-                          onCheckedChange={(checked) => 
-                            updateSettingsMutation.mutate({ 
-                              tourId: tour.tour_id, 
-                              field: "use_combo_handicap", 
-                              value: checked 
-                            })
-                          }
-                          disabled={updateSettingsMutation.isPending}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+          {pendingLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : filteredPending && filteredPending.length > 0 ? (
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Member</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead className="text-center">SGT ID</TableHead>
+                    <TableHead className="text-center w-32">Handicap</TableHead>
+                    <TableHead className="text-center w-24">Action</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredPending.map((member) => (
+                    <TableRow key={member.sgt_user_id}>
+                      <TableCell className="font-medium">
+                        {member.display_name || `${member.first_name} ${member.last_name}`}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {member.email}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Badge variant="outline">{member.sgt_user_id}</Badge>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {onboardingMemberId === member.sgt_user_id ? (
+                          <Input
+                            type="number"
+                            step="0.1"
+                            min="-10"
+                            max="54"
+                            value={handicapValue}
+                            onChange={(e) => setHandicapValue(e.target.value)}
+                            className="w-20 mx-auto text-center"
+                            placeholder="0.0"
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") handleOnboard(member.sgt_user_id);
+                              if (e.key === "Escape") {
+                                setOnboardingMemberId(null);
+                                setHandicapValue("");
+                              }
+                            }}
+                          />
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {onboardingMemberId === member.sgt_user_id ? (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  size="sm"
+                                  className="bg-green-600 hover:bg-green-700"
+                                  onClick={() => handleOnboard(member.sgt_user_id)}
+                                  disabled={onboardMutation.isPending || !handicapValue}
+                                >
+                                  {onboardMutation.isPending ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Check className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Confirm & Onboard</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setOnboardingMemberId(member.sgt_user_id);
+                              setHandicapValue("");
+                            }}
+                          >
+                            Set HCP
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
           ) : (
-            <p className="text-muted-foreground text-center py-4">
-              No active tours found
-            </p>
+            <div className="text-center py-8 text-muted-foreground">
+              <UserPlus className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <p>No pending members</p>
+              <p className="text-sm">All registered members have been onboarded</p>
+            </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Custom Handicap Management */}
+      {/* Onboarded Members */}
       <Card>
         <CardHeader>
-          <div className="flex items-center gap-2">
-            <Users className="h-5 w-5 text-primary" />
-            <CardTitle>Custom Handicaps</CardTitle>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Users className="h-5 w-5 text-primary" />
+              <CardTitle>Onboarded Members</CardTitle>
+            </div>
+            <Badge variant="secondary">
+              {onboardedMembers?.length || 0} active
+            </Badge>
           </div>
           <CardDescription>
-            Set custom handicaps for members that will be used when registering for tournaments. 
-            Leave empty to use their tour/combo handicap.
+            Members who are registered in tours and auto-enrolled in new tournaments
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Tour selector and search */}
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1 sm:max-w-xs">
-              <Label htmlFor="tour-select" className="text-sm text-muted-foreground mb-1.5 block">
-                Select Tour
-              </Label>
-              <Select
-                value={selectedTourId?.toString() || ""}
-                onValueChange={(value) => setSelectedTourId(parseInt(value))}
-              >
-                <SelectTrigger id="tour-select">
-                  <SelectValue placeholder="Select a tour" />
-                </SelectTrigger>
-                <SelectContent>
-                  {tours?.map((tour) => (
-                    <SelectItem key={tour.tour_id} value={tour.tour_id.toString()}>
-                      {tour.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="flex-1 sm:max-w-xs">
-              <Label htmlFor="member-search" className="text-sm text-muted-foreground mb-1.5 block">
-                Search Members
-              </Label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="member-search"
-                  placeholder="Search by name..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9"
-                />
-              </div>
-            </div>
-
-            <div className="flex items-end">
-              <Badge variant="secondary" className="h-10 px-4 flex items-center gap-2">
-                <span className="text-lg font-semibold">{membersWithCustomHcp}</span>
-                <span className="text-muted-foreground">with custom HCP</span>
-              </Badge>
+          {/* Search */}
+          <div className="max-w-xs">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search members..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+              />
             </div>
           </div>
 
-          {/* Members table */}
-          {selectedTourId ? (
-            membersLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
-              </div>
-            ) : filteredMembers && filteredMembers.length > 0 ? (
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Member</TableHead>
-                      <TableHead className="text-center">Tour HCP</TableHead>
-                      <TableHead className="text-center">Custom HCP</TableHead>
-                      <TableHead className="text-center w-24">Actions</TableHead>
+          {onboardedLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : filteredOnboarded && filteredOnboarded.length > 0 ? (
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Username</TableHead>
+                    <TableHead className="text-center">SGT ID</TableHead>
+                    <TableHead className="text-center">Custom HCP</TableHead>
+                    <TableHead className="text-center">Tours</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredOnboarded.map((member) => (
+                    <TableRow key={member.user_id}>
+                      <TableCell className="font-medium">
+                        {member.user_name || `User ${member.user_id}`}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Badge variant="outline">{member.user_id}</Badge>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {member.custom_hcp !== null ? (
+                          <span className="font-semibold text-primary">
+                            {member.custom_hcp.toFixed(1)}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Badge variant="secondary">{member.tour_count}</Badge>
+                      </TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredMembers.map((member) => (
-                      <TableRow key={member.id}>
-                        <TableCell className="font-medium">
-                          {member.user_name || `User ${member.user_id}`}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {member.hcp_index !== null ? member.hcp_index.toFixed(1) : "-"}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {editingMemberId === member.user_id ? (
-                            <Input
-                              type="number"
-                              step="0.1"
-                              min="-10"
-                              max="54"
-                              value={editingHcp}
-                              onChange={(e) => setEditingHcp(e.target.value)}
-                              className="w-20 mx-auto text-center"
-                              placeholder="—"
-                              autoFocus
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") handleSaveHcp(member);
-                                if (e.key === "Escape") handleCancelEdit();
-                              }}
-                            />
-                          ) : (
-                            <span className={member.custom_hcp !== null ? "font-semibold text-primary" : "text-muted-foreground"}>
-                              {member.custom_hcp !== null ? member.custom_hcp.toFixed(1) : "—"}
-                            </span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {editingMemberId === member.user_id ? (
-                            <div className="flex items-center justify-center gap-1">
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
-                                      onClick={() => handleSaveHcp(member)}
-                                      disabled={updateCustomHcpMutation.isPending}
-                                    >
-                                      <Check className="h-4 w-4" />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>Save</TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                                      onClick={handleCancelEdit}
-                                    >
-                                      <X className="h-4 w-4" />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>Cancel</TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            </div>
-                          ) : (
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8"
-                                    onClick={() => handleEditHcp(member)}
-                                  >
-                                    <Edit2 className="h-4 w-4" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Edit custom handicap</TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            ) : (
-              <p className="text-muted-foreground text-center py-8">
-                {searchQuery ? "No members match your search" : "No members in this tour"}
-              </p>
-            )
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           ) : (
-            <p className="text-muted-foreground text-center py-8">
-              Select a tour to manage member handicaps
-            </p>
+            <div className="text-center py-8 text-muted-foreground">
+              <Users className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <p>No onboarded members yet</p>
+            </div>
           )}
         </CardContent>
       </Card>
