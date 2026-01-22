@@ -7,7 +7,8 @@ import { SGTTours } from "@/components/admin/sgt/SGTTours";
 import { SGTTournaments } from "@/components/admin/sgt/SGTTournaments";
 import { SGTMembers } from "@/components/admin/sgt/SGTMembers";
 import { SGTScorecards } from "@/components/admin/sgt/SGTScorecards";
-import { LayoutDashboard, Trophy, Calendar, Users, FileText } from "lucide-react";
+import { SGTRegistrations } from "@/components/admin/sgt/SGTRegistrations";
+import { LayoutDashboard, Trophy, Calendar, Users, FileText, ClipboardList } from "lucide-react";
 
 export default function AdminSGTManager() {
   const { isLoading } = useAdminAuth();
@@ -41,6 +42,10 @@ export default function AdminSGTManager() {
               <LayoutDashboard className="h-4 w-4" />
               <span className="hidden sm:inline">Dashboard</span>
             </TabsTrigger>
+            <TabsTrigger value="registrations" className="gap-2">
+              <ClipboardList className="h-4 w-4" />
+              <span className="hidden sm:inline">Registrations</span>
+            </TabsTrigger>
             <TabsTrigger value="tours" className="gap-2">
               <Trophy className="h-4 w-4" />
               <span className="hidden sm:inline">Tours</span>
@@ -61,6 +66,10 @@ export default function AdminSGTManager() {
 
           <TabsContent value="dashboard" className="mt-6">
             <SGTDashboard />
+          </TabsContent>
+
+          <TabsContent value="registrations" className="mt-6">
+            <SGTRegistrations />
           </TabsContent>
 
           <TabsContent value="tours" className="mt-6">
