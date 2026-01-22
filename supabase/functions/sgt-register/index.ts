@@ -11,7 +11,7 @@ const SGT_BASE_URL = "https://simulatorgolftour.com/sgt-api/club-admin";
 // Cache for API key
 let cachedApiKey: { key: string; expiresAt: Date } | null = null;
 
-async function getApiKey(supabase: any): Promise<string> {
+async function getApiKey(supabase: any, clubUrl: string): Promise<string> {
   // Check if cached key is still valid (with 5 min buffer)
   if (cachedApiKey && cachedApiKey.expiresAt > new Date(Date.now() + 5 * 60 * 1000)) {
     return cachedApiKey.key;
@@ -33,7 +33,6 @@ async function getApiKey(supabase: any): Promise<string> {
   // Need to authenticate and get new key
   const username = Deno.env.get("SGT_USERNAME");
   const password = Deno.env.get("SGT_PASSWORD");
-  const clubUrl = Deno.env.get("SGT_CLUB_URL");
 
   if (!username || !password || !clubUrl) {
     throw new Error("SGT credentials not configured");
@@ -43,7 +42,10 @@ async function getApiKey(supabase: any): Promise<string> {
   formData.append("username", username);
   formData.append("password", password);
 
-  const response = await fetch(`${SGT_BASE_URL}/${clubUrl}/api-key`, {
+  // Use the correct endpoint: apikey/create (matching sgt-sync)
+  console.log(`[SGT-REGISTER] Requesting API key from ${SGT_BASE_URL}/${clubUrl}/apikey/create`);
+  
+  const response = await fetch(`${SGT_BASE_URL}/${clubUrl}/apikey/create`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: formData.toString(),
@@ -64,20 +66,23 @@ async function getApiKey(supabase: any): Promise<string> {
     throw new Error("SGT API returned invalid response. Please try again in a few minutes.");
   }
   
-  if (!data.api_key) {
-    throw new Error("No API key in response");
+  // Response format is { success: boolean, key: string, expires: number }
+  if (!data.success || !data.key) {
+    console.error(`[SGT-REGISTER] API key auth failed:`, data);
+    throw new Error("Failed to authenticate with SGT API");
   }
 
-  // Store in database - expires in 24 hours
-  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  // Store in database - use expires from response (in seconds)
+  const expiresAt = new Date(Date.now() + (data.expires * 1000));
   await supabase.from("sgt_api_config").upsert({
-    api_key: data.api_key,
+    api_key: data.key,
     expires_at: expiresAt.toISOString(),
     updated_at: new Date().toISOString(),
   });
 
-  cachedApiKey = { key: data.api_key, expiresAt };
-  return data.api_key;
+  cachedApiKey = { key: data.key, expiresAt };
+  console.log("[SGT-REGISTER] API key obtained successfully");
+  return data.key;
 }
 
 serve(async (req) => {
@@ -115,7 +120,7 @@ serve(async (req) => {
     const { action, username, password } = await req.json();
     console.log(`[SGT-REGISTER] Action: ${action}, User: ${user.id}`);
 
-    const apiKey = await getApiKey(adminClient);
+    const apiKey = await getApiKey(adminClient, clubUrl);
 
     if (action === "check-username") {
       // Check if username is available by checking existing members
