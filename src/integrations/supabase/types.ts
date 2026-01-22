@@ -845,6 +845,30 @@ export type Database = {
         }
         Relationships: []
       }
+      sgt_notification_settings: {
+        Row: {
+          created_at: string
+          id: string
+          new_member_email_enabled: boolean
+          notification_email: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          new_member_email_enabled?: boolean
+          notification_email?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          new_member_email_enabled?: boolean
+          notification_email?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       sgt_scorecards: {
         Row: {
           course_name: string | null

@@ -1,14 +1,17 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Trophy, Calendar, Users, FileText, RefreshCw, MapPin } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Trophy, Calendar, Users, FileText, RefreshCw, MapPin, Mail, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { format } from "date-fns";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 export function SGTDashboard() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [syncing, setSyncing] = useState(false);
 
   // Fetch tour count
@@ -98,6 +101,62 @@ export function SGTDashboard() {
     },
   });
 
+  // Fetch notification settings
+  const { data: notificationSettings } = useQuery({
+    queryKey: ["sgt-notification-settings"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("sgt_notification_settings")
+        .select("*")
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Mutation to update notification settings
+  const updateNotificationMutation = useMutation({
+    mutationFn: async (enabled: boolean) => {
+      // Check if settings row exists
+      const { data: existing } = await supabase
+        .from("sgt_notification_settings")
+        .select("id")
+        .limit(1)
+        .maybeSingle();
+
+      if (existing) {
+        const { error } = await supabase
+          .from("sgt_notification_settings")
+          .update({ 
+            new_member_email_enabled: enabled,
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", existing.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("sgt_notification_settings")
+          .insert({ new_member_email_enabled: enabled });
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sgt-notification-settings"] });
+      toast({
+        title: "Settings updated",
+        description: "Notification preferences saved.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Failed to update settings",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleSync = async () => {
     setSyncing(true);
     try {
@@ -163,13 +222,50 @@ export function SGTDashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Sync Button */}
-      <div className="flex justify-end">
+      {/* Header with Sync Button */}
+      <div className="flex justify-between items-center">
+        <div className="flex-1" />
         <Button onClick={handleSync} disabled={syncing} variant="outline" className="gap-2">
           <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
           {syncing ? "Syncing..." : "Sync Data"}
         </Button>
       </div>
+
+      {/* Notification Settings Card */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Bell className="h-5 w-5 text-primary" />
+            <CardTitle>Notifications</CardTitle>
+          </div>
+          <CardDescription>
+            Configure email notifications for SGT events
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Mail className="h-4 w-4 text-primary" />
+              </div>
+              <div>
+                <Label htmlFor="new-member-email" className="text-sm font-medium">
+                  New Member Email
+                </Label>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Receive an email when a new member joins the Birdies League
+                </p>
+              </div>
+            </div>
+            <Switch
+              id="new-member-email"
+              checked={notificationSettings?.new_member_email_enabled ?? false}
+              onCheckedChange={(checked) => updateNotificationMutation.mutate(checked)}
+              disabled={updateNotificationMutation.isPending}
+            />
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
