@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { Resend } from "https://esm.sh/resend@2.0.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -7,6 +8,121 @@ const corsHeaders = {
 };
 
 const SGT_BASE_URL = "https://simulatorgolftour.com/sgt-api/club-admin";
+const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
+
+// Build branded email for new member notification
+function buildNewMemberEmail(data: { username: string; email: string; sgtUserId: number; registeredAt: string }): string {
+  const registrationDate = new Date(data.registeredAt).toLocaleString("en-AU", {
+    timeZone: "Australia/Brisbane",
+    dateStyle: "full",
+    timeStyle: "short",
+  });
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="x-apple-disable-message-reformatting" />
+  <title>New League Member</title>
+  <style>
+    @import url("https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;600&display=swap");
+  </style>
+</head>
+<body style="margin:0; padding:0; background-color:#FFF5E4;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#FFF5E4;">
+    <tr>
+      <td align="center" style="padding:24px 12px;">
+        <!-- CONTAINER -->
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="max-width:600px; width:100%;">
+          <!-- HEADER -->
+          <tr>
+            <td align="center" style="background-color:#1F4C25; padding:18px; border-radius:16px 16px 0 0;">
+              <img
+                src="https://cdn.shopify.com/s/files/1/0758/7030/6550/files/NO-BG_BIRDIES-LOGOS_WORK-DOC_AMENDED-9.7.25-01.png?v=1761536603"
+                width="140"
+                alt="Birdies Bayside"
+                style="display:block; width:140px; height:auto; border:0;"
+              />
+            </td>
+          </tr>
+          <!-- BODY -->
+          <tr>
+            <td style="background-color:#FFF5E4; padding:26px 22px; border-left:1px solid rgba(31,76,37,0.12); border-right:1px solid rgba(31,76,37,0.12);">
+              <h1 style="margin:0 0 14px; font-family:Anton, Impact, Arial Black, sans-serif; font-size:34px; line-height:1.1; color:#1F4C25; text-align:center;">
+                🎉 New League Member!
+              </h1>
+              <p style="margin:0 0 18px; font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">
+                A new member has joined the Birdies League via the app.
+              </p>
+              
+              <!-- MEMBER DETAILS BOX -->
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FFFFFF; border-radius:12px; margin:18px 0; border-left:4px solid #EC622D;">
+                <tr>
+                  <td style="padding:20px; font-family:Inter, Arial, sans-serif; font-size:15px; color:#1F4C25;">
+                    <h3 style="margin:0 0 16px 0; font-family:Anton, Impact, Arial Black, sans-serif; color:#1F4C25;">Member Details</h3>
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td style="padding:8px 0; border-bottom:1px solid #eee;">
+                          <strong>Username:</strong>
+                        </td>
+                        <td style="padding:8px 0; border-bottom:1px solid #eee; text-align:right;">
+                          ${data.username}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:8px 0; border-bottom:1px solid #eee;">
+                          <strong>Email:</strong>
+                        </td>
+                        <td style="padding:8px 0; border-bottom:1px solid #eee; text-align:right;">
+                          <a href="mailto:${data.email}" style="color:#1F4C25;">${data.email}</a>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:8px 0; border-bottom:1px solid #eee;">
+                          <strong>SGT User ID:</strong>
+                        </td>
+                        <td style="padding:8px 0; border-bottom:1px solid #eee; text-align:right;">
+                          ${data.sgtUserId}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:8px 0;">
+                          <strong>Registered:</strong>
+                        </td>
+                        <td style="padding:8px 0; text-align:right;">
+                          ${registrationDate}
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+              
+              <p style="margin:18px 0 0; font-family:Inter, Arial, sans-serif; font-size:14px; line-height:1.6; color:#666; text-align:center;">
+                This is an automated notification from the Birdies Hub.
+              </p>
+            </td>
+          </tr>
+          <!-- FOOTER -->
+          <tr>
+            <td style="background-color:#1F4C25; padding:22px; border-radius:0 0 16px 16px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td align="center" style="font-family:Inter, Arial, sans-serif; font-size:12px; color:#FFFFFF; opacity:0.75;">
+                    © Birdies Bayside
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
 
 // Cache for API key
 let cachedApiKey: { key: string; expiresAt: Date } | null = null;
@@ -250,6 +366,44 @@ serve(async (req) => {
       }
 
       console.log(`[SGT-REGISTER] Successfully linked SGT account ${sgtUserId} to user ${user.id}`);
+
+      // Check if new member email notification is enabled
+      const { data: notificationSettings } = await adminClient
+        .from("sgt_notification_settings")
+        .select("new_member_email_enabled")
+        .limit(1)
+        .maybeSingle();
+
+      if (notificationSettings?.new_member_email_enabled) {
+        console.log("[SGT-REGISTER] Sending new member notification email...");
+        
+        // Get admin email from the current authenticated user's session or use a default
+        const { data: adminProfile } = await adminClient
+          .from("profiles")
+          .select("email")
+          .eq("user_id", user.id)
+          .single();
+
+        try {
+          const emailHtml = buildNewMemberEmail({
+            username,
+            email: user.email!,
+            sgtUserId,
+            registeredAt: new Date().toISOString(),
+          });
+
+          await resend.emails.send({
+            from: "Birdies Bayside <info@birdiesbayside.com.au>",
+            to: ["info@birdiesbayside.com.au"],
+            subject: `🎉 New League Member: ${username}`,
+            html: emailHtml,
+          });
+          console.log("[SGT-REGISTER] New member notification email sent");
+        } catch (emailError) {
+          console.error("[SGT-REGISTER] Failed to send notification email:", emailError);
+          // Don't fail the registration if email fails
+        }
+      }
 
       return new Response(
         JSON.stringify({ 
