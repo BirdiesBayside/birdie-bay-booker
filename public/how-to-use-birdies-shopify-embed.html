@@ -396,6 +396,14 @@
       font-size: 0.9rem;
       margin: 0;
     }
+
+    /* Guide Image */
+    .guide-image {
+      width: 100%;
+      border-radius: 0.75rem;
+      border: 2px solid var(--border-color);
+      margin: 1.5rem 0;
+    }
     
     /* Footer */
     .guide-footer {
@@ -438,17 +446,11 @@
 </head>
 <body>
 
-<!-- ========================================
-     BIRDIES HOW-TO GUIDE SECTION
-     Copy everything below this line into 
-     your Shopify Custom HTML block
-     ======================================== -->
-
 <section class="birdies-guide-section">
   <div class="birdies-guide-container">
     
-    <!-- Heading -->
-    <h2 class="birdies-heading">How to Use Birdies</h2>
+    <h1 class="birdies-heading">How to Use Birdies</h1>
+    
     <p class="birdies-subheading">
       Welcome to Birdies Golf! This comprehensive guide will walk you through everything you need to know — 
       from making your first booking to playing league rounds on our simulators.
@@ -456,37 +458,37 @@
     
     <!-- Table of Contents -->
     <div class="toc-card">
-      <h3 class="toc-title">Quick Navigation</h3>
+      <h2 class="toc-title">Quick Navigation</h2>
       <ul class="toc-list">
         <li class="toc-item">
           <span class="toc-number" style="background-color: var(--section-1-color);">1</span>
-          <a href="#signing-up" class="toc-link">Signing Up & Making a Booking</a>
+          <a href="#section-1" class="toc-link">Signing Up & Making a Booking</a>
         </li>
         <li class="toc-item">
           <span class="toc-number" style="background-color: var(--section-2-color);">2</span>
-          <a href="#accessing-centre" class="toc-link">Accessing the Centre</a>
+          <a href="#section-2" class="toc-link">Accessing the Centre</a>
         </li>
         <li class="toc-item">
           <span class="toc-number" style="background-color: var(--section-3-color);">3</span>
-          <a href="#membership" class="toc-link">How to Become a Member</a>
+          <a href="#section-3" class="toc-link">How to Become a Member</a>
         </li>
         <li class="toc-item">
           <span class="toc-number" style="background-color: var(--section-4-color);">4</span>
-          <a href="#using-simulators" class="toc-link">Using the Simulators</a>
+          <a href="#section-4" class="toc-link">Using the Simulators</a>
         </li>
         <li class="toc-item">
           <span class="toc-number" style="background-color: var(--section-5-color);">5</span>
-          <a href="#gspro" class="toc-link">Using GSPRO Software</a>
+          <a href="#section-5" class="toc-link">Using GSPRO Software</a>
         </li>
         <li class="toc-item">
           <span class="toc-number" style="background-color: var(--section-6-color);">6</span>
-          <a href="#league" class="toc-link">Playing a Birdies League Round</a>
+          <a href="#section-6" class="toc-link">Playing a Birdies League Round</a>
         </li>
       </ul>
     </div>
     
-    <!-- Section 1: Signing Up & Booking -->
-    <div id="signing-up" class="guide-section section-1">
+    <!-- Section 1: Signing Up & Making a Booking -->
+    <div id="section-1" class="guide-section section-1">
       <div class="section-header">
         <span class="section-number">1</span>
         <h3 class="section-title">Signing Up & Making a Booking</h3>
@@ -495,14 +497,14 @@
         <p>Getting started with Birdies is easy! Create your account on our Birdies Hub to manage bookings, track your rounds, and access member perks.</p>
         
         <h4>Creating Your Account</h4>
-        <ol class="steps-list">
+        <ul class="steps-list">
           <li>
             <span class="step-icon">1</span>
-            <span>Visit the <strong>Birdies Hub</strong> at <a href="https://hub.birdiesbayside.com.au" target="_blank" style="color: var(--birdies-orange);">hub.birdiesbayside.com.au</a> or download the Birdies app</span>
+            <span>Visit the Birdies Hub at hub.birdiesbayside.com.au or download the Birdies app</span>
           </li>
           <li>
             <span class="step-icon">2</span>
-            <span>Click <strong>"Sign Up"</strong> and enter your details (name, email, phone number)</span>
+            <span>Click "Sign Up" and enter your details (name, email, phone number)</span>
           </li>
           <li>
             <span class="step-icon">3</span>
@@ -512,36 +514,37 @@
             <span class="step-icon">4</span>
             <span>Add a payment method to your account for seamless booking</span>
           </li>
-        </ol>
+        </ul>
         
         <h4>Making a Booking</h4>
-        <ol class="steps-list">
+        <ul class="steps-list">
           <li>
             <span class="step-icon">1</span>
-            <span>Log in to the Birdies Hub and tap <strong>"Book Now"</strong></span>
+            <span>Log in to the Birdies Hub and tap "Book Now"</span>
           </li>
           <li>
             <span class="step-icon">2</span>
-            <span>Select your preferred <strong>date and time</strong> from the availability calendar</span>
+            <span>Select your preferred date and time from the availability calendar</span>
           </li>
           <li>
             <span class="step-icon">3</span>
-            <span>Choose your <strong>session duration</strong> (1-4 hours)</span>
+            <span>Choose your session duration (1-4 hours)</span>
           </li>
           <li>
             <span class="step-icon">4</span>
-            <span>Select the number of <strong>players</strong> in your group</span>
+            <span>Select the number of players in your group</span>
           </li>
           <li>
             <span class="step-icon">5</span>
-            <span>Confirm and <strong>pay</strong> using your saved card or account balance</span>
+            <span>Confirm and pay using your saved card or account balance</span>
           </li>
-        </ol>
+        </ul>
         
-        <div class="info-box success">
+        <div class="info-box">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-            <polyline points="22 4 12 14.01 9 11.01"></polyline>
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="16" x2="12" y2="12"></line>
+            <line x1="12" y1="8" x2="12.01" y2="8"></line>
           </svg>
           <p><strong>Tip:</strong> Members get discounted hourly rates! Consider joining a membership tier for the best value.</p>
         </div>
@@ -549,7 +552,7 @@
     </div>
     
     <!-- Section 2: Accessing the Centre -->
-    <div id="accessing-centre" class="guide-section section-2">
+    <div id="section-2" class="guide-section section-2">
       <div class="section-header">
         <span class="section-number">2</span>
         <h3 class="section-title">Accessing the Centre</h3>
@@ -558,28 +561,28 @@
         <p>Birdies operates without staff during off-peak hours. Here's everything you need to know about getting in for your session.</p>
         
         <h4>Door Access Code</h4>
-        <p>After completing your booking, you'll receive an <strong>access code</strong> via email and SMS. This code is unique to your booking and will work during your booked time slot.</p>
+        <p>After completing your booking, you'll receive an access code via email and SMS. This code is unique to your booking and will work during your booked time slot.</p>
         
-        <ol class="steps-list">
+        <ul class="steps-list">
           <li>
             <span class="step-icon">1</span>
             <span>Arrive at the Birdies facility a few minutes before your booking time</span>
           </li>
           <li>
             <span class="step-icon">2</span>
-            <span>Enter your <strong>4-digit access code</strong> on the door keypad</span>
+            <span>Enter your 4-digit access code on the door keypad</span>
           </li>
           <li>
             <span class="step-icon">3</span>
             <span>The door will unlock and you can enter the facility</span>
           </li>
-        </ol>
+        </ul>
         
         <div class="info-box warning">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"></circle>
-            <line x1="12" y1="8" x2="12" y2="12"></line>
-            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+            <line x1="12" y1="9" x2="12" y2="13"></line>
+            <line x1="12" y1="17" x2="12.01" y2="17"></line>
           </svg>
           <p><strong>Important:</strong> Your access code only works during your booked time slot. Make sure to arrive on time!</p>
         </div>
@@ -590,7 +593,7 @@
     </div>
     
     <!-- Section 3: Membership -->
-    <div id="membership" class="guide-section section-3">
+    <div id="section-3" class="guide-section section-3">
       <div class="section-header">
         <span class="section-number">3</span>
         <h3 class="section-title">How to Become a Member</h3>
@@ -601,10 +604,10 @@
         <h4>Available Membership Tiers</h4>
         <div class="feature-grid">
           <div class="feature-item">
-            <div class="feature-icon" style="background: #f3f4f6;">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="10"></circle>
-                <path d="M12 6v6l4 2"></path>
+            <div class="feature-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                <circle cx="12" cy="7" r="4"></circle>
               </svg>
             </div>
             <div class="feature-text">
@@ -613,10 +616,12 @@
             </div>
           </div>
           <div class="feature-item">
-            <div class="feature-icon" style="background: #ccfbf1;">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#14b8a6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="10"></circle>
-                <polyline points="12 6 12 12 16 14"></polyline>
+            <div class="feature-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                <line x1="16" y1="2" x2="16" y2="6"></line>
+                <line x1="8" y1="2" x2="8" y2="6"></line>
+                <line x1="3" y1="10" x2="21" y2="10"></line>
               </svg>
             </div>
             <div class="feature-text">
@@ -625,9 +630,10 @@
             </div>
           </div>
           <div class="feature-item">
-            <div class="feature-icon" style="background: #dbeafe;">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="20 6 9 17 4 12"></polyline>
+            <div class="feature-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="8" r="6"></circle>
+                <path d="M12 14l-3 8h6l-3-8z"></path>
               </svg>
             </div>
             <div class="feature-text">
@@ -636,9 +642,10 @@
             </div>
           </div>
           <div class="feature-item">
-            <div class="feature-icon" style="background: #ede9fe;">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+            <div class="feature-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="8" r="6"></circle>
+                <path d="M12 14l-3 8h6l-3-8z"></path>
               </svg>
             </div>
             <div class="feature-text">
@@ -649,14 +656,14 @@
         </div>
         
         <h4>How to Subscribe</h4>
-        <ol class="steps-list">
+        <ul class="steps-list">
           <li>
             <span class="step-icon">1</span>
             <span>Log in to the Birdies Hub</span>
           </li>
           <li>
             <span class="step-icon">2</span>
-            <span>Navigate to <strong>"Membership"</strong> from the main menu</span>
+            <span>Navigate to "Membership" from the main menu</span>
           </li>
           <li>
             <span class="step-icon">3</span>
@@ -666,9 +673,9 @@
             <span class="step-icon">4</span>
             <span>Complete payment setup — you'll be billed weekly</span>
           </li>
-        </ol>
+        </ul>
         
-        <a href="https://hub.birdiesbayside.com.au/membership" class="external-link-btn" target="_blank">
+        <a href="https://birdiesbayside.com.au/pages/membership" target="_blank" class="external-link-btn">
           View Membership Options
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
@@ -680,7 +687,7 @@
     </div>
     
     <!-- Section 4: Using the Simulators -->
-    <div id="using-simulators" class="guide-section section-4">
+    <div id="section-4" class="guide-section section-4">
       <div class="section-header">
         <span class="section-number">4</span>
         <h3 class="section-title">Using the Simulators</h3>
@@ -691,7 +698,7 @@
         <h4>Bay Automation</h4>
         <p>Each bay is equipped with smart automation that handles the setup for you:</p>
         
-        <ol class="steps-list">
+        <ul class="steps-list">
           <li>
             <span class="step-icon">1</span>
             <span><strong>Automatic Power On:</strong> 3 minutes before your session, the bay will turn on the bay power first — please warm up</span>
@@ -700,34 +707,31 @@
             <span class="step-icon">2</span>
             <span><strong>Software Launch:</strong> GSPRO will begin launching approx 1 minute before your booking time. Please wait until the wait window closes, then you can begin your session</span>
           </li>
-        </ol>
+        </ul>
         
-        <div class="info-box">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#0284c7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"></circle>
-            <line x1="12" y1="16" x2="12" y2="12"></line>
-            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+        <div class="info-box warning">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+            <line x1="12" y1="9" x2="12" y2="13"></line>
+            <line x1="12" y1="17" x2="12.01" y2="17"></line>
           </svg>
           <p>You will receive warnings when your session is about to finish, giving you enough time to book extra time if required. Your bay will close the apps and shut down when your session finishes. If someone has booked after you, the bay will remain on and they can take over your session.</p>
         </div>
         
         <h4>Bay Tips</h4>
-        <p><em>(Add your specific tips about ball placement, mat positioning, etc. here)</em></p>
+        <p>You must place the ball in the hitting zone for the simulators to work. Place your ball in the middle strip, in the front half towards the screen. Please do not stand on the putting turf, and ensure your feet are always on the hitting surface.</p>
         
-        <!-- Screenshot placeholder -->
-        <div class="screenshot-placeholder">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-            <circle cx="8.5" cy="8.5" r="1.5"></circle>
-            <polyline points="21 15 16 10 5 21"></polyline>
-          </svg>
-          <p>Photo: Bay setup and ball placement</p>
-        </div>
+        <!-- FIXED: Actual image instead of SVG placeholder -->
+        <img 
+          src="https://cdn.shopify.com/s/files/1/0758/7030/6550/files/Screenshot_2026-01-22_at_9.43.53_am.png?v=1769039118" 
+          alt="Bay setup and ball placement" 
+          class="guide-image"
+        />
       </div>
     </div>
     
-    <!-- Section 5: GSPRO Software -->
-    <div id="gspro" class="guide-section section-5">
+    <!-- Section 5: Using GSPRO Software -->
+    <div id="section-5" class="guide-section section-5">
       <div class="section-header">
         <span class="section-number">5</span>
         <h3 class="section-title">Using GSPRO Software</h3>
@@ -740,8 +744,8 @@
         
         <div class="feature-grid">
           <div class="feature-item">
-            <div class="feature-icon" style="background: #d1fae5;">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <div class="feature-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="10"></circle>
                 <polygon points="10 8 16 12 10 16 10 8"></polygon>
               </svg>
@@ -752,10 +756,10 @@
             </div>
           </div>
           <div class="feature-item">
-            <div class="feature-icon" style="background: #d1fae5;">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                <circle cx="12" cy="10" r="3"></circle>
+            <div class="feature-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14.5 10c-.83 0-1.5-.67-1.5-1.5v-5c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5v5c0 .83-.67 1.5-1.5 1.5z"></path>
+                <path d="M20.5 10H19V8.5c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"></path>
               </svg>
             </div>
             <div class="feature-text">
@@ -764,9 +768,9 @@
             </div>
           </div>
           <div class="feature-item">
-            <div class="feature-icon" style="background: #d1fae5;">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+            <div class="feature-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path>
               </svg>
             </div>
             <div class="feature-text">
@@ -775,8 +779,8 @@
             </div>
           </div>
           <div class="feature-item">
-            <div class="feature-icon" style="background: #d1fae5;">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <div class="feature-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path>
                 <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path>
                 <path d="M4 22h16"></path>
@@ -792,15 +796,16 @@
           </div>
         </div>
         
-        <div class="info-box success">
+        <div class="info-box">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
-            <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="16" x2="12" y2="12"></line>
+            <line x1="12" y1="8" x2="12.01" y2="8"></line>
           </svg>
-          <p><strong>Want to learn more?</strong> GSPRO has a comprehensive knowledge base with detailed guides.</p>
+          <p>Want to learn more? GSPRO has a comprehensive knowledge base with detailed guides.</p>
         </div>
         
-        <a href="https://gspro.gitbook.io/gspro-knowledge-base" class="external-link-btn" target="_blank">
+        <a href="https://gsprogolf.com/knowledge-base/" target="_blank" class="external-link-btn">
           View GSPRO Manual
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
@@ -812,49 +817,53 @@
     </div>
     
     <!-- Section 6: Playing League Rounds -->
-    <div id="league" class="guide-section section-6">
+    <div id="section-6" class="guide-section section-6">
       <div class="section-header">
         <span class="section-number">6</span>
         <h3 class="section-title">Playing a Birdies League Round</h3>
       </div>
       <div class="section-content">
-        <p>Birdies League uses the <strong>SimGolf Tour (SGT)</strong> platform to track handicaps, run tournaments, and manage leaderboards. Here's how to participate in league play.</p>
+        <p>Birdies League uses the SimGolf Tour (SGT) platform to track handicaps, run tournaments, and manage leaderboards. Here's how to participate in league play.</p>
         
         <h4>Getting Started with Birdies League</h4>
-        <ol class="steps-list">
+        <ul class="steps-list">
           <li>
             <span class="step-icon">1</span>
-            <span>Sign up to the <strong>Birdies League</strong> in the Hub</span>
+            <span>Sign up to the Birdies League in the Hub</span>
           </li>
           <li>
             <span class="step-icon">2</span>
-            <span>Your account will automatically be detected when booking a bay, so the <strong>SGT icon</strong> will show on the GSPRO menu</span>
+            <span>Your account will automatically be detected when booking a bay, so the SGT icon will show on the GSPRO menu</span>
           </li>
           <li>
             <span class="step-icon">3</span>
-            <span>Click the <strong>SGT icon</strong> and follow instructions to add yourself as a Player in GSPRO and access tournaments</span>
+            <span>Click the SGT icon and follow instructions to add yourself as a Player in GSPRO and access tournaments</span>
           </li>
-        </ol>
+        </ul>
         
         <h4>Viewing Your League Stats</h4>
         <p>After playing league rounds, you can view your stats and standings directly in the Birdies Hub:</p>
         
         <ul class="steps-list">
           <li>
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--birdies-orange)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 24px; min-width: 24px;">
-              <polyline points="20 6 9 17 4 12"></polyline>
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--birdies-orange)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="20" x2="18" y2="10"></line>
+              <line x1="12" y1="20" x2="12" y2="4"></line>
+              <line x1="6" y1="20" x2="6" y2="14"></line>
             </svg>
             <span><strong>Leaderboard:</strong> See where you rank against other players</span>
           </li>
           <li>
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--birdies-orange)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 24px; min-width: 24px;">
-              <polyline points="20 6 9 17 4 12"></polyline>
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--birdies-orange)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
             </svg>
             <span><strong>Your Rounds:</strong> Review all your previous league rounds and scorecards</span>
           </li>
           <li>
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--birdies-orange)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 24px; min-width: 24px;">
-              <polyline points="20 6 9 17 4 12"></polyline>
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--birdies-orange)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
+              <polyline points="17 6 23 6 23 12"></polyline>
             </svg>
             <span><strong>Handicap:</strong> Track your handicap progression over time</span>
           </li>
@@ -865,7 +874,7 @@
     <!-- Footer -->
     <div class="guide-footer">
       <p>Still have questions? We're here to help!</p>
-      <a href="mailto:hello@birdiesgolf.com.au" class="contact-link">Contact Us</a>
+      <a href="mailto:hello@birdiesbayside.com.au" class="contact-link">Contact Us</a>
     </div>
     
   </div>
