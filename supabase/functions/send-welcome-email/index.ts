@@ -105,7 +105,7 @@ const buildEmailTemplate = (heading: string, bodyContent: string, ctaButton?: { 
                 <tr>
                   <td align="center" style="font-family:Inter, Arial, sans-serif; font-size:14px; line-height:1.7; color:#FFFFFF;">
                     <div>Unit 2, 86 Jardine Drive, Redland Bay QLD 4165</div>
-                    <div><a href="tel:+61422048604" style="color:#FFFFFF; text-decoration:underline;">0422 048 604</a></div>
+                    <div><a href="tel:+61721468442" style="color:#FFFFFF; text-decoration:underline;">(07) 2146 8442</a></div>
                     <div><a href="https://birdiesbayside.com.au" style="color:#FFFFFF; text-decoration:underline;">birdiesbayside.com.au</a></div>
                     <div style="margin-top:10px; font-size:12px; opacity:0.75;">© Birdies Bayside</div>
                   </td>
