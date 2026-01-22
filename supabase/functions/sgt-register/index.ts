@@ -49,11 +49,21 @@ async function getApiKey(supabase: any): Promise<string> {
     body: formData.toString(),
   });
 
+  const responseText = await response.text();
+  
   if (!response.ok) {
-    throw new Error(`Failed to get SGT API key: ${response.status}`);
+    console.error(`[SGT-REGISTER] API key request failed: ${response.status}, body: ${responseText.substring(0, 200)}`);
+    throw new Error(`SGT API temporarily unavailable. Please try again in a few minutes.`);
   }
 
-  const data = await response.json();
+  let data;
+  try {
+    data = JSON.parse(responseText);
+  } catch (parseError) {
+    console.error(`[SGT-REGISTER] Invalid JSON response: ${responseText.substring(0, 200)}`);
+    throw new Error("SGT API returned invalid response. Please try again in a few minutes.");
+  }
+  
   if (!data.api_key) {
     throw new Error("No API key in response");
   }
