@@ -221,7 +221,9 @@ export default function AdminCustomers() {
       // Search filter
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
+        const fullName = `${customer.first_name || ''} ${customer.last_name || ''}`.toLowerCase();
         const matchesSearch = 
+          fullName.includes(query) ||
           customer.first_name?.toLowerCase().includes(query) ||
           customer.last_name?.toLowerCase().includes(query) ||
           customer.email?.toLowerCase().includes(query) ||

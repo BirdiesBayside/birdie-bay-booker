@@ -187,15 +187,25 @@ export function AddBookingDialog({
     
     setIsLoadingCustomers(true);
     
+    // Fetch more results and filter client-side for full name matching
     const { data, error } = await supabase
       .from("profiles")
       .select("user_id, first_name, last_name, email, phone, membership_tier, custom_hourly_rate")
       .or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%,email.ilike.%${search}%`)
       .order("first_name")
-      .limit(10);
+      .limit(50);
     
     if (!error && data) {
-      setCustomers(data);
+      // Additional client-side filtering to support full name search
+      const searchLower = search.toLowerCase();
+      const filtered = data.filter(customer => {
+        const fullName = `${customer.first_name || ''} ${customer.last_name || ''}`.toLowerCase();
+        return fullName.includes(searchLower) ||
+          customer.first_name?.toLowerCase().includes(searchLower) ||
+          customer.last_name?.toLowerCase().includes(searchLower) ||
+          customer.email?.toLowerCase().includes(searchLower);
+      }).slice(0, 10);
+      setCustomers(filtered);
     }
     
     setIsLoadingCustomers(false);
