@@ -123,9 +123,17 @@ serve(async (req) => {
           // Get previous tier to check if this is a new subscription
           const { data: profile } = await supabaseAdmin
             .from("profiles")
-            .select("first_name, last_name, membership_tier")
+            .select("first_name, last_name, membership_tier, custom_billing")
             .eq("email", email)
             .maybeSingle();
+
+          // Skip tier update if customer has custom billing enabled
+          if (profile?.custom_billing) {
+            logStep("Customer has custom billing enabled, skipping tier update", { email });
+            return new Response(JSON.stringify({ received: true }), {
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
 
           const previousTier = profile?.membership_tier;
           const isNewMembership = previousTier === "visitor" || !previousTier;
@@ -258,12 +266,20 @@ serve(async (req) => {
 
       const email = customer.email;
       if (email) {
-        // Get profile to find previous tier
+        // Get profile to find previous tier and check custom billing
         const { data: profile } = await supabaseAdmin
           .from("profiles")
-          .select("first_name, last_name, membership_tier")
+          .select("first_name, last_name, membership_tier, custom_billing")
           .eq("email", email)
           .maybeSingle();
+
+        // Skip tier reset if customer has custom billing enabled
+        if (profile?.custom_billing) {
+          logStep("Customer has custom billing enabled, skipping tier reset", { email });
+          return new Response(JSON.stringify({ received: true }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
 
         const firstName = profile?.first_name || customer.name?.split(" ")[0] || "there";
         const lastName = profile?.last_name || "";
@@ -424,12 +440,20 @@ serve(async (req) => {
         const customerName = customer.name || "Valued Customer";
 
         if (email) {
-          // Get the current profile to find their tier
+          // Get the current profile to find their tier and check custom billing
           const { data: profile } = await supabaseAdmin
             .from("profiles")
-            .select("first_name, last_name, membership_tier")
+            .select("first_name, last_name, membership_tier, custom_billing")
             .eq("email", email)
             .maybeSingle();
+
+          // Skip tier reset if customer has custom billing enabled
+          if (profile?.custom_billing) {
+            logStep("Customer has custom billing enabled, skipping tier reset for failed payment", { email });
+            return new Response(JSON.stringify({ received: true }), {
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
 
           const firstName = profile?.first_name || customerName.split(" ")[0];
           const previousTier = profile?.membership_tier ? TIER_NAMES[profile.membership_tier] || profile.membership_tier : "Member";

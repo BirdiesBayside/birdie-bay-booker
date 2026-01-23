@@ -677,6 +677,7 @@ export type Database = {
       profiles: {
         Row: {
           created_at: string
+          custom_billing: boolean
           custom_hourly_rate: number | null
           custom_segment: string | null
           deposit_balance: number
@@ -694,6 +695,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          custom_billing?: boolean
           custom_hourly_rate?: number | null
           custom_segment?: string | null
           deposit_balance?: number
@@ -711,6 +713,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          custom_billing?: boolean
           custom_hourly_rate?: number | null
           custom_segment?: string | null
           deposit_balance?: number
