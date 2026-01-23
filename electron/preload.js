@@ -77,6 +77,27 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Update authentication state in main process
   setAuthenticated: (authenticated) => ipcRenderer.invoke('set-authenticated', authenticated),
   
+  // Update app launch config in main process (for global F10 hotkey)
+  setAppLaunchConfig: (config) => ipcRenderer.invoke('set-app-launch-config', config),
+  
+  // Listen for F10 global hotkey events from main process
+  onF10NoConfig: (callback) => {
+    ipcRenderer.on('f10-no-config', () => callback());
+    return () => ipcRenderer.removeAllListeners('f10-no-config');
+  },
+  onF10DisplaysNotFound: (callback) => {
+    ipcRenderer.on('f10-displays-not-found', () => callback());
+    return () => ipcRenderer.removeAllListeners('f10-displays-not-found');
+  },
+  onF10Result: (callback) => {
+    ipcRenderer.on('f10-result', (event, result) => callback(result));
+    return () => ipcRenderer.removeAllListeners('f10-result');
+  },
+  onF10Error: (callback) => {
+    ipcRenderer.on('f10-error', (event, error) => callback(error));
+    return () => ipcRenderer.removeAllListeners('f10-error');
+  },
+  
   // Listen for lock request from main process (when window shown from tray)
   onRequestLock: (callback) => {
     ipcRenderer.on('request-lock', () => callback());

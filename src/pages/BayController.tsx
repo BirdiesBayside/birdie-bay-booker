@@ -268,55 +268,44 @@ export default function BayController() {
     setDebugLogs(prev => [...prev.slice(-49), { time, message, type }]); // Keep last 50 logs
   }, []);
 
-  // F10 hotkey to fix window positions (works without authentication - for customers)
+  // Listen for F10 global hotkey results from main process
   useEffect(() => {
-    const handleF10 = async (e: KeyboardEvent) => {
-      if (e.key === 'F10' && isElectron && window.electronAPI) {
-        e.preventDefault();
-        console.log('[BayController] F11 pressed, fixing window positions');
+    if (!isElectron || !window.electronAPI) return;
+    
+    const cleanupNoConfig = window.electronAPI.onF10NoConfig(() => {
+      toast.error("App launch not configured");
+    });
+    
+    const cleanupNotFound = window.electronAPI.onF10DisplaysNotFound(() => {
+      toast.error("Configured displays not found");
+    });
+    
+    const cleanupResult = window.electronAPI.onF10Result((result) => {
+      if (result.success && result.results) {
+        const moved = result.results.filter(r => r.moved);
+        const found = result.results.filter(r => r.found);
         
-        try {
-          const savedConfig = localStorage.getItem("bayController_appLaunchConfig");
-          if (!savedConfig) {
-            toast.error("App launch not configured");
-            return;
-          }
-          
-          const config = JSON.parse(savedConfig);
-          const currentDisplays = await window.electronAPI.getDisplays();
-          
-          const gsproIdx = currentDisplays.findIndex(d => d.label === config.gsproDisplayLabel);
-          const proteeIdx = currentDisplays.findIndex(d => d.label === config.proteeDisplayLabel);
-          
-          if (gsproIdx < 0 && proteeIdx < 0) {
-            toast.error("Configured displays not found");
-            return;
-          }
-          
-          toast.info("Fixing window positions...");
-          const result = await window.electronAPI.checkWindowPositions(gsproIdx, proteeIdx);
-          
-          if (result.success && result.results) {
-            const moved = result.results.filter(r => r.moved);
-            const found = result.results.filter(r => r.found);
-            
-            if (moved.length > 0) {
-              toast.success(`Moved ${moved.map(r => r.app).join(' & ')} to correct screen`);
-            } else if (found.length > 0) {
-              toast.info("Windows already on correct screens");
-            } else {
-              toast.warning("Windows not found - are apps running?");
-            }
-          }
-        } catch (err) {
-          console.error('[BayController] F11 window fix failed:', err);
-          toast.error("Failed to fix window positions");
+        if (moved.length > 0) {
+          toast.success(`Moved ${moved.map(r => r.app).join(' & ')} to correct screen`);
+        } else if (found.length > 0) {
+          toast.info("Windows already on correct screens");
+        } else {
+          toast.warning("Windows not found - are apps running?");
         }
       }
+    });
+    
+    const cleanupError = window.electronAPI.onF10Error((error) => {
+      console.error('[BayController] F10 window fix failed:', error);
+      toast.error("Failed to fix window positions");
+    });
+    
+    return () => {
+      cleanupNoConfig();
+      cleanupNotFound();
+      cleanupResult();
+      cleanupError();
     };
-
-    window.addEventListener('keydown', handleF10);
-    return () => window.removeEventListener('keydown', handleF10);
   }, [isElectron]);
 
   // F9 hotkey to toggle SGT overlay (for authenticated staff - shows in-app overlay)
@@ -1207,10 +1196,18 @@ export default function BayController() {
     localStorage.setItem("bayController_preStartMinutes", preStartMinutes.toString());
   }, [preStartMinutes]);
 
-  // Save app launch config
+  // Save app launch config and sync to main process for global F10 hotkey
   useEffect(() => {
     localStorage.setItem("bayController_appLaunchConfig", JSON.stringify(appLaunchConfig));
-  }, [appLaunchConfig]);
+    
+    // Sync config to main process for global F10 hotkey
+    if (isElectron && window.electronAPI?.setAppLaunchConfig) {
+      window.electronAPI.setAppLaunchConfig({
+        gsproDisplayLabel: appLaunchConfig.gsproDisplayLabel,
+        proteeDisplayLabel: appLaunchConfig.proteeDisplayLabel
+      }).catch(err => console.error('Failed to sync app launch config to main process:', err));
+    }
+  }, [appLaunchConfig, isElectron]);
 
   // Save notification config
   useEffect(() => {
