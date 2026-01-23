@@ -15,6 +15,20 @@ interface Recipient {
   last_name: string;
 }
 
+// Simple token generator for unsubscribe URL verification
+async function generateUnsubscribeToken(email: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(email.toLowerCase() + "birdies-unsubscribe-salt");
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.slice(0, 8).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+function buildUnsubscribeUrl(email: string, token: string): string {
+  const siteUrl = Deno.env.get("SITE_URL") || "https://hub.birdiesbayside.com.au";
+  return `${siteUrl}/unsubscribe?email=${encodeURIComponent(email)}&token=${token}`;
+}
+
 interface MarketingEmailRequest {
   campaign_id: string;
   subject: string;
@@ -62,8 +76,8 @@ async function generateResetLink(supabaseAdmin: any, email: string): Promise<str
   }
 }
 
-// Build branded email wrapper
-const buildEmailTemplate = (heading: string, bodyContent: string, ctaButton?: { text: string; url: string }) => {
+// Build branded email wrapper with unsubscribe link for marketing emails
+const buildEmailTemplate = (heading: string, bodyContent: string, ctaButton?: { text: string; url: string }, unsubscribeUrl?: string) => {
   const buttonHtml = ctaButton ? `
               <!-- BUTTON -->
               <table role="presentation" align="center" cellpadding="0" cellspacing="0" border="0" style="margin:22px auto 0;">
@@ -140,6 +154,7 @@ const buildEmailTemplate = (heading: string, bodyContent: string, ctaButton?: { 
                     <div><a href="tel:+61721468442" style="color:#FFFFFF; text-decoration:underline;">(07) 2146 8442</a></div>
                     <div><a href="https://birdiesbayside.com.au" style="color:#FFFFFF; text-decoration:underline;">birdiesbayside.com.au</a></div>
                     <div style="margin-top:10px; font-size:12px; opacity:0.75;">© Birdies Bayside</div>
+                    ${unsubscribeUrl ? `<div style="margin-top:12px; font-size:11px; opacity:0.6;"><a href="${unsubscribeUrl}" style="color:#FFFFFF; text-decoration:underline;">Unsubscribe from marketing emails</a></div>` : ''}
                   </td>
                 </tr>
               </table>
@@ -213,6 +228,10 @@ async function sendEmailsInBackground(
         const personalizedContent = replaceTemplateTags(html_content, recipient, resetLink);
         const personalizedSubject = replaceTemplateTags(subject, recipient);
         
+        // Generate unsubscribe URL for this recipient
+        const unsubscribeToken = await generateUnsubscribeToken(recipient.email);
+        const unsubscribeUrl = buildUnsubscribeUrl(recipient.email, unsubscribeToken);
+        
         // Wrap the marketing content in branded template
         const bodyContent = `
             <div style="font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25;">
@@ -223,13 +242,17 @@ async function sendEmailsInBackground(
         const brandedHtml = buildEmailTemplate(personalizedSubject, bodyContent, {
           text: "Book Now",
           url: "https://hub.birdiesbayside.com.au/booking"
-        });
+        }, unsubscribeUrl);
 
         return {
           from: "Birdies Bayside <info@birdiesbayside.com.au>",
           to: [recipient.email],
           subject: personalizedSubject,
           html: brandedHtml,
+          headers: {
+            "List-Unsubscribe": `<${unsubscribeUrl}>`,
+            "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+          },
         };
       } catch (error) {
         console.error(`[BACKGROUND] Error preparing email for ${recipient.email}:`, error);
