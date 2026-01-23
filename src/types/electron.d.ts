@@ -71,8 +71,14 @@ declare global {
       // Security / Quit control
       confirmQuit: () => Promise<{ success: boolean }>;
       setAuthenticated: (authenticated: boolean) => Promise<{ success: boolean }>;
+      setAppLaunchConfig: (config: { gsproDisplayLabel?: string; proteeDisplayLabel?: string }) => Promise<{ success: boolean }>;
       onRequestLock: (callback: () => void) => () => void;
       onRequestQuitPassword: (callback: () => void) => () => void;
+      // F10 global hotkey events
+      onF10NoConfig: (callback: () => void) => () => void;
+      onF10DisplaysNotFound: (callback: () => void) => () => void;
+      onF10Result: (callback: (result: { success: boolean; results?: { app: string; found: boolean; moved?: boolean }[] }) => void) => () => void;
+      onF10Error: (callback: (error: string) => void) => () => void;
       // Clipboard / Auto-paste
       copyForPaste: (text: string) => Promise<{ success: boolean; error?: string }>;
       triggerAutoPaste: () => Promise<{ success: boolean; error?: string }>;

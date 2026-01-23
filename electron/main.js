@@ -14,6 +14,7 @@ let tray;
 let tapoClient = null;
 let isAppAuthenticated = false; // Track if user has entered correct password
 let welcomeWindows = []; // Array of welcome windows (one per display)
+let currentAppLaunchConfig = null; // Store app launch config for global F10 hotkey
 
 const isDev = process.env.NODE_ENV === 'development';
 
@@ -143,6 +144,63 @@ app.whenReady().then(() => {
       console.log('[GlobalShortcut] No currentSgtDisplayLabel set - cannot show SGT info');
     }
   });
+  
+  // Register global F10 hotkey to fix window positions (works even when other apps are focused)
+  globalShortcut.register('F10', async () => {
+    console.log('[GlobalShortcut] F10 pressed - fixing window positions');
+    
+    if (!currentAppLaunchConfig) {
+      console.log('[GlobalShortcut] No app launch config stored - cannot fix positions');
+      // Send notification to renderer if window exists
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('f10-no-config');
+      }
+      return;
+    }
+    
+    try {
+      const displays = screen.getAllDisplays();
+      const displayInfos = displays.map((display, index) => {
+        const isPrimary = display.bounds.x === 0 && display.bounds.y === 0;
+        return {
+          id: display.id,
+          index: index,
+          label: display.label || `Display ${index + 1}`,
+          bounds: display.bounds,
+          size: display.size,
+          isPrimary: isPrimary,
+          signature: `${display.size.width}x${display.size.height}`
+        };
+      });
+      
+      const gsproIdx = displayInfos.findIndex(d => d.label === currentAppLaunchConfig.gsproDisplayLabel);
+      const proteeIdx = displayInfos.findIndex(d => d.label === currentAppLaunchConfig.proteeDisplayLabel);
+      
+      console.log('[GlobalShortcut] GSPRO display index:', gsproIdx, 'label:', currentAppLaunchConfig.gsproDisplayLabel);
+      console.log('[GlobalShortcut] Protee display index:', proteeIdx, 'label:', currentAppLaunchConfig.proteeDisplayLabel);
+      
+      if (gsproIdx < 0 && proteeIdx < 0) {
+        console.log('[GlobalShortcut] Configured displays not found');
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('f10-displays-not-found');
+        }
+        return;
+      }
+      
+      const result = await checkAndCorrectWindowPositions(gsproIdx, proteeIdx);
+      console.log('[GlobalShortcut] Window position fix result:', result);
+      
+      // Send result to renderer for toast notification
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('f10-result', result);
+      }
+    } catch (err) {
+      console.error('[GlobalShortcut] F10 window fix failed:', err);
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('f10-error', err.message);
+      }
+    }
+  });
 });
 
 // Unregister shortcuts on quit
@@ -171,6 +229,13 @@ ipcMain.handle('confirm-quit', async () => {
 // Handle authentication state update from renderer
 ipcMain.handle('set-authenticated', async (event, authenticated) => {
   isAppAuthenticated = authenticated;
+  return { success: true };
+});
+
+// Handle app launch config update from renderer (for global F10 hotkey)
+ipcMain.handle('set-app-launch-config', async (event, config) => {
+  console.log('[IPC] Received app launch config:', config);
+  currentAppLaunchConfig = config;
   return { success: true };
 });
 
