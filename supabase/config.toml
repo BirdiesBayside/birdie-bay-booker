@@ -83,3 +83,6 @@ verify_jwt = false
 
 [functions.public-leaderboard]
 verify_jwt = false
+
+[functions.marketing-unsubscribe]
+verify_jwt = false
