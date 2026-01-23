@@ -18,7 +18,8 @@ import {
   User,
   Calendar,
   X,
-  ChevronLeft
+  ChevronLeft,
+  Percent
 } from "lucide-react";
 import {
   Dialog,
@@ -35,6 +36,9 @@ import {
 } from "@/components/ui/select";
 import { format } from "date-fns";
 import { useLocation } from "react-router-dom";
+import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 interface POSProduct {
   id: string;
@@ -98,6 +102,8 @@ export default function AdminPOS() {
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [processedNavBooking, setProcessedNavBooking] = useState<string | null>(null);
   const [terminalCountdown, setTerminalCountdown] = useState<number | null>(null);
+  const [surchargeEnabled, setSurchargeEnabled] = useState(false);
+  const [surchargePercent, setSurchargePercent] = useState<string>("1.5");
 
   useEffect(() => {
     if (isAdmin) {
@@ -244,6 +250,7 @@ export default function AdminPOS() {
     setCart([]);
     setSelectedBooking(null);
     setSelectedCustomer("");
+    setSurchargeEnabled(false);
   };
 
   const addBookingToCart = (booking: UnpaidBooking) => {
@@ -259,7 +266,8 @@ export default function AdminPOS() {
   };
 
   const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const total = subtotal;
+  const surchargeAmount = surchargeEnabled ? subtotal * (parseFloat(surchargePercent) || 0) / 100 : 0;
+  const total = subtotal + surchargeAmount;
 
   const [terminalPaymentIntentId, setTerminalPaymentIntentId] = useState<string | null>(null);
 
@@ -440,9 +448,20 @@ export default function AdminPOS() {
   };
 
   const saveTransaction = async (paymentMethod: string, stripePaymentIntentId: string | null) => {
+    // Build items array - include surcharge as a line item if applicable
+    const transactionItems = [...cart];
+    if (surchargeEnabled && surchargeAmount > 0) {
+      transactionItems.push({
+        id: 'surcharge',
+        name: `Card Surcharge (${surchargePercent}%)`,
+        price: surchargeAmount,
+        quantity: 1,
+      });
+    }
+    
     // Save POS transaction
     await supabase.from('pos_transactions').insert({
-      items: JSON.parse(JSON.stringify(cart)),
+      items: JSON.parse(JSON.stringify(transactionItems)),
       subtotal,
       total,
       payment_method: paymentMethod,
@@ -572,6 +591,48 @@ export default function AdminPOS() {
 
       {/* Totals & Pay */}
       <div className="p-4 border-t space-y-4">
+        {/* Surcharge Toggle */}
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <Switch
+              id="surcharge-toggle"
+              checked={surchargeEnabled}
+              onCheckedChange={setSurchargeEnabled}
+            />
+            <Label htmlFor="surcharge-toggle" className="text-sm cursor-pointer">
+              Card Surcharge
+            </Label>
+          </div>
+          {surchargeEnabled && (
+            <div className="flex items-center gap-1">
+              <Input
+                type="number"
+                value={surchargePercent}
+                onChange={(e) => setSurchargePercent(e.target.value)}
+                className="w-16 h-8 text-center text-sm"
+                step="0.1"
+                min="0"
+                max="10"
+              />
+              <Percent className="h-4 w-4 text-muted-foreground" />
+            </div>
+          )}
+        </div>
+
+        {/* Subtotal and Surcharge breakdown */}
+        {surchargeEnabled && surchargeAmount > 0 && (
+          <div className="space-y-1 text-sm text-muted-foreground">
+            <div className="flex justify-between">
+              <span>Subtotal</span>
+              <span>${subtotal.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Surcharge ({surchargePercent}%)</span>
+              <span>${surchargeAmount.toFixed(2)}</span>
+            </div>
+          </div>
+        )}
+
         <div className="flex justify-between text-lg font-bold">
           <span>Total</span>
           <span className="text-primary">${total.toFixed(2)}</span>
@@ -763,8 +824,13 @@ export default function AdminPOS() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="font-display text-2xl uppercase text-center">
-              Select Payment Method
+              Pay ${total.toFixed(2)}
             </DialogTitle>
+            {surchargeEnabled && surchargeAmount > 0 && (
+              <p className="text-sm text-muted-foreground text-center">
+                (includes ${surchargeAmount.toFixed(2)} card surcharge)
+              </p>
+            )}
           </DialogHeader>
           <div className="space-y-3 pt-4">
             <Button
