@@ -61,9 +61,11 @@ import {
   X,
   UserX,
   Gift,
+  FileText,
   Users,
   Shield
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { GiftCardsSection } from "@/components/admin/GiftCardsSection";
 import { format } from "date-fns";
 
@@ -79,6 +81,7 @@ interface Customer {
   deposit_balance: number;
   created_at: string;
   booking_count?: number;
+  custom_billing?: boolean;
 }
 
 interface ColumnConfig {
@@ -150,6 +153,9 @@ export default function AdminCustomers() {
 
   // Make admin state
   const [isTogglingAdmin, setIsTogglingAdmin] = useState(false);
+
+  // Custom billing state
+  const [isTogglingCustomBilling, setIsTogglingCustomBilling] = useState(false);
 
   // Tab state
   const [activeTab, setActiveTab] = useState("customers");
@@ -594,6 +600,56 @@ export default function AdminCustomers() {
     }
 
     setIsTogglingAdmin(false);
+  };
+
+  // Toggle custom billing for a customer
+  const toggleCustomBilling = async (customer: Customer) => {
+    setIsTogglingCustomBilling(true);
+    
+    try {
+      const newValue = !customer.custom_billing;
+      
+      const { error } = await supabase
+        .from("profiles")
+        .update({ custom_billing: newValue })
+        .eq("id", customer.id);
+
+      if (error) throw error;
+
+      toast({
+        title: newValue ? "Custom billing enabled" : "Custom billing disabled",
+        description: newValue 
+          ? `${customer.first_name}'s tier will not be changed by Stripe webhooks.`
+          : `${customer.first_name} will now follow standard billing rules.`,
+        duration: 4000,
+      });
+
+      // Update local state
+      setCustomers(prev =>
+        prev.map(c =>
+          c.id === customer.id
+            ? { ...c, custom_billing: newValue }
+            : c
+        )
+      );
+      
+      if (selectedCustomer?.id === customer.id) {
+        setSelectedCustomer({
+          ...selectedCustomer,
+          custom_billing: newValue,
+        });
+      }
+    } catch (error: any) {
+      console.error("Error toggling custom billing:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update custom billing.",
+        variant: "destructive",
+        duration: 4000,
+      });
+    }
+
+    setIsTogglingCustomBilling(false);
   };
 
   // Navigate to bulk email page
@@ -1128,7 +1184,25 @@ export default function AdminCustomers() {
 
                 <hr className="border-border" />
 
-                {/* Cancel Membership - only show for members */}
+                {/* Custom Billing Toggle */}
+                <div className="flex items-center justify-between p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <FileText className="h-5 w-5 text-amber-600 shrink-0" />
+                    <div>
+                      <div className="text-sm font-medium">Custom Billing</div>
+                      <div className="text-xs text-muted-foreground">
+                        When enabled, Stripe won't auto-change their tier
+                      </div>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={selectedCustomer.custom_billing || false}
+                    onCheckedChange={() => toggleCustomBilling(selectedCustomer)}
+                    disabled={isTogglingCustomBilling}
+                  />
+                </div>
+
+                <hr className="border-border" />
                 {selectedCustomer.membership_tier && selectedCustomer.membership_tier !== "visitor" && (
                   <>
                     <div className="p-3 bg-destructive/5 border border-destructive/20 rounded-lg">
