@@ -560,7 +560,9 @@ export default function AdminSettings() {
   const filteredCustomers = customers.filter(c => {
     if (!customerSearch) return true;
     const search = customerSearch.toLowerCase();
+    const fullName = `${c.first_name || ''} ${c.last_name || ''}`.toLowerCase();
     return (
+      fullName.includes(search) ||
       c.first_name?.toLowerCase().includes(search) ||
       c.last_name?.toLowerCase().includes(search) ||
       c.email?.toLowerCase().includes(search)

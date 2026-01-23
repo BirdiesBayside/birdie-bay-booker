@@ -211,12 +211,15 @@ export function SGTRegistrations() {
     onboardMutation.mutate({ sgtUserId, customHcp: hcp });
   };
 
-  const filteredPending = pendingMembers?.filter(m =>
-    m.first_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    m.last_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    m.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    m.display_name?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredPending = pendingMembers?.filter(m => {
+    const query = searchQuery.toLowerCase();
+    const fullName = `${m.first_name || ''} ${m.last_name || ''}`.toLowerCase();
+    return fullName.includes(query) ||
+      m.first_name?.toLowerCase().includes(query) ||
+      m.last_name?.toLowerCase().includes(query) ||
+      m.email?.toLowerCase().includes(query) ||
+      m.display_name?.toLowerCase().includes(query);
+  });
 
   const filteredOnboarded = onboardedMembers?.filter(m =>
     m.user_name?.toLowerCase().includes(searchQuery.toLowerCase())
