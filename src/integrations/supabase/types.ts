@@ -563,6 +563,7 @@ export type Database = {
       pos_products: {
         Row: {
           created_at: string
+          display_order: number | null
           family: string | null
           id: string
           is_active: boolean
@@ -572,6 +573,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          display_order?: number | null
           family?: string | null
           id?: string
           is_active?: boolean
@@ -581,6 +583,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          display_order?: number | null
           family?: string | null
           id?: string
           is_active?: boolean
