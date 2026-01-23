@@ -102,8 +102,24 @@ export default function AdminPOS() {
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [processedNavBooking, setProcessedNavBooking] = useState<string | null>(null);
   const [terminalCountdown, setTerminalCountdown] = useState<number | null>(null);
-  const [surchargeEnabled, setSurchargeEnabled] = useState(false);
-  const [surchargePercent, setSurchargePercent] = useState<string>("1.5");
+  
+  // Surcharge state - persisted to localStorage
+  const [surchargeEnabled, setSurchargeEnabled] = useState(() => {
+    const saved = localStorage.getItem('pos_surcharge_enabled');
+    return saved === 'true';
+  });
+  const [surchargePercent, setSurchargePercent] = useState<string>(() => {
+    return localStorage.getItem('pos_surcharge_percent') || "10";
+  });
+
+  // Persist surcharge settings when they change
+  useEffect(() => {
+    localStorage.setItem('pos_surcharge_enabled', String(surchargeEnabled));
+  }, [surchargeEnabled]);
+
+  useEffect(() => {
+    localStorage.setItem('pos_surcharge_percent', surchargePercent);
+  }, [surchargePercent]);
 
   useEffect(() => {
     if (isAdmin) {
@@ -250,7 +266,6 @@ export default function AdminPOS() {
     setCart([]);
     setSelectedBooking(null);
     setSelectedCustomer("");
-    setSurchargeEnabled(false);
   };
 
   const addBookingToCart = (booking: UnpaidBooking) => {
@@ -604,18 +619,19 @@ export default function AdminPOS() {
             </Label>
           </div>
           {surchargeEnabled && (
-            <div className="flex items-center gap-1">
-              <Input
-                type="number"
-                value={surchargePercent}
-                onChange={(e) => setSurchargePercent(e.target.value)}
-                className="w-16 h-8 text-center text-sm"
-                step="0.1"
-                min="0"
-                max="10"
-              />
-              <Percent className="h-4 w-4 text-muted-foreground" />
-            </div>
+            <Select value={surchargePercent} onValueChange={setSurchargePercent}>
+              <SelectTrigger className="w-24 h-8">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="5">5%</SelectItem>
+                <SelectItem value="10">10%</SelectItem>
+                <SelectItem value="15">15%</SelectItem>
+                <SelectItem value="20">20%</SelectItem>
+                <SelectItem value="25">25%</SelectItem>
+                <SelectItem value="30">30%</SelectItem>
+              </SelectContent>
+            </Select>
           )}
         </div>
 
