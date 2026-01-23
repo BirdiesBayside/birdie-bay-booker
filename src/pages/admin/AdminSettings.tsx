@@ -26,7 +26,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Pencil, Trash2, Settings, ShoppingCart, Bell, DollarSign, X, Copy, Check, Eye, BarChart3, AlertTriangle, Loader2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Settings, ShoppingCart, Bell, DollarSign, X, Copy, Check, Eye, BarChart3, AlertTriangle, Loader2, GripVertical, ArrowUp, ArrowDown } from "lucide-react";
 import { SalesReporting } from "@/components/admin/SalesReporting";
 import { ActivityLog } from "@/components/admin/ActivityLog";
 import { format } from "date-fns";
@@ -114,6 +114,7 @@ interface POSProduct {
   price: number;
   family: string | null;
   is_active: boolean;
+  display_order: number;
 }
 
 interface CustomerProfile {
@@ -439,13 +440,55 @@ export default function AdminSettings() {
     const { data, error } = await supabase
       .from("pos_products")
       .select("*")
-      .order("family", { ascending: true })
-      .order("name", { ascending: true });
+      .order("display_order", { ascending: true });
 
     if (!error && data) {
       setProducts(data);
     }
     setIsLoadingProducts(false);
+  };
+
+  const moveProduct = async (productId: string, direction: 'up' | 'down') => {
+    const currentIndex = products.findIndex(p => p.id === productId);
+    if (currentIndex === -1) return;
+    
+    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0 || targetIndex >= products.length) return;
+
+    const currentProduct = products[currentIndex];
+    const targetProduct = products[targetIndex];
+
+    // Swap display orders
+    const currentOrder = currentProduct.display_order;
+    const targetOrder = targetProduct.display_order;
+
+    // Update locally first for instant feedback
+    const newProducts = [...products];
+    newProducts[currentIndex] = { ...currentProduct, display_order: targetOrder };
+    newProducts[targetIndex] = { ...targetProduct, display_order: currentOrder };
+    newProducts.sort((a, b) => a.display_order - b.display_order);
+    setProducts(newProducts);
+
+    // Persist to database
+    const { error: error1 } = await supabase
+      .from("pos_products")
+      .update({ display_order: targetOrder })
+      .eq("id", currentProduct.id);
+
+    const { error: error2 } = await supabase
+      .from("pos_products")
+      .update({ display_order: currentOrder })
+      .eq("id", targetProduct.id);
+
+    if (error1 || error2) {
+      toast({
+        title: "Error reordering",
+        description: "Failed to save product order.",
+        variant: "destructive",
+        duration: 4000,
+      });
+      fetchProducts(); // Refetch to reset on error
+    }
   };
 
   const fetchCustomers = async () => {
@@ -896,7 +939,7 @@ export default function AdminSettings() {
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>
                   <CardTitle>POS Products</CardTitle>
-                  <CardDescription>Manage products available in the POS system</CardDescription>
+                  <CardDescription>Manage products available in the POS system. Use arrows to reorder.</CardDescription>
                 </div>
                 <Button onClick={() => openProductDialog()} size="sm">
                   <Plus className="h-4 w-4 mr-2" />
@@ -915,47 +958,20 @@ export default function AdminSettings() {
                     </Button>
                   </div>
                 ) : (
-                  <div className="space-y-4">
-                    {families.length > 0 && families.map((family) => (
-                      <div key={family}>
-                        <h4 className="font-medium text-sm text-muted-foreground mb-2 uppercase tracking-wide">
-                          {family}
-                        </h4>
-                        <div className="grid gap-2">
-                          {products
-                            .filter((p) => p.family === family)
-                            .map((product) => (
-                              <ProductRow
-                                key={product.id}
-                                product={product}
-                                onEdit={() => openProductDialog(product)}
-                                onToggle={() => toggleProductActive(product)}
-                                onDelete={() => deleteProduct(product)}
-                              />
-                            ))}
-                        </div>
-                      </div>
+                  <div className="space-y-2">
+                    {products.map((product, index) => (
+                      <ProductRow
+                        key={product.id}
+                        product={product}
+                        onEdit={() => openProductDialog(product)}
+                        onToggle={() => toggleProductActive(product)}
+                        onDelete={() => deleteProduct(product)}
+                        onMoveUp={() => moveProduct(product.id, 'up')}
+                        onMoveDown={() => moveProduct(product.id, 'down')}
+                        isFirst={index === 0}
+                        isLast={index === products.length - 1}
+                      />
                     ))}
-                    {products.filter((p) => !p.family).length > 0 && (
-                      <div>
-                        <h4 className="font-medium text-sm text-muted-foreground mb-2 uppercase tracking-wide">
-                          Other
-                        </h4>
-                        <div className="grid gap-2">
-                          {products
-                            .filter((p) => !p.family)
-                            .map((product) => (
-                              <ProductRow
-                                key={product.id}
-                                product={product}
-                                onEdit={() => openProductDialog(product)}
-                                onToggle={() => toggleProductActive(product)}
-                                onDelete={() => deleteProduct(product)}
-                              />
-                            ))}
-                        </div>
-                      </div>
-                    )}
                   </div>
                 )}
               </CardContent>
@@ -1219,17 +1235,50 @@ function ProductRow({
   onEdit,
   onToggle,
   onDelete,
+  onMoveUp,
+  onMoveDown,
+  isFirst,
+  isLast,
 }: {
   product: POSProduct;
   onEdit: () => void;
   onToggle: () => void;
   onDelete: () => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  isFirst: boolean;
+  isLast: boolean;
 }) {
   return (
     <div className={`flex items-center justify-between p-3 border rounded-lg ${!product.is_active ? "opacity-50" : ""}`}>
-      <div>
-        <span className="font-medium">{product.name}</span>
-        <span className="text-muted-foreground ml-2">${product.price.toFixed(2)}</span>
+      <div className="flex items-center gap-3">
+        <div className="flex flex-col gap-0.5">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="h-5 w-5" 
+            onClick={onMoveUp}
+            disabled={isFirst}
+          >
+            <ArrowUp className="h-3 w-3" />
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="h-5 w-5" 
+            onClick={onMoveDown}
+            disabled={isLast}
+          >
+            <ArrowDown className="h-3 w-3" />
+          </Button>
+        </div>
+        <div>
+          <span className="font-medium">{product.name}</span>
+          <span className="text-muted-foreground ml-2">${product.price.toFixed(2)}</span>
+          {product.family && (
+            <Badge variant="outline" className="ml-2 text-xs">{product.family}</Badge>
+          )}
+        </div>
       </div>
       <div className="flex items-center gap-2">
         {!product.is_active && (

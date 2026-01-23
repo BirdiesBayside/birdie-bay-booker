@@ -169,8 +169,7 @@ export default function AdminPOS() {
       .from('pos_products')
       .select('*')
       .eq('is_active', true)
-      .order('family', { ascending: true })
-      .order('name', { ascending: true });
+      .order('display_order', { ascending: true });
 
     if (error) {
       console.error('Error fetching products:', error);
