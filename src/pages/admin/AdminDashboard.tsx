@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, subDays, startOfDay, endOfDay } from "date-fns";
+import { toZonedTime, formatInTimeZone } from "date-fns-tz";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -58,6 +59,7 @@ export default function AdminDashboard() {
     momGrowth: 0,
   });
   const [loadingStats, setLoadingStats] = useState(true);
+  const [timezone, setTimezone] = useState<string>("Australia/Brisbane");
   
   // Filter states
   const [bookingsFilter, setBookingsFilter] = useState<TimeFilter>("today");
@@ -66,73 +68,93 @@ export default function AdminDashboard() {
   const [memberTierFilter, setMemberTierFilter] = useState<MemberTierFilter>("all");
   const [memberRevenueFilter, setMemberRevenueFilter] = useState<MemberRevenueFilter>("weekly");
 
+  // Fetch timezone from system settings
+  useEffect(() => {
+    const fetchTimezone = async () => {
+      const { data } = await supabase
+        .from("system_settings")
+        .select("timezone")
+        .eq("id", "global")
+        .single();
+      if (data?.timezone) {
+        setTimezone(data.timezone);
+      }
+    };
+    fetchTimezone();
+  }, []);
+
+  // Helper to get current time in configured timezone
+  const getNowInTimezone = () => {
+    return toZonedTime(new Date(), timezone);
+  };
+
   // Returns ISO strings for timestamp comparisons (created_at)
   const getDateRange = (filter: TimeFilter): { start: string; end: string } => {
-    const today = new Date();
+    const nowInTz = getNowInTimezone();
     
-    // Use local timezone start/end of day, converted to ISO strings for proper comparison
+    // Get start/end of day in the configured timezone, then convert to ISO strings
     switch (filter) {
       case "today":
         return { 
-          start: startOfDay(today).toISOString(), 
-          end: endOfDay(today).toISOString() 
+          start: startOfDay(nowInTz).toISOString(), 
+          end: endOfDay(nowInTz).toISOString() 
         };
       case "week":
         return {
-          start: startOfDay(startOfWeek(today, { weekStartsOn: 1 })).toISOString(),
-          end: endOfDay(endOfWeek(today, { weekStartsOn: 1 })).toISOString(),
+          start: startOfDay(startOfWeek(nowInTz, { weekStartsOn: 1 })).toISOString(),
+          end: endOfDay(endOfWeek(nowInTz, { weekStartsOn: 1 })).toISOString(),
         };
       case "month":
         return {
-          start: startOfDay(startOfMonth(today)).toISOString(),
-          end: endOfDay(endOfMonth(today)).toISOString(),
+          start: startOfDay(startOfMonth(nowInTz)).toISOString(),
+          end: endOfDay(endOfMonth(nowInTz)).toISOString(),
         };
       case "quarter":
         return {
-          start: startOfDay(startOfQuarter(today)).toISOString(),
-          end: endOfDay(endOfQuarter(today)).toISOString(),
+          start: startOfDay(startOfQuarter(nowInTz)).toISOString(),
+          end: endOfDay(endOfQuarter(nowInTz)).toISOString(),
         };
     }
   };
 
   // Returns date strings for DATE column comparisons (booking_date)
   const getBookingDateRange = (filter: TimeFilter): { start: string; end: string } => {
-    const today = new Date();
-    const todayStr = format(today, 'yyyy-MM-dd');
+    const nowInTz = getNowInTimezone();
+    const todayStr = formatInTimeZone(new Date(), timezone, 'yyyy-MM-dd');
     
     switch (filter) {
       case "today":
         return { start: todayStr, end: todayStr };
       case "week":
         return {
-          start: format(startOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd'),
-          end: format(endOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd'),
+          start: format(startOfWeek(nowInTz, { weekStartsOn: 1 }), 'yyyy-MM-dd'),
+          end: format(endOfWeek(nowInTz, { weekStartsOn: 1 }), 'yyyy-MM-dd'),
         };
       case "month":
         return {
-          start: format(startOfMonth(today), 'yyyy-MM-dd'),
-          end: format(endOfMonth(today), 'yyyy-MM-dd'),
+          start: format(startOfMonth(nowInTz), 'yyyy-MM-dd'),
+          end: format(endOfMonth(nowInTz), 'yyyy-MM-dd'),
         };
       case "quarter":
         return {
-          start: format(startOfQuarter(today), 'yyyy-MM-dd'),
-          end: format(endOfQuarter(today), 'yyyy-MM-dd'),
+          start: format(startOfQuarter(nowInTz), 'yyyy-MM-dd'),
+          end: format(endOfQuarter(nowInTz), 'yyyy-MM-dd'),
         };
     }
   };
 
   const getDaysInRange = (filter: TimeFilter): number => {
-    const today = new Date();
+    const nowInTz = getNowInTimezone();
     switch (filter) {
       case "today":
         return 1;
       case "week":
         return 7;
       case "month":
-        return new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+        return new Date(nowInTz.getFullYear(), nowInTz.getMonth() + 1, 0).getDate();
       case "quarter":
-        const qStart = startOfQuarter(today);
-        const qEnd = endOfQuarter(today);
+        const qStart = startOfQuarter(nowInTz);
+        const qEnd = endOfQuarter(nowInTz);
         return Math.ceil((qEnd.getTime() - qStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
     }
   };

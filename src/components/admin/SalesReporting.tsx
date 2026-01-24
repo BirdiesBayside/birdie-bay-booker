@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/table";
 import { Download, Calendar, TrendingUp, DollarSign, ShoppingCart, CalendarDays, RefreshCw } from "lucide-react";
 import { format, subDays, startOfDay, endOfDay, parseISO, startOfMonth, endOfMonth, subMonths } from "date-fns";
+import { toZonedTime } from "date-fns-tz";
 
 interface SaleRecord {
   id: string;
@@ -44,6 +45,7 @@ export function SalesReporting() {
   const [sales, setSales] = useState<SaleRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
+  const [timezone, setTimezone] = useState<string>("Australia/Brisbane");
 
   // Filters
   const [datePreset, setDatePreset] = useState<DatePreset>("today");
@@ -58,8 +60,28 @@ export function SalesReporting() {
   const [posRevenue, setPosRevenue] = useState(0);
   const [transactionCount, setTransactionCount] = useState(0);
 
+  // Fetch timezone from system settings
+  useEffect(() => {
+    const fetchTimezone = async () => {
+      const { data } = await supabase
+        .from("system_settings")
+        .select("timezone")
+        .eq("id", "global")
+        .single();
+      if (data?.timezone) {
+        setTimezone(data.timezone);
+      }
+    };
+    fetchTimezone();
+  }, []);
+
+  // Helper to get current time in configured timezone
+  const getNowInTimezone = () => {
+    return toZonedTime(new Date(), timezone);
+  };
+
   const getDateRange = (): { start: Date; end: Date } => {
-    const now = new Date();
+    const now = getNowInTimezone();
     
     switch (datePreset) {
       case "today":
