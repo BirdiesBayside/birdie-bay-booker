@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { Resend } from "https://esm.sh/resend@2.0.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -8,6 +9,168 @@ const corsHeaders = {
 
 const SGT_BASE_URL = "https://simulatorgolftour.com/sgt-api/club-admin";
 const CLUB_URL = "birdiesbayside";
+
+const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
+
+// Build branded email for new pending member notification
+function buildPendingMemberEmail(data: { 
+  firstName: string; 
+  lastName: string; 
+  email: string; 
+  sgtUsername: string; 
+  sgtUserId: number; 
+  linkedAt: string;
+  onboardingUrl: string;
+}): string {
+  const linkDate = new Date(data.linkedAt).toLocaleString("en-AU", {
+    timeZone: "Australia/Brisbane",
+    dateStyle: "full",
+    timeStyle: "short",
+  });
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="x-apple-disable-message-reformatting" />
+  <title>New Pending Member - Action Required</title>
+  <style>
+    @import url("https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;600&display=swap");
+  </style>
+</head>
+<body style="margin:0; padding:0; background-color:#FFF5E4;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#FFF5E4;">
+    <tr>
+      <td align="center" style="padding:24px 12px;">
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="max-width:600px; width:100%;">
+          <tr>
+            <td align="center" style="background-color:#1F4C25; padding:18px; border-radius:16px 16px 0 0;">
+              <img
+                src="https://cdn.shopify.com/s/files/1/0758/7030/6550/files/NO-BG_BIRDIES-LOGOS_WORK-DOC_AMENDED-9.7.25-01.png?v=1761536603"
+                width="140"
+                alt="Birdies Bayside"
+                style="display:block; width:140px; height:auto; border:0;"
+              />
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color:#FFF5E4; padding:26px 22px; border-left:1px solid rgba(31,76,37,0.12); border-right:1px solid rgba(31,76,37,0.12);">
+              <h1 style="margin:0 0 14px; font-family:Anton, Impact, Arial Black, sans-serif; font-size:34px; line-height:1.1; color:#1F4C25; text-align:center;">
+                🆕 New Pending Member!
+              </h1>
+              <p style="margin:0 0 8px; font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">
+                A Hub member has been linked to their SGT account.
+              </p>
+              <p style="margin:0 0 18px; font-family:Inter, Arial, sans-serif; font-size:14px; line-height:1.6; color:#EC622D; text-align:center; font-weight:600;">
+                ⚠️ Action Required: Set their handicap to complete onboarding
+              </p>
+              
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FFFFFF; border-radius:12px; margin:18px 0; border-left:4px solid #EC622D;">
+                <tr>
+                  <td style="padding:20px; font-family:Inter, Arial, sans-serif; font-size:15px; color:#1F4C25;">
+                    <h3 style="margin:0 0 16px 0; font-family:Anton, Impact, Arial Black, sans-serif; color:#1F4C25;">Member Details</h3>
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td style="padding:8px 0; border-bottom:1px solid #eee;"><strong>Name:</strong></td>
+                        <td style="padding:8px 0; border-bottom:1px solid #eee; text-align:right;">${data.firstName} ${data.lastName}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding:8px 0; border-bottom:1px solid #eee;"><strong>SGT Username:</strong></td>
+                        <td style="padding:8px 0; border-bottom:1px solid #eee; text-align:right;">${data.sgtUsername}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding:8px 0; border-bottom:1px solid #eee;"><strong>Email:</strong></td>
+                        <td style="padding:8px 0; border-bottom:1px solid #eee; text-align:right;">
+                          <a href="mailto:${data.email}" style="color:#1F4C25;">${data.email}</a>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:8px 0; border-bottom:1px solid #eee;"><strong>SGT User ID:</strong></td>
+                        <td style="padding:8px 0; border-bottom:1px solid #eee; text-align:right;">${data.sgtUserId}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding:8px 0;"><strong>Linked:</strong></td>
+                        <td style="padding:8px 0; text-align:right;">${linkDate}</td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+              
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td align="center" style="padding:10px 0 20px;">
+                    <a href="${data.onboardingUrl}" 
+                       style="display:inline-block; background-color:#EC622D; color:#FFFFFF; font-family:Anton, Impact, Arial Black, sans-serif; font-size:18px; padding:14px 32px; text-decoration:none; border-radius:8px; letter-spacing:0.5px;">
+                      ONBOARD PLAYER →
+                    </a>
+                  </td>
+                </tr>
+              </table>
+              
+              <p style="margin:18px 0 0; font-family:Inter, Arial, sans-serif; font-size:13px; line-height:1.6; color:#666; text-align:center;">
+                The member will be held in a "pending" state until you set their handicap.<br/>
+                Once onboarded, they'll be automatically registered for all active tours and tournaments.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color:#1F4C25; padding:22px; border-radius:0 0 16px 16px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td align="center" style="font-family:Inter, Arial, sans-serif; font-size:12px; color:#FFFFFF; opacity:0.75;">
+                    © Birdies Bayside
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+// Send notification email for newly linked pending member
+async function sendPendingMemberNotification(data: {
+  firstName: string;
+  lastName: string;
+  email: string;
+  sgtUsername: string;
+  sgtUserId: number;
+}): Promise<boolean> {
+  try {
+    const siteUrl = Deno.env.get("SITE_URL") || "https://birdie-bay-bookings.lovable.app";
+    const onboardingUrl = `${siteUrl}/admin/sgt?tab=registrations`;
+    
+    const html = buildPendingMemberEmail({
+      ...data,
+      linkedAt: new Date().toISOString(),
+      onboardingUrl,
+    });
+
+    const { error } = await resend.emails.send({
+      from: "Birdies Bayside <noreply@birdiesbayside.com.au>",
+      to: ["info@birdiesbayside.com.au"],
+      subject: `🆕 New Pending Member: ${data.firstName} ${data.lastName}`,
+      html,
+    });
+
+    if (error) {
+      console.error("[SGT-SYNC] Failed to send notification email:", error);
+      return false;
+    }
+
+    console.log(`[SGT-SYNC] ✉️ Sent pending member notification for ${data.email}`);
+    return true;
+  } catch (e) {
+    console.error("[SGT-SYNC] Error sending notification email:", e);
+    return false;
+  }
+}
 
 let cachedApiKey: { key: string; expiresAt: Date } | null = null;
 
@@ -290,6 +453,16 @@ serve(async (req) => {
     console.log("[SGT-SYNC] Checking for unlinked profiles to auto-link...");
     let linkedCount = 0;
     
+    // Check notification settings
+    const { data: notifSettings } = await supabase
+      .from("sgt_notification_settings")
+      .select("new_member_email_enabled")
+      .limit(1)
+      .maybeSingle();
+    
+    const shouldSendNotifications = notifSettings?.new_member_email_enabled === true;
+    console.log(`[SGT-SYNC] Notification emails enabled: ${shouldSendNotifications}`);
+    
     // Get all profiles that don't have an sgt_user_id set
     const { data: unlinkedProfiles } = await supabase
       .from("profiles")
@@ -334,6 +507,17 @@ serve(async (req) => {
             } else {
               console.log(`[SGT-SYNC] ✓ Successfully linked ${profile.email} to SGT ID ${sgtMatch.user_id}`);
               linkedCount++;
+              
+              // Send notification email if enabled
+              if (shouldSendNotifications) {
+                await sendPendingMemberNotification({
+                  firstName: profile.first_name,
+                  lastName: profile.last_name,
+                  email: profile.email,
+                  sgtUsername: sgtMatch.user_name,
+                  sgtUserId: sgtMatch.user_id,
+                });
+              }
             }
           }
         }
