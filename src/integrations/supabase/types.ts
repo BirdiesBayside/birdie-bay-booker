@@ -687,6 +687,7 @@ export type Database = {
           id: string
           last_name: string
           marketing_opt_out: boolean | null
+          membership_on_hold: boolean
           membership_tier: Database["public"]["Enums"]["membership_tier"]
           phone: string | null
           sgt_user_id: number | null
@@ -705,6 +706,7 @@ export type Database = {
           id?: string
           last_name: string
           marketing_opt_out?: boolean | null
+          membership_on_hold?: boolean
           membership_tier?: Database["public"]["Enums"]["membership_tier"]
           phone?: string | null
           sgt_user_id?: number | null
@@ -723,6 +725,7 @@ export type Database = {
           id?: string
           last_name?: string
           marketing_opt_out?: boolean | null
+          membership_on_hold?: boolean
           membership_tier?: Database["public"]["Enums"]["membership_tier"]
           phone?: string | null
           sgt_user_id?: number | null
