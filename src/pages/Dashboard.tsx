@@ -16,6 +16,7 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [membershipTier, setMembershipTier] = useState<MembershipTier>("visitor");
+  const [membershipOnHold, setMembershipOnHold] = useState(false);
   const [hasSgtAccount, setHasSgtAccount] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
@@ -30,12 +31,13 @@ const Dashboard = () => {
       if (!user) return;
       const { data } = await supabase
         .from("profiles")
-        .select("membership_tier, sgt_user_id")
+        .select("membership_tier, sgt_user_id, membership_on_hold")
         .eq("user_id", user.id)
         .single();
       if (data?.membership_tier) {
         setMembershipTier(data.membership_tier as MembershipTier);
       }
+      setMembershipOnHold(!!data?.membership_on_hold);
       setHasSgtAccount(!!data?.sgt_user_id);
     };
     fetchProfile();
@@ -86,6 +88,7 @@ const Dashboard = () => {
   const handleSignOut = async () => {
     // Clear local state first to prevent stale data display
     setMembershipTier("visitor");
+    setMembershipOnHold(false);
     setHasSgtAccount(false);
     setIsAdmin(false);
     
@@ -154,22 +157,42 @@ const Dashboard = () => {
           </h1>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-card rounded-lg p-6 shadow-md border border-border">
+            <div className={`bg-card rounded-lg p-6 shadow-md border ${membershipOnHold ? "border-amber-300 bg-amber-50/50 dark:bg-amber-950/20" : "border-border"}`}>
               <div className="flex items-center gap-3 mb-4">
-                <div className="h-10 w-10 rounded-lg bg-accent/10 flex items-center justify-center">
-                  <Calendar className="h-5 w-5 text-accent" />
+                <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${membershipOnHold ? "bg-amber-100 dark:bg-amber-900/30" : "bg-accent/10"}`}>
+                  <Calendar className={`h-5 w-5 ${membershipOnHold ? "text-amber-600" : "text-accent"}`} />
                 </div>
                 <h2 className="font-semibold text-lg">Book a Bay</h2>
               </div>
-              <p className="text-muted-foreground mb-4">
-                Reserve your spot at one of our 6 premium golf simulator bays.
-              </p>
-              <Button 
-                className="w-full bg-accent text-accent-foreground hover:bg-accent/90"
-                onClick={() => navigate("/booking")}
-              >
-                Book Now
-              </Button>
+              {membershipOnHold ? (
+                <>
+                  <div className="flex items-center gap-2 mb-3 p-2 bg-amber-100 dark:bg-amber-900/40 rounded-lg border border-amber-200 dark:border-amber-800">
+                    <Lock className="h-4 w-4 text-amber-600 shrink-0" />
+                    <p className="text-sm text-amber-800 dark:text-amber-200">
+                      Your membership is currently on hold. Please contact us to reactivate.
+                    </p>
+                  </div>
+                  <Button 
+                    className="w-full"
+                    variant="secondary"
+                    disabled
+                  >
+                    Booking Unavailable
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <p className="text-muted-foreground mb-4">
+                    Reserve your spot at one of our 6 premium golf simulator bays.
+                  </p>
+                  <Button 
+                    className="w-full bg-accent text-accent-foreground hover:bg-accent/90"
+                    onClick={() => navigate("/booking")}
+                  >
+                    Book Now
+                  </Button>
+                </>
+              )}
             </div>
 
             <div className="bg-card rounded-lg p-6 shadow-md border border-border">

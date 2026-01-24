@@ -63,7 +63,8 @@ import {
   Gift,
   FileText,
   Users,
-  Shield
+  Shield,
+  Pause
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { GiftCardsSection } from "@/components/admin/GiftCardsSection";
@@ -82,6 +83,7 @@ interface Customer {
   created_at: string;
   booking_count?: number;
   custom_billing?: boolean;
+  membership_on_hold?: boolean;
 }
 
 interface ColumnConfig {
@@ -156,6 +158,9 @@ export default function AdminCustomers() {
 
   // Custom billing state
   const [isTogglingCustomBilling, setIsTogglingCustomBilling] = useState(false);
+  
+  // Hold membership state
+  const [isTogglingHold, setIsTogglingHold] = useState(false);
 
   // Tab state
   const [activeTab, setActiveTab] = useState("customers");
@@ -652,6 +657,56 @@ export default function AdminCustomers() {
     }
 
     setIsTogglingCustomBilling(false);
+  };
+
+  // Toggle membership hold for a customer
+  const toggleMembershipHold = async (customer: Customer) => {
+    setIsTogglingHold(true);
+    
+    try {
+      const newValue = !customer.membership_on_hold;
+      
+      const { error } = await supabase
+        .from("profiles")
+        .update({ membership_on_hold: newValue })
+        .eq("id", customer.id);
+
+      if (error) throw error;
+
+      toast({
+        title: newValue ? "Membership on hold" : "Membership reactivated",
+        description: newValue 
+          ? `${customer.first_name}'s membership is now on hold. They cannot book bays.`
+          : `${customer.first_name}'s membership has been reactivated.`,
+        duration: 4000,
+      });
+
+      // Update local state
+      setCustomers(prev =>
+        prev.map(c =>
+          c.id === customer.id
+            ? { ...c, membership_on_hold: newValue }
+            : c
+        )
+      );
+      
+      if (selectedCustomer?.id === customer.id) {
+        setSelectedCustomer({
+          ...selectedCustomer,
+          membership_on_hold: newValue,
+        });
+      }
+    } catch (error: any) {
+      console.error("Error toggling membership hold:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update membership hold status.",
+        variant: "destructive",
+        duration: 4000,
+      });
+    }
+
+    setIsTogglingHold(false);
   };
 
   // Navigate to bulk email page
@@ -1203,6 +1258,30 @@ export default function AdminCustomers() {
                     disabled={isTogglingCustomBilling}
                   />
                 </div>
+
+                {/* Hold Membership Toggle - only show for non-visitors */}
+                {selectedCustomer.membership_tier && selectedCustomer.membership_tier !== "visitor" && (
+                  <>
+                    <div className="flex items-center justify-between p-3 bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <Pause className="h-5 w-5 text-orange-600 shrink-0" />
+                        <div>
+                          <div className="text-sm font-medium">Hold Membership</div>
+                          <div className="text-xs text-muted-foreground">
+                            Pause billing and block bookings temporarily
+                          </div>
+                        </div>
+                      </div>
+                      <Switch
+                        checked={selectedCustomer.membership_on_hold || false}
+                        onCheckedChange={() => toggleMembershipHold(selectedCustomer)}
+                        disabled={isTogglingHold}
+                      />
+                    </div>
+
+                    <hr className="border-border" />
+                  </>
+                )}
 
                 <hr className="border-border" />
                 {selectedCustomer.membership_tier && selectedCustomer.membership_tier !== "visitor" && (
