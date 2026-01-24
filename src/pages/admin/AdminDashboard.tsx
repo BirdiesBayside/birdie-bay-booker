@@ -121,7 +121,7 @@ export default function AdminDashboard() {
 
     const bookings = bookingsData?.length || 0;
 
-    // Fetch revenue based on filter (Bookings + POS, de-duplicated)
+    // Fetch revenue based on filter (Bookings + POS, de-duplicated with same logic as SalesReporting)
     const revenueRange = getDateRange(revenueFilter);
     
     // Get booking IDs that were paid via POS to avoid double-counting
@@ -146,15 +146,28 @@ export default function AdminDashboard() {
       .filter(b => !posBookingIds.has(String(b.id)))
       .reduce((sum, b) => sum + Number(b.total_price), 0);
 
-    // Fetch POS revenue for the same period (includes booking items paid via POS)
+    // Fetch POS transactions and calculate revenue from items (same logic as SalesReporting)
     const { data: posRevenueData } = await supabase
       .from('pos_transactions')
-      .select('total')
+      .select('items')
       .gte('created_at', `${revenueRange.start}T00:00:00`)
       .lte('created_at', `${revenueRange.end}T23:59:59`)
       .eq('status', 'completed');
 
-    const posRevenue = posRevenueData?.reduce((sum, t) => sum + Number(t.total), 0) || 0;
+    // Calculate POS revenue by summing all item prices (bookings paid via POS + products)
+    let posRevenue = 0;
+    for (const t of posRevenueData || []) {
+      try {
+        const items = t.items as Array<{ price?: number; quantity?: number }>;
+        if (Array.isArray(items)) {
+          for (const item of items) {
+            posRevenue += (item.price || 0) * (item.quantity || 1);
+          }
+        }
+      } catch {
+        // Skip malformed items
+      }
+    }
 
     const revenue = bookingRevenue + posRevenue;
 
