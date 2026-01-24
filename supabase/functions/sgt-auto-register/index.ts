@@ -196,6 +196,20 @@ async function sgtPostRequest(endpoint: string, body: Record<string, string | nu
   return response.json();
 }
 
+// Fetch tournament details and extract tee type for round 1
+async function getTournamentTeeType(tournamentId: number): Promise<string> {
+  try {
+    const details = await sgtGetRequest(`/tournaments/details`, { tournament_id: tournamentId.toString() }) as Record<string, unknown>;
+    // The API returns tees1 for round 1 tees
+    const tees = details?.tees1 || details?.tees || "White";
+    console.log(`[SGT-AUTO-REG] Tournament ${tournamentId} uses ${tees} tees`);
+    return tees as string;
+  } catch (error) {
+    console.error(`[SGT-AUTO-REG] Failed to get tee type for tournament ${tournamentId}, defaulting to White:`, error);
+    return "White";
+  }
+}
+
 interface RegistrationItem {
   user_id: number;
   useComboCap: string;
@@ -381,12 +395,15 @@ serve(async (req) => {
             continue;
           }
 
+          // Get the tournament's configured tee type
+          const tournamentTeeType = await getTournamentTeeType(tournament.tournamentId);
+
           // Build registration with custom handicap if available
           const registrationItem: RegistrationItem = {
             user_id: sgt_user_id,
             useComboCap: useCustomCap ? "false" : "true",
             useCustomCap: useCustomCap ? "true" : "false",
-            teeType: "White"
+            teeType: tournamentTeeType
           };
           
           if (useCustomCap && customHcp !== null) {

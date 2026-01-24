@@ -118,6 +118,20 @@ function extractArray(data: unknown, keys: string[]): unknown[] {
   return [];
 }
 
+// Fetch tournament details and extract tee type for round 1
+async function getTournamentTeeType(tournamentId: number): Promise<string> {
+  try {
+    const details = await sgtGetRequest(`/tournaments/details`, { tournament_id: tournamentId.toString() }) as Record<string, unknown>;
+    // The API returns tees1 for round 1 tees
+    const tees = details?.tees1 || details?.tees || "White";
+    console.log(`[SGT-TOURN-REG] Tournament ${tournamentId} uses ${tees} tees`);
+    return tees as string;
+  } catch (error) {
+    console.error(`[SGT-TOURN-REG] Failed to get tee type for tournament ${tournamentId}, defaulting to White:`, error);
+    return "White";
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -285,6 +299,9 @@ async function registerAllMembersForTournament(
     };
   }
 
+  // Get the tournament's configured tee type
+  const tournamentTeeType = await getTournamentTeeType(tournamentId);
+
   // Register all unregistered members in batches
   const batchSize = 20;
   let totalRegistered = 0;
@@ -296,7 +313,7 @@ async function registerAllMembersForTournament(
       user_id: member.user_id,
       useComboCap: "true",
       useCustomCap: "false",
-      teeType: "White"
+      teeType: tournamentTeeType
     }));
 
     try {
