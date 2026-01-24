@@ -144,10 +144,6 @@ export default function LeagueRegister() {
             <h1 className="font-anton text-xl text-primary mb-1">
               JOIN BIRDIES LEAGUE
             </h1>
-            <p className="font-inter text-sm text-muted-foreground">
-              Complete the registration form below to create your Simulator Golf Tour account.
-              <strong className="text-primary"> Use your Birdies Hub email ({user.email})</strong> so we can link your accounts.
-            </p>
           </div>
         </div>
 
@@ -155,12 +151,12 @@ export default function LeagueRegister() {
         <div className="flex-1 px-4 py-6">
           <div className="container max-w-4xl">
             <div className="rounded-lg border border-border/50 bg-card p-6">
-              <h2 className="font-anton text-lg text-primary mb-2">
-                Open SGT Registration
-              </h2>
               <p className="font-inter text-sm text-muted-foreground mb-4">
-                The SGT signup page blocks being embedded inside the app. We’ll open it in a separate window instead.
-                After you finish the form, return here and click “I’ve Completed Registration” to link your account.
+                Please click the below link to get your SGT account.
+                <strong className="text-primary"> Please use the same email as your Birdies Hub email.</strong>
+              </p>
+              <p className="font-inter text-sm text-muted-foreground mb-4">
+                Once completed, return to this window and press the "I've Completed Registration" button to link your account.
               </p>
               <Button
                 onClick={() => openExternalUrl(SGT_REGISTRATION_URL)}
@@ -204,7 +200,7 @@ export default function LeagueRegister() {
               </Button>
             </div>
             <p className="text-xs text-center text-muted-foreground font-inter">
-              After completing the form above, click "I've Completed Registration" to link your account.
+              After completing the form, click "I've Completed Registration" to link your account.
               If a popup is blocked, try the button again or allow popups for this site.
             </p>
           </div>
