@@ -121,18 +121,32 @@ export default function AdminDashboard() {
 
     const bookings = bookingsData?.length || 0;
 
-    // Fetch revenue based on filter (Bookings + POS, excluding memberships)
+    // Fetch revenue based on filter (Bookings + POS, de-duplicated)
     const revenueRange = getDateRange(revenueFilter);
+    
+    // Get booking IDs that were paid via POS to avoid double-counting
+    const { data: posBookingLinks } = await supabase
+      .from('pos_transactions')
+      .select('booking_id')
+      .not('booking_id', 'is', null)
+      .eq('status', 'completed');
+    
+    const posBookingIds = new Set((posBookingLinks || []).map(t => String(t.booking_id)));
+    
+    // Fetch bookings (excluding those paid via POS - they'll be counted from POS items)
     const { data: bookingRevenueData } = await supabase
       .from('bookings')
-      .select('total_price')
-      .gte('booking_date', revenueRange.start)
-      .lte('booking_date', revenueRange.end)
-      .neq('status', 'cancelled');
+      .select('id, total_price')
+      .gte('created_at', `${revenueRange.start}T00:00:00`)
+      .lte('created_at', `${revenueRange.end}T23:59:59`)
+      .in('status', ['confirmed', 'completed', 'charged']);
 
-    const bookingRevenue = bookingRevenueData?.reduce((sum, b) => sum + Number(b.total_price), 0) || 0;
+    // Only count bookings NOT paid via POS
+    const bookingRevenue = (bookingRevenueData || [])
+      .filter(b => !posBookingIds.has(String(b.id)))
+      .reduce((sum, b) => sum + Number(b.total_price), 0);
 
-    // Fetch POS revenue for the same period
+    // Fetch POS revenue for the same period (includes booking items paid via POS)
     const { data: posRevenueData } = await supabase
       .from('pos_transactions')
       .select('total')
