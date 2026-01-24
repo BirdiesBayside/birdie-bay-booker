@@ -382,28 +382,29 @@ serve(async (req) => {
       // Capture user email before nested function
       const userEmail = user.email!;
 
-      // Helper to perform registration request
+      // Helper to perform registration request - uses query param for api-key like sgt-sync does
       async function performRegistration(key: string): Promise<{ success: boolean; data: any; text: string; status: number }> {
+        // Build URL with api-key as query parameter (like sgt-sync does)
+        const url = new URL(`${SGT_BASE_URL}/${clubUrl}/members/register-new`);
+        url.searchParams.append("api-key", key);
+        
+        // Form data for user details only
         const formData = new URLSearchParams();
-        formData.append("api-key", key);
         formData.append("user_name", username);
         formData.append("user_email", userEmail);
         formData.append("user_password_new", password);
 
         console.log(`[SGT-REGISTER] Registering user: ${username} with email: ${userEmail}`);
-        console.log(`[SGT-REGISTER] POST ${SGT_BASE_URL}/${clubUrl}/members/register-new`);
+        console.log(`[SGT-REGISTER] POST ${url.toString().replace(key, "***")}`);
 
-        const response = await fetch(
-          `${SGT_BASE_URL}/${clubUrl}/members/register-new`,
-          {
-            method: "POST",
-            headers: { 
-              "Content-Type": "application/x-www-form-urlencoded",
-              "Accept": "*/*"
-            },
-            body: formData.toString(),
-          }
-        );
+        const response = await fetch(url.toString(), {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Accept": "*/*"
+          },
+          body: formData.toString(),
+        });
 
         const text = await response.text();
         console.log(`[SGT-REGISTER] Raw response (${response.status}): ${text.substring(0, 500)}`);
