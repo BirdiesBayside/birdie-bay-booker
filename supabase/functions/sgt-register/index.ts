@@ -379,54 +379,93 @@ serve(async (req) => {
         );
       }
 
-      // Register the new user with SGT
-      // According to API docs: all params go in form-encoded body including api-key
-      // Endpoint: POST /{clubUrl}/members/register-new
-      // Body: api-key, user_name, user_email, user_password_new
-      const formData = new URLSearchParams();
-      formData.append("api-key", apiKey);
-      formData.append("user_name", username);
-      formData.append("user_email", user.email!);
-      formData.append("user_password_new", password);
+      // Capture user email before nested function
+      const userEmail = user.email!;
 
-      console.log(`[SGT-REGISTER] Registering user: ${username} with email: ${user.email}`);
-      console.log(`[SGT-REGISTER] POST ${SGT_BASE_URL}/${clubUrl}/members/register-new`);
+      // Helper to perform registration request
+      async function performRegistration(key: string): Promise<{ success: boolean; data: any; text: string; status: number }> {
+        const formData = new URLSearchParams();
+        formData.append("api-key", key);
+        formData.append("user_name", username);
+        formData.append("user_email", userEmail);
+        formData.append("user_password_new", password);
 
-      const registerResponse = await fetch(
-        `${SGT_BASE_URL}/${clubUrl}/members/register-new`,
-        {
-          method: "POST",
-          headers: { 
-            "Content-Type": "application/x-www-form-urlencoded",
-            "Accept": "*/*"
-          },
-          body: formData.toString(),
+        console.log(`[SGT-REGISTER] Registering user: ${username} with email: ${userEmail}`);
+        console.log(`[SGT-REGISTER] POST ${SGT_BASE_URL}/${clubUrl}/members/register-new`);
+
+        const response = await fetch(
+          `${SGT_BASE_URL}/${clubUrl}/members/register-new`,
+          {
+            method: "POST",
+            headers: { 
+              "Content-Type": "application/x-www-form-urlencoded",
+              "Accept": "*/*"
+            },
+            body: formData.toString(),
+          }
+        );
+
+        const text = await response.text();
+        console.log(`[SGT-REGISTER] Raw response (${response.status}): ${text.substring(0, 500)}`);
+        
+        let data: any = null;
+        try {
+          data = JSON.parse(text);
+        } catch {
+          // Response is not JSON - could be error message
         }
-      );
 
-      const registerText = await registerResponse.text();
-      console.log(`[SGT-REGISTER] Raw response (${registerResponse.status}): ${registerText.substring(0, 500)}`);
-      
-      let registerData: any = null;
-      try {
-        registerData = JSON.parse(registerText);
-      } catch {
-        // Response is not JSON - could be error message
-        console.error(`[SGT-REGISTER] Non-JSON response: ${registerText}`);
+        return { success: response.ok, data, text, status: response.status };
       }
 
-      console.log(`[SGT-REGISTER] Parsed register response:`, registerData);
+      // First attempt with current API key
+      let result = await performRegistration(apiKey);
+      console.log(`[SGT-REGISTER] Parsed register response:`, result.data);
 
-      // Handle non-JSON responses (usually error messages)
-      if (registerData === null) {
-        const upperText = registerText.toUpperCase();
-        if (upperText.includes("INVALID API KEY")) {
-          // Clear cached key and suggest retry
-          cachedApiKey = null;
+      // Check if we got INVALID API KEY - if so, force create new key and retry ONCE
+      if (result.data === null && result.text.toUpperCase().includes("INVALID API KEY")) {
+        console.log(`[SGT-REGISTER] Got INVALID API KEY, forcing new key creation and retrying...`);
+        
+        // Clear cached key
+        cachedApiKey = null;
+        
+        // Force create a brand new API key (bypass the getApiKey cache logic)
+        try {
+          const freshKey = await createNewApiKey(adminClient, clubUrl);
+          
+          // Store in database
+          await adminClient.from("sgt_api_config").upsert({
+            api_key: freshKey.key,
+            expires_at: freshKey.expiresAt.toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+          
+          cachedApiKey = freshKey;
+          console.log(`[SGT-REGISTER] Created fresh API key, retrying registration...`);
+          
+          // Retry registration with fresh key
+          result = await performRegistration(freshKey.key);
+          console.log(`[SGT-REGISTER] Retry parsed response:`, result.data);
+        } catch (keyError) {
+          console.error(`[SGT-REGISTER] Failed to create fresh API key:`, keyError);
           return new Response(
             JSON.stringify({
-              error: "SGT authentication expired. Please try again.",
-              details: registerText,
+              error: "SGT API authentication failed. Please try again later.",
+              details: String(keyError),
+            }),
+            { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      }
+
+      // Handle non-JSON responses (usually error messages) after retry
+      if (result.data === null) {
+        const upperText = result.text.toUpperCase();
+        if (upperText.includes("INVALID API KEY")) {
+          return new Response(
+            JSON.stringify({
+              error: "SGT authentication failed. Please contact support.",
+              details: result.text,
             }),
             { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
@@ -434,14 +473,16 @@ serve(async (req) => {
         return new Response(
           JSON.stringify({
             error: "SGT API returned an unexpected response. Please try again.",
-            details: registerText,
+            details: result.text,
           }),
           { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
+      const registerData = result.data;
+
       // Check HTTP status
-      if (!registerResponse.ok) {
+      if (!result.success) {
         return new Response(
           JSON.stringify({
             error: registerData?.feedback || "SGT API error. Please try again.",
