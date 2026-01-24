@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useInAppBrowser } from "@/hooks/useInAppBrowser";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import birdiesLogo from "@/assets/birdies-logo.png";
@@ -12,9 +13,9 @@ const SGT_REGISTRATION_URL = "https://simulatorgolftour.com/register?jc=168&jcc=
 export default function LeagueRegister() {
   const { user, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const { openExternalUrl } = useInAppBrowser();
   
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
-  const [iframeLoaded, setIframeLoaded] = useState(false);
   const [registrationComplete, setRegistrationComplete] = useState(false);
 
   useEffect(() => {
@@ -150,23 +151,26 @@ export default function LeagueRegister() {
           </div>
         </div>
 
-        {/* Iframe Container */}
-        <div className="flex-1 relative">
-          {!iframeLoaded && (
-            <div className="absolute inset-0 flex items-center justify-center bg-background">
-              <div className="text-center">
-                <Loader2 className="h-8 w-8 text-birdies-orange animate-spin mx-auto mb-2" />
-                <p className="text-sm text-muted-foreground">Loading registration form...</p>
-              </div>
+        {/* Registration (external window) */}
+        <div className="flex-1 px-4 py-6">
+          <div className="container max-w-4xl">
+            <div className="rounded-lg border border-border/50 bg-card p-6">
+              <h2 className="font-anton text-lg text-primary mb-2">
+                Open SGT Registration
+              </h2>
+              <p className="font-inter text-sm text-muted-foreground mb-4">
+                The SGT signup page blocks being embedded inside the app. We’ll open it in a separate window instead.
+                After you finish the form, return here and click “I’ve Completed Registration” to link your account.
+              </p>
+              <Button
+                onClick={() => openExternalUrl(SGT_REGISTRATION_URL)}
+                className="bg-birdies-orange hover:bg-birdies-orange/90 text-white font-inter font-semibold"
+              >
+                <ExternalLink className="h-4 w-4 mr-2" />
+                Open Registration
+              </Button>
             </div>
-          )}
-          <iframe
-            src={SGT_REGISTRATION_URL}
-            title="SGT Registration"
-            className="w-full h-full min-h-[500px] border-0"
-            onLoad={() => setIframeLoaded(true)}
-            allow="payment"
-          />
+          </div>
         </div>
 
         {/* Bottom Actions */}
@@ -192,16 +196,16 @@ export default function LeagueRegister() {
               </Button>
               <Button
                 variant="outline"
-                onClick={() => window.open(SGT_REGISTRATION_URL, "_blank")}
+                onClick={() => openExternalUrl(SGT_REGISTRATION_URL)}
                 className="sm:w-auto"
               >
                 <ExternalLink className="h-4 w-4 mr-2" />
-                Open in New Tab
+                Open Registration
               </Button>
             </div>
             <p className="text-xs text-center text-muted-foreground font-inter">
               After completing the form above, click "I've Completed Registration" to link your account.
-              If the form doesn't display properly, use the "Open in New Tab" button.
+              If a popup is blocked, try the button again or allow popups for this site.
             </p>
           </div>
         </div>
