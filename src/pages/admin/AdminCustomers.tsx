@@ -666,6 +666,28 @@ export default function AdminCustomers() {
     try {
       const newValue = !customer.membership_on_hold;
       
+      // First, pause/resume the Stripe subscription
+      try {
+        const { data: stripeResult, error: stripeError } = await supabase.functions.invoke("toggle-membership-hold", {
+          body: {
+            user_id: customer.user_id,
+            email: customer.email,
+            put_on_hold: newValue,
+          },
+        });
+        
+        if (stripeError) {
+          console.error("Stripe pause/resume error:", stripeError);
+          // Continue anyway - database update is still important
+        } else {
+          console.log("Stripe subscription update:", stripeResult);
+        }
+      } catch (stripeError) {
+        console.error("Failed to toggle Stripe subscription:", stripeError);
+        // Don't fail - continue with database update
+      }
+      
+      // Update the database
       const { error } = await supabase
         .from("profiles")
         .update({ membership_on_hold: newValue })
@@ -692,8 +714,8 @@ export default function AdminCustomers() {
       toast({
         title: newValue ? "Membership on hold" : "Membership reactivated",
         description: newValue 
-          ? `${customer.first_name}'s membership is now on hold. They cannot book bays.`
-          : `${customer.first_name}'s membership has been reactivated.`,
+          ? `${customer.first_name}'s membership is now on hold. Stripe billing paused.`
+          : `${customer.first_name}'s membership has been reactivated. Stripe billing resumed.`,
         duration: 4000,
       });
 
