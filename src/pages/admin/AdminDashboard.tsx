@@ -5,7 +5,7 @@ import { Calendar, DollarSign, TrendingUp, Users, UserCheck, Repeat, ChevronDown
 import { Skeleton } from "@/components/ui/skeleton";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, subDays } from "date-fns";
+import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, subDays, startOfDay, endOfDay } from "date-fns";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -66,7 +66,37 @@ export default function AdminDashboard() {
   const [memberTierFilter, setMemberTierFilter] = useState<MemberTierFilter>("all");
   const [memberRevenueFilter, setMemberRevenueFilter] = useState<MemberRevenueFilter>("weekly");
 
+  // Returns ISO strings for timestamp comparisons (created_at)
   const getDateRange = (filter: TimeFilter): { start: string; end: string } => {
+    const today = new Date();
+    
+    // Use local timezone start/end of day, converted to ISO strings for proper comparison
+    switch (filter) {
+      case "today":
+        return { 
+          start: startOfDay(today).toISOString(), 
+          end: endOfDay(today).toISOString() 
+        };
+      case "week":
+        return {
+          start: startOfDay(startOfWeek(today, { weekStartsOn: 1 })).toISOString(),
+          end: endOfDay(endOfWeek(today, { weekStartsOn: 1 })).toISOString(),
+        };
+      case "month":
+        return {
+          start: startOfDay(startOfMonth(today)).toISOString(),
+          end: endOfDay(endOfMonth(today)).toISOString(),
+        };
+      case "quarter":
+        return {
+          start: startOfDay(startOfQuarter(today)).toISOString(),
+          end: endOfDay(endOfQuarter(today)).toISOString(),
+        };
+    }
+  };
+
+  // Returns date strings for DATE column comparisons (booking_date)
+  const getBookingDateRange = (filter: TimeFilter): { start: string; end: string } => {
     const today = new Date();
     const todayStr = format(today, 'yyyy-MM-dd');
     
@@ -110,8 +140,8 @@ export default function AdminDashboard() {
   const fetchStats = async (showLoading = true) => {
     if (showLoading) setLoadingStats(true);
     
-    // Fetch bookings based on filter
-    const bookingsRange = getDateRange(bookingsFilter);
+    // Fetch bookings based on filter (uses booking_date which is a DATE column)
+    const bookingsRange = getBookingDateRange(bookingsFilter);
     const { data: bookingsData } = await supabase
       .from('bookings')
       .select('total_price, duration_hours, status')
@@ -137,8 +167,8 @@ export default function AdminDashboard() {
     const { data: bookingRevenueData } = await supabase
       .from('bookings')
       .select('id, total_price')
-      .gte('created_at', `${revenueRange.start}T00:00:00`)
-      .lte('created_at', `${revenueRange.end}T23:59:59`)
+      .gte('created_at', revenueRange.start)
+      .lte('created_at', revenueRange.end)
       .in('status', ['confirmed', 'completed', 'charged']);
 
     // Only count bookings NOT paid via POS
@@ -150,8 +180,8 @@ export default function AdminDashboard() {
     const { data: posRevenueData } = await supabase
       .from('pos_transactions')
       .select('items')
-      .gte('created_at', `${revenueRange.start}T00:00:00`)
-      .lte('created_at', `${revenueRange.end}T23:59:59`)
+      .gte('created_at', revenueRange.start)
+      .lte('created_at', revenueRange.end)
       .eq('status', 'completed');
 
     // Calculate POS revenue by summing all item prices (bookings paid via POS + products)
@@ -171,8 +201,8 @@ export default function AdminDashboard() {
 
     const revenue = bookingRevenue + posRevenue;
 
-    // Fetch occupancy based on filter
-    const occupancyRange = getDateRange(occupancyFilter);
+    // Fetch occupancy based on filter (uses booking_date which is a DATE column)
+    const occupancyRange = getBookingDateRange(occupancyFilter);
     const { data: occupancyData } = await supabase
       .from('bookings')
       .select('duration_hours')
