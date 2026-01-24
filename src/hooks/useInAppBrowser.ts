@@ -18,15 +18,10 @@ export function useInAppBrowser() {
         return;
       }
 
-      // Web: try to open a new tab/window. If blocked, fall back to same-tab nav.
-      const win = window.open(url, '_blank', 'noopener,noreferrer');
-      if (win) {
-        // Extra safety for older browsers
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (win as any).opener = null;
-      } else {
-        window.location.href = url;
-      }
+      // Web: open in a new tab. Don't use noopener in the features string
+      // because it causes window.open to return null, breaking our fallback logic.
+      // Instead, just open the window - browsers handle security automatically.
+      window.open(url, '_blank');
     } catch {
       // As a last resort, navigate in the current tab
       window.location.href = url;
