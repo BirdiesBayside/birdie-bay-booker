@@ -673,6 +673,22 @@ export default function AdminCustomers() {
 
       if (error) throw error;
 
+      // Send email notification when putting on hold
+      if (newValue) {
+        try {
+          await supabase.functions.invoke("send-membership-hold-email", {
+            body: {
+              user_id: customer.user_id,
+              email: customer.email,
+              first_name: customer.first_name,
+            },
+          });
+        } catch (emailError) {
+          console.error("Failed to send membership hold email:", emailError);
+          // Don't fail the whole operation if email fails
+        }
+      }
+
       toast({
         title: newValue ? "Membership on hold" : "Membership reactivated",
         description: newValue 
