@@ -352,19 +352,6 @@ function extractArray(data: unknown, keys: string[]): unknown[] {
   return [];
 }
 
-// Fetch tournament details and extract tee type for round 1
-async function getTournamentTeeType(tournamentId: number): Promise<string> {
-  try {
-    const details = await sgtRequest(`/tournaments/details`, { tournament_id: tournamentId.toString() }) as Record<string, unknown>;
-    // The API returns tees1 for round 1 tees
-    const tees = details?.tees1 || details?.tees || "White";
-    console.log(`[SGT-SYNC] Tournament ${tournamentId} uses ${tees} tees`);
-    return tees as string;
-  } catch (error) {
-    console.error(`[SGT-SYNC] Failed to get tee type for tournament ${tournamentId}, defaulting to White:`, error);
-    return "White";
-  }
-}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -730,10 +717,8 @@ serve(async (req) => {
             const existingRegistrations = extractArray(registrationsResponse, ['registrations', 'results']) as { user_id: number }[];
             const registeredUserIds = new Set(existingRegistrations.map(r => r.user_id));
             
-            // Get the tournament's configured tee type
-            const tournamentTeeType = await getTournamentTeeType(tourn.tournamentId);
-            
             // Register new members who aren't already registered
+            // Note: teeType is omitted so API uses tournament default tees
             for (const newUserId of newMemberUserIds) {
               if (registeredUserIds.has(newUserId)) {
                 console.log(`[SGT-SYNC] User ${newUserId} already registered for ${tourn.name}`);
@@ -749,7 +734,6 @@ serve(async (req) => {
                 formData.append("registrationList[0][user_id]", newUserId.toString());
                 formData.append("registrationList[0][useComboCap]", useComboHcp ? "true" : "false");
                 formData.append("registrationList[0][useCustomCap]", "false");
-                formData.append("registrationList[0][teeType]", tournamentTeeType);
                 
                 const regResponse = await fetch(`${SGT_BASE_URL}/${CLUB_URL}/registrations/register-members`, {
                   method: "POST",

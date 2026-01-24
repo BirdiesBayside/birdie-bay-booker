@@ -196,26 +196,12 @@ async function sgtPostRequest(endpoint: string, body: Record<string, string | nu
   return response.json();
 }
 
-// Fetch tournament details and extract tee type for round 1
-async function getTournamentTeeType(tournamentId: number): Promise<string> {
-  try {
-    const details = await sgtGetRequest(`/tournaments/details`, { tournament_id: tournamentId.toString() }) as Record<string, unknown>;
-    // The API returns tees1 for round 1 tees
-    const tees = details?.tees1 || details?.tees || "White";
-    console.log(`[SGT-AUTO-REG] Tournament ${tournamentId} uses ${tees} tees`);
-    return tees as string;
-  } catch (error) {
-    console.error(`[SGT-AUTO-REG] Failed to get tee type for tournament ${tournamentId}, defaulting to White:`, error);
-    return "White";
-  }
-}
-
+// Registration item - note: teeType is omitted to use tournament defaults
 interface RegistrationItem {
   user_id: number;
   useComboCap: string;
   useCustomCap: string;
   customCap?: number;
-  teeType: string;
 }
 
 async function sgtPostRequestWithRegistrationList(
@@ -231,6 +217,7 @@ async function sgtPostRequestWithRegistrationList(
   formData.append("tournamentId", tournamentId.toString());
   formData.append("tourId", tourId.toString());
   
+  // Note: teeType is intentionally NOT sent so the API uses tournament default tees
   registrationList.forEach((reg, index) => {
     formData.append(`registrationList[${index}][user_id]`, reg.user_id.toString());
     formData.append(`registrationList[${index}][useComboCap]`, reg.useComboCap);
@@ -238,7 +225,6 @@ async function sgtPostRequestWithRegistrationList(
     if (reg.useCustomCap === "true" && reg.customCap !== undefined) {
       formData.append(`registrationList[${index}][customCap]`, reg.customCap.toString());
     }
-    formData.append(`registrationList[${index}][teeType]`, reg.teeType);
   });
 
   console.log(`[SGT-AUTO-REG] POST: ${endpoint} with ${registrationList.length} registrations`);
@@ -395,15 +381,11 @@ serve(async (req) => {
             continue;
           }
 
-          // Get the tournament's configured tee type
-          const tournamentTeeType = await getTournamentTeeType(tournament.tournamentId);
-
-          // Build registration with custom handicap if available
+          // Build registration - omit teeType so API uses tournament default tees
           const registrationItem: RegistrationItem = {
             user_id: sgt_user_id,
             useComboCap: useCustomCap ? "false" : "true",
             useCustomCap: useCustomCap ? "true" : "false",
-            teeType: tournamentTeeType
           };
           
           if (useCustomCap && customHcp !== null) {
