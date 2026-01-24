@@ -382,26 +382,24 @@ serve(async (req) => {
       // Capture user email before nested function
       const userEmail = user.email!;
 
-      // Helper to perform registration request - uses query param for api-key like sgt-sync does
+      // Helper to perform registration request - matches sgt-member-management POST pattern
+      // For POST requests: api-key goes in FORM BODY, not URL query param
       async function performRegistration(key: string): Promise<{ success: boolean; data: any; text: string; status: number }> {
-        // Build URL with api-key as query parameter (like sgt-sync does)
-        const url = new URL(`${SGT_BASE_URL}/${clubUrl}/members/register-new`);
-        url.searchParams.append("api-key", key);
-        
-        // Form data for user details only
+        // Form data includes api-key in body (like sgt-member-management does for POSTs)
         const formData = new URLSearchParams();
+        formData.append("api-key", key);
         formData.append("user_name", username);
         formData.append("user_email", userEmail);
         formData.append("user_password_new", password);
 
+        const endpoint = `${SGT_BASE_URL}/${clubUrl}/members/register-new`;
         console.log(`[SGT-REGISTER] Registering user: ${username} with email: ${userEmail}`);
-        console.log(`[SGT-REGISTER] POST ${url.toString().replace(key, "***")}`);
+        console.log(`[SGT-REGISTER] POST ${endpoint} (api-key in body)`);
 
-        const response = await fetch(url.toString(), {
+        const response = await fetch(endpoint, {
           method: "POST",
           headers: { 
             "Content-Type": "application/x-www-form-urlencoded",
-            "Accept": "*/*"
           },
           body: formData.toString(),
         });
