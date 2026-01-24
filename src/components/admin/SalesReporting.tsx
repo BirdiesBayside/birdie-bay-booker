@@ -95,7 +95,16 @@ export function SalesReporting() {
 
     const allSales: SaleRecord[] = [];
 
-    // Fetch bookings (only confirmed/completed)
+    // Get booking IDs that were paid via POS to avoid double-counting
+    const { data: posBookingLinks } = await supabase
+      .from("pos_transactions")
+      .select("booking_id")
+      .not("booking_id", "is", null)
+      .eq("status", "completed");
+    
+    const posBookingIds = new Set((posBookingLinks || []).map(t => t.booking_id));
+
+    // Fetch bookings (only confirmed/completed, excluding those paid via POS)
     if (saleType === "all" || saleType === "booking") {
       const { data: bookings, error: bookingsError } = await supabase
         .from("bookings")
@@ -130,6 +139,9 @@ export function SalesReporting() {
         }
 
         for (const booking of bookings) {
+          // Skip bookings that were paid via POS to avoid double-counting
+          if (posBookingIds.has(booking.id)) continue;
+          
           const profile = profileMap.get(booking.user_id);
           const bookingPaymentMethod = booking.payment_method || "card";
           
