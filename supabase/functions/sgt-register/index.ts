@@ -327,12 +327,14 @@ serve(async (req) => {
     const { action, username, password } = await req.json();
     console.log(`[SGT-REGISTER] Action: ${action}, User: ${user.id}`);
 
-    const apiKey = await getApiKey(adminClient, clubUrl);
+    // Track the API key actually used for downstream calls in this request.
+    // (Important when we have to force-create a fresh key and retry.)
+    let activeApiKey = await getApiKey(adminClient, clubUrl);
 
      if (action === "check-username") {
       // Check if username is available by checking existing members
-      const membersResponse = await fetch(
-        `${SGT_BASE_URL}/${clubUrl}/members/list?api-key=${encodeURIComponent(apiKey)}`,
+       const membersResponse = await fetch(
+         `${SGT_BASE_URL}/${clubUrl}/members/list?api-key=${encodeURIComponent(activeApiKey)}`,
         { method: "GET" }
       );
 
@@ -418,7 +420,7 @@ serve(async (req) => {
       }
 
       // First attempt with current API key
-      let result = await performRegistration(apiKey);
+      let result = await performRegistration(activeApiKey);
       console.log(`[SGT-REGISTER] Parsed register response:`, result.data);
 
       // Check if we got INVALID API KEY - if so, force create new key and retry ONCE
@@ -439,7 +441,8 @@ serve(async (req) => {
             updated_at: new Date().toISOString(),
           });
           
-          cachedApiKey = freshKey;
+           cachedApiKey = freshKey;
+           activeApiKey = freshKey.key;
           console.log(`[SGT-REGISTER] Created fresh API key, retrying registration...`);
           
           // Retry registration with fresh key
@@ -457,68 +460,83 @@ serve(async (req) => {
         }
       }
 
-      // Handle non-JSON responses (usually error messages) after retry
-      if (result.data === null) {
-        const upperText = result.text.toUpperCase();
-        if (upperText.includes("INVALID API KEY")) {
-          return new Response(
-            JSON.stringify({
-              error: "SGT authentication failed. Please contact support.",
-              details: result.text,
-            }),
-            { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        }
-        return new Response(
-          JSON.stringify({
-            error: "SGT API returned an unexpected response. Please try again.",
-            details: result.text,
-          }),
-          { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
+       // The OpenAPI spec defines a JSON response with { successful, feedback, userData }.
+       // In practice we've also observed the endpoint sometimes returns a literal JSON `null` with HTTP 200.
+       // If that happens, we proceed to fetch /members/list to confirm whether the account was actually created.
+       let skipRegisterDataValidation = false;
 
-      const registerData = result.data;
+       if (result.data === null) {
+         const trimmed = (result.text || "").trim();
+         const upperText = trimmed.toUpperCase();
 
-      // Check HTTP status
-      if (!result.success) {
-        return new Response(
-          JSON.stringify({
-            error: registerData?.feedback || "SGT API error. Please try again.",
-            details: registerData,
-          }),
-          { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
+         if (upperText.includes("INVALID API KEY")) {
+           return new Response(
+             JSON.stringify({
+               error: "SGT authentication failed. Please contact support.",
+               details: result.text,
+             }),
+             { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+           );
+         }
 
-      // Check API success flag - response format: { successful: boolean, feedback: string, userData: { user_game_id, username } }
-      if (registerData.successful === false) {
-        return new Response(
-          JSON.stringify({ 
-            error: registerData.feedback || "Registration failed",
-            details: registerData 
-          }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
+         // Special-case: literal JSON null (200 OK)
+         if (trimmed === "null" && result.success) {
+           console.warn("[SGT-REGISTER] Registration returned JSON null (200). Proceeding to member lookup to confirm creation.");
+           skipRegisterDataValidation = true;
+         } else {
+           return new Response(
+             JSON.stringify({
+               error: "SGT API returned an unexpected response. Please try again.",
+               details: result.text,
+             }),
+             { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+           );
+         }
+       }
 
-      // If successful is not explicitly true, something unexpected happened
-      if (registerData.successful !== true) {
-        console.warn(`[SGT-REGISTER] Unexpected response format:`, registerData);
-        return new Response(
-          JSON.stringify({ 
-            error: "Unexpected response from SGT. Please try again.",
-            details: registerData 
-          }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
+       if (!skipRegisterDataValidation) {
+         const registerData = result.data;
+
+         // Check HTTP status
+         if (!result.success) {
+           return new Response(
+             JSON.stringify({
+               error: registerData?.feedback || "SGT API error. Please try again.",
+               details: registerData,
+             }),
+             { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+           );
+         }
+
+         // Check API success flag - response format: { successful: boolean, feedback: string, userData: { user_game_id, username } }
+         if (registerData.successful === false) {
+           return new Response(
+             JSON.stringify({
+               error: registerData.feedback || "Registration failed",
+               details: registerData,
+             }),
+             { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+           );
+         }
+
+         // If successful is not explicitly true, something unexpected happened
+         if (registerData.successful !== true) {
+           console.warn(`[SGT-REGISTER] Unexpected response format:`, registerData);
+           return new Response(
+             JSON.stringify({
+               error: "Unexpected response from SGT. Please try again.",
+               details: registerData,
+             }),
+             { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+           );
+         }
+       }
 
       // Extract user_id from the response
       // The API returns userData with user_game_id and username
       // We need to fetch the members list to get the actual user_id
       const membersResponse = await fetch(
-        `${SGT_BASE_URL}/${clubUrl}/members/list?api-key=${encodeURIComponent(apiKey)}`,
+        `${SGT_BASE_URL}/${clubUrl}/members/list?api-key=${encodeURIComponent(activeApiKey)}`,
         { method: "GET" }
       );
 
