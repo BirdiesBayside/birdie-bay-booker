@@ -95,7 +95,7 @@ export function SalesReporting() {
 
     const allSales: SaleRecord[] = [];
 
-    // Get booking IDs that were paid via POS to avoid double-counting
+    // Get booking IDs that were paid via POS - these will be counted from POS transaction items instead
     const { data: posBookingLinks } = await supabase
       .from("pos_transactions")
       .select("booking_id")
@@ -104,7 +104,7 @@ export function SalesReporting() {
     
     const posBookingIds = new Set((posBookingLinks || []).map(t => String(t.booking_id)));
 
-    // Fetch bookings (only confirmed/completed, excluding those paid via POS)
+    // Fetch bookings (only confirmed/completed, excluding those paid via POS - they'll be added from POS items)
     if (saleType === "all" || saleType === "booking") {
       const { data: bookings, error: bookingsError } = await supabase
         .from("bookings")
@@ -139,7 +139,7 @@ export function SalesReporting() {
         }
 
         for (const booking of bookings) {
-          // Skip bookings that were paid via POS to avoid double-counting
+          // Skip bookings paid via POS - they'll be added as "Booking" type from POS transaction items
           if (posBookingIds.has(String(booking.id))) continue;
           
           const profile = profileMap.get(booking.user_id);
@@ -163,8 +163,8 @@ export function SalesReporting() {
       }
     }
 
-    // Fetch POS transactions
-    if (saleType === "all" || saleType === "pos") {
+    // Fetch POS transactions - split into Booking items and POS (product) items
+    if (saleType === "all" || saleType === "pos" || saleType === "booking") {
       const { data: posTransactions, error: posError } = await supabase
         .from("pos_transactions")
         .select(`
@@ -174,7 +174,8 @@ export function SalesReporting() {
           payment_method,
           status,
           items,
-          customer_id
+          customer_id,
+          booking_id
         `)
         .gte("created_at", startStr)
         .lte("created_at", endStr)
@@ -200,35 +201,89 @@ export function SalesReporting() {
         }
 
         for (const transaction of posTransactions) {
-          const posPaymentMethod = transaction.payment_method || "cash";
+          const posPaymentMethod = transaction.payment_method === "pos" ? "stripeinperson" : (transaction.payment_method || "cash");
           
           // Apply payment method filter
           if (paymentMethod !== "all" && posPaymentMethod !== paymentMethod) continue;
 
           const profile = transaction.customer_id ? profileMap.get(transaction.customer_id) : null;
+          const customerName = profile ? `${profile.first_name} ${profile.last_name}` : null;
+          const customerEmail = profile?.email || null;
           
-          // Parse items for description
-          let itemsDescription = "POS Sale";
+          // Parse items and split into booking items vs product items
           try {
-            const items = transaction.items as Array<{ name: string; quantity: number }>;
+            const items = transaction.items as Array<{ name: string; quantity: number; price: number; bookingId?: string }>;
             if (Array.isArray(items) && items.length > 0) {
-              itemsDescription = items.map(i => `${i.quantity}x ${i.name}`).join(", ");
+              // Separate booking items from product items
+              const bookingItems = items.filter(i => i.bookingId);
+              const productItems = items.filter(i => !i.bookingId);
+              
+              // Add booking items as "Booking" type (if filtering allows)
+              if (saleType === "all" || saleType === "booking") {
+                for (const item of bookingItems) {
+                  const itemTotal = (item.price || 0) * (item.quantity || 1);
+                  allSales.push({
+                    id: `${transaction.id}-booking-${item.bookingId}`,
+                    type: "booking",
+                    date: new Date(transaction.created_at),
+                    amount: itemTotal,
+                    paymentMethod: posPaymentMethod,
+                    customerName,
+                    customerEmail,
+                    description: `Bay booking - ${item.name}`,
+                    status: transaction.status,
+                  });
+                }
+              }
+              
+              // Add product items as "POS" type (if filtering allows)
+              if ((saleType === "all" || saleType === "pos") && productItems.length > 0) {
+                const productTotal = productItems.reduce((sum, i) => sum + ((i.price || 0) * (i.quantity || 1)), 0);
+                const productDescription = productItems.map(i => `${i.quantity}x ${i.name}`).join(", ");
+                allSales.push({
+                  id: `${transaction.id}-products`,
+                  type: "pos",
+                  date: new Date(transaction.created_at),
+                  amount: productTotal,
+                  paymentMethod: posPaymentMethod,
+                  customerName,
+                  customerEmail,
+                  description: productDescription,
+                  status: transaction.status,
+                });
+              }
+            } else {
+              // No items parsed, show as POS if appropriate
+              if (saleType === "all" || saleType === "pos") {
+                allSales.push({
+                  id: transaction.id,
+                  type: "pos",
+                  date: new Date(transaction.created_at),
+                  amount: transaction.total,
+                  paymentMethod: posPaymentMethod,
+                  customerName,
+                  customerEmail,
+                  description: "POS Sale",
+                  status: transaction.status,
+                });
+              }
             }
           } catch {
-            // Keep default description
+            // Fallback: show as POS if appropriate
+            if (saleType === "all" || saleType === "pos") {
+              allSales.push({
+                id: transaction.id,
+                type: "pos",
+                date: new Date(transaction.created_at),
+                amount: transaction.total,
+                paymentMethod: posPaymentMethod,
+                customerName,
+                customerEmail,
+                description: "POS Sale",
+                status: transaction.status,
+              });
+            }
           }
-
-          allSales.push({
-            id: transaction.id,
-            type: "pos",
-            date: new Date(transaction.created_at),
-            amount: transaction.total,
-            paymentMethod: posPaymentMethod,
-            customerName: profile ? `${profile.first_name} ${profile.last_name}` : null,
-            customerEmail: profile?.email || null,
-            description: itemsDescription,
-            status: transaction.status,
-          });
         }
       }
     }
