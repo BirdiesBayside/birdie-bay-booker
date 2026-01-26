@@ -130,29 +130,38 @@ serve(async (req) => {
   const adminClient = createClient(supabaseUrl, serviceKey);
 
   try {
-    // Verify the user is authenticated
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
-    if (authError || !user) {
-      console.error("[SGT-MEMBER-MGMT] Auth error:", authError);
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    // Check for service-role access via SYNC_SECRET header (for internal calls)
+    const syncSecret = req.headers.get("x-sync-secret");
+    const expectedSecret = Deno.env.get("SYNC_SECRET");
+    const isServiceCall = syncSecret && expectedSecret && syncSecret === expectedSecret;
 
-    // Check if user is admin
-    const { data: roles } = await adminClient
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", user.id)
-      .eq("role", "admin");
+    if (!isServiceCall) {
+      // Verify the user is authenticated
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      
+      if (authError || !user) {
+        console.error("[SGT-MEMBER-MGMT] Auth error:", authError);
+        return new Response(
+          JSON.stringify({ error: "Unauthorized" }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
 
-    if (!roles || roles.length === 0) {
-      return new Response(
-        JSON.stringify({ error: "Admin access required" }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      // Check if user is admin
+      const { data: roles } = await adminClient
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("role", "admin");
+
+      if (!roles || roles.length === 0) {
+        return new Response(
+          JSON.stringify({ error: "Admin access required" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    } else {
+      console.log("[SGT-MEMBER-MGMT] Service call authenticated via SYNC_SECRET");
     }
 
     const { action, ...params } = await req.json();
@@ -926,6 +935,99 @@ serve(async (req) => {
         result = { 
           success: response.success ?? false, 
           feedback: response.feedback 
+        };
+        break;
+      }
+
+      case "delete-registration": {
+        // Delete a player's registration for a tournament
+        const { userId, tournamentId, tourId } = params;
+        if (!userId || !tournamentId || !tourId) {
+          throw new Error("userId, tournamentId, and tourId are required");
+        }
+
+        console.log(`[SGT-MEMBER-MGMT] Deleting registration for user ${userId} from tournament ${tournamentId}`);
+
+        const response = await sgtRequest(clubUrl, "/registrations/delete", "POST", {
+          user_id: userId.toString(),
+          tournamentId: tournamentId.toString(),
+          tourId: tourId.toString(),
+        }) as { success?: boolean; feedback?: string };
+
+        result = { 
+          success: response.success ?? false, 
+          feedback: response.feedback 
+        };
+        break;
+      }
+
+      case "reset-member-to-pending": {
+        // Remove a member from all tours (puts them back in pending state)
+        // This also deletes their tournament registrations
+        const { userId } = params;
+        if (!userId) throw new Error("userId is required");
+
+        console.log(`[SGT-MEMBER-MGMT] Resetting member ${userId} to pending state`);
+
+        // Get all tours the member is in
+        const { data: tourMemberships, error: tmError } = await adminClient
+          .from("sgt_tour_members")
+          .select("tour_id")
+          .eq("user_id", userId);
+
+        if (tmError) throw tmError;
+
+        const deletedFromTours: number[] = [];
+        const errors: string[] = [];
+
+        // Get active tournaments for each tour and delete registrations
+        for (const tm of tourMemberships || []) {
+          try {
+            // Get all non-closed tournaments for this tour
+            const { data: tournaments } = await adminClient
+              .from("sgt_tournaments")
+              .select("tournament_id")
+              .eq("tour_id", tm.tour_id)
+              .in("status", ["Upcoming", "In Progress"]);
+
+            // Delete registration from each tournament
+            for (const t of tournaments || []) {
+              try {
+                await sgtRequest(clubUrl, "/registrations/delete", "POST", {
+                  user_id: userId.toString(),
+                  tournamentId: t.tournament_id.toString(),
+                  tourId: tm.tour_id.toString(),
+                });
+                console.log(`[SGT-MEMBER-MGMT] Deleted registration for tournament ${t.tournament_id}`);
+              } catch (regErr) {
+                // May already be unregistered, log but continue
+                console.log(`[SGT-MEMBER-MGMT] Could not delete from tournament ${t.tournament_id}:`, regErr);
+              }
+            }
+
+            // Remove from tour via SGT API
+            await sgtRequest(clubUrl, "/tours/remove-member", "POST", {
+              user_id: userId.toString(),
+              tour_id: tm.tour_id.toString(),
+            });
+            deletedFromTours.push(tm.tour_id);
+          } catch (error) {
+            errors.push(`Failed to remove from tour ${tm.tour_id}: ${error instanceof Error ? error.message : 'Unknown'}`);
+          }
+        }
+
+        // Delete from local sgt_tour_members table
+        await adminClient
+          .from("sgt_tour_members")
+          .delete()
+          .eq("user_id", userId);
+
+        console.log(`[SGT-MEMBER-MGMT] Reset member ${userId}: removed from ${deletedFromTours.length} tours`);
+
+        result = { 
+          success: true, 
+          deletedFromTours,
+          errors: errors.length > 0 ? errors : undefined 
         };
         break;
       }
