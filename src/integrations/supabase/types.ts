@@ -153,6 +153,42 @@ export type Database = {
         }
         Relationships: []
       }
+      bay_controller_logs: {
+        Row: {
+          app_version: string | null
+          bay_number: number
+          booking_id: string | null
+          created_at: string
+          details: Json | null
+          event_level: string
+          event_type: string
+          id: string
+          message: string
+        }
+        Insert: {
+          app_version?: string | null
+          bay_number: number
+          booking_id?: string | null
+          created_at?: string
+          details?: Json | null
+          event_level?: string
+          event_type: string
+          id?: string
+          message: string
+        }
+        Update: {
+          app_version?: string | null
+          bay_number?: number
+          booking_id?: string | null
+          created_at?: string
+          details?: Json | null
+          event_level?: string
+          event_type?: string
+          id?: string
+          message?: string
+        }
+        Relationships: []
+      }
       bay_devices: {
         Row: {
           app_version: string | null
