@@ -95,7 +95,6 @@ async function sgtPostRequest(endpoint: string, params: Record<string, string | 
   const text = await response.text();
   console.log(`[SGT-FIX-TEES] Response:`, text);
 
-  // Check for invalid API key and retry once with fresh key
   if (text.includes("INVALID API KEY") && retryCount < 1) {
     console.log("[SGT-FIX-TEES] API key invalid, refreshing and retrying...");
     clearApiKeyCache();
@@ -108,45 +107,6 @@ async function sgtPostRequest(endpoint: string, params: Record<string, string | 
   } catch {
     return { success: false, raw: text };
   }
-}
-
-// Delete and re-register a player to reset their tee_type to blank
-async function deleteAndReregisterPlayer(
-  tournamentId: number, 
-  tourId: number, 
-  userId: number
-): Promise<{ success: boolean; error?: string }> {
-  
-  // Step 1: Delete the registration
-  console.log(`[SGT-FIX-TEES] Deleting registration for user ${userId}`);
-  const deleteResult = await sgtPostRequest("/registrations/delete", {
-    tournamentId,
-    tourId,
-    userId,
-  }) as { success?: boolean; feedback?: string; raw?: string };
-
-  if (!deleteResult.success) {
-    const errorMsg = deleteResult.feedback || deleteResult.raw || JSON.stringify(deleteResult);
-    return { success: false, error: `Delete failed: ${errorMsg}` };
-  }
-
-  // Delay between delete and re-register
-  await new Promise(resolve => setTimeout(resolve, 500));
-
-  // Step 2: Re-register without specifying tee_type
-  console.log(`[SGT-FIX-TEES] Re-registering user ${userId} without tee_type`);
-  const registerResult = await sgtPostRequest("/registrations/register-members", {
-    tournamentId,
-    tourId,
-    userIds: userId,  // Single user ID
-  }) as { success?: boolean; feedback?: string; raw?: string };
-
-  if (!registerResult.success) {
-    const errorMsg = registerResult.feedback || registerResult.raw || JSON.stringify(registerResult);
-    return { success: false, error: `Re-register failed: ${errorMsg}` };
-  }
-
-  return { success: true };
 }
 
 function extractArray(data: unknown, keys: string[]): unknown[] {
@@ -177,7 +137,7 @@ serve(async (req) => {
       );
     }
 
-    console.log(`[SGT-FIX-TEES] Fixing tees for tournament ${tournament_id} by delete+re-register`);
+    console.log(`[SGT-FIX-TEES] Fixing tees for tournament ${tournament_id} using tee_type: Default`);
 
     // Get current registrations for this tournament
     const registrationsResponse = await sgtGetRequest("/registrations/view", { 
@@ -195,19 +155,27 @@ serve(async (req) => {
 
     const results: { userId: number; userName: string; oldTee: string; success: boolean; error?: string }[] = [];
 
-    // Delete and re-register each player
+    // Edit each registration to set tee_type to "Default"
     for (const reg of registrations) {
-      const result = await deleteAndReregisterPlayer(tournament_id, tour_id, reg.user_id);
+      console.log(`[SGT-FIX-TEES] Editing registration for user ${reg.user_id} (${reg.user_name})`);
+      
+      const editResult = await sgtPostRequest("/registrations/edit", {
+        tournamentId: tournament_id,
+        tourId: tour_id,
+        userId: reg.user_id,
+        tee_type: "Default",  // Use "Default" as it works in manual edits
+      }) as { success?: boolean; feedback?: string; raw?: string };
+
       results.push({
         userId: reg.user_id,
         userName: reg.user_name,
         oldTee: reg.tee_type || 'unknown',
-        success: result.success,
-        error: result.error,
+        success: !!editResult.success,
+        error: editResult.success ? undefined : (editResult.feedback || editResult.raw || JSON.stringify(editResult)),
       });
       
-      // Longer delay between players to avoid rate limiting
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Small delay between requests
+      await new Promise(resolve => setTimeout(resolve, 300));
     }
 
     const successCount = results.filter(r => r.success).length;
@@ -219,7 +187,7 @@ serve(async (req) => {
       JSON.stringify({ 
         success: true,
         totalRegistrations: registrations.length,
-        fixed: successCount,
+        updated: successCount,
         failed: failCount,
         results,
       }),
