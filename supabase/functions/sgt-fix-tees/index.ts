@@ -98,12 +98,16 @@ async function sgtGetRequest(endpoint: string, params: Record<string, string> = 
  
    // Step 2: Re-register with Blue tees
    console.log(`[SGT-FIX-TEES] Re-registering user ${userId} with Blue tees`);
-   const registerResult = await sgtPostRequest("/registrations/register-members", {
+  const registerResult = await sgtPostRequestWithRegistrationList(
+    "/registrations/register-members",
      tournamentId,
      tourId,
-     userIds: userId,
-     tee_type: "Blue",  // Explicitly set Blue tees
-   }) as { success?: boolean; feedback?: string; raw?: string };
+    [{
+      user_id: userId,
+      useComboCap: "true",
+      useCustomCap: "false"
+    }]
+  ) as { success?: boolean; feedback?: string; raw?: string };
  
    if (!registerResult.success) {
      const errorMsg = registerResult.feedback || registerResult.raw || JSON.stringify(registerResult);
@@ -111,6 +115,48 @@ async function sgtGetRequest(endpoint: string, params: Record<string, string> = 
    }
  
    return { success: true };
+ }
+ 
+ async function sgtPostRequestWithRegistrationList(
+   endpoint: string, 
+   tournamentId: number,
+   tourId: number,
+   registrationList: { user_id: number; useComboCap: string; useCustomCap: string }[]
+ ): Promise<unknown> {
+   const apiKey = await getApiKey();
+   
+   const formData = new URLSearchParams();
+   formData.append("api-key", apiKey);
+   formData.append("tournamentId", tournamentId.toString());
+   formData.append("tourId", tourId.toString());
+   
+   // Note: teeType is NOT sent so the API uses tournament default tees
+   registrationList.forEach((reg, index) => {
+     formData.append(`registrationList[${index}][user_id]`, reg.user_id.toString());
+     formData.append(`registrationList[${index}][useComboCap]`, reg.useComboCap);
+     formData.append(`registrationList[${index}][useCustomCap]`, reg.useCustomCap);
+   });
+ 
+   console.log(`[SGT-FIX-TEES] POST: ${endpoint} with ${registrationList.length} registrations (no tee_type)`);
+   
+   const response = await fetch(`${SGT_BASE_URL}/${CLUB_URL}${endpoint}`, {
+     method: "POST",
+     headers: { "Content-Type": "application/x-www-form-urlencoded" },
+     body: formData,
+   });
+ 
+   const text = await response.text();
+   console.log(`[SGT-FIX-TEES] Response:`, text);
+ 
+   if (!response.ok) {
+     throw new Error(`SGT API error: ${response.status} - ${text}`);
+   }
+ 
+   try {
+     return JSON.parse(text);
+   } catch {
+     return { success: false, raw: text };
+   }
  }
  
  async function sgtPostRequest(endpoint: string, params: Record<string, string | number>, retryCount = 0): Promise<unknown> {
@@ -176,7 +222,7 @@ serve(async (req) => {
       );
     }
 
-     console.log(`[SGT-FIX-TEES] Fixing tees for tournament ${tournament_id} by delete+re-register with Blue tees`);
+     console.log(`[SGT-FIX-TEES] Fixing tees for tournament ${tournament_id} by delete+re-register using tournament defaults`);
 
     // Get current registrations for this tournament
     const registrationsResponse = await sgtGetRequest("/registrations/view", { 
