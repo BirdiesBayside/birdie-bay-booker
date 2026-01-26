@@ -163,7 +163,7 @@ serve(async (req) => {
         tournamentId: tournament_id,
         tourId: tour_id,
         userId: reg.user_id,
-        tee_type: "Default",  // Use "Default" as it works in manual edits
+        tee_type: "Blue",  // Use "Blue" tees
       }) as { success?: boolean; feedback?: string; raw?: string };
 
       results.push({
