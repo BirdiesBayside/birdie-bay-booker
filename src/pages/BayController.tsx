@@ -92,9 +92,10 @@ const findDisplayByLabel = (displays: DisplayInfo[], label: string): DisplayInfo
 
 // Import Electron types
 import "@/types/electron.d";
+import { useBayControllerLogger } from "@/hooks/useBayControllerLogger";
 
 const CORRECT_PASSWORD = "Holeinone1";
-const APP_VERSION = "1.0.2";
+const APP_VERSION = "1.0.3";
 
 // Debug log for Electron builds
 console.log(`Bay Controller v${APP_VERSION} starting...`, {
@@ -261,6 +262,13 @@ export default function BayController() {
     const saved = localStorage.getItem("bayController_sgtOverlayConfig");
     return saved ? JSON.parse(saved) : { enabled: false, displayLabel: "" };
   });
+  
+  // Centralized logging hook for backend logs
+  const bayLogger = useBayControllerLogger({
+    bayNumber: selectedBay,
+    appVersion: APP_VERSION,
+    enabled: isElectron, // Only log when running in Electron desktop app
+  });
 
   // Helper to add debug log
   const addLog = useCallback((message: string, type: 'info' | 'error' | 'success' = 'info') => {
@@ -404,6 +412,12 @@ export default function BayController() {
   useEffect(() => {
     const electronCheck = !!window.electronAPI?.isElectron;
     setIsElectron(electronCheck);
+    
+    // Log controller start when in Electron
+    if (electronCheck) {
+      // Delay slightly to ensure logger has bayNumber
+      setTimeout(() => bayLogger.logControllerStart(), 1000);
+    }
     
     // Mark plug assignments as loaded (they were loaded via useState initializer)
     setPlugAssignmentsLoaded(true);
@@ -1660,6 +1674,7 @@ export default function BayController() {
     console.log('Active booking:', activeBooking ? `${activeBooking.customer_name} (${activeBooking.start_time}-${activeBooking.end_time})` : 'none');
     
     setManualOverride(false);
+    bayLogger.logManualOverride(false);
     
     // Sync mode to database
     await updateControlMode(false);
@@ -1675,15 +1690,16 @@ export default function BayController() {
       console.log('Auto mode: turning OFF plugs - no active booking in window');
       turnOffPlugs(false, true); // Auto control, show toast
     }
-  }, [calculateShouldPlugsBeOn, updateControlMode, bookings.length, activeBooking]);
+  }, [calculateShouldPlugsBeOn, updateControlMode, bookings.length, activeBooking, bayLogger]);
 
   // Toggle to manual mode - syncs to database and enables manual control
   const setToManualMode = useCallback(async () => {
     console.log('Switching to manual control...');
     setManualOverride(true);
     await updateControlMode(true);
+    bayLogger.logManualOverride(true);
     toast.success('Switched to MANUAL mode');
-  }, [updateControlMode]);
+  }, [updateControlMode, bayLogger]);
 
   // Save TAPO credentials whenever they change
   useEffect(() => {
@@ -1834,8 +1850,10 @@ export default function BayController() {
       for (const { plug, success, error } of results) {
         if (!success) {
           if (showToast) toast.error(`Failed to turn on ${plug.name}: ${error}`);
+          bayLogger.logError(`Failed to turn on plug: ${plug.name}`, error, activeBooking?.id);
         } else {
           if (showToast) toast.success(`Turned ON: ${plug.name}`);
+          bayLogger.logPlugControl('on', plug.name, isManual, activeBooking?.id);
           newStatusUpdated[plug.type] = true;
         }
       }
@@ -1887,10 +1905,12 @@ export default function BayController() {
       for (const { plug, success, error } of results) {
         if (!success) {
           if (showToast) toast.error(`Failed to turn off ${plug.name}: ${error}`);
+          bayLogger.logError(`Failed to turn off plug: ${plug.name}`, error, activeBooking?.id);
           // Keep as on if failed
           newStatusUpdated[plug.type] = true;
         } else {
           if (showToast) toast.success(`Turned OFF: ${plug.name}`);
+          bayLogger.logPlugControl('off', plug.name, isManual, activeBooking?.id);
         }
       }
       
@@ -2047,6 +2067,8 @@ export default function BayController() {
         setAppsRunning(true);
         setAppLaunchStatus("All apps launched successfully");
         addLog("All apps launched successfully!", 'success');
+        bayLogger.logAppLaunch('GSPro', activeBooking?.id);
+        bayLogger.logAppLaunch('Protee Labs', activeBooking?.id);
         toast.success("Apps launched successfully");
         
         // Log results from the welcome window sequence
@@ -2057,6 +2079,7 @@ export default function BayController() {
       } else {
         setAppLaunchStatus(`Launch failed: ${result.error}`);
         addLog(`Launch failed: ${result.error}`, 'error');
+        bayLogger.logError(`App launch failed: ${result.error}`, undefined, activeBooking?.id);
         result.results?.forEach(r => {
           addLog(`${r.step}: ${r.status || r.error || 'unknown'}`, 'error');
         });
@@ -2066,6 +2089,7 @@ export default function BayController() {
       const errorMsg = error instanceof Error ? error.message : "Unknown error";
       setAppLaunchStatus(`Error: ${errorMsg}`);
       addLog(`Exception: ${errorMsg}`, 'error');
+      bayLogger.logError('App launch exception', error, activeBooking?.id);
       toast.error(`Launch error: ${errorMsg}`);
     } finally {
       setIsLaunchingApps(false);
@@ -2083,20 +2107,25 @@ export default function BayController() {
     }
   };
 
-  const closeApps = async () => {
+  const closeApps = async (reason?: 'scheduled' | 'manual') => {
     if (!isElectron || !window.electronAPI) {
       toast.error("App control requires desktop app");
       return;
     }
+
+    const closeReason = reason || 'manual';
 
     try {
       const result = await window.electronAPI.closeApps(["GSPro.exe", "ProteeLabs.exe"]);
       if (result.success) {
         setAppsRunning(false);
         setAppLaunchStatus(null);
+        bayLogger.logAppClose('GSPro', closeReason, activeBooking?.id);
+        bayLogger.logAppClose('Protee Labs', closeReason, activeBooking?.id);
         toast.info("Apps closed");
       }
     } catch (error) {
+      bayLogger.logError('Failed to close apps', error, activeBooking?.id);
       toast.error("Failed to close apps");
     }
   };
@@ -2649,7 +2678,7 @@ export default function BayController() {
               </Button>
             )}
             <Button 
-              onClick={closeApps} 
+              onClick={() => closeApps('manual')} 
               disabled={!appsRunning || !isElectron}
               variant="outline" 
               className="flex-1"

@@ -16,6 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format, parseISO, isAfter, isBefore } from "date-fns";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
+import { BayControllerLogs } from "@/components/admin/BayControllerLogs";
 
 interface Bay {
   id: string;
@@ -511,6 +512,11 @@ export default function AdminBayControl() {
               </CardContent>
             </Card>
           ))}
+        </div>
+
+        {/* Bay Controller Logs Section */}
+        <div className="mt-8">
+          <BayControllerLogs />
         </div>
 
       </div>

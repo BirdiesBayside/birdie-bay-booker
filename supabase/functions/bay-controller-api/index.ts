@@ -69,6 +69,41 @@ serve(async (req) => {
         );
       }
 
+      case "log": {
+        // Handle logging from bay controller apps
+        const body = await req.json();
+        const logs = Array.isArray(body.logs) ? body.logs : [body];
+        
+        console.log(`Received ${logs.length} log entries from bay ${bayNumber}`);
+        
+        const logEntries = logs.map((log: any) => ({
+          bay_number: bayNumber,
+          event_type: log.event_type || 'unknown',
+          event_level: log.event_level || 'info',
+          message: log.message || '',
+          details: log.details || {},
+          booking_id: log.booking_id || null,
+          app_version: appVersion,
+        }));
+        
+        const { error: insertError } = await supabase
+          .from("bay_controller_logs")
+          .insert(logEntries);
+        
+        if (insertError) {
+          console.error("Log insert error:", insertError);
+          return new Response(
+            JSON.stringify({ error: "Failed to store logs", details: insertError.message }),
+            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        
+        return new Response(
+          JSON.stringify({ success: true, count: logEntries.length }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       case "bookings":
       default: {
         // Update device status and get current control_mode
