@@ -1,5 +1,4 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -12,10 +11,15 @@ const CLUB_URL = "birdiesbayside";
 let cachedApiKey: string | null = null;
 let apiKeyExpiry: number = 0;
 
-async function getApiKey(): Promise<string> {
+function clearApiKeyCache() {
+  cachedApiKey = null;
+  apiKeyExpiry = 0;
+}
+
+async function getApiKey(forceRefresh = false): Promise<string> {
   const now = Date.now();
   
-  if (cachedApiKey && apiKeyExpiry > now + 300000) {
+  if (!forceRefresh && cachedApiKey && apiKeyExpiry > now + 300000) {
     return cachedApiKey;
   }
 
@@ -70,42 +74,79 @@ async function sgtGetRequest(endpoint: string, params: Record<string, string> = 
   return response.json();
 }
 
-// Edit a single registration to set tee_type to "Default"
-async function editRegistrationTee(
-  tournamentId: number, 
-  tourId: number, 
-  userId: number
-): Promise<{ success: boolean; error?: string }> {
+async function sgtPostRequest(endpoint: string, params: Record<string, string | number>, retryCount = 0): Promise<unknown> {
   const apiKey = await getApiKey();
   
   const formData = new URLSearchParams();
   formData.append("api-key", apiKey);
-  formData.append("tournamentId", tournamentId.toString());
-  formData.append("tourId", tourId.toString());
-  formData.append("userId", userId.toString());
-  // Omit tee_type entirely to reset to tournament default (empty/blank)
-
-  console.log(`[SGT-FIX-TEES] Editing registration for user ${userId} to Default tees`);
   
-  const response = await fetch(`${SGT_BASE_URL}/${CLUB_URL}/registrations/edit`, {
+  for (const [key, value] of Object.entries(params)) {
+    formData.append(key, value.toString());
+  }
+
+  console.log(`[SGT-FIX-TEES] POST: ${endpoint}`, params);
+  
+  const response = await fetch(`${SGT_BASE_URL}/${CLUB_URL}${endpoint}`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: formData,
   });
 
   const text = await response.text();
-  console.log(`[SGT-FIX-TEES] Edit response for user ${userId}:`, text);
+  console.log(`[SGT-FIX-TEES] Response:`, text);
 
-  if (!response.ok) {
-    return { success: false, error: `HTTP ${response.status}: ${text}` };
+  // Check for invalid API key and retry once with fresh key
+  if (text.includes("INVALID API KEY") && retryCount < 1) {
+    console.log("[SGT-FIX-TEES] API key invalid, refreshing and retrying...");
+    clearApiKeyCache();
+    await new Promise(resolve => setTimeout(resolve, 500));
+    return sgtPostRequest(endpoint, params, retryCount + 1);
   }
 
   try {
-    const data = JSON.parse(text);
-    return { success: data.success === true, error: data.feedback };
+    return JSON.parse(text);
   } catch {
-    return { success: false, error: text };
+    return { success: false, raw: text };
   }
+}
+
+// Delete and re-register a player to reset their tee_type to blank
+async function deleteAndReregisterPlayer(
+  tournamentId: number, 
+  tourId: number, 
+  userId: number
+): Promise<{ success: boolean; error?: string }> {
+  
+  // Step 1: Delete the registration
+  console.log(`[SGT-FIX-TEES] Deleting registration for user ${userId}`);
+  const deleteResult = await sgtPostRequest("/registrations/delete", {
+    tournamentId,
+    tourId,
+    userId,
+  }) as { success?: boolean; feedback?: string; raw?: string };
+
+  if (!deleteResult.success) {
+    const errorMsg = deleteResult.feedback || deleteResult.raw || JSON.stringify(deleteResult);
+    return { success: false, error: `Delete failed: ${errorMsg}` };
+  }
+
+  // Delay between delete and re-register
+  await new Promise(resolve => setTimeout(resolve, 500));
+
+  // Step 2: Re-register without specifying tee_type
+  console.log(`[SGT-FIX-TEES] Re-registering user ${userId} without tee_type`);
+  const registerResult = await sgtPostRequest("/registrations/register-members", {
+    tournamentId,
+    tourId,
+    userIds: userId,  // Single user ID
+  }) as { success?: boolean; feedback?: string; raw?: string };
+
+  if (!registerResult.success) {
+    const errorMsg = registerResult.feedback || registerResult.raw || JSON.stringify(registerResult);
+    return { success: false, error: `Re-register failed: ${errorMsg}` };
+  }
+
+  return { success: true };
 }
 
 function extractArray(data: unknown, keys: string[]): unknown[] {
@@ -136,7 +177,7 @@ serve(async (req) => {
       );
     }
 
-    console.log(`[SGT-FIX-TEES] Fixing tees for tournament ${tournament_id}`);
+    console.log(`[SGT-FIX-TEES] Fixing tees for tournament ${tournament_id} by delete+re-register`);
 
     // Get current registrations for this tournament
     const registrationsResponse = await sgtGetRequest("/registrations/view", { 
@@ -154,9 +195,9 @@ serve(async (req) => {
 
     const results: { userId: number; userName: string; oldTee: string; success: boolean; error?: string }[] = [];
 
-    // Edit each registration to set tee_type to "Default"
+    // Delete and re-register each player
     for (const reg of registrations) {
-      const result = await editRegistrationTee(tournament_id, tour_id, reg.user_id);
+      const result = await deleteAndReregisterPlayer(tournament_id, tour_id, reg.user_id);
       results.push({
         userId: reg.user_id,
         userName: reg.user_name,
@@ -165,8 +206,8 @@ serve(async (req) => {
         error: result.error,
       });
       
-      // Small delay to avoid rate limiting
-      await new Promise(resolve => setTimeout(resolve, 200));
+      // Longer delay between players to avoid rate limiting
+      await new Promise(resolve => setTimeout(resolve, 1000));
     }
 
     const successCount = results.filter(r => r.success).length;
