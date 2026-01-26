@@ -83,7 +83,7 @@ async function editRegistrationTee(
   formData.append("tournamentId", tournamentId.toString());
   formData.append("tourId", tourId.toString());
   formData.append("userId", userId.toString());
-  formData.append("tee_type", "Default"); // This sets to tournament default tees
+  // Omit tee_type entirely to reset to tournament default (empty/blank)
 
   console.log(`[SGT-FIX-TEES] Editing registration for user ${userId} to Default tees`);
   
