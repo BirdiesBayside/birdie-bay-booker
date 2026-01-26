@@ -560,6 +560,45 @@ export type Database = {
         }
         Relationships: []
       }
+      membership_payments: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          paid_at: string
+          period_end: string | null
+          period_start: string | null
+          stripe_customer_id: string
+          stripe_invoice_id: string
+          tier: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: string
+          paid_at?: string
+          period_end?: string | null
+          period_start?: string | null
+          stripe_customer_id: string
+          stripe_invoice_id: string
+          tier: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          paid_at?: string
+          period_end?: string | null
+          period_start?: string | null
+          stripe_customer_id?: string
+          stripe_invoice_id?: string
+          tier?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       pos_products: {
         Row: {
           created_at: string

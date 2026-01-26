@@ -21,13 +21,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Download, Calendar, TrendingUp, DollarSign, ShoppingCart, CalendarDays, RefreshCw } from "lucide-react";
+import { Download, Calendar, TrendingUp, DollarSign, ShoppingCart, CalendarDays, RefreshCw, Users } from "lucide-react";
 import { format, subDays, startOfDay, endOfDay, parseISO, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
 
 interface SaleRecord {
   id: string;
-  type: "booking" | "pos";
+  type: "booking" | "pos" | "membership";
   date: Date;
   amount: number;
   paymentMethod: string;
@@ -37,9 +37,15 @@ interface SaleRecord {
   status: string;
 }
 
+const tierDisplayNames: Record<string, string> = {
+  weekday: "Weekday",
+  birdie: "Birdie",
+  eagle: "Eagle",
+};
+
 type DatePreset = "today" | "yesterday" | "last7" | "last30" | "thisMonth" | "lastMonth" | "custom";
-type SaleType = "all" | "booking" | "pos";
-type PaymentMethod = "all" | "card" | "deposit" | "cash" | "terminal";
+type SaleType = "all" | "booking" | "pos" | "membership";
+type PaymentMethod = "all" | "card" | "deposit" | "cash" | "terminal" | "stripe";
 
 export function SalesReporting() {
   const [sales, setSales] = useState<SaleRecord[]>([]);
@@ -58,6 +64,7 @@ export function SalesReporting() {
   const [totalRevenue, setTotalRevenue] = useState(0);
   const [bookingRevenue, setBookingRevenue] = useState(0);
   const [posRevenue, setPosRevenue] = useState(0);
+  const [membershipRevenue, setMembershipRevenue] = useState(0);
   const [transactionCount, setTransactionCount] = useState(0);
 
   // Fetch timezone from system settings
@@ -310,6 +317,61 @@ export function SalesReporting() {
       }
     }
 
+    // Fetch membership payments
+    if (saleType === "all" || saleType === "membership") {
+      const { data: membershipPayments, error: membershipError } = await supabase
+        .from("membership_payments")
+        .select(`
+          id,
+          paid_at,
+          amount,
+          tier,
+          user_id
+        `)
+        .gte("paid_at", startStr)
+        .lte("paid_at", endStr);
+
+      if (!membershipError && membershipPayments) {
+        // Get user profiles for membership payments
+        const memberUserIds = [...new Set(membershipPayments.map(p => p.user_id))];
+        
+        const memberProfileMap = new Map<string, { user_id: string; first_name: string; last_name: string; email: string }>();
+        
+        if (memberUserIds.length > 0) {
+          const { data: memberProfiles } = await supabase
+            .from("profiles")
+            .select("user_id, first_name, last_name, email")
+            .in("user_id", memberUserIds);
+          
+          if (memberProfiles) {
+            for (const p of memberProfiles) {
+              memberProfileMap.set(p.user_id, p);
+            }
+          }
+        }
+
+        for (const payment of membershipPayments) {
+          // Apply payment method filter (membership payments are always via Stripe)
+          if (paymentMethod !== "all" && paymentMethod !== "stripe" && paymentMethod !== "card") continue;
+
+          const profile = memberProfileMap.get(payment.user_id);
+          const tierName = tierDisplayNames[payment.tier] || payment.tier;
+
+          allSales.push({
+            id: payment.id,
+            type: "membership",
+            date: new Date(payment.paid_at),
+            amount: payment.amount,
+            paymentMethod: "stripe",
+            customerName: profile ? `${profile.first_name} ${profile.last_name}` : null,
+            customerEmail: profile?.email || null,
+            description: `${tierName} Membership - Weekly`,
+            status: "paid",
+          });
+        }
+      }
+    }
+
     // Sort by date descending
     allSales.sort((a, b) => b.date.getTime() - a.date.getTime());
 
@@ -319,10 +381,12 @@ export function SalesReporting() {
     const total = allSales.reduce((sum, s) => sum + s.amount, 0);
     const bookingTotal = allSales.filter(s => s.type === "booking").reduce((sum, s) => sum + s.amount, 0);
     const posTotal = allSales.filter(s => s.type === "pos").reduce((sum, s) => sum + s.amount, 0);
+    const membershipTotal = allSales.filter(s => s.type === "membership").reduce((sum, s) => sum + s.amount, 0);
 
     setTotalRevenue(total);
     setBookingRevenue(bookingTotal);
     setPosRevenue(posTotal);
+    setMembershipRevenue(membershipTotal);
     setTransactionCount(allSales.length);
 
     setIsLoading(false);
@@ -339,7 +403,7 @@ export function SalesReporting() {
     const rows = sales.map(sale => [
       format(sale.date, "yyyy-MM-dd"),
       format(sale.date, "HH:mm"),
-      sale.type === "booking" ? "Booking" : "POS",
+      sale.type === "booking" ? "Booking" : sale.type === "membership" ? "Membership" : "POS",
       `"${sale.description.replace(/"/g, '""')}"`,
       sale.customerName ? `"${sale.customerName.replace(/"/g, '""')}"` : "",
       sale.customerEmail || "",
@@ -372,6 +436,7 @@ export function SalesReporting() {
       deposit: "secondary",
       cash: "outline",
       terminal: "default",
+      stripe: "default",
     };
     return <Badge variant={variants[method] || "outline"}>{method}</Badge>;
   };
@@ -440,6 +505,7 @@ export function SalesReporting() {
                   <SelectItem value="all">All Sales</SelectItem>
                   <SelectItem value="booking">Bookings Only</SelectItem>
                   <SelectItem value="pos">POS Only</SelectItem>
+                  <SelectItem value="membership">Memberships Only</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -453,6 +519,7 @@ export function SalesReporting() {
                 <SelectContent>
                   <SelectItem value="all">All Methods</SelectItem>
                   <SelectItem value="card">Card</SelectItem>
+                  <SelectItem value="stripe">Stripe (Subscription)</SelectItem>
                   <SelectItem value="deposit">Deposit/Credit</SelectItem>
                   <SelectItem value="cash">Cash</SelectItem>
                   <SelectItem value="terminal">Terminal</SelectItem>
@@ -480,7 +547,7 @@ export function SalesReporting() {
       </Card>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-2 text-muted-foreground text-sm">
@@ -506,6 +573,15 @@ export function SalesReporting() {
               POS Revenue
             </div>
             <p className="text-2xl font-bold mt-1">${posRevenue.toFixed(2)}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2 text-muted-foreground text-sm">
+              <Users className="h-4 w-4" />
+              Membership Revenue
+            </div>
+            <p className="text-2xl font-bold mt-1">${membershipRevenue.toFixed(2)}</p>
           </CardContent>
         </Card>
         <Card>
@@ -554,8 +630,8 @@ export function SalesReporting() {
                         <div className="text-sm text-muted-foreground">{format(sale.date, "h:mm a")}</div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={sale.type === "booking" ? "default" : "secondary"}>
-                          {sale.type === "booking" ? "Booking" : "POS"}
+                        <Badge variant={sale.type === "booking" ? "default" : sale.type === "membership" ? "outline" : "secondary"}>
+                          {sale.type === "booking" ? "Booking" : sale.type === "membership" ? "Membership" : "POS"}
                         </Badge>
                       </TableCell>
                       <TableCell className="max-w-[300px] truncate">{sale.description}</TableCell>

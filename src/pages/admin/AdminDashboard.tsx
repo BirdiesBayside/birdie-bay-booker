@@ -48,6 +48,12 @@ const memberRevenueLabels: Record<MemberRevenueFilter, string> = {
   quarterly: "Quarterly",
 };
 
+const tierDisplayNames: Record<string, string> = {
+  weekday: "Weekday",
+  birdie: "Birdie",
+  eagle: "Eagle",
+};
+
 export default function AdminDashboard() {
   const { isAdmin, isLoading } = useAdminAuth();
   const [stats, setStats] = useState<DashboardStats>({
@@ -221,7 +227,17 @@ export default function AdminDashboard() {
       }
     }
 
-    const revenue = bookingRevenue + posRevenue;
+    // Fetch membership payments for the period
+    const { data: membershipPaymentsData } = await supabase
+      .from('membership_payments')
+      .select('amount, tier')
+      .gte('paid_at', revenueRange.start)
+      .lte('paid_at', revenueRange.end);
+
+    const membershipRevenue = (membershipPaymentsData || [])
+      .reduce((sum, p) => sum + Number(p.amount), 0);
+
+    const revenue = bookingRevenue + posRevenue + membershipRevenue;
 
     // Fetch occupancy based on filter (uses booking_date which is a DATE column)
     const occupancyRange = getBookingDateRange(occupancyFilter);

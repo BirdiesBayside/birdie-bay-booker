@@ -534,6 +534,91 @@ serve(async (req) => {
       }
     }
 
+    // Handle successful subscription payment - record for revenue tracking
+    if (event.type === "invoice.payment_succeeded") {
+      const invoice = event.data.object as Stripe.Invoice;
+      const customerId = invoice.customer as string;
+      const subscriptionId = invoice.subscription as string;
+
+      logStep("Invoice payment succeeded", { invoiceId: invoice.id, subscriptionId });
+
+      // Only process if this is a subscription invoice (not one-time payments)
+      if (subscriptionId && invoice.billing_reason !== "manual") {
+        const customer = await stripe.customers.retrieve(customerId);
+        if (customer.deleted) {
+          logStep("Customer deleted, skipping payment recording");
+          return new Response(JSON.stringify({ received: true }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        const email = customer.email;
+        if (!email) {
+          logStep("No email found for customer, cannot record payment");
+          return new Response(JSON.stringify({ received: true }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        // Get user profile
+        const { data: profile } = await supabaseAdmin
+          .from("profiles")
+          .select("user_id, membership_tier")
+          .eq("email", email)
+          .maybeSingle();
+
+        if (!profile?.user_id) {
+          logStep("No profile found for email, cannot record payment", { email });
+          return new Response(JSON.stringify({ received: true }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        // Determine tier from subscription price
+        const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+        const priceId = subscription.items.data[0]?.price?.id;
+        const tier = priceId ? (PRICE_TO_TIER[priceId] || profile.membership_tier || "unknown") : (profile.membership_tier || "unknown");
+
+        // Amount is in cents, convert to dollars
+        const amount = (invoice.amount_paid || 0) / 100;
+
+        // Skip $0 payments (first week free)
+        if (amount <= 0) {
+          logStep("Skipping $0 payment (likely free trial)", { invoiceId: invoice.id });
+          return new Response(JSON.stringify({ received: true }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        // Insert membership payment record
+        const { error: insertError } = await supabaseAdmin
+          .from("membership_payments")
+          .upsert({
+            user_id: profile.user_id,
+            stripe_invoice_id: invoice.id,
+            stripe_customer_id: customerId,
+            amount: amount,
+            tier: tier,
+            period_start: invoice.period_start ? new Date(invoice.period_start * 1000).toISOString() : null,
+            period_end: invoice.period_end ? new Date(invoice.period_end * 1000).toISOString() : null,
+            paid_at: new Date().toISOString(),
+          }, {
+            onConflict: 'stripe_invoice_id'
+          });
+
+        if (insertError) {
+          logStep("Error recording membership payment", { error: insertError.message });
+        } else {
+          logStep("Membership payment recorded", { 
+            email, 
+            tier, 
+            amount, 
+            invoiceId: invoice.id 
+          });
+        }
+      }
+    }
+
     return new Response(JSON.stringify({ received: true }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
