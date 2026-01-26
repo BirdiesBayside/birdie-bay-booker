@@ -74,7 +74,46 @@ async function sgtGetRequest(endpoint: string, params: Record<string, string> = 
   return response.json();
 }
 
-async function sgtPostRequest(endpoint: string, params: Record<string, string | number>, retryCount = 0): Promise<unknown> {
+ async function deleteAndReregisterPlayer(
+   tournamentId: number, 
+   tourId: number, 
+   userId: number
+ ): Promise<{ success: boolean; error?: string }> {
+   
+   // Step 1: Delete the registration
+   console.log(`[SGT-FIX-TEES] Deleting registration for user ${userId}`);
+   const deleteResult = await sgtPostRequest("/registrations/delete", {
+     tournamentId,
+     tourId,
+     userId,
+   }) as { success?: boolean; feedback?: string; raw?: string };
+ 
+   if (!deleteResult.success) {
+     const errorMsg = deleteResult.feedback || deleteResult.raw || JSON.stringify(deleteResult);
+     return { success: false, error: `Delete failed: ${errorMsg}` };
+   }
+ 
+   // Delay between delete and re-register
+   await new Promise(resolve => setTimeout(resolve, 500));
+ 
+   // Step 2: Re-register with Blue tees
+   console.log(`[SGT-FIX-TEES] Re-registering user ${userId} with Blue tees`);
+   const registerResult = await sgtPostRequest("/registrations/register-members", {
+     tournamentId,
+     tourId,
+     userIds: userId,
+     tee_type: "Blue",  // Explicitly set Blue tees
+   }) as { success?: boolean; feedback?: string; raw?: string };
+ 
+   if (!registerResult.success) {
+     const errorMsg = registerResult.feedback || registerResult.raw || JSON.stringify(registerResult);
+     return { success: false, error: `Re-register failed: ${errorMsg}` };
+   }
+ 
+   return { success: true };
+ }
+ 
+ async function sgtPostRequest(endpoint: string, params: Record<string, string | number>, retryCount = 0): Promise<unknown> {
   const apiKey = await getApiKey();
   
   const formData = new URLSearchParams();
@@ -137,7 +176,7 @@ serve(async (req) => {
       );
     }
 
-    console.log(`[SGT-FIX-TEES] Fixing tees for tournament ${tournament_id} using tee_type: Default`);
+     console.log(`[SGT-FIX-TEES] Fixing tees for tournament ${tournament_id} by delete+re-register with Blue tees`);
 
     // Get current registrations for this tournament
     const registrationsResponse = await sgtGetRequest("/registrations/view", { 
@@ -153,30 +192,22 @@ serve(async (req) => {
     console.log(`[SGT-FIX-TEES] Found ${registrations.length} registrations`);
     console.log(`[SGT-FIX-TEES] Current tee types:`, registrations.map(r => ({ user: r.user_name, tee: r.tee_type })));
 
-    const results: { userId: number; userName: string; oldTee: string; success: boolean; error?: string }[] = [];
-
-    // Edit each registration to set tee_type to "Default"
-    for (const reg of registrations) {
-      console.log(`[SGT-FIX-TEES] Editing registration for user ${reg.user_id} (${reg.user_name})`);
-      
-      const editResult = await sgtPostRequest("/registrations/edit", {
-        tournamentId: tournament_id,
-        tourId: tour_id,
-        userId: reg.user_id,
-        tee_type: "Blue",  // Use "Blue" tees
-      }) as { success?: boolean; feedback?: string; raw?: string };
-
-      results.push({
-        userId: reg.user_id,
-        userName: reg.user_name,
-        oldTee: reg.tee_type || 'unknown',
-        success: !!editResult.success,
-        error: editResult.success ? undefined : (editResult.feedback || editResult.raw || JSON.stringify(editResult)),
-      });
-      
-      // Small delay between requests
-      await new Promise(resolve => setTimeout(resolve, 300));
-    }
+     const results: { userId: number; userName: string; oldTee: string; success: boolean; error?: string }[] = [];
+ 
+     // Delete and re-register each player with Blue tees
+     for (const reg of registrations) {
+       const result = await deleteAndReregisterPlayer(tournament_id, tour_id, reg.user_id);
+       results.push({
+         userId: reg.user_id,
+         userName: reg.user_name,
+         oldTee: reg.tee_type || 'unknown',
+         success: result.success,
+         error: result.error,
+       });
+       
+       // Longer delay between players to avoid rate limiting
+       await new Promise(resolve => setTimeout(resolve, 1000));
+     }
 
     const successCount = results.filter(r => r.success).length;
     const failCount = results.filter(r => !r.success).length;
@@ -187,7 +218,7 @@ serve(async (req) => {
       JSON.stringify({ 
         success: true,
         totalRegistrations: registrations.length,
-        updated: successCount,
+         fixed: successCount,
         failed: failCount,
         results,
       }),
