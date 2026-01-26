@@ -374,10 +374,29 @@ serve(async (req) => {
           const registrationsResponse = await sgtGetRequest("/registrations/view", { 
             tournamentId: tournament.tournamentId.toString() 
           });
-          const registrations = extractArray(registrationsResponse, ['registrations', 'results']) as { user_id: number }[];
+          const registrations = extractArray(registrationsResponse, ['registrations', 'results']) as { user_id: number; registration_id?: number }[];
           
-          if (registrations.some(r => r.user_id === sgt_user_id)) {
-            console.log(`[SGT-AUTO-REG] User already registered for tournament ${tournament.name}`);
+          const existingReg = registrations.find(r => r.user_id === sgt_user_id);
+          
+          // If already registered AND we have a custom HCP to set, delete the old registration first
+          if (existingReg && useCustomCap && customHcp !== null) {
+            console.log(`[SGT-AUTO-REG] User already registered for ${tournament.name} - deleting to re-register with custom HCP ${customHcp}`);
+            
+            // Delete the existing registration
+            try {
+              const deleteResult = await sgtPostRequest("/registrations/delete", {
+                tournamentId: tournament.tournamentId,
+                tourId: tourId,
+                userId: sgt_user_id,
+              });
+              console.log(`[SGT-AUTO-REG] Deleted existing registration for ${tournament.name}:`, deleteResult);
+            } catch (deleteErr) {
+              console.error(`[SGT-AUTO-REG] Failed to delete existing registration:`, deleteErr);
+              // Continue anyway - maybe we can still register
+            }
+          } else if (existingReg) {
+            // Already registered and no custom HCP needed - skip
+            console.log(`[SGT-AUTO-REG] User already registered for tournament ${tournament.name} with combo HCP`);
             continue;
           }
 
