@@ -131,16 +131,16 @@ serve(async (req) => {
 
   try {
     const body = await req.json().catch(() => ({}));
-    const { tournament_id, tour_id } = body;
+    const { tournament_id, tour_id, force_reregister } = body;
 
-    console.log(`[SGT-TOURN-REG] Request received - Daily auto-registration for all active tournaments`);
+    console.log(`[SGT-TOURN-REG] Request received - ${force_reregister ? 'Force re-registration' : 'Daily auto-registration'} for ${tournament_id ? `tournament ${tournament_id}` : 'all active tournaments'}`);
 
     const results: { tournamentId: number; tournamentName: string; tourName: string; registered: number; alreadyRegistered: number; errors: string[] }[] = [];
 
     // If specific tournament provided, register for that one
     if (tournament_id && tour_id) {
-      console.log(`[SGT-TOURN-REG] Registering all members for specific tournament ${tournament_id}`);
-      const result = await registerAllMembersForTournament(tournament_id, tour_id);
+      console.log(`[SGT-TOURN-REG] Registering all members for specific tournament ${tournament_id}${force_reregister ? ' (FORCE RE-REGISTER)' : ''}`);
+      const result = await registerAllMembersForTournament(tournament_id, tour_id, undefined, undefined, force_reregister);
       results.push(result);
     } else {
       // Get ALL active tours from SGT API
@@ -250,11 +250,13 @@ async function registerAllMembersForTournament(
   tournamentId: number, 
   tourId: number, 
   tournamentName?: string,
-  tourName?: string
-): Promise<{ tournamentId: number; tournamentName: string; tourName: string; registered: number; alreadyRegistered: number; errors: string[] }> {
+  tourName?: string,
+  forceReregister?: boolean
+): Promise<{ tournamentId: number; tournamentName: string; tourName: string; registered: number; alreadyRegistered: number; deleted: number; errors: string[] }> {
   const errors: string[] = [];
+  let deletedCount = 0;
   
-  console.log(`[SGT-TOURN-REG] Registering all members for tournament ${tournamentId} (tour ${tourId})`);
+  console.log(`[SGT-TOURN-REG] ${forceReregister ? 'Force re-registering' : 'Registering'} all members for tournament ${tournamentId} (tour ${tourId})`);
 
   // Get current registrations for this tournament
   const registrationsResponse = await sgtGetRequest("/registrations/view", { 
@@ -265,13 +267,34 @@ async function registerAllMembersForTournament(
 
   console.log(`[SGT-TOURN-REG] Tournament has ${registeredUserIds.size} existing registrations`);
 
+  // If force re-register, delete ALL existing registrations first
+  if (forceReregister && currentRegistrations.length > 0) {
+    console.log(`[SGT-TOURN-REG] Force mode: Deleting ${currentRegistrations.length} existing registrations...`);
+    
+    for (const reg of currentRegistrations) {
+      try {
+        await sgtPostRequestDelete(tournamentId, tourId, reg.user_id);
+        deletedCount++;
+        console.log(`[SGT-TOURN-REG] Deleted registration for user ${reg.user_id}`);
+      } catch (err) {
+        const errMsg = `Failed to delete registration for user ${reg.user_id}: ${err instanceof Error ? err.message : 'Unknown error'}`;
+        console.error(`[SGT-TOURN-REG] ${errMsg}`);
+        errors.push(errMsg);
+      }
+    }
+    
+    console.log(`[SGT-TOURN-REG] Deleted ${deletedCount} registrations`);
+    // Clear the set so everyone gets re-registered
+    registeredUserIds.clear();
+  }
+
   // Get all tour members
   const tourMembersResponse = await sgtGetRequest("/tours/members", { tourId: tourId.toString() });
   const tourMembers = extractArray(tourMembersResponse, ['members', 'results']) as { user_id: number; user_name: string }[];
 
   console.log(`[SGT-TOURN-REG] Tour has ${tourMembers.length} members`);
 
-  // Find members not yet registered
+  // Find members not yet registered (or all if force mode cleared the set)
   const membersToRegister = tourMembers.filter(m => !registeredUserIds.has(m.user_id));
 
   console.log(`[SGT-TOURN-REG] ${membersToRegister.length} members need registration`);
@@ -283,7 +306,8 @@ async function registerAllMembersForTournament(
       tourName: tourName || `Tour ${tourId}`,
       registered: 0,
       alreadyRegistered: tourMembers.length,
-      errors: []
+      deleted: deletedCount,
+      errors
     };
   }
 
@@ -324,6 +348,31 @@ async function registerAllMembersForTournament(
     tourName: tourName || `Tour ${tourId}`,
     registered: totalRegistered,
     alreadyRegistered: registeredUserIds.size,
+    deleted: deletedCount,
     errors
   };
+}
+
+// Delete a single registration
+async function sgtPostRequestDelete(tournamentId: number, tourId: number, userId: number): Promise<unknown> {
+  const apiKey = await getApiKey();
+  
+  const formData = new URLSearchParams();
+  formData.append("api-key", apiKey);
+  formData.append("tournamentId", tournamentId.toString());
+  formData.append("tourId", tourId.toString());
+  formData.append("userId", userId.toString());
+
+  const response = await fetch(`${SGT_BASE_URL}/${CLUB_URL}/registrations/delete`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`SGT API error: ${response.status} - ${text}`);
+  }
+
+  return response.json();
 }
