@@ -618,23 +618,47 @@ serve(async (req) => {
       }
 
       // Tour Members
+      // IMPORTANT: Only sync tour members who are ALREADY in our sgt_tour_members table.
+      // This prevents SGT-added members from bypassing the admin onboarding step.
+      // New members should only be added via the admin onboarding UI or sgt-auto-register.
       try {
         const tourMembersResponse = await sgtRequest("/tours/members", { tourId: t.tourId.toString() });
         const tourMembers = extractArray(tourMembersResponse, ['members', 'results']);
         
+        // Get existing tour members from our local DB for this tour
+        const { data: existingLocalTourMembers } = await supabase
+          .from("sgt_tour_members")
+          .select("user_id")
+          .eq("tour_id", t.tourId);
+        
+        const localTourMemberIds = new Set((existingLocalTourMembers || []).map(m => m.user_id));
+        
+        let syncedCount = 0;
+        let skippedCount = 0;
+        
         for (const member of tourMembers) {
           const m = member as { user_id: number; user_name: string; hcp_index?: number; custom_hcp?: number };
-          await supabase.from("sgt_tour_members").upsert({
-            tour_id: t.tourId,
-            user_id: m.user_id,
-            user_name: m.user_name,
-            hcp_index: m.hcp_index,
-            custom_hcp: m.custom_hcp,
-            updated_at: new Date().toISOString(),
-          }, { onConflict: 'tour_id,user_id' });
-          totalRecords++;
+          
+          // Only update members who are ALREADY in our local tour_members table
+          // This prevents bypassing the onboarding process for pending members
+          if (localTourMemberIds.has(m.user_id)) {
+            await supabase.from("sgt_tour_members").upsert({
+              tour_id: t.tourId,
+              user_id: m.user_id,
+              user_name: m.user_name,
+              hcp_index: m.hcp_index,
+              // Don't overwrite custom_hcp - preserve admin-set value
+              // custom_hcp is intentionally NOT updated here
+              updated_at: new Date().toISOString(),
+            }, { onConflict: 'tour_id,user_id' });
+            syncedCount++;
+            totalRecords++;
+          } else {
+            // Member is on SGT but not in our local DB - skip (pending onboarding)
+            skippedCount++;
+          }
         }
-        console.log(`[SGT-SYNC] Synced ${tourMembers.length} members for tour ${t.tourId}`);
+        console.log(`[SGT-SYNC] Tour ${t.tourId}: synced ${syncedCount} members, skipped ${skippedCount} (pending onboarding)`);
       } catch (e) {
         console.error(`[SGT-SYNC] Error syncing members for tour ${t.tourId}:`, e);
       }

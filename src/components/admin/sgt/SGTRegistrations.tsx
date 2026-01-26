@@ -41,6 +41,7 @@ interface OnboardedMember {
   id: string;
   user_id: number;
   user_name: string | null;
+  email?: string;
   custom_hcp: number | null;
   tour_count: number;
 }
@@ -50,6 +51,8 @@ export function SGTRegistrations() {
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
   const [onboardingMemberId, setOnboardingMemberId] = useState<number | null>(null);
+  const [editingMemberId, setEditingMemberId] = useState<number | null>(null);
+  const [editHandicapValue, setEditHandicapValue] = useState<string>("");
   const [handicapValue, setHandicapValue] = useState<string>("");
 
   // Fetch pending members (have sgt_user_id but NOT in any sgt_tour_members)
@@ -94,6 +97,16 @@ export function SGTRegistrations() {
 
       if (error) throw error;
 
+      // Get profile emails for matching
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("sgt_user_id, email")
+        .not("sgt_user_id", "is", null);
+      
+      const sgtIdToEmail = new Map(
+        (profiles || []).map(p => [p.sgt_user_id, p.email])
+      );
+
       // Group by user_id and count tours
       const memberMap = new Map<number, OnboardedMember>();
       (data || []).forEach(tm => {
@@ -104,6 +117,7 @@ export function SGTRegistrations() {
             user_name: tm.user_name,
             custom_hcp: tm.custom_hcp,
             tour_count: 1,
+            email: sgtIdToEmail.get(tm.user_id),
           });
         } else {
           const existing = memberMap.get(tm.user_id)!;
@@ -196,6 +210,42 @@ export function SGTRegistrations() {
     },
   });
 
+  // Mutation to edit an onboarded member's handicap
+  const editHcpMutation = useMutation({
+    mutationFn: async ({ userId, customHcp }: { userId: number; customHcp: number }) => {
+      console.log(`[SGT-EDIT-HCP] Updating HCP for user ${userId} to ${customHcp}`);
+
+      // Update all tour_members records for this user
+      const { error } = await supabase
+        .from("sgt_tour_members")
+        .update({ 
+          custom_hcp: customHcp,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("user_id", userId);
+
+      if (error) throw error;
+      return { userId, customHcp };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["sgt-onboarded-members"] });
+      queryClient.invalidateQueries({ queryKey: ["sgt-tour-members"] });
+      setEditingMemberId(null);
+      setEditHandicapValue("");
+      toast({ 
+        title: "Handicap updated",
+        description: `Custom handicap set to ${data.customHcp.toFixed(1)}`,
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Failed to update handicap",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleOnboard = (sgtUserId: number) => {
     const hcp = parseFloat(handicapValue);
     
@@ -211,6 +261,21 @@ export function SGTRegistrations() {
     onboardMutation.mutate({ sgtUserId, customHcp: hcp });
   };
 
+  const handleEditHcp = (userId: number) => {
+    const hcp = parseFloat(editHandicapValue);
+    
+    if (isNaN(hcp) || hcp < -10 || hcp > 54) {
+      toast({
+        title: "Invalid handicap",
+        description: "Please enter a handicap between -10 and 54",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    editHcpMutation.mutate({ userId, customHcp: hcp });
+  };
+
   const filteredPending = pendingMembers?.filter(m => {
     const query = searchQuery.toLowerCase();
     const fullName = `${m.first_name || ''} ${m.last_name || ''}`.toLowerCase();
@@ -221,9 +286,11 @@ export function SGTRegistrations() {
       m.display_name?.toLowerCase().includes(query);
   });
 
-  const filteredOnboarded = onboardedMembers?.filter(m =>
-    m.user_name?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredOnboarded = onboardedMembers?.filter(m => {
+    const query = searchQuery.toLowerCase();
+    return m.user_name?.toLowerCase().includes(query) ||
+      m.email?.toLowerCase().includes(query);
+  });
 
   return (
     <div className="space-y-6">
@@ -399,21 +466,46 @@ export function SGTRegistrations() {
                   <TableRow>
                     <TableHead>Username</TableHead>
                     <TableHead className="text-center">SGT ID</TableHead>
-                    <TableHead className="text-center">Custom HCP</TableHead>
+                    <TableHead className="text-center w-28">Custom HCP</TableHead>
                     <TableHead className="text-center">Tours</TableHead>
+                    <TableHead className="text-center w-20">Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredOnboarded.map((member) => (
                     <TableRow key={member.user_id}>
                       <TableCell className="font-medium">
-                        {member.user_name || `User ${member.user_id}`}
+                        <div>
+                          {member.user_name || `User ${member.user_id}`}
+                          {member.email && (
+                            <div className="text-xs text-muted-foreground">{member.email}</div>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="text-center">
                         <Badge variant="outline">{member.user_id}</Badge>
                       </TableCell>
                       <TableCell className="text-center">
-                        {member.custom_hcp !== null ? (
+                        {editingMemberId === member.user_id ? (
+                          <Input
+                            type="number"
+                            step="0.1"
+                            min="-10"
+                            max="54"
+                            value={editHandicapValue}
+                            onChange={(e) => setEditHandicapValue(e.target.value)}
+                            className="w-20 mx-auto text-center"
+                            placeholder="0.0"
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") handleEditHcp(member.user_id);
+                              if (e.key === "Escape") {
+                                setEditingMemberId(null);
+                                setEditHandicapValue("");
+                              }
+                            }}
+                          />
+                        ) : member.custom_hcp !== null ? (
                           <span className="font-semibold text-primary">
                             {member.custom_hcp.toFixed(1)}
                           </span>
@@ -423,6 +515,40 @@ export function SGTRegistrations() {
                       </TableCell>
                       <TableCell className="text-center">
                         <Badge variant="secondary">{member.tour_count}</Badge>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {editingMemberId === member.user_id ? (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  size="sm"
+                                  className="bg-green-600 hover:bg-green-700"
+                                  onClick={() => handleEditHcp(member.user_id)}
+                                  disabled={editHcpMutation.isPending || !editHandicapValue}
+                                >
+                                  {editHcpMutation.isPending ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Check className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Save Handicap</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setEditingMemberId(member.user_id);
+                              setEditHandicapValue(member.custom_hcp?.toString() || "");
+                            }}
+                          >
+                            Edit
+                          </Button>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
