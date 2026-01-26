@@ -74,6 +74,40 @@ serve(async (req) => {
       );
     }
 
+    // Check for existing user by email
+    const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
+    const existingByEmail = existingUsers?.users?.find(
+      u => u.email?.toLowerCase() === email.toLowerCase()
+    );
+    
+    if (existingByEmail) {
+      return new Response(
+        JSON.stringify({ error: "A customer with this email already exists in the system." }),
+        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Check for existing customer by phone number (if provided)
+    if (phone) {
+      const normalizedPhone = phone.replace(/\D/g, ''); // Remove non-digits for comparison
+      const { data: existingByPhone } = await supabaseAdmin
+        .from("profiles")
+        .select("id, email")
+        .not("phone", "is", null);
+      
+      const phoneMatch = existingByPhone?.find(p => {
+        const profilePhone = (p as any).phone?.replace(/\D/g, '');
+        return profilePhone && profilePhone === normalizedPhone;
+      });
+
+      if (phoneMatch) {
+        return new Response(
+          JSON.stringify({ error: "A customer with this phone number already exists in the system." }),
+          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
     // Create user using admin API (does not affect current session)
     const tempPassword = `Temp${crypto.randomUUID().slice(0, 8)}!`;
     
