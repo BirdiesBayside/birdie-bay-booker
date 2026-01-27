@@ -366,10 +366,10 @@ export default function AdminPOS() {
           });
         }, 1000);
 
-        // Poll for payment status
+        // Poll for payment status - faster polling for responsive UX
         let attempts = 0;
-        const maxAttempts = 30; // 1 minute timeout (30 * 2 seconds)
-        let lastStatus = '';
+        const maxAttempts = 60; // 1 minute timeout (60 * 1 second)
+        let consecutiveErrors = 0;
 
         const checkStatus = async () => {
           try {
@@ -379,30 +379,41 @@ export default function AdminPOS() {
 
             if (statusError) {
               console.error('Status check error:', statusError);
-              // Continue polling on error
+              consecutiveErrors++;
+              // Only fail after 3 consecutive errors
+              if (consecutiveErrors >= 3) {
+                clearInterval(countdownInterval);
+                toast.error("Connection error - please check terminal");
+                setTerminalPaymentIntentId(null);
+                setTerminalCountdown(null);
+                setIsProcessing(false);
+                return;
+              }
               attempts++;
               if (attempts < maxAttempts) {
-                setTimeout(checkStatus, 2000);
+                setTimeout(checkStatus, 1000);
               }
               return;
             }
 
+            // Reset error count on successful response
+            consecutiveErrors = 0;
             console.log('Payment status:', statusData);
-            lastStatus = statusData?.status || '';
 
             if (statusData?.paid) {
               clearInterval(countdownInterval);
-              await saveTransaction(method, paymentIntentId);
+              // Show success toast IMMEDIATELY before other operations
+              toast.success("Payment successful!", {
+                description: `$${total.toFixed(2)} paid via card terminal`,
+                duration: 5000,
+              });
+              // Then save transaction in background
+              saveTransaction(method, paymentIntentId).catch(console.error);
               setShowPaymentDialog(false);
               setTerminalPaymentIntentId(null);
               setTerminalCountdown(null);
               clearCart();
               setIsProcessing(false);
-              // Show success toast AFTER clearing state so it's visible
-              toast.success("Payment successful!", {
-                description: `$${total.toFixed(2)} paid via card terminal`,
-                duration: 5000,
-              });
               return;
             }
 
@@ -419,7 +430,8 @@ export default function AdminPOS() {
             // Continue polling for any other status (requires_payment_method, processing, etc.)
             attempts++;
             if (attempts < maxAttempts) {
-              setTimeout(checkStatus, 2000);
+              // Poll every 1 second for faster response
+              setTimeout(checkStatus, 1000);
             } else {
               clearInterval(countdownInterval);
               // Cancel the reader action on timeout
@@ -433,15 +445,24 @@ export default function AdminPOS() {
             }
           } catch (err) {
             console.error('Polling error:', err);
-            // Continue polling on error
+            consecutiveErrors++;
+            if (consecutiveErrors >= 3) {
+              clearInterval(countdownInterval);
+              toast.error("Connection error");
+              setTerminalPaymentIntentId(null);
+              setTerminalCountdown(null);
+              setIsProcessing(false);
+              return;
+            }
             attempts++;
             if (attempts < maxAttempts) {
-              setTimeout(checkStatus, 2000);
+              setTimeout(checkStatus, 1000);
             }
           }
         };
 
-        setTimeout(checkStatus, 2000);
+        // Start polling after just 1 second (faster initial check)
+        setTimeout(checkStatus, 1000);
         return; // Don't close dialog yet for POS
       } else {
         // Cash payment
