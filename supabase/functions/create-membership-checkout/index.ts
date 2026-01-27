@@ -12,6 +12,8 @@ const logStep = (step: string, details?: any) => {
   console.log(`[CREATE-MEMBERSHIP-CHECKOUT] ${step}${detailsStr}`);
 };
 
+const FREE_WEEK_COUPON = 'ScFMsNsB';
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -27,6 +29,11 @@ serve(async (req) => {
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_ANON_KEY") ?? ""
+    );
+
+    const supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
     const authHeader = req.headers.get("Authorization");
@@ -45,12 +52,21 @@ serve(async (req) => {
     if (!priceId || !tierKey) throw new Error("Missing priceId or tierKey");
     logStep("Request body parsed", { priceId, tierKey });
 
+    // Check if user has previously had a membership (check membership_payments table)
+    const { data: previousPayments, error: paymentsError } = await supabaseAdmin
+      .from("membership_payments")
+      .select("id")
+      .eq("user_id", user.id)
+      .limit(1);
+
+    const hasPreviousMembership = previousPayments && previousPayments.length > 0;
+    logStep("Previous membership check", { hasPreviousMembership, userId: user.id });
+
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
 
     // Generate idempotency key to prevent duplicate subscriptions
-    // NOTE: include a version + priceId so changes in parameters don't collide with previous idempotent attempts
     const dateKey = new Date().toISOString().split("T")[0];
-    const idempotencyKey = `membership_v2_${user.id}_${tierKey}_${priceId}_${dateKey}`;
+    const idempotencyKey = `membership_v3_${user.id}_${tierKey}_${priceId}_${dateKey}`;
     logStep("Using idempotency key", { idempotencyKey });
 
     // Check if customer already exists
@@ -103,18 +119,26 @@ serve(async (req) => {
           }
         }
 
-        // Create subscription directly using saved payment method with idempotency key
-        // Launch promo: Apply coupon for first week free
-        const subscription = await stripe.subscriptions.create({
+        // Create subscription - only apply free week coupon for first-time members
+        const subscriptionParams: Stripe.SubscriptionCreateParams = {
           customer: customerId,
           items: [{ price: priceId }],
           default_payment_method: defaultPaymentMethod,
-          discounts: [{ coupon: 'ScFMsNsB' }], // Launch promo - first week free
           metadata: {
             user_id: user.id,
             tier_key: tierKey,
           },
-        }, {
+        };
+
+        // Only apply coupon if user has never had a membership before
+        if (!hasPreviousMembership) {
+          subscriptionParams.discounts = [{ coupon: FREE_WEEK_COUPON }];
+          logStep("Applying first week free coupon (new member)");
+        } else {
+          logStep("Skipping coupon (returning member)");
+        }
+
+        const subscription = await stripe.subscriptions.create(subscriptionParams, {
           idempotencyKey: idempotencyKey,
         });
 
@@ -136,7 +160,7 @@ serve(async (req) => {
 
     const origin = req.headers.get("origin") || "https://hub.birdiesbayside.com.au";
 
-    const session = await stripe.checkout.sessions.create({
+    const checkoutParams: Stripe.Checkout.SessionCreateParams = {
       customer: customerId,
       customer_email: customerId ? undefined : user.email,
       payment_method_types: ["card"],
@@ -147,7 +171,6 @@ serve(async (req) => {
         },
       ],
       mode: "subscription",
-      discounts: [{ coupon: 'ScFMsNsB' }], // Launch promo - first week free
       success_url: `${origin}/membership?success=true&tier=${tierKey}`,
       cancel_url: `${origin}/membership?cancelled=true`,
       metadata: {
@@ -160,7 +183,17 @@ serve(async (req) => {
           tier_key: tierKey,
         },
       },
-    }, {
+    };
+
+    // Only apply coupon if user has never had a membership before
+    if (!hasPreviousMembership) {
+      checkoutParams.discounts = [{ coupon: FREE_WEEK_COUPON }];
+      logStep("Applying first week free coupon for checkout (new member)");
+    } else {
+      logStep("Skipping coupon for checkout (returning member)");
+    }
+
+    const session = await stripe.checkout.sessions.create(checkoutParams, {
       idempotencyKey: `checkout_${idempotencyKey}`,
     });
 
