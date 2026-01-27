@@ -893,6 +893,7 @@ export type Database = {
       sgt_members: {
         Row: {
           created_at: string
+          exempt_from_cleanup: boolean
           id: string
           updated_at: string
           user_active: number
@@ -905,6 +906,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          exempt_from_cleanup?: boolean
           id?: string
           updated_at?: string
           user_active?: number
@@ -917,6 +919,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          exempt_from_cleanup?: boolean
           id?: string
           updated_at?: string
           user_active?: number
