@@ -449,6 +449,94 @@ serve(async (req) => {
     }
     console.log(`[SGT-SYNC] Synced ${members.length} members (${newMemberUserIds.length} new)`);
 
+    // CLEANUP: Remove SGT members who no longer have active Birdies memberships
+    // This ensures only paying members retain SGT access
+    console.log("[SGT-SYNC] Running membership cleanup...");
+    let cleanupCount = 0;
+    
+    // Get all SGT members from our local database with their linked Birdies profiles
+    const { data: sgtMembersForCleanup } = await supabase
+      .from("sgt_members")
+      .select("user_id, user_name, exempt_from_cleanup");
+    
+    // Get profiles linked to SGT with their membership tiers
+    const { data: linkedProfiles } = await supabase
+      .from("profiles")
+      .select("sgt_user_id, membership_tier, first_name, last_name")
+      .not("sgt_user_id", "is", null);
+    
+    // Create a map of sgt_user_id -> membership_tier
+    const membershipMap = new Map<number, string>();
+    for (const profile of linkedProfiles || []) {
+      if (profile.sgt_user_id) {
+        membershipMap.set(profile.sgt_user_id, profile.membership_tier);
+      }
+    }
+    
+    // Find members to remove: linked to a 'visitor' tier OR not linked at all
+    // Exclude those marked as exempt_from_cleanup
+    for (const sgtMember of sgtMembersForCleanup || []) {
+      // Skip exempt members (e.g., Daryl_C)
+      if (sgtMember.exempt_from_cleanup) {
+        console.log(`[SGT-SYNC] Skipping cleanup for exempt member: ${sgtMember.user_name}`);
+        continue;
+      }
+      
+      const membershipTier = membershipMap.get(sgtMember.user_id);
+      
+      // If linked to a visitor OR not linked to any Birdies account, remove from SGT
+      if (membershipTier === 'visitor' || membershipTier === undefined) {
+        console.log(`[SGT-SYNC] Removing ${sgtMember.user_name} (ID: ${sgtMember.user_id}) - tier: ${membershipTier || 'not linked'}`);
+        
+        try {
+          // Delete from SGT platform via API
+          const apiKey = await getApiKey(supabase);
+          const formData = new URLSearchParams();
+          formData.append("api-key", apiKey);
+          formData.append("user_id", sgtMember.user_id.toString());
+          
+          const deleteResponse = await fetch(`${SGT_BASE_URL}/${CLUB_URL}/members/delete`, {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: formData.toString(),
+          });
+          
+          const deleteData = await deleteResponse.json();
+          console.log(`[SGT-SYNC] Delete response for ${sgtMember.user_name}:`, deleteData);
+          
+          // Remove from local sgt_members table
+          await supabase
+            .from("sgt_members")
+            .delete()
+            .eq("user_id", sgtMember.user_id);
+          
+          // Clear sgt_user_id from profile if linked
+          if (membershipTier !== undefined) {
+            await supabase
+              .from("profiles")
+              .update({ sgt_user_id: null })
+              .eq("sgt_user_id", sgtMember.user_id);
+          }
+          
+          // Remove from tour members
+          await supabase
+            .from("sgt_tour_members")
+            .delete()
+            .eq("user_id", sgtMember.user_id);
+          
+          cleanupCount++;
+        } catch (cleanupError) {
+          console.error(`[SGT-SYNC] Error removing ${sgtMember.user_name}:`, cleanupError);
+        }
+      }
+    }
+    
+    if (cleanupCount > 0) {
+      console.log(`[SGT-SYNC] ✓ Cleanup complete: removed ${cleanupCount} inactive members from SGT`);
+    } else {
+      console.log("[SGT-SYNC] No inactive members to clean up");
+    }
+
     // AUTO-LINK: Match SGT members to Birdies profiles by email
     // This handles cases where users registered on SGT directly and weren't linked
     console.log("[SGT-SYNC] Checking for unlinked profiles to auto-link...");
