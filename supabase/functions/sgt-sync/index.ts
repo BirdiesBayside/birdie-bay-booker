@@ -449,8 +449,9 @@ serve(async (req) => {
     }
     console.log(`[SGT-SYNC] Synced ${members.length} members (${newMemberUserIds.length} new)`);
 
-    // CLEANUP: Remove SGT members who no longer have active Birdies memberships
-    // This ensures only paying members retain SGT access
+    // CLEANUP: Remove SGT members from club who no longer have active Birdies memberships
+    // Uses /members/remove to remove from club (NOT /members/delete which deletes the SGT account entirely)
+    // Keeps sgt_user_id on profile so we can re-add them when membership is reinstated
     console.log("[SGT-SYNC] Running membership cleanup...");
     let cleanupCount = 0;
     
@@ -484,41 +485,35 @@ serve(async (req) => {
       
       const membershipTier = membershipMap.get(sgtMember.user_id);
       
-      // If linked to a visitor OR not linked to any Birdies account, remove from SGT
+      // If linked to a visitor OR not linked to any Birdies account, remove from club
       if (membershipTier === 'visitor' || membershipTier === undefined) {
-        console.log(`[SGT-SYNC] Removing ${sgtMember.user_name} (ID: ${sgtMember.user_id}) - tier: ${membershipTier || 'not linked'}`);
+        console.log(`[SGT-SYNC] Removing ${sgtMember.user_name} (ID: ${sgtMember.user_id}) from club - tier: ${membershipTier || 'not linked'}`);
         
         try {
-          // Delete from SGT platform via API
+          // REMOVE from SGT club via API (not delete - they keep their SGT account)
           const apiKey = await getApiKey(supabase);
           const formData = new URLSearchParams();
           formData.append("api-key", apiKey);
           formData.append("user_id", sgtMember.user_id.toString());
           
-          const deleteResponse = await fetch(`${SGT_BASE_URL}/${CLUB_URL}/members/delete`, {
+          const removeResponse = await fetch(`${SGT_BASE_URL}/${CLUB_URL}/members/remove`, {
             method: "POST",
             headers: { "Content-Type": "application/x-www-form-urlencoded" },
             body: formData.toString(),
           });
           
-          const deleteData = await deleteResponse.json();
-          console.log(`[SGT-SYNC] Delete response for ${sgtMember.user_name}:`, deleteData);
+          const removeData = await removeResponse.json();
+          console.log(`[SGT-SYNC] Remove from club response for ${sgtMember.user_name}:`, removeData);
           
-          // Remove from local sgt_members table
+          // Remove from local sgt_members table (they're no longer in our club)
           await supabase
             .from("sgt_members")
             .delete()
             .eq("user_id", sgtMember.user_id);
           
-          // Clear sgt_user_id from profile if linked
-          if (membershipTier !== undefined) {
-            await supabase
-              .from("profiles")
-              .update({ sgt_user_id: null })
-              .eq("sgt_user_id", sgtMember.user_id);
-          }
+          // NOTE: We keep sgt_user_id on the profile so we can re-add them when membership is reinstated
           
-          // Remove from tour members
+          // Remove from tour members (they can't participate in tours without club membership)
           await supabase
             .from("sgt_tour_members")
             .delete()
@@ -526,15 +521,67 @@ serve(async (req) => {
           
           cleanupCount++;
         } catch (cleanupError) {
-          console.error(`[SGT-SYNC] Error removing ${sgtMember.user_name}:`, cleanupError);
+          console.error(`[SGT-SYNC] Error removing ${sgtMember.user_name} from club:`, cleanupError);
         }
       }
     }
     
     if (cleanupCount > 0) {
-      console.log(`[SGT-SYNC] ✓ Cleanup complete: removed ${cleanupCount} inactive members from SGT`);
+      console.log(`[SGT-SYNC] ✓ Cleanup complete: removed ${cleanupCount} inactive members from club`);
     } else {
       console.log("[SGT-SYNC] No inactive members to clean up");
+    }
+
+    // REINSTATE: Add back members who have an sgt_user_id but aren't in the club (upgraded from visitor)
+    console.log("[SGT-SYNC] Checking for members to reinstate...");
+    let reinstateCount = 0;
+    
+    // Get profiles with sgt_user_id and active membership (birdie or higher)
+    const { data: profilesToReinstate } = await supabase
+      .from("profiles")
+      .select("sgt_user_id, membership_tier, first_name, last_name, email")
+      .not("sgt_user_id", "is", null)
+      .neq("membership_tier", "visitor");
+    
+    // Get current club members
+    const currentMemberIds = new Set((sgtMembersForCleanup || []).map(m => m.user_id));
+    
+    for (const profile of profilesToReinstate || []) {
+      if (!profile.sgt_user_id) continue;
+      
+      // Skip if already in the club
+      if (currentMemberIds.has(profile.sgt_user_id)) continue;
+      
+      console.log(`[SGT-SYNC] Reinstating ${profile.first_name} ${profile.last_name} (SGT ID: ${profile.sgt_user_id}) to club - tier: ${profile.membership_tier}`);
+      
+      try {
+        // Add member back to club via API
+        const apiKey = await getApiKey(supabase);
+        const formData = new URLSearchParams();
+        formData.append("api-key", apiKey);
+        formData.append("user_id", profile.sgt_user_id.toString());
+        
+        const addResponse = await fetch(`${SGT_BASE_URL}/${CLUB_URL}/members/add`, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: formData.toString(),
+        });
+        
+        const addData = await addResponse.json();
+        console.log(`[SGT-SYNC] Add to club response for ${profile.first_name} ${profile.last_name}:`, addData);
+        
+        if (addData.success || addData.member) {
+          reinstateCount++;
+        }
+      } catch (reinstateError) {
+        console.error(`[SGT-SYNC] Error reinstating ${profile.first_name} ${profile.last_name}:`, reinstateError);
+      }
+    }
+    
+    if (reinstateCount > 0) {
+      console.log(`[SGT-SYNC] ✓ Reinstated ${reinstateCount} members to club`);
+    } else {
+      console.log("[SGT-SYNC] No members to reinstate");
     }
 
     // AUTO-LINK: Match SGT members to Birdies profiles by email
