@@ -13,13 +13,6 @@ const logStep = (step: string, details?: any) => {
   console.log(`[STRIPE-WEBHOOK] ${step}${detailsStr}`);
 };
 
-// Map Stripe price IDs to membership tiers (from pricing_config table)
-const PRICE_TO_TIER: Record<string, string> = {
-  "price_1SlMZXLpXZPXTNVB2aLrl9Qb": "weekday",
-  "price_1SlMZjLpXZPXTNVBK7nr4Wsr": "birdie",
-  "price_1SlMZtLpXZPXTNVBfgjiczGa": "eagle",
-};
-
 const TIER_NAMES: Record<string, string> = {
   "weekday": "Weekday",
   "birdie": "Birdie",
@@ -39,6 +32,25 @@ const replaceTemplateTags = (template: string, tags: Record<string, string>): st
     result = result.replace(new RegExp(tag.replace(/[{}]/g, '\\$&'), 'g'), value);
   }
   return result;
+};
+
+// Dynamically build price to tier map from database
+const getPriceToTierMap = async (supabaseAdmin: any): Promise<Record<string, string>> => {
+  const { data: pricingConfig } = await supabaseAdmin
+    .from("pricing_config")
+    .select("tier, stripe_price_id")
+    .eq("is_subscription", true);
+  
+  const map: Record<string, string> = {};
+  if (pricingConfig) {
+    for (const config of pricingConfig as Array<{ tier: string; stripe_price_id: string | null }>) {
+      if (config.stripe_price_id) {
+        map[config.stripe_price_id] = config.tier;
+      }
+    }
+  }
+  logStep("Loaded price to tier map", { map });
+  return map;
 };
 
 serve(async (req) => {
@@ -87,6 +99,9 @@ serve(async (req) => {
       { auth: { persistSession: false } }
     );
 
+    // Load dynamic price to tier map
+    const PRICE_TO_TIER = await getPriceToTierMap(supabaseAdmin);
+
     if (event.type === "customer.subscription.created" || event.type === "customer.subscription.updated") {
       const subscription = event.data.object as Stripe.Subscription;
       const customerId = subscription.customer as string;
@@ -111,6 +126,82 @@ serve(async (req) => {
       }
 
       logStep("Found customer email", { email });
+
+      // Handle past_due or unpaid subscriptions - revert to visitor
+      if (subscription.status === "past_due" || subscription.status === "unpaid") {
+        logStep("Subscription is past_due/unpaid, checking if should revert", { email, status: subscription.status });
+        
+        const { data: profile } = await supabaseAdmin
+          .from("profiles")
+          .select("first_name, last_name, membership_tier, custom_billing")
+          .eq("email", email)
+          .maybeSingle();
+
+        // Skip if custom billing enabled
+        if (profile?.custom_billing) {
+          logStep("Customer has custom billing enabled, skipping tier reset", { email });
+        } else if (profile?.membership_tier && profile.membership_tier !== "visitor") {
+          const previousTier = TIER_NAMES[profile.membership_tier] || profile.membership_tier;
+          
+          logStep("Resetting membership to visitor due to past_due status", { email, previousTier });
+          
+          const { error } = await supabaseAdmin
+            .from("profiles")
+            .update({ membership_tier: "visitor" })
+            .eq("email", email);
+
+          if (error) {
+            logStep("Error resetting profile", { error: error.message });
+          } else {
+            logStep("Membership tier reset to visitor");
+            
+            // Send payment failed notification
+            if (resend) {
+              const firstName = profile.first_name || customer.name?.split(" ")[0] || "there";
+              
+              const { data: emailTemplate } = await supabaseAdmin
+                .from("email_templates")
+                .select("*")
+                .eq("template_key", "payment_failed")
+                .eq("is_active", true)
+                .single();
+
+              if (emailTemplate) {
+                const templateTags: Record<string, string> = {
+                  '{first_name}': firstName,
+                  '{last_name}': profile.last_name || '',
+                  '{email}': email,
+                  '{tier_name}': previousTier,
+                };
+
+                let subject = emailTemplate.subject || "Payment Failed - Membership Update";
+                let htmlContent = emailTemplate.html_content || "";
+                
+                if (htmlContent) {
+                  htmlContent = replaceTemplateTags(htmlContent, templateTags);
+                  subject = replaceTemplateTags(subject, templateTags);
+
+                  try {
+                    await resend.emails.send({
+                      from: "Birdies Bayside <info@birdiesbayside.com.au>",
+                      to: [email],
+                      subject: subject,
+                      html: htmlContent,
+                    });
+                    logStep("Payment failed email sent", { email });
+                  } catch (emailError) {
+                    logStep("Failed to send payment failed email", { error: emailError });
+                  }
+                }
+              }
+            }
+          }
+        }
+        
+        return new Response(JSON.stringify({ received: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
 
       // Only update tier if subscription is active
       if (subscription.status === "active") {
