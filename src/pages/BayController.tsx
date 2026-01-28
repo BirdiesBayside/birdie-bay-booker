@@ -95,7 +95,7 @@ import "@/types/electron.d";
 import { useBayControllerLogger } from "@/hooks/useBayControllerLogger";
 
 const CORRECT_PASSWORD = "Holeinone1";
-const APP_VERSION = "1.0.3";
+const APP_VERSION = "1.0.4";
 
 // Debug log for Electron builds
 console.log(`Bay Controller v${APP_VERSION} starting...`, {
@@ -276,6 +276,34 @@ export default function BayController() {
     setDebugLogs(prev => [...prev.slice(-49), { time, message, type }]); // Keep last 50 logs
   }, []);
 
+  // Track active booking changes for logging
+  const previousActiveBookingRef = useRef<Booking | null>(null);
+  
+  useEffect(() => {
+    const prevBooking = previousActiveBookingRef.current;
+    const currBooking = activeBooking;
+    
+    // Booking started (null -> booking OR different booking)
+    if (currBooking && (!prevBooking || prevBooking.id !== currBooking.id)) {
+      bayLogger.logBookingActive(
+        currBooking.customer_name || 'Unknown',
+        currBooking.start_time,
+        currBooking.end_time,
+        currBooking.id
+      );
+    }
+    
+    // Booking ended (booking -> null OR different booking)
+    if (prevBooking && (!currBooking || currBooking.id !== prevBooking.id)) {
+      bayLogger.logBookingEnded(
+        prevBooking.customer_name || 'Unknown',
+        prevBooking.id
+      );
+    }
+    
+    previousActiveBookingRef.current = currBooking;
+  }, [activeBooking, bayLogger]);
+
   // Listen for F10 global hotkey results from main process
   useEffect(() => {
     if (!isElectron || !window.electronAPI) return;
@@ -308,13 +336,24 @@ export default function BayController() {
       toast.error("Failed to fix window positions");
     });
     
+    // Listen for unexpected GSPro closure (closed externally, not by our automation)
+    const cleanupGsproClosed = window.electronAPI.onGsproClosed?.(() => {
+      console.log('[BayController] GSPro closed unexpectedly');
+      // Only log as unexpected if we thought apps were running
+      if (appsRunning) {
+        bayLogger.logAppClose('GSPro', 'unexpected', activeBooking?.id);
+        addLog('GSPro closed unexpectedly (not by automation)', 'error');
+      }
+    });
+    
     return () => {
       cleanupNoConfig();
       cleanupNotFound();
       cleanupResult();
       cleanupError();
+      cleanupGsproClosed?.();
     };
-  }, [isElectron]);
+  }, [isElectron, appsRunning, activeBooking?.id, bayLogger, addLog]);
 
   // F9 hotkey to toggle SGT overlay (for authenticated staff - shows in-app overlay)
   // F7 hotkey to toggle SGT overlay (for customers - triggers Electron overlay on external display)
@@ -615,7 +654,12 @@ export default function BayController() {
       if (error) throw error;
 
       setBookings(data.bookings || []);
-      setConnectionStatus("connected");
+      setConnectionStatus(prev => {
+        if (prev !== "connected") {
+          bayLogger.logConnectionStatus(true);
+        }
+        return "connected";
+      });
       
       // Sync control_mode from server response (reliable fallback if realtime fails)
       if (data.control_mode) {
@@ -627,7 +671,13 @@ export default function BayController() {
       console.log(`Fetched ${data.bookings?.length || 0} bookings for bay ${selectedBay}`);
     } catch (error) {
       console.error("Failed to fetch bookings:", error);
-      setConnectionStatus("disconnected");
+      setConnectionStatus(prev => {
+        if (prev !== "disconnected") {
+          bayLogger.logConnectionStatus(false);
+        }
+        return "disconnected";
+      });
+      bayLogger.logError("Failed to connect to server", error);
       toast.error("Failed to connect to server");
     } finally {
       setIsLoadingBookings(false);
@@ -648,7 +698,12 @@ export default function BayController() {
       });
     } catch (error) {
       console.error("Heartbeat failed:", error);
-      setConnectionStatus("disconnected");
+      setConnectionStatus(prev => {
+        if (prev !== "disconnected") {
+          bayLogger.logConnectionStatus(false);
+        }
+        return "disconnected";
+      });
     }
   }, [selectedBay]);
 
