@@ -1,5 +1,8 @@
 project_id = "hltrcuypuxhetcjyvedl"
 
+[functions.sync-membership-payments]
+verify_jwt = false
+
 [functions.sgt-auto-register]
 verify_jwt = false
 
