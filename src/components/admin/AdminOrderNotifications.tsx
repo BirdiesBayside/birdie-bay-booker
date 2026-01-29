@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Bell, Send, X, Clock, Volume2, VolumeX } from "lucide-react";
+import { Bell, Send, X, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -127,7 +127,7 @@ export function AdminOrderNotifications() {
   const [selectedOrder, setSelectedOrder] = useState<BayOrder | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [sendingToPOS, setSendingToPOS] = useState(false);
-  const [soundEnabled, setSoundEnabled] = useState(true);
+  
   
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -147,8 +147,6 @@ export function AdminOrderNotifications() {
 
   // Play the notification sound
   const playSound = useCallback(() => {
-    if (!soundEnabled) return;
-    
     initAudio();
     
     if (audioRef.current) {
@@ -157,7 +155,7 @@ export function AdminOrderNotifications() {
         console.log("Audio play failed (user interaction required):", e);
       });
     }
-  }, [soundEnabled, initAudio]);
+  }, [initAudio]);
 
   // Manage the recurring sound interval
   useEffect(() => {
@@ -167,8 +165,8 @@ export function AdminOrderNotifications() {
       intervalRef.current = null;
     }
 
-    // If there are pending orders and sound is enabled, set up the interval
-    if (pendingCount > 0 && soundEnabled) {
+    // If there are pending orders, set up the interval
+    if (pendingCount > 0) {
       // Play immediately when first pending order arrives
       playSound();
       
@@ -185,7 +183,7 @@ export function AdminOrderNotifications() {
         clearInterval(intervalRef.current);
       }
     };
-  }, [pendingCount, soundEnabled, playSound]);
+  }, [pendingCount, playSound]);
 
   useEffect(() => {
     fetchOrders();
@@ -329,31 +327,10 @@ export function AdminOrderNotifications() {
     return format(date, "dd/MM");
   };
 
-  const toggleSound = () => {
-    setSoundEnabled(prev => !prev);
-    // Initialize audio on user interaction
-    initAudio();
-  };
 
   return (
     <>
-      <div className="flex items-center gap-1">
-        {/* Sound toggle button */}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={toggleSound}
-          className="relative text-sidebar-foreground hover:bg-sidebar-accent/50"
-          title={soundEnabled ? "Mute order sounds" : "Unmute order sounds"}
-        >
-          {soundEnabled ? (
-            <Volume2 className="h-4 w-4" />
-          ) : (
-            <VolumeX className="h-4 w-4 text-muted-foreground" />
-          )}
-        </Button>
-
-        <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <Popover open={isOpen} onOpenChange={setIsOpen}>
           <PopoverTrigger asChild>
             <Button
               variant="ghost"
@@ -425,7 +402,6 @@ export function AdminOrderNotifications() {
             </ScrollArea>
           </PopoverContent>
         </Popover>
-      </div>
 
       {/* Order Detail Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
