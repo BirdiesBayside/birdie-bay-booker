@@ -629,14 +629,24 @@ serve(async (req) => {
     if (event.type === "invoice.payment_succeeded") {
       const invoice = event.data.object as Stripe.Invoice;
       const customerId = invoice.customer as string;
-      const subscriptionId = invoice.subscription as string;
+      
+      // Support both old and new Stripe API structure for subscription ID
+      // Old: invoice.subscription (string)
+      // New (2025-07-30.basil): invoice.parent.subscription_details.subscription (string)
+      let subscriptionId = invoice.subscription as string | null;
+      
+      // Check new API structure if old one is null
+      if (!subscriptionId && (invoice as any).parent?.subscription_details?.subscription) {
+        subscriptionId = (invoice as any).parent.subscription_details.subscription;
+      }
 
       logStep("Invoice payment succeeded", { 
         invoiceId: invoice.id, 
         subscriptionId, 
         customerId,
         billingReason: invoice.billing_reason,
-        amountPaid: invoice.amount_paid 
+        amountPaid: invoice.amount_paid,
+        hasParentSubscription: !!(invoice as any).parent?.subscription_details?.subscription
       });
 
       // Only process if this is a subscription invoice (not one-time payments)
