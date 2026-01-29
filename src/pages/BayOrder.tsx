@@ -264,12 +264,12 @@ export default function BayOrder() {
               ) : (
                 <>
                   <ShoppingCart className="h-4 w-4 mr-2" />
-                  Order - Pay at Bar
+                  Order
                 </>
               )}
             </Button>
             <p className="text-xs text-muted-foreground text-center mt-2">
-              Payment will be taken when your order is delivered
+              A staff member will bring your order and take payment
             </p>
           </div>
         </div>
