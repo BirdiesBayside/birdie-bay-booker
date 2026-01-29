@@ -26,9 +26,10 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Pencil, Trash2, Settings, ShoppingCart, Bell, DollarSign, X, Copy, Check, Eye, BarChart3, AlertTriangle, Loader2, GripVertical, ArrowUp, ArrowDown } from "lucide-react";
+import { Plus, Pencil, Trash2, Settings, ShoppingCart, Bell, DollarSign, X, Copy, Check, Eye, BarChart3, AlertTriangle, Loader2, GripVertical, ArrowUp, ArrowDown, Coffee } from "lucide-react";
 import { SalesReporting } from "@/components/admin/SalesReporting";
 import { ActivityLog } from "@/components/admin/ActivityLog";
+import { TableServiceSettings } from "@/components/admin/TableServiceSettings";
 import { format } from "date-fns";
 
 // Template types and their available placeholder tags
@@ -978,6 +979,9 @@ export default function AdminSettings() {
                 )}
               </CardContent>
             </Card>
+
+            {/* Table Service Hours */}
+            <TableServiceSettings />
           </TabsContent>
 
           {/* Notifications Settings */}
