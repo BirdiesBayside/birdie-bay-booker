@@ -17,6 +17,11 @@ interface CartItem extends POSProduct {
   quantity: number;
 }
 
+interface ServiceHours {
+  isOpen: boolean;
+  message: string;
+}
+
 export default function BayOrder() {
   const { bayNumber } = useParams<{ bayNumber: string }>();
   const [products, setProducts] = useState<POSProduct[]>([]);
@@ -24,6 +29,7 @@ export default function BayOrder() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [orderSubmitted, setOrderSubmitted] = useState(false);
+  const [serviceHours, setServiceHours] = useState<ServiceHours>({ isOpen: true, message: "" });
 
   const validBays = [4, 5, 6];
   const bay = parseInt(bayNumber || "0");
@@ -31,11 +37,55 @@ export default function BayOrder() {
 
   useEffect(() => {
     if (isValidBay) {
+      checkServiceHours();
       fetchProducts();
     } else {
       setLoading(false);
     }
   }, [isValidBay]);
+
+  const checkServiceHours = async () => {
+    const { data, error } = await supabase
+      .from("table_service_hours")
+      .select("*");
+
+    if (error || !data) {
+      console.error("Error fetching service hours:", error);
+      return; // Default to open if we can't fetch hours
+    }
+
+    const now = new Date();
+    const dayOfWeek = now.getDay(); // 0=Sunday, 6=Saturday
+    const currentTime = now.toTimeString().slice(0, 5); // "HH:MM"
+
+    const todayHours = data.find((h) => h.day_of_week === dayOfWeek);
+
+    if (!todayHours || !todayHours.is_open) {
+      setServiceHours({
+        isOpen: false,
+        message: "Table service is closed today. Please order at the bar.",
+      });
+      return;
+    }
+
+    if (currentTime < todayHours.open_time || currentTime >= todayHours.close_time) {
+      const formatTime = (time: string) => {
+        const [hours] = time.split(":");
+        const hour = parseInt(hours);
+        if (hour === 0) return "12:00 AM";
+        if (hour === 12) return "12:00 PM";
+        if (hour > 12) return `${hour - 12}:00 PM`;
+        return `${hour}:00 AM`;
+      };
+      setServiceHours({
+        isOpen: false,
+        message: `Table service is available ${formatTime(todayHours.open_time)} - ${formatTime(todayHours.close_time)}. Please order at the bar.`,
+      });
+      return;
+    }
+
+    setServiceHours({ isOpen: true, message: "" });
+  };
 
   const fetchProducts = async () => {
     const { data, error } = await supabase
@@ -136,6 +186,22 @@ export default function BayOrder() {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!serviceHours.isOpen) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="p-8 text-center max-w-sm">
+          <div className="h-16 w-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
+            <ShoppingCart className="h-8 w-8 text-muted-foreground" />
+          </div>
+          <h1 className="text-xl font-semibold mb-2">Table Service Closed</h1>
+          <p className="text-muted-foreground">
+            {serviceHours.message}
+          </p>
+        </Card>
       </div>
     );
   }
