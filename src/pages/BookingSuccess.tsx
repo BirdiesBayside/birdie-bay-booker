@@ -39,7 +39,8 @@ const BookingSuccess = () => {
       }
 
       try {
-        // First, verify the payment and confirm the booking
+        // Verify the payment and get booking details from the edge function
+        // This works without authentication since it uses service role
         const { data: verifyResult, error: verifyError } = await supabase.functions.invoke(
           "verify-booking-payment",
           { body: { bookingId } }
@@ -47,39 +48,19 @@ const BookingSuccess = () => {
 
         if (verifyError) {
           console.error("Verification error:", verifyError);
-        } else {
-          console.log("Verification result:", verifyResult);
-        }
-
-        // Wait a moment for the update to propagate
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-
-        // Then fetch the booking details
-        const { data, error: fetchError } = await supabase
-          .from("bookings")
-          .select(`
-            id,
-            booking_date,
-            start_time,
-            end_time,
-            duration_hours,
-            total_price,
-            status,
-            bay:bays(name, bay_number)
-          `)
-          .eq("id", bookingId)
-          .maybeSingle();
-
-        if (fetchError || !data) {
-          setError("Unable to load booking details");
+          setError("Unable to verify booking");
           setIsLoading(false);
           return;
         }
 
-        setBooking({
-          ...data,
-          bay: Array.isArray(data.bay) ? data.bay[0] : data.bay,
-        } as BookingDetails);
+        console.log("Verification result:", verifyResult);
+
+        // Use booking details returned from the edge function
+        if (verifyResult?.booking) {
+          setBooking(verifyResult.booking as BookingDetails);
+        } else {
+          setError("Unable to load booking details");
+        }
         setIsLoading(false);
       } catch (err) {
         console.error("Error:", err);

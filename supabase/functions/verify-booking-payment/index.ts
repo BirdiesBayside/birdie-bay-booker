@@ -38,7 +38,16 @@ serve(async (req) => {
     // Check if booking exists (using UUID provides security - only holder knows it)
     const { data: booking, error: bookingError } = await supabaseClient
       .from("bookings")
-      .select("*")
+      .select(`
+        id,
+        booking_date,
+        start_time,
+        end_time,
+        duration_hours,
+        total_price,
+        status,
+        bay:bays(name, bay_number)
+      `)
       .eq("id", bookingId)
       .maybeSingle();
 
@@ -46,13 +55,20 @@ serve(async (req) => {
       throw new Error("Booking not found");
     }
 
-    // If already confirmed, return success
+    // Format booking for response
+    const bookingDetails = {
+      ...booking,
+      bay: Array.isArray(booking.bay) ? booking.bay[0] : booking.bay,
+    };
+
+    // If already confirmed, return success with booking details
     if (booking.status === "confirmed") {
       logStep("Booking already confirmed", { bookingId });
       return new Response(JSON.stringify({ 
         success: true, 
         status: "confirmed",
-        alreadyConfirmed: true 
+        alreadyConfirmed: true,
+        booking: bookingDetails
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 200,
@@ -126,9 +142,31 @@ serve(async (req) => {
       logStep("Failed to send booking notification", { error: notificationError });
     }
 
+    // Refetch booking to get updated status and bay details
+    const { data: confirmedBooking } = await supabaseClient
+      .from("bookings")
+      .select(`
+        id,
+        booking_date,
+        start_time,
+        end_time,
+        duration_hours,
+        total_price,
+        status,
+        bay:bays(name, bay_number)
+      `)
+      .eq("id", bookingId)
+      .maybeSingle();
+
+    const confirmedBookingDetails = confirmedBooking ? {
+      ...confirmedBooking,
+      bay: Array.isArray(confirmedBooking.bay) ? confirmedBooking.bay[0] : confirmedBooking.bay,
+    } : null;
+
     return new Response(JSON.stringify({ 
       success: true, 
-      status: "confirmed" 
+      status: "confirmed",
+      booking: confirmedBookingDetails
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
