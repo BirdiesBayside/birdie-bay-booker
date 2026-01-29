@@ -30,6 +30,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { 
   Search, 
   Users, 
@@ -39,8 +48,10 @@ import {
   Trash2,
   UserMinus,
   UserPlus,
+  Unlink,
+  ShieldCheck,
   Trophy,
-  Unlink
+  Loader2
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -52,6 +63,7 @@ interface Member {
   user_country_code: string | null;
   user_active: number;
   user_has_avatar: string | null;
+  exempt_from_cleanup: boolean;
 }
 
 interface LinkedProfile {
@@ -71,6 +83,11 @@ export function SGTMembers() {
     action: "delete" | "deactivate" | "activate" | "unlink" | null;
     member: Member | null;
   }>({ open: false, action: null, member: null });
+  const [hcpDialog, setHcpDialog] = useState<{
+    open: boolean;
+    member: Member | null;
+  }>({ open: false, member: null });
+  const [handicapValue, setHandicapValue] = useState("");
 
   // Fetch members
   const { data: members, isLoading } = useQuery({
@@ -155,6 +172,116 @@ export function SGTMembers() {
       });
     },
   });
+
+  // Toggle exemption mutation
+  const toggleExemption = useMutation({
+    mutationFn: async ({ userId, exempt }: { userId: number; exempt: boolean }) => {
+      const { error } = await supabase
+        .from("sgt_members")
+        .update({ exempt_from_cleanup: exempt })
+        .eq("user_id", userId);
+      if (error) throw error;
+      return { exempt };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["sgt-members"] });
+      toast({
+        title: data.exempt ? "Member exempted" : "Exemption removed",
+        description: data.exempt 
+          ? "This member will not be removed by automatic cleanup" 
+          : "This member can now be removed by automatic cleanup",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to update exemption",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Set HCP and onboard external member mutation
+  const setHcpMutation = useMutation({
+    mutationFn: async ({ member, customHcp }: { member: Member; customHcp: number }) => {
+      console.log(`[SGT-SET-HCP] Setting HCP ${customHcp} for external member ${member.user_id}`);
+
+      // Get all active tours
+      const { data: activeTours, error: toursError } = await supabase
+        .from("sgt_tours")
+        .select("tour_id, name")
+        .eq("active", 1);
+
+      if (toursError) throw toursError;
+      if (!activeTours || activeTours.length === 0) {
+        throw new Error("No active tours found");
+      }
+
+      // Add member to all active tours with custom HCP
+      for (const tour of activeTours) {
+        const { error: insertError } = await supabase
+          .from("sgt_tour_members")
+          .upsert({
+            user_id: member.user_id,
+            tour_id: tour.tour_id,
+            user_name: member.user_name,
+            custom_hcp: customHcp,
+            updated_at: new Date().toISOString(),
+          }, {
+            onConflict: "user_id,tour_id",
+          });
+
+        if (insertError) {
+          console.error(`Failed to add to tour ${tour.name}:`, insertError);
+          throw insertError;
+        }
+      }
+
+      // Trigger the auto-registration edge function to register for tournaments
+      const { error: autoRegError } = await supabase.functions.invoke("sgt-auto-register", {
+        body: { sgt_user_id: member.user_id },
+      });
+
+      if (autoRegError) {
+        console.error("Auto-registration failed:", autoRegError);
+      }
+
+      return { member, tourCount: activeTours.length, customHcp };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["sgt-onboarded-members"] });
+      queryClient.invalidateQueries({ queryKey: ["sgt-tour-members"] });
+      setHcpDialog({ open: false, member: null });
+      setHandicapValue("");
+      toast({ 
+        title: "Handicap set successfully",
+        description: `${data.member.user_name} added to ${data.tourCount} tour(s) with HCP ${data.customHcp.toFixed(1)}`,
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Failed to set handicap",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSetHcp = () => {
+    if (!hcpDialog.member) return;
+    
+    const hcp = parseFloat(handicapValue);
+    if (isNaN(hcp) || hcp < -10 || hcp > 54) {
+      toast({
+        title: "Invalid handicap",
+        description: "Please enter a handicap between -10 and 54",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setHcpMutation.mutate({ member: hcpDialog.member, customHcp: hcp });
+  };
 
   const linkedUserIds = new Set(linkedProfiles?.map((p) => p.sgt_user_id) || []);
 
@@ -267,15 +394,24 @@ export function SGTMembers() {
                 {filteredMembers.map((member) => {
                   const linkedProfile = getLinkedProfile(member.user_id);
                   const isActive = member.user_active === 1;
+                  const isExempt = member.exempt_from_cleanup;
                   
                   return (
                     <TableRow key={member.id}>
                       <TableCell>
-                        <div>
-                          <p className="font-medium">{member.user_name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            ID: {member.user_id}
-                          </p>
+                        <div className="flex items-center gap-2">
+                          <div>
+                            <p className="font-medium">{member.user_name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              ID: {member.user_id}
+                            </p>
+                          </div>
+                          {isExempt && (
+                            <Badge variant="outline" className="text-blue-600 border-blue-300 bg-blue-50">
+                              <ShieldCheck className="h-3 w-3 mr-1" />
+                              Exempt
+                            </Badge>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell className="text-muted-foreground">
@@ -319,7 +455,34 @@ export function SGTMembers() {
                               <MoreVertical className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
+                          <DropdownMenuContent align="end" className="bg-popover">
+                            {/* Set HCP for unlinked members */}
+                            {!linkedProfile && (
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setHcpDialog({ open: true, member });
+                                  setHandicapValue("");
+                                }}
+                              >
+                                <Trophy className="h-4 w-4 mr-2" />
+                                Set HCP
+                              </DropdownMenuItem>
+                            )}
+                            
+                            {/* Toggle exemption */}
+                            <DropdownMenuItem
+                              onClick={() => toggleExemption.mutate({ 
+                                userId: member.user_id, 
+                                exempt: !isExempt 
+                              })}
+                              disabled={toggleExemption.isPending}
+                            >
+                              <ShieldCheck className="h-4 w-4 mr-2" />
+                              {isExempt ? "Remove Exemption" : "Mark as Exempt"}
+                            </DropdownMenuItem>
+                            
+                            <DropdownMenuSeparator />
+                            
                             {isActive ? (
                               <DropdownMenuItem
                                 onClick={() => setConfirmDialog({
@@ -412,6 +575,59 @@ export function SGTMembers() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Set HCP Dialog */}
+      <Dialog 
+        open={hcpDialog.open} 
+        onOpenChange={(open) => !open && setHcpDialog({ open: false, member: null })}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Set Handicap</DialogTitle>
+            <DialogDescription>
+              Set a custom handicap for {hcpDialog.member?.user_name}. They will be added to all active tours and registered for open tournaments.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Label htmlFor="handicap">Handicap Index</Label>
+            <Input
+              id="handicap"
+              type="number"
+              step="0.1"
+              min="-10"
+              max="54"
+              value={handicapValue}
+              onChange={(e) => setHandicapValue(e.target.value)}
+              placeholder="e.g., 12.5"
+              className="mt-2"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleSetHcp();
+              }}
+            />
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setHcpDialog({ open: false, member: null })}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleSetHcp}
+              disabled={setHcpMutation.isPending || !handicapValue}
+            >
+              {setHcpMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Adding to tours...
+                </>
+              ) : (
+                "Set Handicap"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
