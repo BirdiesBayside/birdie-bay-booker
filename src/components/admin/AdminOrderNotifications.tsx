@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Bell, Send, X, Clock } from "lucide-react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { Bell, Send, X, Clock, Volume2, VolumeX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -35,6 +35,91 @@ interface BayOrder {
   created_at: string;
 }
 
+// Checkout till sound - a pleasant "cha-ching" beep sequence
+const createCheckoutSound = (): HTMLAudioElement => {
+  const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+  const sampleRate = audioContext.sampleRate;
+  const duration = 0.6;
+  const buffer = audioContext.createBuffer(1, sampleRate * duration, sampleRate);
+  const data = buffer.getChannelData(0);
+  
+  // Create a cash register "cha-ching" sound
+  for (let i = 0; i < buffer.length; i++) {
+    const t = i / sampleRate;
+    let sample = 0;
+    
+    // First "cha" - quick metallic hit
+    if (t < 0.1) {
+      const env = Math.exp(-t * 40);
+      sample += Math.sin(2 * Math.PI * 800 * t) * env * 0.3;
+      sample += Math.sin(2 * Math.PI * 1200 * t) * env * 0.2;
+    }
+    
+    // "Ching" - the bell ring
+    if (t >= 0.1 && t < 0.6) {
+      const t2 = t - 0.1;
+      const env = Math.exp(-t2 * 4);
+      sample += Math.sin(2 * Math.PI * 2000 * t2) * env * 0.4;
+      sample += Math.sin(2 * Math.PI * 2500 * t2) * env * 0.3;
+      sample += Math.sin(2 * Math.PI * 3000 * t2) * env * 0.2;
+    }
+    
+    data[i] = sample;
+  }
+  
+  // Convert to WAV blob
+  const wavBuffer = audioBufferToWav(buffer);
+  const blob = new Blob([wavBuffer], { type: 'audio/wav' });
+  const url = URL.createObjectURL(blob);
+  const audio = new Audio(url);
+  audio.volume = 0.7;
+  return audio;
+};
+
+// Helper function to convert AudioBuffer to WAV
+function audioBufferToWav(buffer: AudioBuffer): ArrayBuffer {
+  const numChannels = buffer.numberOfChannels;
+  const sampleRate = buffer.sampleRate;
+  const format = 1; // PCM
+  const bitDepth = 16;
+  const bytesPerSample = bitDepth / 8;
+  const blockAlign = numChannels * bytesPerSample;
+  const dataLength = buffer.length * blockAlign;
+  const bufferLength = 44 + dataLength;
+  const arrayBuffer = new ArrayBuffer(bufferLength);
+  const view = new DataView(arrayBuffer);
+  
+  const writeString = (offset: number, str: string) => {
+    for (let i = 0; i < str.length; i++) {
+      view.setUint8(offset + i, str.charCodeAt(i));
+    }
+  };
+  
+  writeString(0, 'RIFF');
+  view.setUint32(4, bufferLength - 8, true);
+  writeString(8, 'WAVE');
+  writeString(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, format, true);
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * blockAlign, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, bitDepth, true);
+  writeString(36, 'data');
+  view.setUint32(40, dataLength, true);
+  
+  const channelData = buffer.getChannelData(0);
+  let offset = 44;
+  for (let i = 0; i < buffer.length; i++) {
+    const sample = Math.max(-1, Math.min(1, channelData[i]));
+    view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+    offset += 2;
+  }
+  
+  return arrayBuffer;
+}
+
 export function AdminOrderNotifications() {
   const navigate = useNavigate();
   const [orders, setOrders] = useState<BayOrder[]>([]);
@@ -42,8 +127,65 @@ export function AdminOrderNotifications() {
   const [selectedOrder, setSelectedOrder] = useState<BayOrder | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [sendingToPOS, setSendingToPOS] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const pendingCount = orders.filter((o) => o.status === "pending").length;
+
+  // Initialize audio on first user interaction
+  const initAudio = useCallback(() => {
+    if (!audioRef.current) {
+      try {
+        audioRef.current = createCheckoutSound();
+      } catch (e) {
+        console.error("Failed to create audio:", e);
+      }
+    }
+  }, []);
+
+  // Play the notification sound
+  const playSound = useCallback(() => {
+    if (!soundEnabled) return;
+    
+    initAudio();
+    
+    if (audioRef.current) {
+      audioRef.current.currentTime = 0;
+      audioRef.current.play().catch(e => {
+        console.log("Audio play failed (user interaction required):", e);
+      });
+    }
+  }, [soundEnabled, initAudio]);
+
+  // Manage the recurring sound interval
+  useEffect(() => {
+    // Clear existing interval
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+
+    // If there are pending orders and sound is enabled, set up the interval
+    if (pendingCount > 0 && soundEnabled) {
+      // Play immediately when first pending order arrives
+      playSound();
+      
+      // Then play every 60 seconds
+      intervalRef.current = setInterval(() => {
+        if (pendingCount > 0) {
+          playSound();
+        }
+      }, 60000); // 60 seconds
+    }
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, [pendingCount, soundEnabled, playSound]);
 
   useEffect(() => {
     fetchOrders();
@@ -63,7 +205,9 @@ export function AdminOrderNotifications() {
           if (payload.eventType === "INSERT") {
             const newOrder = payload.new as BayOrder;
             setOrders((prev) => [newOrder, ...prev]);
-            // Play notification sound or show toast
+            // Play sound for new order
+            playSound();
+            // Show toast
             toast.info(`New order from Bay ${newOrder.bay_number}!`, {
               description: `${(newOrder.items as OrderItem[]).length} items - $${newOrder.total.toFixed(2)}`,
               duration: 10000,
@@ -84,7 +228,7 @@ export function AdminOrderNotifications() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [playSound]);
 
   const fetchOrders = async () => {
     const { data, error } = await supabase
@@ -185,79 +329,103 @@ export function AdminOrderNotifications() {
     return format(date, "dd/MM");
   };
 
+  const toggleSound = () => {
+    setSoundEnabled(prev => !prev);
+    // Initialize audio on user interaction
+    initAudio();
+  };
+
   return (
     <>
-      <Popover open={isOpen} onOpenChange={setIsOpen}>
-        <PopoverTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="relative text-sidebar-foreground hover:bg-sidebar-accent/50"
-          >
-            <Bell className="h-5 w-5" />
-            {pendingCount > 0 && (
-              <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-accent text-accent-foreground text-xs flex items-center justify-center font-medium animate-pulse">
-                {pendingCount > 9 ? "9+" : pendingCount}
-              </span>
-            )}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-80 p-0" align="end">
-          <div className="flex items-center justify-between p-4 border-b">
-            <h4 className="font-semibold">Bay Orders</h4>
-            {pendingCount > 0 && (
-              <Badge variant="secondary">{pendingCount} pending</Badge>
-            )}
-          </div>
-          <ScrollArea className="h-[350px]">
-            {orders.length === 0 ? (
-              <div className="p-4 text-center text-muted-foreground text-sm">
-                No orders yet
-              </div>
-            ) : (
-              <div className="divide-y">
-                {orders.map((order) => (
-                  <div
-                    key={order.id}
-                    className={`p-4 cursor-pointer hover:bg-muted/50 transition-colors ${
-                      order.status === "pending" ? "bg-accent/10" : ""
-                    }`}
-                    onClick={() => handleOrderClick(order)}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-semibold">
-                            Bay {order.bay_number}
-                          </span>
-                          {order.status === "pending" && (
-                            <Badge className="bg-accent text-accent-foreground text-xs">
-                              New
-                            </Badge>
-                          )}
-                          {order.status === "sent_to_pos" && (
-                            <Badge variant="outline" className="text-xs">
-                              In POS
-                            </Badge>
-                          )}
+      <div className="flex items-center gap-1">
+        {/* Sound toggle button */}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={toggleSound}
+          className="relative text-sidebar-foreground hover:bg-sidebar-accent/50"
+          title={soundEnabled ? "Mute order sounds" : "Unmute order sounds"}
+        >
+          {soundEnabled ? (
+            <Volume2 className="h-4 w-4" />
+          ) : (
+            <VolumeX className="h-4 w-4 text-muted-foreground" />
+          )}
+        </Button>
+
+        <Popover open={isOpen} onOpenChange={setIsOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="relative text-sidebar-foreground hover:bg-sidebar-accent/50"
+              onClick={initAudio} // Initialize audio on click
+            >
+              <Bell className="h-5 w-5" />
+              {pendingCount > 0 && (
+                <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-accent text-accent-foreground text-xs flex items-center justify-center font-medium animate-pulse">
+                  {pendingCount > 9 ? "9+" : pendingCount}
+                </span>
+              )}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-80 p-0" align="end">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h4 className="font-semibold">Bay Orders</h4>
+              {pendingCount > 0 && (
+                <Badge variant="secondary">{pendingCount} pending</Badge>
+              )}
+            </div>
+            <ScrollArea className="h-[350px]">
+              {orders.length === 0 ? (
+                <div className="p-4 text-center text-muted-foreground text-sm">
+                  No orders yet
+                </div>
+              ) : (
+                <div className="divide-y">
+                  {orders.map((order) => (
+                    <div
+                      key={order.id}
+                      className={`p-4 cursor-pointer hover:bg-muted/50 transition-colors ${
+                        order.status === "pending" ? "bg-accent/10" : ""
+                      }`}
+                      onClick={() => handleOrderClick(order)}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-semibold">
+                              Bay {order.bay_number}
+                            </span>
+                            {order.status === "pending" && (
+                              <Badge className="bg-accent text-accent-foreground text-xs">
+                                New
+                              </Badge>
+                            )}
+                            {order.status === "sent_to_pos" && (
+                              <Badge variant="outline" className="text-xs">
+                                In POS
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            {(order.items as OrderItem[]).length} items •{" "}
+                            ${order.total.toFixed(2)}
+                          </p>
                         </div>
-                        <p className="text-sm text-muted-foreground">
-                          {(order.items as OrderItem[]).length} items •{" "}
-                          ${order.total.toFixed(2)}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Clock className="h-3 w-3" />
-                        {getTimeSince(order.created_at)}
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <Clock className="h-3 w-3" />
+                          {getTimeSince(order.created_at)}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </ScrollArea>
-        </PopoverContent>
-      </Popover>
+                  ))}
+                </div>
+              )}
+            </ScrollArea>
+          </PopoverContent>
+        </Popover>
+      </div>
 
       {/* Order Detail Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
