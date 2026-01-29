@@ -1,82 +1,164 @@
 
 
-# Plan: Support External SGT Members (like jlag)
+# Plan: Multi-Bay Peak Booking Restriction for Members
 
-This plan enables admins to manage SGT members who don't have Birdies Hub accounts - setting their cleanup exemption status and custom handicaps directly from the admin panel.
-
----
-
-## Current Situation
-
-- **jlag** has been added to the Birdies SGT Club externally
-- They don't appear in the database yet because the 4-hourly sync hasn't run
-- Once synced, they would be **immediately removed** by the cleanup logic (no Birdies account = no membership tier = removed from club)
-- **Daryl_C** works because he has `exempt_from_cleanup = true` set directly in the database
+This plan adds a seamless check that automatically reverts Birdie and Eagle members to visitor rates when they attempt to book a second bay during peak hours, with a clear notification explaining why.
 
 ---
 
-## What We'll Build
+## Summary
 
-### 1. Trigger Sync to Import jlag
-Before making UI changes, run a manual sync so jlag appears in the `sgt_members` table.
+When a **Birdie** or **Eagle** member already has a bay booked during peak hours and tries to book another bay at the same peak time, the system will:
+1. Detect the conflict
+2. Automatically apply visitor rates instead of member rates
+3. Show a clear message explaining the policy
 
-### 2. Add Exemption Toggle in Members Tab
-Update the **SGT Members** component to allow admins to mark members as exempt from cleanup:
-- Add an "Exempt" badge for members with `exempt_from_cleanup = true`
-- Add a dropdown menu option to **Toggle Exemption** status
-- Shows clear visual indicator of which members are protected
-
-### 3. Direct Handicap Management for Non-Hub Members
-Update the **SGT Members** component to support setting custom handicaps for members who aren't linked to Birdies accounts:
-- Add a "Set HCP" action in the dropdown menu for unlinked members
-- When a handicap is set, automatically add them to active tours (like onboarding)
-- This bypasses the normal pending → onboard flow since they don't have a profile
-
-### 4. Update SGT Registrations to Handle Exempt Members
-Adjust the **SGT Registrations** "Onboarded Members" list to also show exempt external members who have handicaps set.
+This happens transparently without adding friction to the booking flow - the member simply sees the adjusted rate.
 
 ---
 
-## Technical Changes
+## Business Rules
+
+| Scenario | Rate Applied |
+|----------|--------------|
+| First peak bay booking | Member rate |
+| Second peak bay booking (overlapping time) | Visitor peak rate ($35/hr) |
+| Off-peak bookings | Always member rate (no restriction) |
+| Weekday members | Already restricted to off-peak, so unaffected |
+
+**Peak times**: Friday-Sunday (all day) + Monday-Thursday (4pm onwards)
+
+---
+
+## Implementation Approach
+
+### Check Location: Rate Calculation Stage
+
+The check happens in the `useBooking` hook when calculating the hourly rate (`getHourlyRate` and `getRateInfo`). This approach:
+- Doesn't slow down the booking confirmation step
+- Shows the rate change immediately when selecting a bay
+- Provides feedback before the member commits to the booking
+
+### Logic Flow
+
+```text
+Member selects date/time/bay
+        │
+        ▼
+Is this peak time?
+        │
+   No ──┴── Yes
+   │         │
+   │         ▼
+   │    Is member Birdie/Eagle?
+   │         │
+   │    No ──┴── Yes
+   │    │         │
+   │    │         ▼
+   │    │    Does member have another
+   │    │    confirmed/pending booking
+   │    │    that overlaps this time?
+   │    │         │
+   │    │    No ──┴── Yes
+   │    │    │         │
+   ▼    ▼    ▼         ▼
+ Member Rate      Visitor Peak Rate ($35/hr)
+                  + Show info banner
+```
+
+---
+
+## User Experience
+
+When a member triggers the multi-bay restriction, they'll see:
+
+1. **Rate badge changes** from "$10/hr" to "$35/hr"
+2. **"Visitor Rate Applied" badge** appears (similar to weekday member restrictions)
+3. **Info banner** explaining:
+   > "You already have a bay booked at this time. Additional bays during peak hours are charged at visitor rates ($35/hr)."
+
+The booking proceeds normally - no extra steps or confirmations needed.
+
+---
+
+## Technical Details
 
 ### Files to Modify
 
 | File | Changes |
 |------|---------|
-| `src/components/admin/sgt/SGTMembers.tsx` | Add exemption toggle, add HCP management for unlinked members |
-| `supabase/functions/sgt-sync/index.ts` | No changes needed - already respects `exempt_from_cleanup` |
+| `src/hooks/useBooking.ts` | Add `checkMultiBayRestriction()` function and integrate with rate calculation |
+| `src/pages/Booking.tsx` | Add info banner for multi-bay restriction feedback |
+| `src/lib/pricing-utils.ts` | No changes needed - peak detection already exists |
 
-### Database
-No schema changes required - `exempt_from_cleanup` column already exists on `sgt_members`.
+### New Hook Function
 
----
-
-## Workflow After Implementation
-
-1. **Add jlag to SGT club** ✅ (already done)
-2. **Trigger manual sync** → jlag appears in Members tab
-3. **Toggle exemption** → Mark jlag as exempt from cleanup
-4. **Set custom HCP** → Enter their handicap (e.g., 12.0)
-5. **Auto-added to tours** → jlag is now registered for all active tours and tournaments
-
----
-
-## UI Mockup
-
-**Members Tab - New Badge & Actions:**
-```text
-┌─────────────────────────────────────────────────────────────────────────┐
-│ SGT Name      │ SGT Email           │ Status  │ Linked   │ Actions     │
-├─────────────────────────────────────────────────────────────────────────┤
-│ Daryl_C       │ djcole@...          │ Active  │ Not linked │ ⋮ ▼       │
-│ [Exempt]      │                     │         │ [Exempt]   │           │
-├─────────────────────────────────────────────────────────────────────────┤
-│ jlag          │ jlag@...            │ Active  │ Not linked │ ⋮ ▼       │
-│               │                     │         │            │  Set HCP   │
-│               │                     │         │            │  Exempt ✓  │
-│               │                     │         │            │  ───────── │
-│               │                     │         │            │  Deactivate│
-│               │                     │         │            │  Delete    │
-└─────────────────────────────────────────────────────────────────────────┘
+```typescript
+// Check if member is restricted from using member rate due to existing peak booking
+const checkMultiBayRestriction = useCallback(async (
+  date: Date,
+  startTime: string,
+  endTime: string,
+  bayId: string
+): Promise<boolean> => {
+  // Only applies to Birdie/Eagle during peak hours
+  if (!["birdie", "eagle"].includes(userMembershipTier)) return false;
+  if (!isPeakTime(date, startTime)) return false;
+  
+  // Check for existing overlapping bookings by this user
+  const { data: existingBookings } = await supabase
+    .from("bookings")
+    .select("id, bay_id, start_time, end_time")
+    .eq("user_id", userId)
+    .eq("booking_date", format(date, "yyyy-MM-dd"))
+    .in("status", ["confirmed", "pending"])
+    .neq("bay_id", bayId); // Different bay
+  
+  // Check for time overlap
+  return existingBookings?.some(booking => 
+    timesOverlap(startTime, endTime, booking.start_time, booking.end_time)
+  ) ?? false;
+}, [userMembershipTier, userId]);
 ```
+
+### Rate Info Update
+
+The `getRateInfo` function will be enhanced to return an additional `isMultiBayRestricted` flag:
+
+```typescript
+interface RateInfo {
+  rate: number;
+  isPeak: boolean;
+  isRestricted: boolean;  // Existing weekday restriction
+  isMultiBayRestricted: boolean;  // New: true if visitor rate due to multi-bay
+}
+```
+
+### Database Query
+
+The check uses a simple query on the `bookings` table to find any existing bookings for the same user on the same date that overlap with the selected time slot. This query is already allowed by the existing RLS policies ("Users can view their own bookings").
+
+---
+
+## Edge Cases Handled
+
+| Scenario | Behavior |
+|----------|----------|
+| Same bay, extend duration | No restriction (same bay) |
+| Different bay, no time overlap | No restriction (no conflict) |
+| Pending booking exists | Still triggers restriction |
+| Admin creates booking for member | Standard logic applies |
+| Member cancels first booking | Second booking no longer restricted |
+
+---
+
+## Testing Scenarios
+
+1. **Birdie member, first peak booking** → Member rate ($10/hr)
+2. **Birdie member, second peak booking, overlapping time** → Visitor rate ($35/hr) + banner
+3. **Birdie member, second peak booking, non-overlapping time** → Member rate ($10/hr)
+4. **Birdie member, off-peak booking** → Always member rate (no restriction)
+5. **Eagle member, second peak booking** → Same as Birdie (visitor rate)
+6. **Weekday member during peak** → Already restricted, no additional check needed
+7. **Visitor, any booking** → No member rate to restrict
 
