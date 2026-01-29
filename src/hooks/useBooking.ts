@@ -117,6 +117,7 @@ export function useBooking() {
   const [bayBlocks, setBayBlocks] = useState<BayBlock[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [currentDateStr, setCurrentDateStr] = useState<string | null>(null);
+  const [userBookingsForDate, setUserBookingsForDate] = useState<Booking[]>([]);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   // Static data - cached for 30 minutes (bays rarely change)
@@ -156,8 +157,10 @@ export function useBooking() {
   const fetchBookingsForDateInternal = useCallback(async (dateStr: string) => {
     setIsLoading(true);
 
-    // Fetch both bookings and bay blocks in parallel
-    const [bookingsResult, blocksResult] = await Promise.all([
+    // Fetch bookings, bay blocks, and user's own bookings in parallel
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    const [bookingsResult, blocksResult, userBookingsResult] = await Promise.all([
       supabase
         .from("booking_availability")
         .select("bay_id, booking_date, start_time, end_time")
@@ -165,7 +168,14 @@ export function useBooking() {
       supabase
         .from("bay_blocks")
         .select("id, bay_id, block_date, start_time, end_time")
-        .eq("block_date", dateStr)
+        .eq("block_date", dateStr),
+      // Fetch user's own bookings for multi-bay restriction check
+      user ? supabase
+        .from("bookings")
+        .select("id, bay_id, booking_date, start_time, end_time, duration_hours, status")
+        .eq("user_id", user.id)
+        .eq("booking_date", dateStr)
+        .in("status", ["confirmed", "pending"]) : Promise.resolve({ data: [], error: null })
     ]);
 
     if (!bookingsResult.error && bookingsResult.data) {
@@ -187,6 +197,18 @@ export function useBooking() {
         block_date: b.block_date,
         start_time: b.start_time,
         end_time: b.end_time,
+      })));
+    }
+
+    if (!userBookingsResult.error && userBookingsResult.data) {
+      setUserBookingsForDate(userBookingsResult.data.map(b => ({
+        id: b.id,
+        bay_id: b.bay_id,
+        booking_date: b.booking_date,
+        start_time: b.start_time,
+        end_time: b.end_time,
+        duration_hours: b.duration_hours,
+        status: b.status
       })));
     }
 
@@ -300,14 +322,85 @@ export function useBooking() {
   };
 
   /**
+   * Helper function to check if two time ranges overlap
+   */
+  const timesOverlap = (
+    start1: string,
+    end1: string,
+    start2: string,
+    end2: string
+  ): boolean => {
+    const toMinutes = (time: string) => {
+      const [h, m] = time.split(":").map(Number);
+      return h * 60 + m;
+    };
+    const s1 = toMinutes(start1);
+    const e1 = toMinutes(end1);
+    const s2 = toMinutes(start2);
+    const e2 = toMinutes(end2);
+    return s1 < e2 && e1 > s2;
+  };
+
+  /**
+   * Check if member is restricted from using member rate due to existing peak booking.
+   * Returns true if Birdie/Eagle member already has another booking that overlaps this time slot during peak hours.
+   */
+  const checkMultiBayRestriction = useCallback((
+    date: Date,
+    startTime: string,
+    durationHours: number,
+    bayId: string
+  ): boolean => {
+    // Only applies to Birdie/Eagle during peak hours
+    if (!["birdie", "eagle"].includes(userMembershipTier)) return false;
+    if (!isPeakTime(date, startTime)) return false;
+    
+    // Calculate end time
+    const startHour = parseInt(startTime.split(":")[0]);
+    const startMinute = parseInt(startTime.split(":")[1]);
+    const endHour = startHour + durationHours;
+    const endTime = `${endHour.toString().padStart(2, "0")}:${startMinute.toString().padStart(2, "0")}`;
+    
+    // Check for existing overlapping bookings by this user on a different bay
+    const hasOverlap = userBookingsForDate.some(booking => 
+      booking.bay_id !== bayId && 
+      timesOverlap(startTime, endTime, booking.start_time, booking.end_time)
+    );
+    
+    return hasOverlap;
+  }, [userMembershipTier, userBookingsForDate]);
+
+  /**
    * Get the display rate info for the booking UI
    */
-  const getRateInfo = (date: Date, startTime: string): { rate: number; isPeak: boolean; isRestricted: boolean } => {
-    const rate = getHourlyRate(userMembershipTier, date, startTime);
+  const getRateInfo = (
+    date: Date, 
+    startTime: string, 
+    durationHours: number = 1, 
+    bayId?: string
+  ): { rate: number; isPeak: boolean; isRestricted: boolean; isMultiBayRestricted: boolean } => {
     const isPeak = isPeakTime(date, startTime);
-    const isRestricted = userMembershipTier === "weekday" && !isWeekdayMemberTime(date, startTime);
+    const isWeekdayRestricted = userMembershipTier === "weekday" && !isWeekdayMemberTime(date, startTime);
     
-    return { rate, isPeak, isRestricted };
+    // Check multi-bay restriction for Birdie/Eagle members
+    const isMultiBayRestricted = bayId 
+      ? checkMultiBayRestriction(date, startTime, durationHours, bayId)
+      : false;
+    
+    // If multi-bay restricted, rate becomes visitor peak rate
+    let rate: number;
+    if (isMultiBayRestricted) {
+      rate = FALLBACK_PRICING.visitor; // $35 peak visitor rate
+    } else {
+      rate = getHourlyRate(userMembershipTier, date, startTime);
+    }
+    
+    return { 
+      rate, 
+      isPeak, 
+      isRestricted: isWeekdayRestricted, 
+      isMultiBayRestricted 
+    };
   };
 
   const checkBayAvailability = (
@@ -516,6 +609,7 @@ export function useBooking() {
     getHourlyRate,
     getRateInfo,
     canWeekdayMemberBook,
+    checkMultiBayRestriction,
     fetchBookingsForDate,
     checkBayAvailability,
     createBooking,
