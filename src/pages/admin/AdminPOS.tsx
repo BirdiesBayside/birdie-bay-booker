@@ -84,6 +84,13 @@ interface BookingDataFromNav {
   startTime: string;
 }
 
+interface BayOrderFromNav {
+  orderId: string;
+  bayNumber: number;
+  items: Array<{ name: string; price: number; quantity: number }>;
+  total: number;
+}
+
 export default function AdminPOS() {
   const { isAdmin, isLoading } = useAdminAuth();
   const location = useLocation();
@@ -131,7 +138,9 @@ export default function AdminPOS() {
 
   // Handle booking data from navigation (from timetable)
   useEffect(() => {
-    const navState = location.state as { bookingData?: BookingDataFromNav } | null;
+    const navState = location.state as { bookingData?: BookingDataFromNav; bayOrderData?: BayOrderFromNav } | null;
+    
+    // Handle booking from timetable
     if (navState?.bookingData && processedNavBooking !== navState.bookingData.bookingId) {
       const bookingData = navState.bookingData;
       
@@ -161,6 +170,23 @@ export default function AdminPOS() {
       
       setProcessedNavBooking(bookingData.bookingId);
       toast.success(`Added ${bookingData.duration}hr booking ($${bookingData.totalPrice}) to cart`);
+    }
+    
+    // Handle bay order from QR code ordering
+    if (navState?.bayOrderData && processedNavBooking !== navState.bayOrderData.orderId) {
+      const orderData = navState.bayOrderData;
+      
+      // Add all items from the bay order to cart
+      const cartItems: CartItem[] = orderData.items.map((item, idx) => ({
+        id: `bay-order-${orderData.orderId}-${idx}`,
+        name: `Bay ${orderData.bayNumber}: ${item.name}`,
+        price: item.price,
+        quantity: item.quantity,
+      }));
+      
+      setCart(cartItems);
+      setProcessedNavBooking(orderData.orderId);
+      toast.success(`Bay ${orderData.bayNumber} order loaded ($${orderData.total.toFixed(2)})`);
     }
   }, [location.state, processedNavBooking]);
 
@@ -353,7 +379,7 @@ export default function AdminPOS() {
         toast.info("Please complete payment on terminal...");
         const paymentIntentId = data.paymentIntentId;
         setTerminalPaymentIntentId(paymentIntentId);
-        setTerminalCountdown(60); // 1 minute countdown
+        setTerminalCountdown(180); // 3 minute countdown to match timeout
 
         // Start countdown timer
         const countdownInterval = setInterval(() => {
