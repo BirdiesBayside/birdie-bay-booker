@@ -19,7 +19,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { NoCardDialog } from "@/components/booking/NoCardDialog";
 import { DateTimePicker } from "@/components/booking/DateTimePicker";
 import { BayAvailabilityGrid } from "@/components/booking/BayAvailabilityGrid";
 import { toast } from "@/hooks/use-toast";
@@ -32,7 +31,6 @@ const MEMBERSHIP_DISPLAY: Record<string, string> = {
   eagle: "Eagle Member",
 };
 
-const CARD_SETUP_PENDING_KEY = "bb:cardSetupPending";
 const PENDING_BOOKING_KEY = "bb:pendingBookingId";
 
 export default function Booking() {
@@ -63,23 +61,7 @@ export default function Booking() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<"balance" | "card">("card");
   const [usePartialBalance, setUsePartialBalance] = useState(false);
-  const [showNoCardDialog, setShowNoCardDialog] = useState(false);
-  const [isOpeningStripe, setIsOpeningStripe] = useState(false);
-  const [isRedirectingToStripe, setIsRedirectingToStripe] = useState(false);
   const [pendingBookingId, setPendingBookingId] = useState<string | null>(null);
-  
-  // If iOS reloads the app after going to Safari, reopen the dialog so the user can
-  // hit Close to refresh their saved card.
-  useEffect(() => {
-    const storedPendingBookingId = localStorage.getItem(PENDING_BOOKING_KEY);
-    if (localStorage.getItem(CARD_SETUP_PENDING_KEY) === "1") {
-      setShowNoCardDialog(true);
-      setIsRedirectingToStripe(true);
-      if (storedPendingBookingId) {
-        setPendingBookingId(storedPendingBookingId);
-      }
-    }
-  }, []);
 
   // Show toast if setup was cancelled
   useEffect(() => {
@@ -243,14 +225,8 @@ export default function Booking() {
     setPendingBookingId(newPendingBookingId);
     localStorage.setItem(PENDING_BOOKING_KEY, newPendingBookingId);
 
-    // If no saved card, show the add card dialog
-    if (!savedCard && !isLoadingSavedCard) {
-      setIsSubmitting(false);
-      setShowNoCardDialog(true);
-      return;
-    }
-
-    // Has saved card - complete the pending booking immediately
+    // Proceed to complete booking - if no saved card, charge-booking will 
+    // redirect to Stripe Checkout which handles card setup + payment in one flow
     await completePendingBooking(newPendingBookingId);
   };
 
@@ -331,35 +307,6 @@ export default function Booking() {
       setIsSubmitting(false);
       localStorage.removeItem(PENDING_BOOKING_KEY);
       setPendingBookingId(null);
-    }
-  };
-
-  const handleCloseCardDialog = async () => {
-    setShowNoCardDialog(false);
-    setIsOpeningStripe(false);
-    setIsRedirectingToStripe(false);
-    
-    // Refresh saved card data
-    const { data: refreshedCard } = await refetchSavedCard();
-    
-    // If we have a pending booking and user now has a card, complete it
-    const storedBookingId = pendingBookingId || localStorage.getItem(PENDING_BOOKING_KEY);
-    if (storedBookingId && refreshedCard) {
-      await completePendingBooking(storedBookingId);
-    } else if (storedBookingId && !refreshedCard) {
-      // User didn't add a card - clean up the pending booking
-      toast({
-        title: "Booking cancelled",
-        description: "Card not added. Your slot reservation has been released.",
-        variant: "destructive",
-      });
-      await supabase.from("bookings").delete().eq("id", storedBookingId).eq("status", "pending");
-      localStorage.removeItem(PENDING_BOOKING_KEY);
-      setPendingBookingId(null);
-      // Refresh availability
-      if (selectedDate) {
-        fetchBookingsForDate(selectedDate);
-      }
     }
   };
 
@@ -675,13 +622,6 @@ export default function Booking() {
         </div>
       </main>
 
-      {/* No Card Dialog */}
-      <NoCardDialog
-        open={showNoCardDialog}
-        onClose={handleCloseCardDialog}
-        onCardAdded={refetchSavedCard}
-        returnPath="/card-added"
-      />
     </div>
   );
 }

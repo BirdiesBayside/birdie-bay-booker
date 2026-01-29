@@ -150,7 +150,7 @@ const BookingSuccess = () => {
               Booking Confirmed!
             </h1>
             <p className="text-center text-muted-foreground mb-6">
-              Your payment was successful and your bay is reserved.
+              Your payment was successful and your bay is reserved. Your card has been saved for future bookings.
             </p>
 
             {/* Booking Details */}
