@@ -49,6 +49,13 @@ serve(async (req) => {
 
     if (action === "create_payment_intent") {
       // Create a payment intent for the terminal
+      // Only store essential item data in metadata to stay under Stripe's 500 char limit
+      const itemsSummary = (items || []).map((item: any) => ({
+        name: item.name?.substring(0, 30), // Truncate long names
+        qty: item.quantity || 1,
+        price: item.price,
+      }));
+      
       const paymentIntent = await stripe.paymentIntents.create({
         amount: Math.round(amount * 100), // Convert to cents
         currency: "aud",
@@ -58,7 +65,7 @@ serve(async (req) => {
         metadata: {
           customerId: customerId || "",
           bookingId: bookingId || "",
-          items: JSON.stringify(items || []),
+          items: JSON.stringify(itemsSummary),
         },
       });
 
