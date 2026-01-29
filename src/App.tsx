@@ -32,6 +32,7 @@ const CardAdded = lazy(() => import("./pages/CardAdded"));
 const WelcomePreview = lazy(() => import("./pages/WelcomePreview"));
 const BirdiesGuide = lazy(() => import("./pages/BirdiesGuide"));
 const Unsubscribe = lazy(() => import("./pages/Unsubscribe"));
+const BayOrder = lazy(() => import("./pages/BayOrder"));
 
 // Admin pages
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
@@ -187,6 +188,7 @@ const App = () => (
             <Route path="/welcome-preview" element={<WelcomePreview />} />
             <Route path="/birdies-guide" element={<BirdiesGuide />} />
             <Route path="/unsubscribe" element={<Unsubscribe />} />
+            <Route path="/order/:bayNumber" element={<BayOrder />} />
             {/* Admin Routes */}
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/admin/timetable" element={<AdminTimetable />} />

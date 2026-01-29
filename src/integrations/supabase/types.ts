@@ -233,6 +233,39 @@ export type Database = {
           },
         ]
       }
+      bay_orders: {
+        Row: {
+          bay_number: number
+          created_at: string
+          id: string
+          items: Json
+          processed_at: string | null
+          processed_by: string | null
+          status: string
+          total: number
+        }
+        Insert: {
+          bay_number: number
+          created_at?: string
+          id?: string
+          items: Json
+          processed_at?: string | null
+          processed_by?: string | null
+          status?: string
+          total: number
+        }
+        Update: {
+          bay_number?: number
+          created_at?: string
+          id?: string
+          items?: Json
+          processed_at?: string | null
+          processed_by?: string | null
+          status?: string
+          total?: number
+        }
+        Relationships: []
+      }
       bays: {
         Row: {
           bay_number: number

@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import birdieLogo from "@/assets/birdies-logo.png";
+import { AdminOrderNotifications } from "./AdminOrderNotifications";
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -64,12 +65,15 @@ export function AdminLayout({ children }: AdminLayoutProps) {
       {/* Sidebar - Desktop */}
       <aside className="hidden lg:flex lg:flex-col lg:w-64 bg-sidebar border-r border-sidebar-border">
         <div className="p-4 border-b border-sidebar-border">
-          <Link to="/admin" className="flex items-center gap-3">
-            <img src={birdieLogo} alt="Birdies" className="h-8" />
-            <span className="font-display text-xl text-sidebar-foreground uppercase tracking-wide">
-              Admin
-            </span>
-          </Link>
+          <div className="flex items-center justify-between">
+            <Link to="/admin" className="flex items-center gap-3">
+              <img src={birdieLogo} alt="Birdies" className="h-8" />
+              <span className="font-display text-xl text-sidebar-foreground uppercase tracking-wide">
+                Admin
+              </span>
+            </Link>
+            <AdminOrderNotifications />
+          </div>
         </div>
         
         <nav className="flex-1 p-4 space-y-1">
@@ -126,8 +130,9 @@ export function AdminLayout({ children }: AdminLayoutProps) {
               Admin
             </span>
           </div>
-          <Link to="/admin">
+          <Link to="/admin" className="flex items-center gap-2">
             <img src={birdieLogo} alt="Birdies" className="h-7" />
+            <AdminOrderNotifications />
           </Link>
         </div>
 
