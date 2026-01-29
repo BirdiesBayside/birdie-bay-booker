@@ -368,7 +368,7 @@ export default function AdminPOS() {
 
         // Poll for payment status - faster polling for responsive UX
         let attempts = 0;
-        const maxAttempts = 60; // 1 minute timeout (60 * 1 second)
+        const maxAttempts = 180; // 3 minute timeout (180 * 1 second)
         let consecutiveErrors = 0;
 
         const checkStatus = async () => {
