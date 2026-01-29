@@ -26,7 +26,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Pencil, Trash2, Settings, ShoppingCart, Bell, DollarSign, X, Copy, Check, Eye, BarChart3, AlertTriangle, Loader2, GripVertical, ArrowUp, ArrowDown, Coffee } from "lucide-react";
+import { Plus, Pencil, Trash2, Settings, ShoppingCart, Bell, DollarSign, X, Copy, Check, Eye, BarChart3, AlertTriangle, Loader2, GripVertical, ArrowUp, ArrowDown, Coffee, ChevronDown } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { SalesReporting } from "@/components/admin/SalesReporting";
 import { ActivityLog } from "@/components/admin/ActivityLog";
 import { TableServiceSettings } from "@/components/admin/TableServiceSettings";
@@ -938,47 +939,54 @@ export default function AdminSettings() {
 
           {/* POS Settings */}
           <TabsContent value="pos" className="space-y-4">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle>POS Products</CardTitle>
-                  <CardDescription>Manage products available in the POS system. Use arrows to reorder.</CardDescription>
-                </div>
-                <Button onClick={() => openProductDialog()} size="sm">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Product
-                </Button>
-              </CardHeader>
-              <CardContent>
-                {isLoadingProducts ? (
-                  <Skeleton className="h-48" />
-                ) : products.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <ShoppingCart className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                    <p>No products yet</p>
-                    <Button variant="outline" size="sm" className="mt-2" onClick={() => openProductDialog()}>
-                      Add your first product
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {products.map((product, index) => (
-                      <ProductRow
-                        key={product.id}
-                        product={product}
-                        onEdit={() => openProductDialog(product)}
-                        onToggle={() => toggleProductActive(product)}
-                        onDelete={() => deleteProduct(product)}
-                        onMoveUp={() => moveProduct(product.id, 'up')}
-                        onMoveDown={() => moveProduct(product.id, 'down')}
-                        isFirst={index === 0}
-                        isLast={index === products.length - 1}
-                      />
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            <Collapsible>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <CollapsibleTrigger className="flex items-center gap-2 group cursor-pointer flex-1 text-left">
+                    <ChevronDown className="h-5 w-5 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+                    <div>
+                      <CardTitle>POS Products</CardTitle>
+                      <CardDescription>Manage products available in the POS system. Use arrows to reorder.</CardDescription>
+                    </div>
+                  </CollapsibleTrigger>
+                  <Button onClick={() => openProductDialog()} size="sm">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Product
+                  </Button>
+                </CardHeader>
+                <CollapsibleContent>
+                  <CardContent>
+                    {isLoadingProducts ? (
+                      <Skeleton className="h-48" />
+                    ) : products.length === 0 ? (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <ShoppingCart className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                        <p>No products yet</p>
+                        <Button variant="outline" size="sm" className="mt-2" onClick={() => openProductDialog()}>
+                          Add your first product
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {products.map((product, index) => (
+                          <ProductRow
+                            key={product.id}
+                            product={product}
+                            onEdit={() => openProductDialog(product)}
+                            onToggle={() => toggleProductActive(product)}
+                            onDelete={() => deleteProduct(product)}
+                            onMoveUp={() => moveProduct(product.id, 'up')}
+                            onMoveDown={() => moveProduct(product.id, 'down')}
+                            isFirst={index === 0}
+                            isLast={index === products.length - 1}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </CollapsibleContent>
+              </Card>
+            </Collapsible>
 
             {/* Table Service Hours */}
             <TableServiceSettings />
