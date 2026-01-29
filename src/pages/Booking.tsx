@@ -48,6 +48,7 @@ export default function Booking() {
     savedCard,
     getHourlyRate,
     getRateInfo,
+    checkMultiBayRestriction,
     fetchBookingsForDate,
     checkBayAvailability,
     createBooking,
@@ -415,14 +416,14 @@ export default function Booking() {
 
   if (!isAuthenticated) return null;
 
-  // Calculate rate with peak/off-peak logic
-  const hourlyRate = selectedDate && selectedTime 
-    ? getHourlyRate(userMembershipTier, selectedDate, selectedTime)
-    : getHourlyRate();
-  
+  // Calculate rate with peak/off-peak logic and multi-bay restriction
   const rateInfo = selectedDate && selectedTime 
-    ? getRateInfo(selectedDate, selectedTime)
+    ? getRateInfo(selectedDate, selectedTime, selectedDuration, selectedBayId)
     : null;
+  
+  const hourlyRate = rateInfo?.rate ?? (selectedDate && selectedTime 
+    ? getHourlyRate(userMembershipTier, selectedDate, selectedTime)
+    : getHourlyRate());
 
   const canConfirm = selectedDate && selectedTime && selectedBayId;
 
@@ -461,12 +462,23 @@ export default function Booking() {
             </span>
           </div>
           
-          {rateInfo?.isRestricted && selectedTime && (
+          {(rateInfo?.isRestricted || rateInfo?.isMultiBayRestricted) && selectedTime && (
             <Badge variant="outline" className="text-amber-600 border-amber-300 bg-amber-50">
               Visitor Rate Applied
             </Badge>
           )}
         </div>
+
+        {/* Multi-bay restriction warning for Birdie/Eagle members */}
+        {rateInfo?.isMultiBayRestricted && (
+          <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+            <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
+            <div>
+              <strong>Additional bay booking.</strong> You already have a bay booked at this time. 
+              Additional bays during peak hours are charged at visitor rates ($35/hr).
+            </div>
+          </div>
+        )}
 
         {/* Weekday member restriction warning */}
         {userMembershipTier === "weekday" && rateInfo?.isRestricted && (
