@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { CreditCard, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,6 +11,8 @@ import {
 } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { Capacitor } from "@capacitor/core";
+import { Browser } from "@capacitor/browser";
 
 const CARD_SETUP_PENDING_KEY = "bb:cardSetupPending";
 
@@ -23,20 +25,35 @@ interface NoCardDialogProps {
 
 export function NoCardDialog({ open, onClose, onCardAdded, returnPath = "/card-added" }: NoCardDialogProps) {
   const [isOpeningStripe, setIsOpeningStripe] = useState(false);
-  const [isRedirectingToStripe, setIsRedirectingToStripe] = useState(false);
+  const [isAwaitingReturn, setIsAwaitingReturn] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
 
-  // Check if returning from Stripe setup
+  // Check if returning from Stripe setup (web only - native uses browser close event)
   useEffect(() => {
-    if (open && localStorage.getItem(CARD_SETUP_PENDING_KEY) === "1") {
-      setIsRedirectingToStripe(true);
+    if (open && !Capacitor.isNativePlatform() && localStorage.getItem(CARD_SETUP_PENDING_KEY) === "1") {
+      setIsAwaitingReturn(true);
     }
   }, [open]);
 
-  const handleAddCard = async () => {
-    // Pre-open a tab synchronously so iOS doesn't block opening Safari after the async call
-    const preOpened = window.open("about:blank", "_blank");
+  // Verify if card was added by checking payment methods
+  const verifyCardAdded = useCallback(async (): Promise<boolean> => {
+    try {
+      const { data, error } = await supabase.functions.invoke("get-payment-methods");
+      if (error) {
+        console.error("[NoCardDialog] Error checking payment methods:", error);
+        return false;
+      }
+      const paymentMethods = data?.paymentMethods || [];
+      return paymentMethods.length > 0;
+    } catch (err) {
+      console.error("[NoCardDialog] Error verifying card:", err);
+      return false;
+    }
+  }, []);
 
+  const handleAddCard = async () => {
     setIsOpeningStripe(true);
+    
     try {
       const { data, error } = await supabase.functions.invoke("create-checkout-setup", {
         body: {
@@ -48,26 +65,62 @@ export function NoCardDialog({ open, onClose, onCardAdded, returnPath = "/card-a
       if (data?.error) throw new Error(data.error);
       if (!data?.url) throw new Error("No Stripe URL returned");
 
-      // Store flag so when the app reloads/returns, we show the Close dialog
       localStorage.setItem(CARD_SETUP_PENDING_KEY, "1");
 
-      // Switch the popup to "Close" state
-      setIsRedirectingToStripe(true);
-      setIsOpeningStripe(false);
-
-      if (preOpened) {
-        preOpened.location.href = data.url;
+      if (Capacitor.isNativePlatform()) {
+        // On native: use Capacitor Browser (in-app browser)
+        // This opens Safari View Controller on iOS which stays "in app"
+        setIsAwaitingReturn(true);
+        setIsOpeningStripe(false);
+        
+        // Listen for when user closes the browser
+        const listener = await Browser.addListener('browserFinished', async () => {
+          console.log("[NoCardDialog] Browser closed, verifying card...");
+          listener.remove();
+          
+          setIsVerifying(true);
+          
+          // Give Stripe webhook a moment to process
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          
+          const hasCard = await verifyCardAdded();
+          
+          setIsVerifying(false);
+          localStorage.removeItem(CARD_SETUP_PENDING_KEY);
+          
+          if (hasCard) {
+            toast({
+              title: "Card Added",
+              description: "Your payment method has been saved successfully.",
+            });
+            onCardAdded?.();
+            onClose();
+          } else {
+            setIsAwaitingReturn(false);
+            toast({
+              title: "Card Not Added",
+              description: "It looks like the card setup wasn't completed. Please try again.",
+              variant: "destructive",
+            });
+          }
+        });
+        
+        await Browser.open({ url: data.url });
       } else {
-        // Fallback: navigate current view
-        window.location.href = data.url;
+        // On web: open in new tab
+        const preOpened = window.open("about:blank", "_blank");
+        
+        setIsAwaitingReturn(true);
+        setIsOpeningStripe(false);
+
+        if (preOpened) {
+          preOpened.location.href = data.url;
+        } else {
+          // Fallback: navigate current view
+          window.location.href = data.url;
+        }
       }
     } catch (error: any) {
-      try {
-        preOpened?.close();
-      } catch {
-        // ignore
-      }
-
       toast({
         title: "Error",
         description: error.message || "Failed to start card setup. Please try again.",
@@ -75,19 +128,30 @@ export function NoCardDialog({ open, onClose, onCardAdded, returnPath = "/card-a
       });
       localStorage.removeItem(CARD_SETUP_PENDING_KEY);
       setIsOpeningStripe(false);
-      setIsRedirectingToStripe(false);
+      setIsAwaitingReturn(false);
     }
   };
 
-  const handleClose = (cardWasAdded: boolean = false) => {
-    const wasRedirectingToStripe = isRedirectingToStripe;
+  const handleClose = async (verifyCard: boolean = false) => {
+    if (verifyCard && isAwaitingReturn) {
+      // User clicked "Done" on web - verify if card was added
+      setIsVerifying(true);
+      const hasCard = await verifyCardAdded();
+      setIsVerifying(false);
+      
+      if (hasCard) {
+        localStorage.removeItem(CARD_SETUP_PENDING_KEY);
+        setIsOpeningStripe(false);
+        setIsAwaitingReturn(false);
+        onCardAdded?.();
+        onClose();
+        return;
+      }
+    }
+    
     localStorage.removeItem(CARD_SETUP_PENDING_KEY);
     setIsOpeningStripe(false);
-    setIsRedirectingToStripe(false);
-    // Only call onCardAdded if user was returning from Stripe setup (card was added)
-    if (cardWasAdded || wasRedirectingToStripe) {
-      onCardAdded?.();
-    }
+    setIsAwaitingReturn(false);
     onClose();
   };
 
@@ -100,16 +164,30 @@ export function NoCardDialog({ open, onClose, onCardAdded, returnPath = "/card-a
             Add a Payment Method
           </DialogTitle>
           <DialogDescription>
-            {isRedirectingToStripe
-              ? "Complete the card setup in the new tab, then close this dialog to continue."
+            {isVerifying
+              ? "Checking your payment method..."
+              : isAwaitingReturn
+              ? Capacitor.isNativePlatform()
+                ? "Complete the card setup, then tap Done to return here."
+                : "Complete the card setup in the new tab, then click Done below."
               : "You need a card on file to make bookings or subscribe to memberships. You'll be redirected to securely add your card."}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter className="flex-col gap-2 sm:flex-row">
-          {isRedirectingToStripe ? (
-            <Button onClick={() => handleClose(true)} className="w-full sm:w-auto">
-              Close
+          {isVerifying ? (
+            <Button disabled className="w-full sm:w-auto">
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Verifying...
             </Button>
+          ) : isAwaitingReturn ? (
+            <>
+              <Button variant="outline" onClick={() => handleClose(false)} className="w-full sm:w-auto">
+                Cancel
+              </Button>
+              <Button onClick={() => handleClose(true)} className="w-full sm:w-auto">
+                Done
+              </Button>
+            </>
           ) : (
             <>
               <Button variant="outline" onClick={() => handleClose(false)} className="w-full sm:w-auto">
