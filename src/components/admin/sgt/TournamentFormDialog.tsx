@@ -85,7 +85,7 @@ const tournamentFormSchema = z.object({
   gameplay: z.enum(GAMEPLAY_OPTIONS).default("Normal"),
   stableford: z.boolean().default(false),
   numberholes: z.enum(HOLES_OPTIONS).default("18"),
-  gimmes: z.number().default(0),
+  gimmes: z.number().default(5),
   puttingmode: z.enum(PUTTING_MODE_OPTIONS).default("Optimistic"),
   head2head: z.boolean().default(false),
   hideleaderboard: z.boolean().default(false),
@@ -342,7 +342,7 @@ export function TournamentFormDialog({
       gameplay: "Normal",
       stableford: false,
       numberholes: "18",
-      gimmes: 0,
+      gimmes: 5,
       puttingmode: "Optimistic",
       head2head: false,
       hideleaderboard: false,
@@ -415,7 +415,7 @@ export function TournamentFormDialog({
           gameplay: "Normal",
           stableford: false,
           numberholes: "18",
-          gimmes: 0,
+          gimmes: 5,
           puttingmode: "Optimistic",
           head2head: false,
           hideleaderboard: false,
@@ -690,6 +690,30 @@ export function TournamentFormDialog({
                       </FormItem>
                     )}
                   />
+
+                  <FormField
+                    control={form.control}
+                    name="gimmes"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Gimmes (feet)</FormLabel>
+                        <Select onValueChange={(v) => field.onChange(parseInt(v))} value={field.value.toString()}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {GIMMES_OPTIONS.map(opt => (
+                              <SelectItem key={opt} value={opt.toString()}>
+                                {opt === 0 ? "None" : opt === 99 ? "Auto-putt" : `${opt} ft`}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </FormItem>
+                    )}
+                  />
                 </div>
 
                 {/* Dates */}
@@ -841,30 +865,6 @@ export function TournamentFormDialog({
                               <SelectItem value="18">18 Holes</SelectItem>
                               <SelectItem value="Front9">Front 9</SelectItem>
                               <SelectItem value="Back9">Back 9</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="gimmes"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Gimmes (feet)</FormLabel>
-                          <Select onValueChange={(v) => field.onChange(parseInt(v))} value={field.value.toString()}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {GIMMES_OPTIONS.map(opt => (
-                                <SelectItem key={opt} value={opt.toString()}>
-                                  {opt === 0 ? "None" : opt === 99 ? "Auto-putt" : `${opt} ft`}
-                                </SelectItem>
-                              ))}
                             </SelectContent>
                           </Select>
                         </FormItem>
