@@ -74,7 +74,7 @@ export default function BayOrder() {
         .map((item) => {
           if (item.id === id) {
             const newQty = item.quantity + delta;
-            return newQty > 0 ? { ...item, quantity: newQty } : item;
+            return { ...item, quantity: newQty };
           }
           return item;
         })
