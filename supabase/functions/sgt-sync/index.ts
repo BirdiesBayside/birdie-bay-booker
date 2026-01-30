@@ -449,6 +449,11 @@ serve(async (req) => {
     }
     console.log(`[SGT-SYNC] Synced ${members.length} members (${newMemberUserIds.length} new)`);
 
+    // New members are often unlinked to a Birdies account at first (e.g. manually added in SGT).
+    // Give admins one sync cycle to mark them as exempt, otherwise the cleanup below would
+    // immediately remove them from the club before they can be seen in the UI.
+    const newMemberUserIdSet = new Set(newMemberUserIds);
+
     // CLEANUP: Remove SGT members from club who no longer have active Birdies memberships
     // Uses /members/remove to remove from club (NOT /members/delete which deletes the SGT account entirely)
     // Keeps sgt_user_id on profile so we can re-add them when membership is reinstated
@@ -477,6 +482,13 @@ serve(async (req) => {
     // Find members to remove: linked to a 'visitor' tier OR not linked at all
     // Exclude those marked as exempt_from_cleanup
     for (const sgtMember of sgtMembersForCleanup || []) {
+      // Grace period: do NOT remove members that were first seen in this same sync run.
+      // This prevents the “add member → press sync → member immediately removed” loop.
+      if (newMemberUserIdSet.has(sgtMember.user_id)) {
+        console.log(`[SGT-SYNC] Grace period: skipping cleanup for newly detected member: ${sgtMember.user_name} (ID: ${sgtMember.user_id})`);
+        continue;
+      }
+
       // Skip exempt members (e.g., Daryl_C)
       if (sgtMember.exempt_from_cleanup) {
         console.log(`[SGT-SYNC] Skipping cleanup for exempt member: ${sgtMember.user_name}`);
