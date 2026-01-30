@@ -61,7 +61,7 @@ serve(async (req) => {
     // Fetch booking details
     const { data: booking, error: bookingError } = await supabaseClient
       .from("bookings")
-      .select("*, profiles!inner(first_name, last_name, email, phone)")
+      .select("*")
       .eq("id", booking_id)
       .single();
 
