@@ -594,18 +594,17 @@ export function SGTMembers() {
               id="handicap"
               type="number"
               step="0.1"
-              min="-10"
-              max="54"
+              min="-36"
+              max="36"
               value={handicapValue}
               onChange={(e) => setHandicapValue(e.target.value)}
-              placeholder="e.g., 12.5"
-              className="mt-2"
+              placeholder="e.g. 12.5 or -2"
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleSetHcp();
               }}
             />
             <p className="text-xs text-muted-foreground">
-              Valid range: -10 to 54 (SGT API minimum is -10)
+              Valid range: -36 to 36 (values below -10 will be clamped to -10 by SGT API)
             </p>
           </div>
           <DialogFooter>
