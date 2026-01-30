@@ -5,6 +5,28 @@ const { exec, spawn } = require('child_process');
 const { promisify } = require('util');
 const execAsync = promisify(exec);
 
+// =====================================================
+// SINGLE INSTANCE LOCK - Prevent multiple instances
+// =====================================================
+const gotTheLock = app.requestSingleInstanceLock();
+
+if (!gotTheLock) {
+  // Another instance is already running - quit immediately
+  console.log('Another instance of Bay Controller is already running. Exiting.');
+  app.quit();
+} else {
+  // This is the primary instance - handle second-instance event
+  app.on('second-instance', (event, commandLine, workingDirectory) => {
+    // Someone tried to run a second instance - focus our window instead
+    console.log('Second instance attempted - focusing existing window');
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  });
+}
+
 // State for auto-paste functionality
 let autoPasteEnabled = false;
 let autoPasteText = '';
