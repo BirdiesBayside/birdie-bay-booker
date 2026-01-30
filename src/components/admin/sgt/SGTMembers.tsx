@@ -604,7 +604,7 @@ export function SGTMembers() {
               }}
             />
             <p className="text-xs text-muted-foreground">
-              Valid range: -36 to 36 (values below -10 will be clamped to -10 by SGT API)
+              Valid range: -36 to 36
             </p>
           </div>
           <DialogFooter>
