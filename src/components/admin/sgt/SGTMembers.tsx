@@ -588,7 +588,7 @@ export function SGTMembers() {
               Set a custom handicap for {hcpDialog.member?.user_name}. They will be added to all active tours and registered for open tournaments.
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
+          <div className="py-4 space-y-2">
             <Label htmlFor="handicap">Handicap Index</Label>
             <Input
               id="handicap"
@@ -604,6 +604,9 @@ export function SGTMembers() {
                 if (e.key === "Enter") handleSetHcp();
               }}
             />
+            <p className="text-xs text-muted-foreground">
+              Valid range: -10 to 54 (SGT API minimum is -10)
+            </p>
           </div>
           <DialogFooter>
             <Button 
