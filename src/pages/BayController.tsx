@@ -2248,8 +2248,8 @@ export default function BayController() {
       }
     }
 
-    // Don't auto-launch if changeover is in progress (it handles the relaunch)
-    if (changeoverInProgressRef.current) {
+    // Don't auto-launch/close if in manual mode or changeover is in progress
+    if (manualOverride || changeoverInProgressRef.current) {
       return;
     }
 
@@ -2257,13 +2257,13 @@ export default function BayController() {
       launchApps();
     } else if (shouldCloseApps && appsRunning) {
       console.log(`Closing apps ${appLaunchConfig.appCloseSeconds}s before booking ends (while screens still on)`);
-      closeApps();
+      closeApps('scheduled');
     } else if (!shouldLaunchApps && !shouldCloseApps && appsRunning) {
       // Fallback: close apps if no active booking window at all (including when all bookings cancelled)
       console.log('No active booking window - closing apps as fallback');
-      closeApps();
+      closeApps('scheduled');
     }
-  }, [currentTime, bookings, appLaunchConfig.enabled, appLaunchConfig.appLaunchMinutes, appLaunchConfig.appCloseSeconds, appsRunning, isLaunchingApps, isElectron]);
+  }, [currentTime, bookings, appLaunchConfig.enabled, appLaunchConfig.appLaunchMinutes, appLaunchConfig.appCloseSeconds, appsRunning, isLaunchingApps, isElectron, manualOverride]);
 
   // Password screen
   if (!isAuthenticated) {
