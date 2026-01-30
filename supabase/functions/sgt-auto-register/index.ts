@@ -408,7 +408,13 @@ serve(async (req) => {
           };
           
           if (useCustomCap && customHcp !== null) {
-            registrationItem.customCap = customHcp;
+            // SGT API enforces minimum of -10 for customCap (despite docs saying -36)
+            // Clamp to -10 minimum to avoid API rejection
+            const clampedHcp = Math.max(-10, customHcp);
+            if (clampedHcp !== customHcp) {
+              console.log(`[SGT-AUTO-REG] Clamping handicap from ${customHcp} to ${clampedHcp} (SGT API minimum is -10)`);
+            }
+            registrationItem.customCap = clampedHcp;
           }
 
           // Register for tournament
