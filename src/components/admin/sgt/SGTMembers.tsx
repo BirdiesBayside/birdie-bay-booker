@@ -271,10 +271,10 @@ export function SGTMembers() {
     if (!hcpDialog.member) return;
     
     const hcp = parseFloat(handicapValue);
-    if (isNaN(hcp) || hcp < -10 || hcp > 54) {
+    if (isNaN(hcp) || hcp < -36 || hcp > 36) {
       toast({
         title: "Invalid handicap",
-        description: "Please enter a handicap between -10 and 54",
+        description: "Please enter a handicap between -36 and 36",
         variant: "destructive",
       });
       return;

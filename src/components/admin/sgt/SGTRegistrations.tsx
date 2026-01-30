@@ -249,10 +249,10 @@ export function SGTRegistrations() {
   const handleOnboard = (sgtUserId: number) => {
     const hcp = parseFloat(handicapValue);
     
-    if (isNaN(hcp) || hcp < -10 || hcp > 54) {
+    if (isNaN(hcp) || hcp < -36 || hcp > 36) {
       toast({
         title: "Invalid handicap",
-        description: "Please enter a handicap between -10 and 54",
+        description: "Please enter a handicap between -36 and 36",
         variant: "destructive",
       });
       return;
@@ -264,10 +264,10 @@ export function SGTRegistrations() {
   const handleEditHcp = (userId: number) => {
     const hcp = parseFloat(editHandicapValue);
     
-    if (isNaN(hcp) || hcp < -10 || hcp > 54) {
+    if (isNaN(hcp) || hcp < -36 || hcp > 36) {
       toast({
         title: "Invalid handicap",
-        description: "Please enter a handicap between -10 and 54",
+        description: "Please enter a handicap between -36 and 36",
         variant: "destructive",
       });
       return;
@@ -357,8 +357,8 @@ export function SGTRegistrations() {
                           <Input
                             type="number"
                             step="0.1"
-                            min="-10"
-                            max="54"
+                            min="-36"
+                            max="36"
                             value={handicapValue}
                             onChange={(e) => setHandicapValue(e.target.value)}
                             className="w-20 mx-auto text-center"
@@ -490,8 +490,8 @@ export function SGTRegistrations() {
                           <Input
                             type="number"
                             step="0.1"
-                            min="-10"
-                            max="54"
+                            min="-36"
+                            max="36"
                             value={editHandicapValue}
                             onChange={(e) => setEditHandicapValue(e.target.value)}
                             className="w-20 mx-auto text-center"
