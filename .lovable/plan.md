@@ -1,164 +1,124 @@
 
+# Bay 3 Auto-Launch Issue: Root Cause Analysis and Fix
 
-# Plan: Multi-Bay Peak Booking Restriction for Members
+## Problem Summary
+Bay 3 is auto-launching apps and showing "Hi Guest" even though there's no active booking at the current time (13:29, with next booking at 14:30).
 
-This plan adds a seamless check that automatically reverts Birdie and Eagle members to visitor rates when they attempt to book a second bay during peak hours, with a clear notification explaining why.
+## Root Cause Analysis
 
----
+After investigating the bay controller code, I found **two issues**:
 
-## Summary
+### Issue 1: Manual Mode Not Respected for App Launches
+The app auto-launch logic (around line 2198-2266 in `BayController.tsx`) does NOT check the `manualOverride` state before launching apps.
 
-When a **Birdie** or **Eagle** member already has a bay booked during peak hours and tries to book another bay at the same peak time, the system will:
-1. Detect the conflict
-2. Automatically apply visitor rates instead of member rates
-3. Show a clear message explaining the policy
-
-This happens transparently without adding friction to the booking flow - the member simply sees the adjusted rate.
-
----
-
-## Business Rules
-
-| Scenario | Rate Applied |
-|----------|--------------|
-| First peak bay booking | Member rate |
-| Second peak bay booking (overlapping time) | Visitor peak rate ($35/hr) |
-| Off-peak bookings | Always member rate (no restriction) |
-| Weekday members | Already restricted to off-peak, so unaffected |
-
-**Peak times**: Friday-Sunday (all day) + Monday-Thursday (4pm onwards)
-
----
-
-## Implementation Approach
-
-### Check Location: Rate Calculation Stage
-
-The check happens in the `useBooking` hook when calculating the hourly rate (`getHourlyRate` and `getRateInfo`). This approach:
-- Doesn't slow down the booking confirmation step
-- Shows the rate change immediately when selecting a bay
-- Provides feedback before the member commits to the booking
-
-### Logic Flow
-
-```text
-Member selects date/time/bay
-        │
-        ▼
-Is this peak time?
-        │
-   No ──┴── Yes
-   │         │
-   │         ▼
-   │    Is member Birdie/Eagle?
-   │         │
-   │    No ──┴── Yes
-   │    │         │
-   │    │         ▼
-   │    │    Does member have another
-   │    │    confirmed/pending booking
-   │    │    that overlaps this time?
-   │    │         │
-   │    │    No ──┴── Yes
-   │    │    │         │
-   ▼    ▼    ▼         ▼
- Member Rate      Visitor Peak Rate ($35/hr)
-                  + Show info banner
+The plug control correctly respects manual mode:
+```javascript
+if (!manualOverride) {
+  if (shouldBeOn) turnOnPlugs();
+}
 ```
 
----
+But the app launch logic is missing this check:
+```javascript
+if (shouldLaunchApps && !appsRunning && !isLaunchingApps) {
+  launchApps();  // Missing: && !manualOverride
+}
+```
 
-## User Experience
+Bay 3 is currently in **manual mode** (`control_mode: manual` in database), so apps should not auto-launch.
 
-When a member triggers the multi-bay restriction, they'll see:
+### Issue 2: "Guest" Fallback When No Active Booking
+The welcome screen shows "Hi Guest" because when apps launch without an active booking detected, the fallback is:
+```javascript
+firstName: activeBooking?.customer_name?.split(' ')[0] || 'Guest'
+```
 
-1. **Rate badge changes** from "$10/hr" to "$35/hr"
-2. **"Visitor Rate Applied" badge** appears (similar to weekday member restrictions)
-3. **Info banner** explaining:
-   > "You already have a bay booked at this time. Additional bays during peak hours are charged at visitor rates ($35/hr)."
+Since there's no active booking at 13:29 (first booking is at 14:30), `activeBooking` is null, so it shows "Guest".
 
-The booking proceeds normally - no extra steps or confirmations needed.
+## Current State
+- **Bay 3 Mode**: Manual
+- **Current Time**: 13:29 Brisbane
+- **Next Booking**: 14:30-16:30 (Zander De Lange)
+- **Expected Behavior**: No apps should launch until 14:29 (1 minute before booking), and even then, should respect manual mode
+- **Actual Behavior**: Apps are launching and showing "Hi Guest"
+
+## Solution
+
+### Fix 1: Add Manual Override Check to App Launch Logic
+Update the auto-launch effect to skip launching when in manual mode:
+
+```javascript
+// Don't auto-launch if in manual mode or changeover is in progress
+if (manualOverride || changeoverInProgressRef.current) {
+  return;
+}
+
+if (shouldLaunchApps && !appsRunning && !isLaunchingApps) {
+  launchApps();
+}
+```
+
+### Fix 2: Also Add Manual Override Check to App Close Logic
+The fallback close logic should also respect manual mode to prevent unexpected closures:
+
+```javascript
+if (shouldCloseApps && appsRunning && !manualOverride) {
+  closeApps('scheduled');
+} else if (!shouldLaunchApps && !shouldCloseApps && appsRunning && !manualOverride) {
+  closeApps('scheduled');
+}
+```
 
 ---
 
 ## Technical Details
 
 ### Files to Modify
+1. **`src/pages/BayController.tsx`** - Add `manualOverride` check to the app auto-launch effect (lines ~2198-2266)
 
-| File | Changes |
-|------|---------|
-| `src/hooks/useBooking.ts` | Add `checkMultiBayRestriction()` function and integrate with rate calculation |
-| `src/pages/Booking.tsx` | Add info banner for multi-bay restriction feedback |
-| `src/lib/pricing-utils.ts` | No changes needed - peak detection already exists |
+### Code Changes
 
-### New Hook Function
-
+**Before (lines 2251-2265):**
 ```typescript
-// Check if member is restricted from using member rate due to existing peak booking
-const checkMultiBayRestriction = useCallback(async (
-  date: Date,
-  startTime: string,
-  endTime: string,
-  bayId: string
-): Promise<boolean> => {
-  // Only applies to Birdie/Eagle during peak hours
-  if (!["birdie", "eagle"].includes(userMembershipTier)) return false;
-  if (!isPeakTime(date, startTime)) return false;
-  
-  // Check for existing overlapping bookings by this user
-  const { data: existingBookings } = await supabase
-    .from("bookings")
-    .select("id, bay_id, start_time, end_time")
-    .eq("user_id", userId)
-    .eq("booking_date", format(date, "yyyy-MM-dd"))
-    .in("status", ["confirmed", "pending"])
-    .neq("bay_id", bayId); // Different bay
-  
-  // Check for time overlap
-  return existingBookings?.some(booking => 
-    timesOverlap(startTime, endTime, booking.start_time, booking.end_time)
-  ) ?? false;
-}, [userMembershipTier, userId]);
-```
+// Don't auto-launch if changeover is in progress (it handles the relaunch)
+if (changeoverInProgressRef.current) {
+  return;
+}
 
-### Rate Info Update
-
-The `getRateInfo` function will be enhanced to return an additional `isMultiBayRestricted` flag:
-
-```typescript
-interface RateInfo {
-  rate: number;
-  isPeak: boolean;
-  isRestricted: boolean;  // Existing weekday restriction
-  isMultiBayRestricted: boolean;  // New: true if visitor rate due to multi-bay
+if (shouldLaunchApps && !appsRunning && !isLaunchingApps) {
+  launchApps();
+} else if (shouldCloseApps && appsRunning) {
+  closeApps();
+} else if (!shouldLaunchApps && !shouldCloseApps && appsRunning) {
+  closeApps();
 }
 ```
 
-### Database Query
+**After:**
+```typescript
+// Don't auto-launch/close if in manual mode or changeover is in progress
+if (manualOverride || changeoverInProgressRef.current) {
+  return;
+}
 
-The check uses a simple query on the `bookings` table to find any existing bookings for the same user on the same date that overlap with the selected time slot. This query is already allowed by the existing RLS policies ("Users can view their own bookings").
+if (shouldLaunchApps && !appsRunning && !isLaunchingApps) {
+  launchApps();
+} else if (shouldCloseApps && appsRunning) {
+  closeApps('scheduled');
+} else if (!shouldLaunchApps && !shouldCloseApps && appsRunning) {
+  closeApps('scheduled');
+}
+```
+
+Also update the effect dependencies to include `manualOverride` (line 2266).
 
 ---
 
-## Edge Cases Handled
+## No App Rebuild Required
+This is a JavaScript/React change that is loaded from the web server. Once deployed, all bay controllers running v1.0.4 will receive the fix automatically without needing a new .exe build.
 
-| Scenario | Behavior |
-|----------|----------|
-| Same bay, extend duration | No restriction (same bay) |
-| Different bay, no time overlap | No restriction (no conflict) |
-| Pending booking exists | Still triggers restriction |
-| Admin creates booking for member | Standard logic applies |
-| Member cancels first booking | Second booking no longer restricted |
-
----
-
-## Testing Scenarios
-
-1. **Birdie member, first peak booking** → Member rate ($10/hr)
-2. **Birdie member, second peak booking, overlapping time** → Visitor rate ($35/hr) + banner
-3. **Birdie member, second peak booking, non-overlapping time** → Member rate ($10/hr)
-4. **Birdie member, off-peak booking** → Always member rate (no restriction)
-5. **Eagle member, second peak booking** → Same as Birdie (visitor rate)
-6. **Weekday member during peak** → Already restricted, no additional check needed
-7. **Visitor, any booking** → No member rate to restrict
-
+## Testing Recommendation
+After the fix is deployed:
+1. Switch Bay 3 back to AUTO mode from the admin panel
+2. Verify apps only launch at the correct time (1 minute before booking)
+3. Test switching to MANUAL mode - apps should not auto-launch or auto-close
