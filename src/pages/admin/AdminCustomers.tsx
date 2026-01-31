@@ -1252,6 +1252,13 @@ export default function AdminCustomers() {
                       Joined {format(new Date(selectedCustomer.created_at), "MMMM d, yyyy")}
                     </span>
                   </div>
+
+                  <div className="flex items-center gap-3 text-sm">
+                    <Users className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <span className={selectedCustomer.booking_count === 0 ? "text-muted-foreground" : ""}>
+                      {selectedCustomer.booking_count || 0} booking{selectedCustomer.booking_count !== 1 ? 's' : ''}
+                    </span>
+                  </div>
                 </div>
 
                 <hr className="border-border" />
