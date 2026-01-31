@@ -461,9 +461,48 @@ export function useBooking() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
 
-    // Calculate rate with peak/off-peak logic
-    const hourlyRate = getHourlyRate(userMembershipTier, date, startTime);
-    const totalPrice = hourlyRate * durationHours;
+    const dateStr = format(date, "yyyy-MM-dd");
+    const startHour = parseInt(startTime.split(":")[0]);
+    const startMinute = parseInt(startTime.split(":")[1]);
+    const endHour = startHour + durationHours;
+    const endTime = `${endHour.toString().padStart(2, "0")}:${startMinute.toString().padStart(2, "0")}`;
+
+    // CRITICAL: Fresh database check for multi-bay restriction
+    // This prevents race conditions when users book multiple bays quickly
+    let actualHourlyRate: number;
+    
+    if (customHourlyRate !== null) {
+      // Custom rate always takes priority
+      actualHourlyRate = customHourlyRate;
+    } else if (["birdie", "eagle"].includes(userMembershipTier) && isPeakTime(date, startTime)) {
+      // For Birdie/Eagle during peak: check for overlapping bookings in DB (not cached state)
+      const { data: existingBookings } = await supabase
+        .from("bookings")
+        .select("id, bay_id, start_time, end_time")
+        .eq("user_id", user.id)
+        .eq("booking_date", dateStr)
+        .in("status", ["confirmed", "pending"])
+        .neq("bay_id", bayId); // Different bay
+      
+      // Check if any existing booking overlaps with this time slot
+      const hasOverlappingBooking = (existingBookings || []).some(booking => 
+        timesOverlap(startTime, endTime, booking.start_time, booking.end_time)
+      );
+      
+      if (hasOverlappingBooking) {
+        // Multi-bay during peak: charge visitor rate instead of member rate
+        console.log("[useBooking] Multi-bay peak restriction triggered - charging visitor rate");
+        actualHourlyRate = FALLBACK_PRICING.visitor; // $35 peak visitor rate
+      } else {
+        // No conflict: use member rate
+        actualHourlyRate = calculateHourlyRate(userMembershipTier, date, startTime, tierPricing);
+      }
+    } else {
+      // All other cases: use standard rate calculation
+      actualHourlyRate = calculateHourlyRate(userMembershipTier, date, startTime, tierPricing);
+    }
+    
+    const totalPrice = actualHourlyRate * durationHours;
     
     // Track how much to deduct from balance and charge to card
     let balanceDeduction = 0;
@@ -485,7 +524,6 @@ export function useBooking() {
         .eq("user_id", user.id);
       
       if (balanceError) throw new Error("Failed to deduct balance");
-      // Invalidate user profile cache to refresh balance
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.USER_PROFILE() });
     } else if (partialBalanceAmount && partialBalanceAmount > 0) {
       // Partial balance usage with card payment
@@ -499,14 +537,8 @@ export function useBooking() {
         .eq("user_id", user.id);
       
       if (balanceError) throw new Error("Failed to deduct balance");
-      // Invalidate user profile cache to refresh balance
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.USER_PROFILE() });
     }
-
-    const startHour = parseInt(startTime.split(":")[0]);
-    const startMinute = parseInt(startTime.split(":")[1]);
-    const endHour = startHour + durationHours;
-    const endTime = `${endHour.toString().padStart(2, "0")}:${startMinute.toString().padStart(2, "0")}`;
 
     // Auto-confirm if total is $0 (free booking) or paid by balance
     // Use <= 0 to handle floating point edge cases
@@ -518,11 +550,11 @@ export function useBooking() {
       .insert({
         user_id: user.id,
         bay_id: bayId,
-        booking_date: format(date, "yyyy-MM-dd"),
+        booking_date: dateStr,
         start_time: startTime,
         end_time: endTime,
         duration_hours: durationHours,
-        hourly_rate: hourlyRate,
+        hourly_rate: actualHourlyRate,
         total_price: totalPrice,
         player_count: playerCount,
         payment_method: isFreeBooking ? "free" : (paymentMethod === "balance" ? "balance" : (balanceDeduction > 0 ? "partial" : "pending")),
