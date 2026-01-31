@@ -502,8 +502,69 @@ serve(async (req) => {
         console.log(`[SGT-SYNC] Removing ${sgtMember.user_name} (ID: ${sgtMember.user_id}) from club - tier: ${membershipTier || 'not linked'}`);
         
         try {
-          // REMOVE from SGT club via API (not delete - they keep their SGT account)
           const apiKey = await getApiKey(supabase);
+          
+          // 1. First, remove from all active tournament registrations via SGT API
+          // Get active tours to find tournaments to unregister from
+          const { data: activeTours } = await supabase
+            .from("sgt_tours")
+            .select("tour_id")
+            .eq("active", 1);
+          
+          for (const tour of activeTours || []) {
+            // Get active tournaments for this tour
+            const { data: activeTournaments } = await supabase
+              .from("sgt_tournaments")
+              .select("tournament_id")
+              .eq("tour_id", tour.tour_id)
+              .in("status", ["Upcoming", "In Progress", "Active"]);
+            
+            for (const tournament of activeTournaments || []) {
+              try {
+                const deleteRegForm = new URLSearchParams();
+                deleteRegForm.append("api-key", apiKey);
+                deleteRegForm.append("tournamentId", tournament.tournament_id.toString());
+                deleteRegForm.append("tourId", tour.tour_id.toString());
+                deleteRegForm.append("userId", sgtMember.user_id.toString());
+                
+                const deleteRegResponse = await fetch(`${SGT_BASE_URL}/${CLUB_URL}/registrations/delete`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                  body: deleteRegForm.toString(),
+                });
+                
+                const deleteRegData = await deleteRegResponse.json();
+                if (deleteRegData.success) {
+                  console.log(`[SGT-SYNC] ✓ Removed ${sgtMember.user_name} from tournament ${tournament.tournament_id}`);
+                }
+              } catch (regError) {
+                console.error(`[SGT-SYNC] Error removing ${sgtMember.user_name} from tournament ${tournament.tournament_id}:`, regError);
+              }
+            }
+            
+            // 2. Remove from the tour itself via SGT API
+            try {
+              const removeTourForm = new URLSearchParams();
+              removeTourForm.append("api-key", apiKey);
+              removeTourForm.append("tourId", tour.tour_id.toString());
+              removeTourForm.append("userId", sgtMember.user_id.toString());
+              
+              const removeTourResponse = await fetch(`${SGT_BASE_URL}/${CLUB_URL}/tours/remove-member`, {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: removeTourForm.toString(),
+              });
+              
+              const removeTourData = await removeTourResponse.json();
+              if (removeTourData.success) {
+                console.log(`[SGT-SYNC] ✓ Removed ${sgtMember.user_name} from tour ${tour.tour_id}`);
+              }
+            } catch (tourError) {
+              console.error(`[SGT-SYNC] Error removing ${sgtMember.user_name} from tour ${tour.tour_id}:`, tourError);
+            }
+          }
+          
+          // 3. REMOVE from SGT club via API (not delete - they keep their SGT account)
           const formData = new URLSearchParams();
           formData.append("api-key", apiKey);
           formData.append("user_id", sgtMember.user_id.toString());
@@ -517,7 +578,7 @@ serve(async (req) => {
           const removeData = await removeResponse.json();
           console.log(`[SGT-SYNC] Remove from club response for ${sgtMember.user_name}:`, removeData);
           
-          // Remove from local sgt_members table (they're no longer in our club)
+          // 4. Remove from local sgt_members table (they're no longer in our club)
           await supabase
             .from("sgt_members")
             .delete()
@@ -525,13 +586,14 @@ serve(async (req) => {
           
           // NOTE: We keep sgt_user_id on the profile so we can re-add them when membership is reinstated
           
-          // Remove from tour members (they can't participate in tours without club membership)
+          // 5. Remove from local tour members table
           await supabase
             .from("sgt_tour_members")
             .delete()
             .eq("user_id", sgtMember.user_id);
           
           cleanupCount++;
+          console.log(`[SGT-SYNC] ✓ Full cleanup complete for ${sgtMember.user_name}: removed from tournaments, tours, and club`);
         } catch (cleanupError) {
           console.error(`[SGT-SYNC] Error removing ${sgtMember.user_name} from club:`, cleanupError);
         }
