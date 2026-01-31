@@ -135,7 +135,7 @@ serve(async (req) => {
 
     console.log(`[SGT-TOURN-REG] Request received - ${force_reregister ? 'Force re-registration' : 'Daily auto-registration'} for ${tournament_id ? `tournament ${tournament_id}` : 'all active tournaments'}`);
 
-    const results: { tournamentId: number; tournamentName: string; tourName: string; registered: number; alreadyRegistered: number; errors: string[] }[] = [];
+    const results: { tournamentId: number; tournamentName: string; tourName: string; registered: number; alreadyRegistered: number; skipped: number; errors: string[] }[] = [];
 
     // If specific tournament provided, register for that one
     if (tournament_id && tour_id) {
@@ -252,11 +252,12 @@ async function registerAllMembersForTournament(
   tournamentName?: string,
   tourName?: string,
   forceReregister?: boolean
-): Promise<{ tournamentId: number; tournamentName: string; tourName: string; registered: number; alreadyRegistered: number; deleted: number; errors: string[] }> {
+): Promise<{ tournamentId: number; tournamentName: string; tourName: string; registered: number; alreadyRegistered: number; deleted: number; skipped: number; errors: string[] }> {
   const errors: string[] = [];
   let deletedCount = 0;
+  let skippedCount = 0;
   
-  console.log(`[SGT-TOURN-REG] ${forceReregister ? 'Force re-registering' : 'Registering'} all members for tournament ${tournamentId} (tour ${tourId})`);
+  console.log(`[SGT-TOURN-REG] ${forceReregister ? 'Force re-registering' : 'Registering'} eligible members for tournament ${tournamentId} (tour ${tourId})`);
 
   // Get current registrations for this tournament
   const registrationsResponse = await sgtGetRequest("/registrations/view", { 
@@ -284,20 +285,57 @@ async function registerAllMembersForTournament(
     }
     
     console.log(`[SGT-TOURN-REG] Deleted ${deletedCount} registrations`);
-    // Clear the set so everyone gets re-registered
     registeredUserIds.clear();
   }
 
-  // Get all tour members
+  // Get all tour members from SGT API
   const tourMembersResponse = await sgtGetRequest("/tours/members", { tourId: tourId.toString() });
-  const tourMembers = extractArray(tourMembersResponse, ['members', 'results']) as { user_id: number; user_name: string }[];
+  const allTourMembers = extractArray(tourMembersResponse, ['members', 'results']) as { user_id: number; user_name: string }[];
 
-  console.log(`[SGT-TOURN-REG] Tour has ${tourMembers.length} members`);
+  console.log(`[SGT-TOURN-REG] Tour has ${allTourMembers.length} total members`);
 
-  // Find members not yet registered (or all if force mode cleared the set)
-  const membersToRegister = tourMembers.filter(m => !registeredUserIds.has(m.user_id));
+  // CRITICAL: Filter to only eligible members
+  // Eligible = has Birdies membership (linked profile with non-visitor tier) OR is exempt_from_cleanup
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const supabaseClient = createClient(supabaseUrl, supabaseKey);
 
-  console.log(`[SGT-TOURN-REG] ${membersToRegister.length} members need registration`);
+  // Get all SGT user IDs that are eligible:
+  // 1. Linked to a profile with non-visitor membership
+  // 2. OR marked as exempt_from_cleanup in sgt_members
+  const { data: linkedProfiles } = await supabaseClient
+    .from("profiles")
+    .select("sgt_user_id, membership_tier")
+    .not("sgt_user_id", "is", null)
+    .neq("membership_tier", "visitor");
+
+  const { data: exemptMembers } = await supabaseClient
+    .from("sgt_members")
+    .select("user_id")
+    .eq("exempt_from_cleanup", true);
+
+  const linkedSgtUserIds = new Set((linkedProfiles || []).map((p: { sgt_user_id: number }) => p.sgt_user_id));
+  const exemptSgtUserIds = new Set((exemptMembers || []).map((m: { user_id: number }) => m.user_id));
+
+  console.log(`[SGT-TOURN-REG] Found ${linkedSgtUserIds.size} members with Birdies memberships`);
+  console.log(`[SGT-TOURN-REG] Found ${exemptSgtUserIds.size} exempt members`);
+
+  // Filter tour members to only eligible ones
+  const eligibleMembers = allTourMembers.filter(member => {
+    const isLinkedMember = linkedSgtUserIds.has(member.user_id);
+    const isExempt = exemptSgtUserIds.has(member.user_id);
+    return isLinkedMember || isExempt;
+  });
+
+  const ineligibleCount = allTourMembers.length - eligibleMembers.length;
+  skippedCount = ineligibleCount;
+
+  console.log(`[SGT-TOURN-REG] ${eligibleMembers.length} eligible members, ${ineligibleCount} ineligible (no membership/not exempt)`);
+
+  // Find eligible members not yet registered
+  const membersToRegister = eligibleMembers.filter(m => !registeredUserIds.has(m.user_id));
+
+  console.log(`[SGT-TOURN-REG] ${membersToRegister.length} eligible members need registration`);
 
   if (membersToRegister.length === 0) {
     return {
@@ -305,14 +343,14 @@ async function registerAllMembersForTournament(
       tournamentName: tournamentName || `Tournament ${tournamentId}`,
       tourName: tourName || `Tour ${tourId}`,
       registered: 0,
-      alreadyRegistered: tourMembers.length,
+      alreadyRegistered: eligibleMembers.length - membersToRegister.length,
       deleted: deletedCount,
+      skipped: skippedCount,
       errors
     };
   }
 
-  // Register all unregistered members in batches
-  // Note: teeType is omitted so API uses tournament default tees
+  // Register eligible unregistered members in batches
   const batchSize = 20;
   let totalRegistered = 0;
 
@@ -347,8 +385,9 @@ async function registerAllMembersForTournament(
     tournamentName: tournamentName || `Tournament ${tournamentId}`,
     tourName: tourName || `Tour ${tourId}`,
     registered: totalRegistered,
-    alreadyRegistered: registeredUserIds.size,
+    alreadyRegistered: eligibleMembers.length - membersToRegister.length,
     deleted: deletedCount,
+    skipped: skippedCount,
     errors
   };
 }
