@@ -118,13 +118,27 @@ const AdminAnnouncements = () => {
         fetchAnnouncements();
       }
     } else {
-      const { error } = await supabase
+      const { data: newAnnouncement, error } = await supabase
         .from("announcements")
-        .insert(announcementData);
+        .insert(announcementData)
+        .select()
+        .single();
 
       if (error) {
         toast.error("Failed to create announcement");
       } else {
+        // Send push notification for new announcements
+        try {
+          await supabase.functions.invoke('send-push-notification', {
+            body: {
+              title: announcementData.title,
+              body: announcementData.content.slice(0, 100) + (announcementData.content.length > 100 ? '...' : ''),
+            }
+          });
+        } catch (pushError) {
+          console.error('Failed to send push notification:', pushError);
+        }
+        
         toast.success("Announcement created and sent to all users");
         setIsDialogOpen(false);
         resetForm();
