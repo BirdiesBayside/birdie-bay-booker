@@ -64,6 +64,19 @@ async function getApiKey(supabase: unknown): Promise<string> {
   return data.key;
 }
 
+// Helper to extract arrays from SGT API responses
+function extractArray(data: unknown, keys: string[]): unknown[] {
+  if (Array.isArray(data)) return data;
+  if (data && typeof data === 'object') {
+    for (const key of keys) {
+      if (key in data && Array.isArray((data as Record<string, unknown>)[key])) {
+        return (data as Record<string, unknown>)[key] as unknown[];
+      }
+    }
+  }
+  return [];
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -79,13 +92,13 @@ serve(async (req) => {
 
     console.log(`[SGT-CLEANUP] Starting ineligible member cleanup (dry_run: ${dryRun})`);
 
-    // 1. Get active tour
-    const { data: activeTour } = await supabase
-      .from("sgt_tours")
-      .select("tour_id, name")
-      .eq("active", 1)
-      .limit(1)
-      .single();
+    const apiKey = await getApiKey(supabase);
+
+    // 1. Get active tour from SGT API
+    const toursResponse = await fetch(`${SGT_BASE_URL}/${CLUB_URL}/tours/list?api-key=${apiKey}`);
+    const toursData = await toursResponse.json();
+    const allTours = extractArray(toursData, ['tours', 'results']) as { tourId: number; name: string; active: number }[];
+    const activeTour = allTours.find(t => t.active === 1);
 
     if (!activeTour) {
       return new Response(
@@ -94,109 +107,164 @@ serve(async (req) => {
       );
     }
 
-    console.log(`[SGT-CLEANUP] Active tour: ${activeTour.name} (ID: ${activeTour.tour_id})`);
+    console.log(`[SGT-CLEANUP] Active tour: ${activeTour.name} (ID: ${activeTour.tourId})`);
 
-    // 2. Get current tournament
-    const { data: currentTournament } = await supabase
-      .from("sgt_tournaments")
-      .select("tournament_id, name, status")
-      .eq("tour_id", activeTour.tour_id)
-      .in("status", ["Upcoming", "In Progress", "Active"])
-      .order("start_date", { ascending: false })
-      .limit(1)
-      .single();
+    // 2. Get current tournament from SGT API
+    const tournamentsResponse = await fetch(`${SGT_BASE_URL}/${CLUB_URL}/tournaments/list?api-key=${apiKey}&tourId=${activeTour.tourId}`);
+    const tournamentsData = await tournamentsResponse.json();
+    const tournaments = extractArray(tournamentsData, ['results', 'tournaments']) as { 
+      tournamentId: number; 
+      name: string; 
+      status?: string;
+      start_date?: string;
+      end_date?: string;
+    }[];
 
-    console.log(`[SGT-CLEANUP] Current tournament: ${currentTournament?.name || 'None'} (ID: ${currentTournament?.tournament_id || 'N/A'})`);
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+    
+    // Find in-progress or upcoming tournament
+    const currentTournament = tournaments.find(t => {
+      const status = t.status || '';
+      const startDate = t.start_date || '';
+      const endDate = t.end_date || '';
+      const isNotClosed = status !== 'Closed' && status !== 'Completed';
+      const isInProgress = status === 'In Progress' || status === 'Active';
+      const isUpcoming = status === 'Upcoming';
+      const hasStarted = startDate <= today && (!endDate || endDate >= today);
+      return isNotClosed && (isInProgress || isUpcoming || hasStarted);
+    });
 
-    // 3. Get all tour members
-    const { data: tourMembers } = await supabase
-      .from("sgt_tour_members")
-      .select("user_id, user_name")
-      .eq("tour_id", activeTour.tour_id);
-
-    if (!tourMembers || tourMembers.length === 0) {
+    if (!currentTournament) {
       return new Response(
-        JSON.stringify({ message: "No tour members found", removed: [] }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "No current tournament found", tournaments: tournaments.map(t => ({ name: t.name, status: t.status })) }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    console.log(`[SGT-CLEANUP] Found ${tourMembers.length} tour members`);
+    console.log(`[SGT-CLEANUP] Current tournament: ${currentTournament.name} (ID: ${currentTournament.tournamentId})`);
 
-    // 4. Get exempt members
+    // 3. Get tour members from SGT API
+    const tourMembersResponse = await fetch(`${SGT_BASE_URL}/${CLUB_URL}/tours/members?api-key=${apiKey}&tourId=${activeTour.tourId}`);
+    const tourMembersData = await tourMembersResponse.json();
+    const tourMembers = extractArray(tourMembersData, ['members', 'results']) as { user_id: number; user_name: string }[];
+
+    console.log(`[SGT-CLEANUP] Tour has ${tourMembers.length} members from SGT API`);
+
+    // 4. Get tournament registrations from SGT API
+    const registrationsResponse = await fetch(`${SGT_BASE_URL}/${CLUB_URL}/registrations/view?api-key=${apiKey}&tournamentId=${currentTournament.tournamentId}`);
+    const registrationsData = await registrationsResponse.json();
+    const registrations = extractArray(registrationsData, ['registrations', 'results']) as { user_id: number; user_name?: string }[];
+
+    console.log(`[SGT-CLEANUP] Tournament has ${registrations.length} registrations from SGT API`);
+
+    // 5. Get exempt members from our database
     const { data: exemptMembers } = await supabase
       .from("sgt_members")
       .select("user_id")
       .eq("exempt_from_cleanup", true);
 
     const exemptUserIds = new Set((exemptMembers || []).map(m => m.user_id));
-    console.log(`[SGT-CLEANUP] Found ${exemptUserIds.size} exempt members`);
+    console.log(`[SGT-CLEANUP] Found ${exemptUserIds.size} exempt members: ${Array.from(exemptUserIds).join(', ')}`);
 
-    // 5. Get linked profiles with paying memberships
+    // 6. Get linked profiles with paying memberships
     const { data: linkedProfiles } = await supabase
       .from("profiles")
-      .select("sgt_user_id, membership_tier")
+      .select("sgt_user_id, membership_tier, email, first_name, last_name")
       .not("sgt_user_id", "is", null)
       .neq("membership_tier", "visitor");
 
     const payingMemberIds = new Set((linkedProfiles || []).map(p => p.sgt_user_id));
-    console.log(`[SGT-CLEANUP] Found ${payingMemberIds.size} paying members`);
+    console.log(`[SGT-CLEANUP] Found ${payingMemberIds.size} paying members: ${linkedProfiles?.map(p => `${p.sgt_user_id}`).join(', ')}`);
 
-    // 6. Filter to ineligible members (not exempt AND not paying)
-    const ineligibleMembers = tourMembers.filter(member => {
+    // 7. Find ineligible tour members (not exempt AND not paying)
+    const ineligibleTourMembers = tourMembers.filter(member => {
       const isExempt = exemptUserIds.has(member.user_id);
       const isPaying = payingMemberIds.has(member.user_id);
       return !isExempt && !isPaying;
     });
 
-    console.log(`[SGT-CLEANUP] Found ${ineligibleMembers.length} ineligible members to remove`);
+    console.log(`[SGT-CLEANUP] Found ${ineligibleTourMembers.length} ineligible TOUR members: ${ineligibleTourMembers.map(m => m.user_name).join(', ')}`);
 
-    if (ineligibleMembers.length === 0) {
+    // 8. Find ineligible tournament registrations (not exempt AND not paying)
+    const ineligibleRegistrations = registrations.filter(reg => {
+      const isExempt = exemptUserIds.has(reg.user_id);
+      const isPaying = payingMemberIds.has(reg.user_id);
+      return !isExempt && !isPaying;
+    });
+
+    console.log(`[SGT-CLEANUP] Found ${ineligibleRegistrations.length} ineligible TOURNAMENT registrations`);
+
+    // Combine all unique user IDs that need cleanup
+    const allIneligibleUsers = new Map<number, string>();
+    
+    for (const member of ineligibleTourMembers) {
+      allIneligibleUsers.set(member.user_id, member.user_name);
+    }
+    
+    for (const reg of ineligibleRegistrations) {
+      if (!allIneligibleUsers.has(reg.user_id)) {
+        // Try to get username from tour members or use a placeholder
+        const tourMember = tourMembers.find(m => m.user_id === reg.user_id);
+        allIneligibleUsers.set(reg.user_id, tourMember?.user_name || reg.user_name || `User_${reg.user_id}`);
+      }
+    }
+
+    console.log(`[SGT-CLEANUP] Total unique ineligible users: ${allIneligibleUsers.size}`);
+    console.log(`[SGT-CLEANUP] Users to remove: ${Array.from(allIneligibleUsers.values()).join(', ')}`);
+
+    if (allIneligibleUsers.size === 0) {
       return new Response(
         JSON.stringify({ 
           message: "No ineligible members found",
           tour: activeTour.name,
-          tournament: currentTournament?.name,
+          tournament: currentTournament.name,
+          tour_members_checked: tourMembers.length,
+          registrations_checked: registrations.length,
+          exempt_count: exemptUserIds.size,
+          paying_count: payingMemberIds.size,
           removed: [] 
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // List who will be removed
-    console.log("[SGT-CLEANUP] Ineligible members:", ineligibleMembers.map(m => m.user_name).join(", "));
-
     if (dryRun) {
       return new Response(
         JSON.stringify({ 
           message: "Dry run - no changes made",
           tour: activeTour.name,
-          tournament: currentTournament?.name,
-          would_remove: ineligibleMembers.map(m => ({ user_id: m.user_id, user_name: m.user_name }))
+          tournament: currentTournament.name,
+          tour_members_checked: tourMembers.length,
+          registrations_checked: registrations.length,
+          ineligible_tour_members: ineligibleTourMembers.length,
+          ineligible_registrations: ineligibleRegistrations.length,
+          would_remove: Array.from(allIneligibleUsers.entries()).map(([id, name]) => ({ user_id: id, user_name: name }))
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const apiKey = await getApiKey(supabase);
+    // Perform actual cleanup
     const results: { user_name: string; user_id: number; tournament_removed: boolean; tour_removed: boolean; error?: string }[] = [];
 
-    for (const member of ineligibleMembers) {
+    for (const [userId, userName] of allIneligibleUsers) {
       const result: typeof results[0] = {
-        user_name: member.user_name,
-        user_id: member.user_id,
+        user_name: userName,
+        user_id: userId,
         tournament_removed: false,
         tour_removed: false,
       };
 
       try {
-        // Remove from current tournament registration
-        if (currentTournament) {
+        // Remove from tournament registration
+        const isRegistered = registrations.some(r => r.user_id === userId);
+        if (isRegistered) {
           const deleteRegForm = new URLSearchParams();
           deleteRegForm.append("api-key", apiKey);
-          deleteRegForm.append("tournamentId", currentTournament.tournament_id.toString());
-          deleteRegForm.append("tourId", activeTour.tour_id.toString());
-          deleteRegForm.append("userId", member.user_id.toString());
+          deleteRegForm.append("tournamentId", currentTournament.tournamentId.toString());
+          deleteRegForm.append("tourId", activeTour.tourId.toString());
+          deleteRegForm.append("userId", userId.toString());
 
           const deleteRegResponse = await fetch(`${SGT_BASE_URL}/${CLUB_URL}/registrations/delete`, {
             method: "POST",
@@ -206,36 +274,39 @@ serve(async (req) => {
 
           const deleteRegData = await deleteRegResponse.json();
           result.tournament_removed = deleteRegData.success === true;
-          console.log(`[SGT-CLEANUP] Tournament removal for ${member.user_name}:`, deleteRegData);
+          console.log(`[SGT-CLEANUP] Tournament removal for ${userName}:`, deleteRegData);
         }
 
         // Remove from tour
-        const removeTourForm = new URLSearchParams();
-        removeTourForm.append("api-key", apiKey);
-        removeTourForm.append("tourId", activeTour.tour_id.toString());
-        removeTourForm.append("userId", member.user_id.toString());
+        const isInTour = tourMembers.some(m => m.user_id === userId);
+        if (isInTour) {
+          const removeTourForm = new URLSearchParams();
+          removeTourForm.append("api-key", apiKey);
+          removeTourForm.append("tourId", activeTour.tourId.toString());
+          removeTourForm.append("userId", userId.toString());
 
-        const removeTourResponse = await fetch(`${SGT_BASE_URL}/${CLUB_URL}/tours/remove-member`, {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: removeTourForm.toString(),
-        });
+          const removeTourResponse = await fetch(`${SGT_BASE_URL}/${CLUB_URL}/tours/remove-member`, {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: removeTourForm.toString(),
+          });
 
-        const removeTourData = await removeTourResponse.json();
-        result.tour_removed = removeTourData.success === true;
-        console.log(`[SGT-CLEANUP] Tour removal for ${member.user_name}:`, removeTourData);
+          const removeTourData = await removeTourResponse.json();
+          result.tour_removed = removeTourData.success === true;
+          console.log(`[SGT-CLEANUP] Tour removal for ${userName}:`, removeTourData);
+        }
 
         // Remove from local sgt_tour_members table
         await supabase
           .from("sgt_tour_members")
           .delete()
-          .eq("user_id", member.user_id)
-          .eq("tour_id", activeTour.tour_id);
+          .eq("user_id", userId)
+          .eq("tour_id", activeTour.tourId);
 
-        console.log(`[SGT-CLEANUP] ✓ Cleaned up ${member.user_name}`);
+        console.log(`[SGT-CLEANUP] ✓ Cleaned up ${userName}`);
       } catch (error) {
         result.error = error instanceof Error ? error.message : "Unknown error";
-        console.error(`[SGT-CLEANUP] Error cleaning up ${member.user_name}:`, error);
+        console.error(`[SGT-CLEANUP] Error cleaning up ${userName}:`, error);
       }
 
       results.push(result);
@@ -246,14 +317,14 @@ serve(async (req) => {
 
     const successCount = results.filter(r => r.tournament_removed || r.tour_removed).length;
 
-    console.log(`[SGT-CLEANUP] Completed: ${successCount}/${ineligibleMembers.length} removed`);
+    console.log(`[SGT-CLEANUP] Completed: ${successCount}/${allIneligibleUsers.size} removed`);
 
     return new Response(
       JSON.stringify({
         success: true,
         tour: activeTour.name,
-        tournament: currentTournament?.name,
-        total_ineligible: ineligibleMembers.length,
+        tournament: currentTournament.name,
+        total_ineligible: allIneligibleUsers.size,
         removed: successCount,
         results,
       }),
