@@ -89,3 +89,6 @@ verify_jwt = false
 
 [functions.marketing-unsubscribe]
 verify_jwt = false
+
+[functions.sgt-cleanup-ineligible]
+verify_jwt = false
