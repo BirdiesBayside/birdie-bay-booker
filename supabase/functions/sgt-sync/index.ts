@@ -606,6 +606,176 @@ serve(async (req) => {
       console.log("[SGT-SYNC] No inactive members to clean up");
     }
 
+    // LIVE TOUR/TOURNAMENT CLEANUP: Remove users from SGT tours/tournaments who aren't in our local sgt_members
+    // This catches users who were added directly in SGT but aren't eligible Birdies members
+    console.log("[SGT-SYNC] Running live tour/tournament eligibility cleanup...");
+    let liveCleanupCount = 0;
+    
+    // Get paying member IDs and exempt IDs for eligibility check
+    const payingMemberSgtIds = new Set<number>();
+    for (const profile of linkedProfiles || []) {
+      if (profile.sgt_user_id && profile.membership_tier !== 'visitor') {
+        payingMemberSgtIds.add(profile.sgt_user_id);
+      }
+    }
+    
+    const exemptSgtIds = new Set<number>();
+    for (const member of sgtMembersForCleanup || []) {
+      if (member.exempt_from_cleanup) {
+        exemptSgtIds.add(member.user_id);
+      }
+    }
+    
+    console.log(`[SGT-SYNC] Eligible members: ${payingMemberSgtIds.size} paying + ${exemptSgtIds.size} exempt`);
+    
+    // Get active tours
+    const { data: activeToursForLiveCleanup } = await supabase
+      .from("sgt_tours")
+      .select("tour_id, name")
+      .eq("active", 1);
+    
+    for (const tour of activeToursForLiveCleanup || []) {
+      try {
+        const apiKey = await getApiKey(supabase);
+        
+        // Fetch tour members directly from SGT API
+        const tourMembersResponse = await fetch(
+          `${SGT_BASE_URL}/${CLUB_URL}/tours/members?api-key=${apiKey}&tourId=${tour.tour_id}`
+        );
+        const tourMembersData = await tourMembersResponse.json();
+        
+        // Handle different response formats
+        let liveTourMembers: { user_id: number; user_name: string }[] = [];
+        if (Array.isArray(tourMembersData)) {
+          liveTourMembers = tourMembersData;
+        } else if (tourMembersData?.members) {
+          liveTourMembers = tourMembersData.members;
+        } else if (tourMembersData?.results) {
+          liveTourMembers = tourMembersData.results;
+        }
+        
+        console.log(`[SGT-SYNC] Tour ${tour.name}: ${liveTourMembers.length} members from SGT API`);
+        
+        // Find ineligible tour members
+        for (const member of liveTourMembers) {
+          const isExempt = exemptSgtIds.has(member.user_id);
+          const isPaying = payingMemberSgtIds.has(member.user_id);
+          
+          if (!isExempt && !isPaying) {
+            console.log(`[SGT-SYNC] Removing ineligible member ${member.user_name} (ID: ${member.user_id}) from tour ${tour.name}`);
+            
+            try {
+              // Remove from tour
+              const removeTourForm = new URLSearchParams();
+              removeTourForm.append("api-key", apiKey);
+              removeTourForm.append("tourId", tour.tour_id.toString());
+              removeTourForm.append("userId", member.user_id.toString());
+              
+              const removeTourResponse = await fetch(`${SGT_BASE_URL}/${CLUB_URL}/tours/remove-member`, {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: removeTourForm.toString(),
+              });
+              
+              const removeTourData = await removeTourResponse.json();
+              if (removeTourData.success) {
+                console.log(`[SGT-SYNC] ✓ Removed ${member.user_name} from tour ${tour.name}`);
+                liveCleanupCount++;
+              }
+              
+              // Also remove from local sgt_tour_members if exists
+              await supabase
+                .from("sgt_tour_members")
+                .delete()
+                .eq("user_id", member.user_id)
+                .eq("tour_id", tour.tour_id);
+              
+            } catch (removeError) {
+              console.error(`[SGT-SYNC] Error removing ${member.user_name} from tour:`, removeError);
+            }
+            
+            // Small delay between API calls
+            await new Promise(resolve => setTimeout(resolve, 200));
+          }
+        }
+        
+        // Get active tournaments for this tour and clean registrations
+        const { data: activeTournaments } = await supabase
+          .from("sgt_tournaments")
+          .select("tournament_id, name")
+          .eq("tour_id", tour.tour_id)
+          .in("status", ["Upcoming", "In Progress", "Active"]);
+        
+        for (const tournament of activeTournaments || []) {
+          try {
+            // Fetch registrations directly from SGT API
+            const regsResponse = await fetch(
+              `${SGT_BASE_URL}/${CLUB_URL}/registrations/view?api-key=${apiKey}&tournamentId=${tournament.tournament_id}`
+            );
+            const regsData = await regsResponse.json();
+            
+            // Handle different response formats
+            let liveRegistrations: { user_id: number; user_name?: string }[] = [];
+            if (Array.isArray(regsData)) {
+              liveRegistrations = regsData;
+            } else if (regsData?.registrations) {
+              liveRegistrations = regsData.registrations;
+            } else if (regsData?.results) {
+              liveRegistrations = regsData.results;
+            }
+            
+            console.log(`[SGT-SYNC] Tournament ${tournament.name}: ${liveRegistrations.length} registrations from SGT API`);
+            
+            // Find ineligible registrations
+            for (const reg of liveRegistrations) {
+              const isExempt = exemptSgtIds.has(reg.user_id);
+              const isPaying = payingMemberSgtIds.has(reg.user_id);
+              
+              if (!isExempt && !isPaying) {
+                const regName = reg.user_name || `User_${reg.user_id}`;
+                console.log(`[SGT-SYNC] Removing ineligible registration ${regName} from tournament ${tournament.name}`);
+                
+                try {
+                  const deleteRegForm = new URLSearchParams();
+                  deleteRegForm.append("api-key", apiKey);
+                  deleteRegForm.append("tournamentId", tournament.tournament_id.toString());
+                  deleteRegForm.append("tourId", tour.tour_id.toString());
+                  deleteRegForm.append("userId", reg.user_id.toString());
+                  
+                  const deleteRegResponse = await fetch(`${SGT_BASE_URL}/${CLUB_URL}/registrations/delete`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                    body: deleteRegForm.toString(),
+                  });
+                  
+                  const deleteRegData = await deleteRegResponse.json();
+                  if (deleteRegData.success) {
+                    console.log(`[SGT-SYNC] ✓ Removed ${regName} from tournament ${tournament.name}`);
+                    liveCleanupCount++;
+                  }
+                } catch (regError) {
+                  console.error(`[SGT-SYNC] Error removing registration:`, regError);
+                }
+                
+                // Small delay between API calls
+                await new Promise(resolve => setTimeout(resolve, 200));
+              }
+            }
+          } catch (tournamentError) {
+            console.error(`[SGT-SYNC] Error processing tournament ${tournament.name}:`, tournamentError);
+          }
+        }
+      } catch (tourError) {
+        console.error(`[SGT-SYNC] Error processing tour ${tour.name}:`, tourError);
+      }
+    }
+    
+    if (liveCleanupCount > 0) {
+      console.log(`[SGT-SYNC] ✓ Live cleanup complete: removed ${liveCleanupCount} ineligible entries from tours/tournaments`);
+    } else {
+      console.log("[SGT-SYNC] No ineligible tour/tournament entries found");
+    }
+
     // REINSTATE: Add back members who have an sgt_user_id but aren't in the club (upgraded from visitor)
     console.log("[SGT-SYNC] Checking for members to reinstate...");
     let reinstateCount = 0;
