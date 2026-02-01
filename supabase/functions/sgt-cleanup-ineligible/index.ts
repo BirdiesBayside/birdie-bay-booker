@@ -109,40 +109,25 @@ serve(async (req) => {
 
     console.log(`[SGT-CLEANUP] Active tour: ${activeTour.name} (ID: ${activeTour.tourId})`);
 
-    // 2. Get current tournament from SGT API
-    const tournamentsResponse = await fetch(`${SGT_BASE_URL}/${CLUB_URL}/tournaments/list?api-key=${apiKey}&tourId=${activeTour.tourId}`);
-    const tournamentsData = await tournamentsResponse.json();
-    const tournaments = extractArray(tournamentsData, ['results', 'tournaments']) as { 
-      tournamentId: number; 
-      name: string; 
-      status?: string;
-      start_date?: string;
-      end_date?: string;
-    }[];
+    // 2. Get current tournament from local database (more reliable than API)
+    const { data: localTournaments } = await supabase
+      .from("sgt_tournaments")
+      .select("tournament_id, name, status, start_date, end_date")
+      .eq("tour_id", activeTour.tourId)
+      .in("status", ["Upcoming", "In Progress", "Active"])
+      .order("start_date", { ascending: false })
+      .limit(1);
 
-    const now = new Date();
-    const today = now.toISOString().split('T')[0];
-    
-    // Find in-progress or upcoming tournament
-    const currentTournament = tournaments.find(t => {
-      const status = t.status || '';
-      const startDate = t.start_date || '';
-      const endDate = t.end_date || '';
-      const isNotClosed = status !== 'Closed' && status !== 'Completed';
-      const isInProgress = status === 'In Progress' || status === 'Active';
-      const isUpcoming = status === 'Upcoming';
-      const hasStarted = startDate <= today && (!endDate || endDate >= today);
-      return isNotClosed && (isInProgress || isUpcoming || hasStarted);
-    });
+    const currentTournament = localTournaments?.[0];
 
     if (!currentTournament) {
       return new Response(
-        JSON.stringify({ error: "No current tournament found", tournaments: tournaments.map(t => ({ name: t.name, status: t.status })) }),
+        JSON.stringify({ error: "No current tournament found", message: "No upcoming or in-progress tournaments in local database" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    console.log(`[SGT-CLEANUP] Current tournament: ${currentTournament.name} (ID: ${currentTournament.tournamentId})`);
+    console.log(`[SGT-CLEANUP] Current tournament: ${currentTournament.name} (ID: ${currentTournament.tournament_id})`);
 
     // 3. Get tour members from SGT API
     const tourMembersResponse = await fetch(`${SGT_BASE_URL}/${CLUB_URL}/tours/members?api-key=${apiKey}&tourId=${activeTour.tourId}`);
@@ -152,7 +137,7 @@ serve(async (req) => {
     console.log(`[SGT-CLEANUP] Tour has ${tourMembers.length} members from SGT API`);
 
     // 4. Get tournament registrations from SGT API
-    const registrationsResponse = await fetch(`${SGT_BASE_URL}/${CLUB_URL}/registrations/view?api-key=${apiKey}&tournamentId=${currentTournament.tournamentId}`);
+    const registrationsResponse = await fetch(`${SGT_BASE_URL}/${CLUB_URL}/registrations/view?api-key=${apiKey}&tournamentId=${currentTournament.tournament_id}`);
     const registrationsData = await registrationsResponse.json();
     const registrations = extractArray(registrationsData, ['registrations', 'results']) as { user_id: number; user_name?: string }[];
 
@@ -262,7 +247,7 @@ serve(async (req) => {
         if (isRegistered) {
           const deleteRegForm = new URLSearchParams();
           deleteRegForm.append("api-key", apiKey);
-          deleteRegForm.append("tournamentId", currentTournament.tournamentId.toString());
+          deleteRegForm.append("tournamentId", currentTournament.tournament_id.toString());
           deleteRegForm.append("tourId", activeTour.tourId.toString());
           deleteRegForm.append("userId", userId.toString());
 
