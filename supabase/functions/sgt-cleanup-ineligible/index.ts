@@ -242,11 +242,14 @@ serve(async (req) => {
       };
 
       try {
+        // Get fresh API key for each user to avoid expiration mid-loop
+        const freshApiKey = await getApiKey(supabase);
+        
         // Remove from tournament registration
         const isRegistered = registrations.some(r => r.user_id === userId);
         if (isRegistered) {
           const deleteRegForm = new URLSearchParams();
-          deleteRegForm.append("api-key", apiKey);
+          deleteRegForm.append("api-key", freshApiKey);
           deleteRegForm.append("tournamentId", currentTournament.tournament_id.toString());
           deleteRegForm.append("tourId", activeTour.tourId.toString());
           deleteRegForm.append("userId", userId.toString());
@@ -266,9 +269,9 @@ serve(async (req) => {
         const isInTour = tourMembers.some(m => m.user_id === userId);
         if (isInTour) {
           const removeTourForm = new URLSearchParams();
-          removeTourForm.append("api-key", apiKey);
+          removeTourForm.append("api-key", freshApiKey);
           removeTourForm.append("tourId", activeTour.tourId.toString());
-          removeTourForm.append("userId", userId.toString());
+          removeTourForm.append("user_id", userId.toString());
 
           const removeTourResponse = await fetch(`${SGT_BASE_URL}/${CLUB_URL}/tours/remove-member`, {
             method: "POST",

@@ -547,7 +547,7 @@ serve(async (req) => {
               const removeTourForm = new URLSearchParams();
               removeTourForm.append("api-key", apiKey);
               removeTourForm.append("tourId", tour.tour_id.toString());
-              removeTourForm.append("userId", sgtMember.user_id.toString());
+              removeTourForm.append("user_id", sgtMember.user_id.toString());
               
               const removeTourResponse = await fetch(`${SGT_BASE_URL}/${CLUB_URL}/tours/remove-member`, {
                 method: "POST",
@@ -669,7 +669,7 @@ serve(async (req) => {
               const removeTourForm = new URLSearchParams();
               removeTourForm.append("api-key", apiKey);
               removeTourForm.append("tourId", tour.tour_id.toString());
-              removeTourForm.append("userId", member.user_id.toString());
+              removeTourForm.append("user_id", member.user_id.toString());
               
               const removeTourResponse = await fetch(`${SGT_BASE_URL}/${CLUB_URL}/tours/remove-member`, {
                 method: "POST",
