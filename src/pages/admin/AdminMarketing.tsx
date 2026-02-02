@@ -124,7 +124,7 @@ export default function AdminMarketing() {
   
   // First session promo counter
   const [promoEligibleCount, setPromoEligibleCount] = useState<number | null>(null);
-  const PROMO_THRESHOLD = 30;
+  const PROMO_THRESHOLD = 10;
   const [isSavingTemplate, setIsSavingTemplate] = useState(false);
 
   useEffect(() => {
