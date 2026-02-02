@@ -9,10 +9,11 @@ const corsHeaders = {
 const SGT_BASE_URL = "https://simulatorgolftour.com/sgt-api/club-admin";
 const CLUB_URL = "birdiesbayside";
 
+// Get API key - READ-ONLY from database
+// New keys are only created by the daily sgt-refresh-api-key cron job at 4am
 async function getApiKey(supabase: unknown): Promise<string> {
   const client = supabase as ReturnType<typeof createClient>;
   
-  // Try cached key first
   const { data: configData } = await client
     .from("sgt_api_config")
     .select("api_key, expires_at")
@@ -21,47 +22,20 @@ async function getApiKey(supabase: unknown): Promise<string> {
     .maybeSingle();
 
   const config = configData as { api_key: string; expires_at: string } | null;
-  if (config?.api_key && new Date(config.expires_at) > new Date(Date.now() + 300000)) {
-    return config.api_key;
-  }
-
-  // Get fresh key
-  const username = Deno.env.get("SGT_USERNAME");
-  const password = Deno.env.get("SGT_PASSWORD");
-
-  if (!username || !password) {
-    throw new Error("SGT credentials not configured");
-  }
-
-  const formData = new URLSearchParams();
-  formData.append("username", username);
-  formData.append("password", password);
-
-  console.log("[SGT-CLEANUP] Requesting new API key...");
   
-  const response = await fetch(`${SGT_BASE_URL}/${CLUB_URL}/apikey/create`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: formData,
-  });
-
-  const data = await response.json();
-
-  if (!data.success || !data.key) {
-    throw new Error("Failed to authenticate with SGT API");
+  if (!config?.api_key) {
+    throw new Error("No API key found in database - run sgt-refresh-api-key first");
   }
 
-  // Cache the new key
-  const expiresAt = new Date(Date.now() + data.expires * 1000).toISOString();
-  await client.from("sgt_api_config").upsert({
-    id: "singleton",
-    api_key: data.key,
-    expires_at: expiresAt,
-    updated_at: new Date().toISOString(),
-  } as never);
+  const expiresAt = new Date(config.expires_at);
+  const timeUntilExpiry = expiresAt.getTime() - Date.now();
+  
+  if (timeUntilExpiry <= 0) {
+    throw new Error("API key has expired - wait for 4am cron refresh or manually trigger sgt-refresh-api-key");
+  }
 
-  console.log("[SGT-CLEANUP] API key obtained successfully");
-  return data.key;
+  console.log(`[SGT-CLEANUP] Using cached API key, expires in ${Math.round(timeUntilExpiry / 60000)}m`);
+  return config.api_key;
 }
 
 // Helper to extract arrays from SGT API responses
@@ -242,14 +216,12 @@ serve(async (req) => {
       };
 
       try {
-        // Get fresh API key for each user to avoid expiration mid-loop
-        const freshApiKey = await getApiKey(supabase);
-        
+        // Use the same API key for all users (key is refreshed daily at 4am)
         // Remove from tournament registration
         const isRegistered = registrations.some(r => r.user_id === userId);
         if (isRegistered) {
           const deleteRegForm = new URLSearchParams();
-          deleteRegForm.append("api-key", freshApiKey);
+          deleteRegForm.append("api-key", apiKey);
           deleteRegForm.append("tournamentId", currentTournament.tournament_id.toString());
           deleteRegForm.append("tourId", activeTour.tourId.toString());
           deleteRegForm.append("userId", userId.toString());
@@ -269,7 +241,7 @@ serve(async (req) => {
         const isInTour = tourMembers.some(m => m.user_id === userId);
         if (isInTour) {
           const removeTourForm = new URLSearchParams();
-          removeTourForm.append("api-key", freshApiKey);
+          removeTourForm.append("api-key", apiKey);
           removeTourForm.append("tourId", activeTour.tourId.toString());
           removeTourForm.append("user_id", userId.toString());
 

@@ -245,6 +245,9 @@ async function createNewApiKey(): Promise<{ key: string; expiresAt: Date }> {
   };
 }
 
+// Get API key - READ-ONLY from cache/database
+// New keys are only created by the daily sgt-refresh-api-key cron job at 4am
+// This function will only create a new key as a last resort emergency fallback
 async function getApiKey(supabase?: any): Promise<string> {
   const BUFFER_MS = 5 * 60 * 1000; // 5 minute buffer
 
@@ -269,25 +272,36 @@ async function getApiKey(supabase?: any): Promise<string> {
       // If key is still valid with buffer, use it
       if (timeUntilExpiry > BUFFER_MS) {
         cachedApiKey = { key: config.api_key, expiresAt };
+        console.log(`[SGT-SYNC] Using cached API key, expires in ${Math.round(timeUntilExpiry / 60000)}m`);
         return config.api_key;
       }
 
-      // Key exists but expiring soon - try to REFRESH it first
-      console.log(`[SGT-SYNC] Key expiring in ${Math.round(timeUntilExpiry / 1000)}s, attempting refresh...`);
+      // Key is expiring soon but still valid - use it anyway 
+      // The daily 4am cron will refresh it
+      if (timeUntilExpiry > 0) {
+        cachedApiKey = { key: config.api_key, expiresAt };
+        console.log(`[SGT-SYNC] API key expiring soon (${Math.round(timeUntilExpiry / 1000)}s), using anyway`);
+        return config.api_key;
+      }
+
+      // Key has expired - try to REFRESH it (no new API call to create)
+      console.log(`[SGT-SYNC] API key expired, attempting refresh...`);
       const refreshed = await refreshApiKey(config.api_key);
       
       if (refreshed) {
-        // Store refreshed key in DB
-        await supabase.from("sgt_api_config").upsert({
+        // Store refreshed key in DB - delete old and insert new
+        await supabase.from("sgt_api_config").delete().neq("api_key", "");
+        await supabase.from("sgt_api_config").insert({
           api_key: refreshed.key,
           expires_at: refreshed.expiresAt.toISOString(),
           updated_at: new Date().toISOString(),
         });
         cachedApiKey = refreshed;
+        console.log(`[SGT-SYNC] API key refreshed successfully`);
         return refreshed.key;
       }
       
-      console.log(`[SGT-SYNC] Refresh failed, creating new key...`);
+      console.log(`[SGT-SYNC] Refresh failed, must create new key (emergency fallback)`);
     }
   } else if (cachedApiKey) {
     // No supabase but have cached key - try refresh
@@ -298,13 +312,16 @@ async function getApiKey(supabase?: any): Promise<string> {
     }
   }
 
-  // No valid key or refresh failed - create new one
+  // EMERGENCY FALLBACK: No valid key or refresh failed - create new one
+  // This should rarely happen if the 4am cron is working correctly
+  console.log(`[SGT-SYNC] EMERGENCY: Creating new API key (cron may have failed)`);
   const newKey = await createNewApiKey();
   cachedApiKey = newKey;
 
   // Store in database if supabase client provided
   if (supabase) {
-    await supabase.from("sgt_api_config").upsert({
+    await supabase.from("sgt_api_config").delete().neq("api_key", "");
+    await supabase.from("sgt_api_config").insert({
       api_key: newKey.key,
       expires_at: newKey.expiresAt.toISOString(),
       updated_at: new Date().toISOString(),

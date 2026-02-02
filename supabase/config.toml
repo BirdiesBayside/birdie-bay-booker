@@ -92,3 +92,6 @@ verify_jwt = false
 
 [functions.sgt-cleanup-ineligible]
 verify_jwt = false
+
+[functions.sgt-refresh-api-key]
+verify_jwt = false
