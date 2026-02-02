@@ -37,6 +37,8 @@ import {
   MousePointer,
   Loader2,
   Search,
+  Pencil,
+  Zap,
 } from "lucide-react";
 
 interface Campaign {
@@ -113,6 +115,12 @@ export default function AdminMarketing() {
   // Preview state
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewHtml, setPreviewHtml] = useState("");
+
+  // Template editor state
+  const [editingTemplate, setEditingTemplate] = useState<Template | null>(null);
+  const [editSubject, setEditSubject] = useState("");
+  const [editHtml, setEditHtml] = useState("");
+  const [isSavingTemplate, setIsSavingTemplate] = useState(false);
 
   useEffect(() => {
     if (isAdmin) {
@@ -319,8 +327,49 @@ export default function AdminMarketing() {
       case "retention": return "bg-amber-500/10 text-amber-600 border-amber-200";
       case "promotion": return "bg-rose-500/10 text-rose-600 border-rose-200";
       case "newsletter": return "bg-blue-500/10 text-blue-600 border-blue-200";
+      case "automated": return "bg-primary/10 text-primary border-primary/20";
       default: return "bg-muted text-muted-foreground";
     }
+  };
+
+  const openTemplateEditor = (template: Template) => {
+    setEditingTemplate(template);
+    setEditSubject(template.subject);
+    setEditHtml(template.html_content);
+  };
+
+  const handleSaveTemplate = async () => {
+    if (!editingTemplate) return;
+
+    setIsSavingTemplate(true);
+    try {
+      const { error } = await supabase
+        .from("marketing_templates")
+        .update({
+          subject: editSubject,
+          html_content: editHtml,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", editingTemplate.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Template saved",
+        description: "Your changes have been saved successfully.",
+      });
+
+      setEditingTemplate(null);
+      fetchTemplates();
+    } catch (error: any) {
+      console.error("Error saving template:", error);
+      toast({
+        title: "Error saving template",
+        description: error.message || "Failed to save template.",
+        variant: "destructive",
+      });
+    }
+    setIsSavingTemplate(false);
   };
 
   const getStatusColor = (status: string) => {
@@ -457,10 +506,15 @@ export default function AdminMarketing() {
           <TabsContent value="templates" className="mt-4">
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {templates.map((template) => (
-                <Card key={template.id} className="cursor-pointer hover:border-primary/50 transition-colors">
+                <Card key={template.id} className="hover:border-primary/50 transition-colors">
                   <CardHeader className="pb-3">
                     <div className="flex items-start justify-between">
-                      <CardTitle className="text-base">{template.name}</CardTitle>
+                      <div className="flex items-center gap-2">
+                        <CardTitle className="text-base">{template.name}</CardTitle>
+                        {template.category === "automated" && (
+                          <Zap className="h-4 w-4 text-primary" />
+                        )}
+                      </div>
                       <Badge className={getCategoryColor(template.category)}>
                         {template.category}
                       </Badge>
@@ -485,13 +539,23 @@ export default function AdminMarketing() {
                         <Eye className="h-4 w-4 mr-1" />
                         Preview
                       </Button>
-                      <Button
-                        size="sm"
-                        onClick={() => openComposer(template)}
-                      >
-                        <Send className="h-4 w-4 mr-1" />
-                        Use Template
-                      </Button>
+                      {template.category === "automated" ? (
+                        <Button
+                          size="sm"
+                          onClick={() => openTemplateEditor(template)}
+                        >
+                          <Pencil className="h-4 w-4 mr-1" />
+                          Edit
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          onClick={() => openComposer(template)}
+                        >
+                          <Send className="h-4 w-4 mr-1" />
+                          Use Template
+                        </Button>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -680,6 +744,88 @@ export default function AdminMarketing() {
                 className="w-full h-[500px] border-0"
                 title="Email Preview"
               />
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Template Editor Dialog */}
+        <Dialog open={!!editingTemplate} onOpenChange={(open) => !open && setEditingTemplate(null)}>
+          <DialogContent className="max-w-4xl max-h-[90vh]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Zap className="h-5 w-5 text-primary" />
+                Edit Automated Template: {editingTemplate?.name}
+              </DialogTitle>
+              <DialogDescription>
+                Changes will be used the next time this automated campaign runs.
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4">
+              {/* Subject */}
+              <div className="space-y-2">
+                <Label htmlFor="edit-subject">Subject Line</Label>
+                <Input
+                  id="edit-subject"
+                  value={editSubject}
+                  onChange={(e) => setEditSubject(e.target.value)}
+                  placeholder="Email subject..."
+                />
+                <p className="text-xs text-muted-foreground">
+                  Available tags: {"{first_name}"}, {"{last_name}"}, {"{email}"}
+                </p>
+              </div>
+
+              {/* HTML Content */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="edit-html">HTML Content</Label>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setPreviewHtml(editHtml);
+                      setPreviewOpen(true);
+                    }}
+                  >
+                    <Eye className="h-4 w-4 mr-1" />
+                    Preview
+                  </Button>
+                </div>
+                <Textarea
+                  id="edit-html"
+                  value={editHtml}
+                  onChange={(e) => setEditHtml(e.target.value)}
+                  className="min-h-[350px] font-mono text-sm"
+                  placeholder="Paste HTML content..."
+                />
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-2 pt-2">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => setEditingTemplate(null)}
+                  disabled={isSavingTemplate}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1 bg-primary hover:bg-primary/90"
+                  onClick={handleSaveTemplate}
+                  disabled={isSavingTemplate}
+                >
+                  {isSavingTemplate ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save Template"
+                  )}
+                </Button>
+              </div>
             </div>
           </DialogContent>
         </Dialog>
