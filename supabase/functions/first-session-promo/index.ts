@@ -1,0 +1,346 @@
+import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { Resend } from "https://esm.sh/resend@2.0.0";
+
+const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+interface RequestBody {
+  force?: boolean;
+  threshold?: number;
+  dry_run?: boolean;
+}
+
+interface EligibleUser {
+  id: string;
+  user_id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  deposit_balance: number;
+}
+
+const logStep = (step: string, details?: unknown) => {
+  const detailsStr = details ? ` - ${JSON.stringify(details)}` : '';
+  console.log(`[FIRST-SESSION-PROMO] ${step}${detailsStr}`);
+};
+
+// Replace template tags with actual values
+const replaceTemplateTags = (template: string, tags: Record<string, string>): string => {
+  let result = template;
+  for (const [tag, value] of Object.entries(tags)) {
+    result = result.replace(new RegExp(tag.replace(/[{}]/g, '\\$&'), 'g'), value);
+  }
+  return result;
+};
+
+serve(async (req: Request): Promise<Response> => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    logStep("Function started");
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Parse request body for options
+    let options: RequestBody = {};
+    try {
+      const body = await req.text();
+      if (body) {
+        options = JSON.parse(body);
+      }
+    } catch {
+      // No body or invalid JSON, use defaults
+    }
+
+    const threshold = options.threshold ?? 30;
+    const force = options.force ?? false;
+    const dryRun = options.dry_run ?? false;
+
+    logStep("Options", { threshold, force, dryRun });
+
+    // Fetch eligible users:
+    // - No bookings (excluding cancelled)
+    // - Marketing opt-out = false
+    // - first_session_promo_sent IS NULL
+    // - Created more than 24 hours ago
+    // - Exclude bulk import batch (created on 2025-01-18 between 07:00 and 07:40 UTC)
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    
+    // First get all potential users, then filter in code for bulk import
+    const { data: allEligibleUsers, error: fetchError } = await supabase
+      .from("profiles")
+      .select("id, user_id, email, first_name, last_name, deposit_balance, created_at")
+      .is("first_session_promo_sent", null)
+      .eq("marketing_opt_out", false)
+      .lt("created_at", twentyFourHoursAgo);
+
+    if (fetchError) {
+      throw new Error(`Failed to fetch profiles: ${String(fetchError)}`);
+    }
+
+    // Filter out bulk import users (created 2026-01-18 between 07:00-08:00 UTC)
+    const bulkImportStart = new Date("2026-01-18T07:00:00Z").getTime();
+    const bulkImportEnd = new Date("2026-01-18T08:00:00Z").getTime();
+    
+    const eligibleUsers = (allEligibleUsers || []).filter(user => {
+      const createdAt = new Date(user.created_at).getTime();
+      // Exclude if created during bulk import window
+      return createdAt < bulkImportStart || createdAt > bulkImportEnd;
+    });
+
+    logStep("After bulk import filter", { count: eligibleUsers.length });
+
+    // Get all user_ids who have non-cancelled bookings (batch query)
+    const userIds = eligibleUsers.map(u => u.user_id);
+    
+    // Query users who have bookings in batches of 100 to avoid query limits
+    const usersWithBookings = new Set<string>();
+    const BATCH_SIZE = 100;
+    
+    for (let i = 0; i < userIds.length; i += BATCH_SIZE) {
+      const batchUserIds = userIds.slice(i, i + BATCH_SIZE);
+      const { data: bookings, error: bookingError } = await supabase
+        .from("bookings")
+        .select("user_id")
+        .in("user_id", batchUserIds)
+        .neq("status", "cancelled");
+      
+      if (bookingError) {
+        logStep("Error fetching bookings batch", { error: bookingError.message });
+        continue;
+      }
+      
+      bookings?.forEach(b => usersWithBookings.add(b.user_id));
+    }
+
+    // Filter to only users without bookings
+    const usersWithoutBookings: EligibleUser[] = eligibleUsers.filter(
+      user => !usersWithBookings.has(user.user_id)
+    );
+
+    logStep("Users without bookings", { count: usersWithoutBookings.length });
+
+    const finalEligibleUsers = usersWithoutBookings;
+
+    logStep("Final eligible users", { count: finalEligibleUsers.length });
+
+    // Check threshold
+    if (!force && finalEligibleUsers.length < threshold) {
+      logStep("Below threshold, skipping", { eligible: finalEligibleUsers.length, threshold });
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: `Below threshold (${finalEligibleUsers.length}/${threshold}). No action taken.`,
+          eligible_count: finalEligibleUsers.length,
+          threshold,
+          processed: 0,
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        }
+      );
+    }
+
+    // Dry run - just return the list
+    if (dryRun) {
+      logStep("Dry run mode - returning eligible users");
+      return new Response(
+        JSON.stringify({
+          success: true,
+          dry_run: true,
+          eligible_count: finalEligibleUsers.length,
+          eligible_users: finalEligibleUsers.map(u => ({
+            email: u.email,
+            first_name: u.first_name,
+            last_name: u.last_name,
+          })),
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        }
+      );
+    }
+
+    // Fetch email template
+    const { data: template, error: templateError } = await supabase
+      .from("email_templates")
+      .select("subject, html_content")
+      .eq("template_key", "first_session_promo")
+      .eq("is_active", true)
+      .maybeSingle();
+
+    if (templateError) {
+      logStep("Template fetch error", { error: templateError.message });
+    }
+
+    // Process users
+    const results = {
+      processed: 0,
+      success: 0,
+      failed: 0,
+      errors: [] as string[],
+    };
+
+    const CREDIT_AMOUNT = 35;
+    const BATCH_DELAY_MS = 200;
+
+    for (let i = 0; i < finalEligibleUsers.length; i++) {
+      const user = finalEligibleUsers[i];
+      
+      try {
+        logStep(`Processing user ${i + 1}/${finalEligibleUsers.length}`, { email: user.email });
+
+        // 1. Update deposit_balance and set promo timestamp
+        const newBalance = (user.deposit_balance || 0) + CREDIT_AMOUNT;
+        const { error: updateError } = await supabase
+          .from("profiles")
+          .update({
+            deposit_balance: newBalance,
+            first_session_promo_sent: new Date().toISOString(),
+          })
+          .eq("id", user.id);
+
+        if (updateError) {
+          throw new Error(`Failed to update profile: ${updateError.message}`);
+        }
+
+        // 2. Send email
+        const templateTags: Record<string, string> = {
+          '{first_name}': user.first_name || 'there',
+          '{last_name}': user.last_name || '',
+          '{email}': user.email || '',
+        };
+
+        let subject = template?.subject || "Your Free Hour is Waiting, {first_name}!";
+        let htmlContent = template?.html_content || getDefaultTemplate();
+
+        subject = replaceTemplateTags(subject, templateTags);
+        htmlContent = replaceTemplateTags(htmlContent, templateTags);
+
+        const emailResponse = await resend.emails.send({
+          from: "Birdies Bayside <hello@birdiesbayside.com.au>",
+          to: [user.email],
+          subject,
+          html: htmlContent,
+        });
+
+        if (emailResponse.error) {
+          logStep("Email send error", { email: user.email, error: emailResponse.error });
+          results.errors.push(`Email failed for ${user.email}: ${emailResponse.error.message}`);
+          results.failed++;
+        } else {
+          logStep("Email sent successfully", { email: user.email, emailId: emailResponse.data?.id });
+          results.success++;
+        }
+
+        results.processed++;
+
+        // Rate limiting delay
+        if (i < finalEligibleUsers.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
+        }
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logStep("Error processing user", { email: user.email, error: errorMessage });
+        results.errors.push(`Failed for ${user.email}: ${errorMessage}`);
+        results.failed++;
+        results.processed++;
+      }
+    }
+
+    logStep("Processing complete", results);
+
+    return new Response(
+      JSON.stringify({
+        message: `Processed ${results.processed} users`,
+        ...results,
+        success: true,
+      }),
+      {
+        status: 200,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      }
+    );
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logStep("ERROR", { message: errorMessage });
+    return new Response(
+      JSON.stringify({ success: false, error: errorMessage }),
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      }
+    );
+  }
+});
+
+function getDefaultTemplate(): string {
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Your Free Hour</title>
+</head>
+<body style="margin:0; padding:0; background-color:#FFF5E4;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#FFF5E4;">
+    <tr>
+      <td align="center" style="padding:24px 12px;">
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="max-width:600px; width:100%;">
+          <tr>
+            <td align="center" style="background-color:#1F4C25; padding:18px; border-radius:16px 16px 0 0;">
+              <img src="https://cdn.shopify.com/s/files/1/0758/7030/6550/files/NO-BG_BIRDIES-LOGOS_WORK-DOC_AMENDED-9.7.25-01.png?v=1761536603" width="140" alt="Birdies Bayside" style="display:block; width:140px; height:auto; border:0;" />
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color:#FFF5E4; padding:26px 22px; border-left:1px solid rgba(31,76,37,0.12); border-right:1px solid rgba(31,76,37,0.12);">
+              <h1 style="margin:0 0 14px; font-family:Arial, sans-serif; font-size:34px; line-height:1.1; color:#1F4C25; text-align:center;">A Gift From Us To You!</h1>
+              <p style="margin:0 0 18px; font-family:Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">
+                Hi {first_name}, we noticed you haven't booked your first session yet. We'd love to see you at Birdies, so we've added credit to your account!
+              </p>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#1F4C25; border-radius:12px; margin:18px 0;">
+                <tr>
+                  <td style="padding:30px; text-align:center;">
+                    <p style="margin:0 0 8px; font-family:Arial, sans-serif; font-size:14px; color:#FFF5E4; opacity:0.9;">Your Account Credit</p>
+                    <p style="margin:0; font-family:Arial, sans-serif; font-size:52px; font-weight:bold; color:#EC622D;">$35.00</p>
+                    <p style="margin:8px 0 0; font-family:Arial, sans-serif; font-size:14px; color:#FFF5E4; opacity:0.9;">Enough for 1 hour off-peak!</p>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:18px 0; font-family:Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">
+                This credit has been automatically added to your account and will be applied at checkout. No code needed!
+              </p>
+              <table role="presentation" align="center" cellpadding="0" cellspacing="0" border="0" style="margin:22px auto 0;">
+                <tr>
+                  <td bgcolor="#EC622D" style="border-radius:12px;">
+                    <a href="https://hub.birdiesbayside.com.au/booking" style="display:inline-block; padding:14px 28px; font-family:Arial, sans-serif; font-size:18px; font-weight:bold; color:#FFFFFF; text-decoration:none;">Book Your Free Session</a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color:#1F4C25; padding:22px; border-radius:0 0 16px 16px;">
+              <p style="margin:0; font-family:Arial, sans-serif; font-size:13px; color:#FFF5E4; text-align:center; opacity:0.85;">
+                Birdies Bayside | <a href="mailto:hello@birdiesbayside.com.au" style="color:#EC622D; text-decoration:none;">hello@birdiesbayside.com.au</a>
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}

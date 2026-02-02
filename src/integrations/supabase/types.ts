@@ -792,6 +792,7 @@ export type Database = {
           display_name: string | null
           email: string
           first_name: string
+          first_session_promo_sent: string | null
           id: string
           last_name: string
           marketing_opt_out: boolean | null
@@ -811,6 +812,7 @@ export type Database = {
           display_name?: string | null
           email: string
           first_name: string
+          first_session_promo_sent?: string | null
           id?: string
           last_name: string
           marketing_opt_out?: boolean | null
@@ -830,6 +832,7 @@ export type Database = {
           display_name?: string | null
           email?: string
           first_name?: string
+          first_session_promo_sent?: string | null
           id?: string
           last_name?: string
           marketing_opt_out?: boolean | null

@@ -98,3 +98,6 @@ verify_jwt = false
 
 [functions.sgt-refresh-api-key]
 verify_jwt = false
+
+[functions.first-session-promo]
+verify_jwt = false
