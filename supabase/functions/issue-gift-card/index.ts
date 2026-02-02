@@ -56,7 +56,7 @@ serve(async (req: Request): Promise<Response> => {
 
     // Send email
     const emailResponse = await resend.emails.send({
-      from: "Birdies Bayside <hello@birdiesbayside.com.au>",
+      from: "Birdies Bayside <info@birdiesbayside.com.au>",
       to: [recipient_email],
       subject,
       html: htmlContent,
@@ -127,7 +127,7 @@ function getDefaultTemplate(amount: number, activationUrl: string): string {
           <tr>
             <td style="background-color:#1F4C25; padding:22px; border-radius:0 0 16px 16px;">
               <p style="margin:0; font-family:Arial, sans-serif; font-size:13px; color:#FFF5E4; text-align:center; opacity:0.85;">
-                Birdies Bayside | <a href="mailto:hello@birdiesbayside.com.au" style="color:#EC622D; text-decoration:none;">hello@birdiesbayside.com.au</a>
+                Birdies Bayside | <a href="mailto:info@birdiesbayside.com.au" style="color:#EC622D; text-decoration:none;">info@birdiesbayside.com.au</a>
               </p>
             </td>
           </tr>

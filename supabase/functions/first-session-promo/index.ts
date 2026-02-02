@@ -250,7 +250,7 @@ serve(async (req: Request): Promise<Response> => {
         htmlContent = replaceTemplateTags(htmlContent, templateTags);
 
         const emailResponse = await resend.emails.send({
-          from: "Birdies Bayside <hello@birdiesbayside.com.au>",
+          from: "Birdies Bayside <info@birdiesbayside.com.au>",
           to: [user.email],
           subject,
           html: htmlContent,
@@ -324,7 +324,7 @@ serve(async (req: Request): Promise<Response> => {
 
       try {
         await resend.emails.send({
-          from: "Birdies System <hello@birdiesbayside.com.au>",
+          from: "Birdies System <admin@birdiesbayside.com.au>",
           to: ["admin@birdiesbayside.com.au"],
           subject: `First Session Promo Report - ${results.processed} customers processed`,
           html: reportHtml,
@@ -407,7 +407,7 @@ function getDefaultTemplate(): string {
           <tr>
             <td style="background-color:#1F4C25; padding:22px; border-radius:0 0 16px 16px;">
               <p style="margin:0; font-family:Arial, sans-serif; font-size:13px; color:#FFF5E4; text-align:center; opacity:0.85;">
-                Birdies Bayside | <a href="mailto:hello@birdiesbayside.com.au" style="color:#EC622D; text-decoration:none;">hello@birdiesbayside.com.au</a>
+                Birdies Bayside | <a href="mailto:info@birdiesbayside.com.au" style="color:#EC622D; text-decoration:none;">info@birdiesbayside.com.au</a>
               </p>
             </td>
           </tr>
