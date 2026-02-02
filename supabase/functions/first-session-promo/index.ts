@@ -282,6 +282,59 @@ serve(async (req: Request): Promise<Response> => {
 
     logStep("Processing complete", results);
 
+    // Send admin report email
+    if (results.processed > 0) {
+      const customerList = finalEligibleUsers.map(u => 
+        `<tr><td style="padding:8px;border-bottom:1px solid #eee;">${u.first_name} ${u.last_name}</td><td style="padding:8px;border-bottom:1px solid #eee;">${u.email}</td></tr>`
+      ).join('');
+
+      const reportHtml = `<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>First Session Promo Report</title></head>
+<body style="font-family:Arial,sans-serif;margin:0;padding:20px;background:#f5f5f5;">
+  <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.1);">
+    <div style="background:#1F4C25;color:#fff;padding:20px;text-align:center;">
+      <h1 style="margin:0;font-size:24px;">First Session Promo Report</h1>
+    </div>
+    <div style="padding:24px;">
+      <p style="color:#333;font-size:16px;margin:0 0 16px;">The automated First Session Free campaign has been triggered.</p>
+      <div style="background:#f8f9fa;border-radius:8px;padding:16px;margin-bottom:20px;">
+        <p style="margin:0 0 8px;"><strong>Total Processed:</strong> ${results.processed}</p>
+        <p style="margin:0 0 8px;"><strong>Successful:</strong> ${results.success}</p>
+        <p style="margin:0;"><strong>Failed:</strong> ${results.failed}</p>
+      </div>
+      <h3 style="color:#1F4C25;margin:0 0 12px;">Customers Included:</h3>
+      <table style="width:100%;border-collapse:collapse;">
+        <thead>
+          <tr style="background:#1F4C25;color:#fff;">
+            <th style="padding:10px;text-align:left;">Name</th>
+            <th style="padding:10px;text-align:left;">Email</th>
+          </tr>
+        </thead>
+        <tbody>${customerList}</tbody>
+      </table>
+      ${results.errors.length > 0 ? `<div style="margin-top:20px;padding:12px;background:#fff3cd;border-radius:6px;"><strong>Errors:</strong><ul style="margin:8px 0 0;padding-left:20px;">${results.errors.map(e => `<li>${e}</li>`).join('')}</ul></div>` : ''}
+    </div>
+    <div style="background:#f8f9fa;padding:16px;text-align:center;color:#666;font-size:12px;">
+      Report generated at ${new Date().toLocaleString('en-AU', { timeZone: 'Australia/Brisbane' })} AEST
+    </div>
+  </div>
+</body>
+</html>`;
+
+      try {
+        await resend.emails.send({
+          from: "Birdies System <hello@birdiesbayside.com.au>",
+          to: ["admin@birdiesbayside.com.au"],
+          subject: `First Session Promo Report - ${results.processed} customers processed`,
+          html: reportHtml,
+        });
+        logStep("Admin report email sent");
+      } catch (reportError) {
+        logStep("Failed to send admin report", { error: String(reportError) });
+      }
+    }
+
     return new Response(
       JSON.stringify({
         message: `Processed ${results.processed} users`,
