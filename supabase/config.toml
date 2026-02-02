@@ -9,6 +9,9 @@ verify_jwt = false
 [functions.sgt-tournament-auto-register]
 verify_jwt = false
 
+[functions.sgt-daily-tournament-register]
+verify_jwt = false
+
 [functions.create-setup-intent]
 verify_jwt = false
 
