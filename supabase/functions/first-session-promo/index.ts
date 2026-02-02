@@ -172,16 +172,37 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    // Fetch email template
-    const { data: template, error: templateError } = await supabase
-      .from("email_templates")
+    // Fetch email template - try marketing_templates first (editable in Marketing section),
+    // then fall back to email_templates for backwards compatibility
+    let template: { subject: string; html_content: string } | null = null;
+    
+    const { data: marketingTemplate, error: marketingError } = await supabase
+      .from("marketing_templates")
       .select("subject, html_content")
-      .eq("template_key", "first_session_promo")
+      .eq("name", "First Session Free")
       .eq("is_active", true)
       .maybeSingle();
 
-    if (templateError) {
-      logStep("Template fetch error", { error: templateError.message });
+    if (marketingError) {
+      logStep("Marketing template fetch error", { error: marketingError.message });
+    }
+
+    if (marketingTemplate) {
+      template = marketingTemplate;
+      logStep("Using marketing template");
+    } else {
+      // Fallback to email_templates
+      const { data: emailTemplate, error: emailError } = await supabase
+        .from("email_templates")
+        .select("subject, html_content")
+        .eq("template_key", "first_session_promo")
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (emailError) {
+        logStep("Email template fetch error", { error: emailError.message });
+      }
+      template = emailTemplate;
     }
 
     // Process users
