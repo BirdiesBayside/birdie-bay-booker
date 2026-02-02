@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -8,46 +9,38 @@ const corsHeaders = {
 const SGT_BASE_URL = "https://simulatorgolftour.com/sgt-api/club-admin";
 const CLUB_URL = "birdiesbayside";
 
-let cachedApiKey: string | null = null;
-let apiKeyExpiry: number = 0;
+// Supabase client for API key retrieval
+let supabaseClient: ReturnType<typeof createClient> | null = null;
 
+// Get API key - READ-ONLY from database
+// New keys are only created by the daily sgt-refresh-api-key cron job at 4am
 async function getApiKey(): Promise<string> {
-  const now = Date.now();
-  
-  if (cachedApiKey && apiKeyExpiry > now + 300000) {
-    return cachedApiKey;
+  if (!supabaseClient) {
+    throw new Error("Supabase client not initialized");
   }
 
-  const username = Deno.env.get("SGT_USERNAME");
-  const password = Deno.env.get("SGT_PASSWORD");
+  const { data: configData } = await supabaseClient
+    .from("sgt_api_config")
+    .select("api_key, expires_at")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
-  if (!username || !password) {
-    throw new Error("SGT credentials not configured");
+  const config = configData as { api_key: string; expires_at: string } | null;
+  
+  if (!config?.api_key) {
+    throw new Error("No API key found in database - run sgt-refresh-api-key first");
   }
 
-  const formData = new URLSearchParams();
-  formData.append("username", username);
-  formData.append("password", password);
-
-  console.log("[SGT-DELETE] Requesting new API key...");
+  const expiresAt = new Date(config.expires_at);
+  const timeUntilExpiry = expiresAt.getTime() - Date.now();
   
-  const response = await fetch(`${SGT_BASE_URL}/${CLUB_URL}/apikey/create`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: formData,
-  });
-
-  const data = await response.json();
-
-  if (!data.success || !data.key) {
-    throw new Error("Failed to authenticate with SGT API");
+  if (timeUntilExpiry <= 0) {
+    throw new Error("API key has expired - wait for 4am cron refresh or manually trigger sgt-refresh-api-key");
   }
 
-  cachedApiKey = data.key;
-  apiKeyExpiry = now + (data.expires * 1000);
-  
-  console.log("[SGT-DELETE] API key obtained successfully");
-  return cachedApiKey as string;
+  console.log(`[SGT-DELETE] Using cached API key, expires in ${Math.round(timeUntilExpiry / 60000)}m`);
+  return config.api_key;
 }
 
 async function sgtGetRequest(endpoint: string, params: Record<string, string> = {}): Promise<unknown> {
@@ -116,6 +109,10 @@ serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  supabaseClient = createClient(supabaseUrl, supabaseKey);
 
   try {
     const body = await req.json().catch(() => ({}));

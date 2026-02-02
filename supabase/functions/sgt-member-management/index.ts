@@ -8,47 +8,38 @@ const corsHeaders = {
 
 const SGT_BASE_URL = "https://simulatorgolftour.com/sgt-api/club-admin";
 
-let cachedApiKey: string | null = null;
-let apiKeyExpiry: number = 0;
+// Admin client for API key retrieval - set on each request
+let adminClient: any = null;
 
+// Get API key - READ-ONLY from database
+// New keys are only created by the daily sgt-refresh-api-key cron job at 4am
 async function getApiKey(clubUrl: string): Promise<string> {
-  const now = Date.now();
-  
-  if (cachedApiKey && apiKeyExpiry > now + 300000) {
-    return cachedApiKey;
+  if (!adminClient) {
+    throw new Error("Admin client not initialized");
   }
 
-  const username = Deno.env.get("SGT_USERNAME");
-  const password = Deno.env.get("SGT_PASSWORD");
+  const { data: configData } = await adminClient
+    .from("sgt_api_config")
+    .select("api_key, expires_at")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
-  if (!username || !password) {
-    throw new Error("SGT credentials not configured");
+  const config = configData as { api_key: string; expires_at: string } | null;
+  
+  if (!config?.api_key) {
+    throw new Error("No API key found in database - run sgt-refresh-api-key first");
   }
 
-  const formData = new URLSearchParams();
-  formData.append("username", username);
-  formData.append("password", password);
-
-  console.log("[SGT-MEMBER-MGMT] Requesting new API key...");
+  const expiresAt = new Date(config.expires_at);
+  const timeUntilExpiry = expiresAt.getTime() - Date.now();
   
-  const response = await fetch(`${SGT_BASE_URL}/${clubUrl}/apikey/create`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: formData,
-  });
-
-  const data = await response.json();
-
-  if (!data.success || !data.key) {
-    console.error("[SGT-MEMBER-MGMT] API key response:", data);
-    throw new Error("Failed to authenticate with SGT API");
+  if (timeUntilExpiry <= 0) {
+    throw new Error("API key has expired - wait for 4am cron refresh or manually trigger sgt-refresh-api-key");
   }
 
-  cachedApiKey = data.key;
-  apiKeyExpiry = now + (data.expires * 1000);
-  
-  console.log("[SGT-MEMBER-MGMT] API key obtained successfully");
-  return cachedApiKey as string;
+  console.log(`[SGT-MEMBER-MGMT] Using cached API key, expires in ${Math.round(timeUntilExpiry / 60000)}m`);
+  return config.api_key;
 }
 
 async function sgtRequest(
@@ -73,9 +64,7 @@ async function sgtRequest(
     const data = await response.json();
     
     if (data === "INVALID API KEY") {
-      cachedApiKey = null;
-      apiKeyExpiry = 0;
-      throw new Error("Invalid API key - please retry");
+      throw new Error("Invalid API key - wait for 4am cron refresh or manually trigger sgt-refresh-api-key");
     }
     
     return data;
@@ -100,9 +89,7 @@ async function sgtRequest(
     console.log(`[SGT-MEMBER-MGMT] Response:`, data);
     
     if (data === "INVALID API KEY") {
-      cachedApiKey = null;
-      apiKeyExpiry = 0;
-      throw new Error("Invalid API key - please retry");
+      throw new Error("Invalid API key - wait for 4am cron refresh or manually trigger sgt-refresh-api-key");
     }
     
     return data;
@@ -127,7 +114,7 @@ serve(async (req) => {
     },
   });
 
-  const adminClient = createClient(supabaseUrl, serviceKey);
+  adminClient = createClient(supabaseUrl, serviceKey);
 
   try {
     // Check for service-role access via SYNC_SECRET header (for internal calls)
@@ -426,7 +413,7 @@ serve(async (req) => {
           .select("user_id")
           .eq("tour_id", tourId);
 
-        const existingUserIds = new Set(existingMembers?.map(m => m.user_id) || []);
+        const existingUserIds = new Set(existingMembers?.map((m: { user_id: number }) => m.user_id) || []);
 
         const results = [];
         let successCount = 0;

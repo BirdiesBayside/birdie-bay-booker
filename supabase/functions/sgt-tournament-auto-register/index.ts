@@ -9,46 +9,38 @@ const corsHeaders = {
 const SGT_BASE_URL = "https://simulatorgolftour.com/sgt-api/club-admin";
 const CLUB_URL = "birdiesbayside";
 
-let cachedApiKey: string | null = null;
-let apiKeyExpiry: number = 0;
+// Supabase client for API key retrieval
+let supabaseClient: ReturnType<typeof createClient> | null = null;
 
+// Get API key - READ-ONLY from database
+// New keys are only created by the daily sgt-refresh-api-key cron job at 4am
 async function getApiKey(): Promise<string> {
-  const now = Date.now();
-  
-  if (cachedApiKey && apiKeyExpiry > now + 300000) {
-    return cachedApiKey;
+  if (!supabaseClient) {
+    throw new Error("Supabase client not initialized");
   }
 
-  const username = Deno.env.get("SGT_USERNAME");
-  const password = Deno.env.get("SGT_PASSWORD");
+  const { data: configData } = await supabaseClient
+    .from("sgt_api_config")
+    .select("api_key, expires_at")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
-  if (!username || !password) {
-    throw new Error("SGT credentials not configured");
+  const config = configData as { api_key: string; expires_at: string } | null;
+  
+  if (!config?.api_key) {
+    throw new Error("No API key found in database - run sgt-refresh-api-key first");
   }
 
-  const formData = new URLSearchParams();
-  formData.append("username", username);
-  formData.append("password", password);
-
-  console.log("[SGT-TOURN-REG] Requesting new API key...");
+  const expiresAt = new Date(config.expires_at);
+  const timeUntilExpiry = expiresAt.getTime() - Date.now();
   
-  const response = await fetch(`${SGT_BASE_URL}/${CLUB_URL}/apikey/create`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: formData,
-  });
-
-  const data = await response.json();
-
-  if (!data.success || !data.key) {
-    throw new Error("Failed to authenticate with SGT API");
+  if (timeUntilExpiry <= 0) {
+    throw new Error("API key has expired - wait for 4am cron refresh or manually trigger sgt-refresh-api-key");
   }
 
-  cachedApiKey = data.key;
-  apiKeyExpiry = now + (data.expires * 1000);
-  
-  console.log("[SGT-TOURN-REG] API key obtained successfully");
-  return cachedApiKey as string;
+  console.log(`[SGT-TOURN-REG] Using cached API key, expires in ${Math.round(timeUntilExpiry / 60000)}m`);
+  return config.api_key;
 }
 
 async function sgtGetRequest(endpoint: string, params: Record<string, string> = {}): Promise<unknown> {
@@ -107,6 +99,30 @@ async function sgtPostRequestWithRegistrationList(
   return response.json();
 }
 
+// Delete a single registration
+async function sgtPostRequestDelete(tournamentId: number, tourId: number, userId: number): Promise<unknown> {
+  const apiKey = await getApiKey();
+  
+  const formData = new URLSearchParams();
+  formData.append("api-key", apiKey);
+  formData.append("tournamentId", tournamentId.toString());
+  formData.append("tourId", tourId.toString());
+  formData.append("userId", userId.toString());
+
+  const response = await fetch(`${SGT_BASE_URL}/${CLUB_URL}/registrations/delete`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`SGT API error: ${response.status} - ${text}`);
+  }
+
+  return response.json();
+}
+
 function extractArray(data: unknown, keys: string[]): unknown[] {
   if (Array.isArray(data)) return data;
   if (data && typeof data === 'object') {
@@ -127,7 +143,7 @@ serve(async (req) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const supabase = createClient(supabaseUrl, supabaseKey);
+  supabaseClient = createClient(supabaseUrl, supabaseKey);
 
   try {
     const body = await req.json().catch(() => ({}));
@@ -296,9 +312,9 @@ async function registerAllMembersForTournament(
 
   // CRITICAL: Filter to only eligible members
   // Eligible = has Birdies membership (linked profile with non-visitor tier) OR is exempt_from_cleanup
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const supabaseClient = createClient(supabaseUrl, supabaseKey);
+  if (!supabaseClient) {
+    throw new Error("Supabase client not initialized");
+  }
 
   // Get all SGT user IDs that are eligible:
   // 1. Linked to a profile with non-visitor membership
@@ -390,28 +406,4 @@ async function registerAllMembersForTournament(
     skipped: skippedCount,
     errors
   };
-}
-
-// Delete a single registration
-async function sgtPostRequestDelete(tournamentId: number, tourId: number, userId: number): Promise<unknown> {
-  const apiKey = await getApiKey();
-  
-  const formData = new URLSearchParams();
-  formData.append("api-key", apiKey);
-  formData.append("tournamentId", tournamentId.toString());
-  formData.append("tourId", tourId.toString());
-  formData.append("userId", userId.toString());
-
-  const response = await fetch(`${SGT_BASE_URL}/${CLUB_URL}/registrations/delete`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: formData,
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`SGT API error: ${response.status} - ${text}`);
-  }
-
-  return response.json();
 }
