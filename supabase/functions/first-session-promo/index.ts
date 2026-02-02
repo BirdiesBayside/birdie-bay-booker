@@ -61,7 +61,7 @@ serve(async (req: Request): Promise<Response> => {
       // No body or invalid JSON, use defaults
     }
 
-    const threshold = options.threshold ?? 30;
+    const threshold = options.threshold ?? 10;
     const force = options.force ?? false;
     const dryRun = options.dry_run ?? false;
 
@@ -214,7 +214,7 @@ serve(async (req: Request): Promise<Response> => {
     };
 
     const CREDIT_AMOUNT = 35;
-    const BATCH_DELAY_MS = 200;
+    const BATCH_DELAY_MS = 600;
 
     for (let i = 0; i < finalEligibleUsers.length; i++) {
       const user = finalEligibleUsers[i];
