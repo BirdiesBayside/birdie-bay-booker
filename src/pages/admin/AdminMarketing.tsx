@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import {
   Dialog,
   DialogContent,
@@ -120,14 +121,73 @@ export default function AdminMarketing() {
   const [editingTemplate, setEditingTemplate] = useState<Template | null>(null);
   const [editSubject, setEditSubject] = useState("");
   const [editHtml, setEditHtml] = useState("");
+  
+  // First session promo counter
+  const [promoEligibleCount, setPromoEligibleCount] = useState<number | null>(null);
+  const PROMO_THRESHOLD = 30;
   const [isSavingTemplate, setIsSavingTemplate] = useState(false);
 
   useEffect(() => {
     if (isAdmin) {
       fetchCampaigns();
       fetchTemplates();
+      fetchPromoEligibleCount();
     }
   }, [isAdmin]);
+
+  const fetchPromoEligibleCount = async () => {
+    try {
+      // Get users who haven't received the promo, opted into marketing, created >24h ago
+      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      
+      const { data: eligibleProfiles, error: profilesError } = await supabase
+        .from("profiles")
+        .select("user_id, created_at")
+        .is("first_session_promo_sent", null)
+        .eq("marketing_opt_out", false)
+        .lt("created_at", twentyFourHoursAgo);
+      
+      if (profilesError) {
+        console.error("Error fetching promo eligible profiles:", profilesError);
+        return;
+      }
+      
+      if (!eligibleProfiles || eligibleProfiles.length === 0) {
+        setPromoEligibleCount(0);
+        return;
+      }
+      
+      // Filter out bulk import users (created 2026-01-18 between 07:00-08:00 UTC)
+      const bulkImportStart = new Date("2026-01-18T07:00:00Z").getTime();
+      const bulkImportEnd = new Date("2026-01-18T08:00:00Z").getTime();
+      
+      const filteredProfiles = eligibleProfiles.filter(user => {
+        const createdAt = new Date(user.created_at).getTime();
+        return createdAt < bulkImportStart || createdAt > bulkImportEnd;
+      });
+      
+      // Get user_ids who have non-cancelled bookings
+      const userIds = filteredProfiles.map(p => p.user_id);
+      
+      const { data: bookings, error: bookingsError } = await supabase
+        .from("bookings")
+        .select("user_id")
+        .in("user_id", userIds)
+        .neq("status", "cancelled");
+      
+      if (bookingsError) {
+        console.error("Error fetching bookings:", bookingsError);
+        return;
+      }
+      
+      const usersWithBookings = new Set(bookings?.map(b => b.user_id) || []);
+      const eligibleCount = filteredProfiles.filter(p => !usersWithBookings.has(p.user_id)).length;
+      
+      setPromoEligibleCount(eligibleCount);
+    } catch (error) {
+      console.error("Error counting promo eligible users:", error);
+    }
+  };
 
   useEffect(() => {
     if (composerOpen) {
@@ -505,61 +565,94 @@ export default function AdminMarketing() {
           {/* Templates Tab */}
           <TabsContent value="templates" className="mt-4">
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {templates.map((template) => (
-                <Card key={template.id} className="hover:border-primary/50 transition-colors">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-2">
-                        <CardTitle className="text-base">{template.name}</CardTitle>
-                        {template.category === "automated" && (
-                          <Zap className="h-4 w-4 text-primary" />
+              {templates.map((template) => {
+                const isFirstSessionPromo = template.name === "First Session Free" && template.category === "automated";
+                
+                return (
+                  <Card key={template.id} className="hover:border-primary/50 transition-colors relative">
+                    {/* Promo counter badge for First Session Free */}
+                    {isFirstSessionPromo && promoEligibleCount !== null && (
+                      <div className="absolute -top-2 -right-2 z-10">
+                        <div className={`px-2.5 py-1 rounded-full text-xs font-bold shadow-md ${
+                          promoEligibleCount >= PROMO_THRESHOLD 
+                            ? "bg-primary text-primary-foreground" 
+                            : "bg-muted-foreground/20 text-foreground"
+                        }`}>
+                          {promoEligibleCount}/{PROMO_THRESHOLD}
+                        </div>
+                      </div>
+                    )}
+                    
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-2">
+                          <CardTitle className="text-base">{template.name}</CardTitle>
+                          {template.category === "automated" && (
+                            <Zap className="h-4 w-4 text-primary" />
+                          )}
+                        </div>
+                        <Badge className={getCategoryColor(template.category)}>
+                          {template.category}
+                        </Badge>
+                      </div>
+                      {template.description && (
+                        <CardDescription>{template.description}</CardDescription>
+                      )}
+                    </CardHeader>
+                    <CardContent className="pt-0">
+                      {/* Progress bar for First Session Free */}
+                      {isFirstSessionPromo && promoEligibleCount !== null && (
+                        <div className="mb-3 space-y-1">
+                          <div className="flex items-center justify-between text-xs text-muted-foreground">
+                            <span>Eligible customers</span>
+                            <span className={promoEligibleCount >= PROMO_THRESHOLD ? "text-primary font-medium" : ""}>
+                              {promoEligibleCount >= PROMO_THRESHOLD ? "Ready to trigger!" : `${PROMO_THRESHOLD - promoEligibleCount} more needed`}
+                            </span>
+                          </div>
+                          <Progress 
+                            value={Math.min((promoEligibleCount / PROMO_THRESHOLD) * 100, 100)} 
+                            className="h-2"
+                          />
+                        </div>
+                      )}
+                      
+                      <p className="text-sm text-muted-foreground mb-3">
+                        Subject: {template.subject}
+                      </p>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setPreviewHtml(template.html_content);
+                            setPreviewOpen(true);
+                          }}
+                        >
+                          <Eye className="h-4 w-4 mr-1" />
+                          Preview
+                        </Button>
+                        {template.category === "automated" ? (
+                          <Button
+                            size="sm"
+                            onClick={() => openTemplateEditor(template)}
+                          >
+                            <Pencil className="h-4 w-4 mr-1" />
+                            Edit
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            onClick={() => openComposer(template)}
+                          >
+                            <Send className="h-4 w-4 mr-1" />
+                            Use Template
+                          </Button>
                         )}
                       </div>
-                      <Badge className={getCategoryColor(template.category)}>
-                        {template.category}
-                      </Badge>
-                    </div>
-                    {template.description && (
-                      <CardDescription>{template.description}</CardDescription>
-                    )}
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <p className="text-sm text-muted-foreground mb-3">
-                      Subject: {template.subject}
-                    </p>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setPreviewHtml(template.html_content);
-                          setPreviewOpen(true);
-                        }}
-                      >
-                        <Eye className="h-4 w-4 mr-1" />
-                        Preview
-                      </Button>
-                      {template.category === "automated" ? (
-                        <Button
-                          size="sm"
-                          onClick={() => openTemplateEditor(template)}
-                        >
-                          <Pencil className="h-4 w-4 mr-1" />
-                          Edit
-                        </Button>
-                      ) : (
-                        <Button
-                          size="sm"
-                          onClick={() => openComposer(template)}
-                        >
-                          <Send className="h-4 w-4 mr-1" />
-                          Use Template
-                        </Button>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           </TabsContent>
         </Tabs>
