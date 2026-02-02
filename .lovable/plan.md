@@ -1,124 +1,161 @@
 
-# Bay 3 Auto-Launch Issue: Root Cause Analysis and Fix
 
-## Problem Summary
-Bay 3 is auto-launching apps and showing "Hi Guest" even though there's no active booking at the current time (13:29, with next booking at 14:30).
+# Automated "First Session Free" Campaign
 
-## Root Cause Analysis
+## Overview
 
-After investigating the bay controller code, I found **two issues**:
+This plan creates an automated system that monitors for new customers who haven't booked yet. When the count reaches 30 eligible users, it automatically gifts them $35 credit and sends a personalized welcome/promotion email.
 
-### Issue 1: Manual Mode Not Respected for App Launches
-The app auto-launch logic (around line 2198-2266 in `BayController.tsx`) does NOT check the `manualOverride` state before launching apps.
+---
 
-The plug control correctly respects manual mode:
-```javascript
-if (!manualOverride) {
-  if (shouldBeOn) turnOnPlugs();
-}
+## How It Works
+
+```text
++---------------------------+
+|   Daily Check (6am AEST)  |
++---------------------------+
+            |
+            v
++---------------------------+
+|  Count eligible users:    |
+|  - No bookings ever       |
+|  - Not bulk imported      |
+|  - Not opted out          |
+|  - Not already gifted     |
++---------------------------+
+            |
+            v
+     [ >= 30 users? ]
+        /        \
+      No          Yes
+       |            |
+       v            v
+    (wait)      +---------------------------+
+                |  For each user:           |
+                |  1. Add $35 to balance    |
+                |  2. Mark as "promo_sent"  |
+                |  3. Send welcome email    |
+                +---------------------------+
 ```
 
-But the app launch logic is missing this check:
-```javascript
-if (shouldLaunchApps && !appsRunning && !isLaunchingApps) {
-  launchApps();  // Missing: && !manualOverride
-}
-```
+---
 
-Bay 3 is currently in **manual mode** (`control_mode: manual` in database), so apps should not auto-launch.
+## Components to Build
 
-### Issue 2: "Guest" Fallback When No Active Booking
-The welcome screen shows "Hi Guest" because when apps launch without an active booking detected, the fallback is:
-```javascript
-firstName: activeBooking?.customer_name?.split(' ')[0] || 'Guest'
-```
+### 1. Database Changes
 
-Since there's no active booking at 13:29 (first booking is at 14:30), `activeBooking` is null, so it shows "Guest".
+**Add tracking column to profiles table:**
+- `first_session_promo_sent` (timestamp) - Records when the promo was sent so we never double-gift
 
-## Current State
-- **Bay 3 Mode**: Manual
-- **Current Time**: 13:29 Brisbane
-- **Next Booking**: 14:30-16:30 (Zander De Lange)
-- **Expected Behavior**: No apps should launch until 14:29 (1 minute before booking), and even then, should respect manual mode
-- **Actual Behavior**: Apps are launching and showing "Hi Guest"
+**Add new email template:**
+- Template key: `first_session_promo`
+- Subject: "Your Free Hour is Waiting, {first_name}!"
+- Content: Gift card-style design with $35 credit emphasis and clear "Book Now" CTA
 
-## Solution
+### 2. New Edge Function: `first-session-promo`
 
-### Fix 1: Add Manual Override Check to App Launch Logic
-Update the auto-launch effect to skip launching when in manual mode:
+This function will:
+1. Query for eligible users (organic signups, no bookings, not opted out, not already sent)
+2. If count >= 30: process all eligible users
+3. For each user:
+   - Update `deposit_balance` by adding $35
+   - Set `first_session_promo_sent` timestamp
+   - Send personalized email using the branded template
 
-```javascript
-// Don't auto-launch if in manual mode or changeover is in progress
-if (manualOverride || changeoverInProgressRef.current) {
-  return;
-}
+**Eligibility criteria:**
+- Has zero bookings (excluding cancelled)
+- `marketing_opt_out = false`
+- `first_session_promo_sent IS NULL`
+- Not part of bulk import (created_at spread check OR explicit flag)
+- Account created more than 24 hours ago (give them time to book naturally)
 
-if (shouldLaunchApps && !appsRunning && !isLaunchingApps) {
-  launchApps();
-}
-```
+### 3. Cron Schedule
 
-### Fix 2: Also Add Manual Override Check to App Close Logic
-The fallback close logic should also respect manual mode to prevent unexpected closures:
+Run daily at **6am Brisbane time** (8pm UTC) to check if threshold is met.
 
-```javascript
-if (shouldCloseApps && appsRunning && !manualOverride) {
-  closeApps('scheduled');
-} else if (!shouldLaunchApps && !shouldCloseApps && appsRunning && !manualOverride) {
-  closeApps('scheduled');
-}
-```
+---
+
+## Email Design
+
+The email will follow the branded gift card template style:
+
+**Subject:** "Your Free Hour is Waiting, {first_name}!"
+
+**Design:**
+- Green header with Birdies logo
+- Cream body with headline: "A Gift From Us To You!"
+- Large "$35.00" value display (gift card style)
+- Personal message: "We noticed you haven't booked your first session yet..."
+- Explanation: Credit has been added to your account
+- Prominent "Book Now" button
+- Social links and footer
+
+**Template tags supported:**
+- `{first_name}`, `{last_name}`, `{email}`
 
 ---
 
 ## Technical Details
 
-### Files to Modify
-1. **`src/pages/BayController.tsx`** - Add `manualOverride` check to the app auto-launch effect (lines ~2198-2266)
+### Edge Function Logic
 
-### Code Changes
+```text
+1. Fetch eligible users:
+   SELECT * FROM profiles p
+   WHERE p.first_session_promo_sent IS NULL
+     AND p.marketing_opt_out = false
+     AND p.created_at < NOW() - INTERVAL '24 hours'
+     AND NOT EXISTS (
+       SELECT 1 FROM bookings b 
+       WHERE b.user_id = p.user_id 
+         AND b.status != 'cancelled'
+     )
+   
+2. If count >= 30:
+   - Process all users in batch
+   - For each: update balance, set promo timestamp, send email
+   - Log results
 
-**Before (lines 2251-2265):**
-```typescript
-// Don't auto-launch if changeover is in progress (it handles the relaunch)
-if (changeoverInProgressRef.current) {
-  return;
-}
-
-if (shouldLaunchApps && !appsRunning && !isLaunchingApps) {
-  launchApps();
-} else if (shouldCloseApps && appsRunning) {
-  closeApps();
-} else if (!shouldLaunchApps && !shouldCloseApps && appsRunning) {
-  closeApps();
-}
+3. Return summary: processed count, success/fail counts
 ```
 
-**After:**
-```typescript
-// Don't auto-launch/close if in manual mode or changeover is in progress
-if (manualOverride || changeoverInProgressRef.current) {
-  return;
-}
+### Fail-safes
 
-if (shouldLaunchApps && !appsRunning && !isLaunchingApps) {
-  launchApps();
-} else if (shouldCloseApps && appsRunning) {
-  closeApps('scheduled');
-} else if (!shouldLaunchApps && !shouldCloseApps && appsRunning) {
-  closeApps('scheduled');
-}
-```
-
-Also update the effect dependencies to include `manualOverride` (line 2266).
+- **Idempotent**: Once `first_session_promo_sent` is set, user is never re-processed
+- **Rate limiting**: Emails sent in batches of 50 with 200ms delays
+- **Logging**: Full audit trail for debugging
 
 ---
 
-## No App Rebuild Required
-This is a JavaScript/React change that is loaded from the web server. Once deployed, all bay controllers running v1.0.4 will receive the fix automatically without needing a new .exe build.
+## Configuration Options
 
-## Testing Recommendation
-After the fix is deployed:
-1. Switch Bay 3 back to AUTO mode from the admin panel
-2. Verify apps only launch at the correct time (1 minute before booking)
-3. Test switching to MANUAL mode - apps should not auto-launch or auto-close
+The function will support optional parameters for manual triggering:
+
+- `force: true` - Process regardless of count threshold
+- `threshold: N` - Override the default 30-user threshold
+- `dry_run: true` - Preview eligible users without sending
+
+This allows admins to manually trigger campaigns or test the system.
+
+---
+
+## Summary of Changes
+
+| Component | Action |
+|-----------|--------|
+| `profiles` table | Add `first_session_promo_sent` column |
+| `email_templates` table | Add "first_session_promo" template |
+| Edge function | Create `first-session-promo` |
+| `config.toml` | Register new function |
+| Cron job | Schedule daily at 8pm UTC (6am Brisbane) |
+
+---
+
+## Post-Implementation
+
+After this is live, you'll be able to:
+1. View eligible user counts in the admin dashboard
+2. Manually trigger the campaign early if needed
+3. Customize the email template via Admin Settings > Notifications
+4. Monitor campaign results via edge function logs
+
