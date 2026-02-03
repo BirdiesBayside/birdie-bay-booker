@@ -337,11 +337,16 @@ Deno.serve(async (req) => {
             // DNFs always at the bottom
             if (a.dnf !== b.dnf) return a.dnf ? 1 : -1;
             
+            // For in-progress tournaments, group by completed rounds first
+            // Players who finished more rounds should be ranked together
+            if (!isCompleted && a.roundsCompleted !== b.roundsCompleted) {
+              // Players with more completed rounds rank higher
+              return b.roundsCompleted - a.roundsCompleted;
+            }
+            
             // Sort by toPar (lowest first for golf)
             if (a.toPar !== null && b.toPar !== null) {
               if (a.toPar !== b.toPar) return a.toPar - b.toPar;
-              // If same toPar, player with more rounds completed ranks higher
-              if (a.roundsCompleted !== b.roundsCompleted) return b.roundsCompleted - a.roundsCompleted;
             }
             
             // Players with scores before those without
