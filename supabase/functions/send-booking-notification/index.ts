@@ -11,7 +11,7 @@ const corsHeaders = {
 
 interface NotificationRequest {
   booking_id: string;
-  notification_type: "confirmation" | "cancellation";
+  notification_type: "confirmation" | "cancellation" | "reschedule";
 }
 
 const logStep = (step: string, details?: any) => {
@@ -321,9 +321,12 @@ serve(async (req) => {
     let htmlContent: string;
     let smsMessage: string;
 
-    if (notification_type === "confirmation") {
+    if (notification_type === "confirmation" || notification_type === "reschedule") {
       // Use custom subject if available
-      subject = emailTemplate?.subject || "Booking Confirmed - Birdies Bayside";
+      const isReschedule = notification_type === "reschedule";
+      subject = isReschedule 
+        ? "Booking Rescheduled - Birdies Bayside"
+        : (emailTemplate?.subject || "Booking Confirmed - Birdies Bayside");
       
       // Build SMS message matching SMS Broadcast template style (concise for SMS limits)
       const formattedSmsDate = new Date(booking.booking_date).toLocaleDateString("en-AU", {
@@ -333,21 +336,32 @@ serve(async (req) => {
       });
       
       // Main booking SMS (keep under 160 chars for 1 unit)
-      smsMessage = [
-        `Hi ${profile.first_name} ${profile.last_name} thank you for your booking on ${formattedSmsDate} at ${startTime12hr} for Bay ${bayNumber}`,
-        ``,
-        `Your door code is: 7675#`
-      ].join('\n');
+      smsMessage = isReschedule 
+        ? [
+            `Hi ${profile.first_name}, your Birdies booking has been rescheduled to ${formattedSmsDate} at ${startTime12hr} for Bay ${bayNumber}`,
+            ``,
+            `Your door code is: 7675#`
+          ].join('\n')
+        : [
+            `Hi ${profile.first_name} ${profile.last_name} thank you for your booking on ${formattedSmsDate} at ${startTime12hr} for Bay ${bayNumber}`,
+            ``,
+            `Your door code is: 7675#`
+          ].join('\n');
 
-      // Check if custom template exists
-      if (emailTemplate?.html_content) {
+      // Check if custom template exists (only for confirmation, not reschedule)
+      if (!isReschedule && emailTemplate?.html_content) {
         htmlContent = replaceTemplateTags(emailTemplate.html_content, templateTags);
         logStep("Using custom email template");
       } else {
         // Build body content
+        const headingText = isReschedule ? "Booking Rescheduled!" : "Booking Confirmed!";
+        const introText = isReschedule 
+          ? `Hi ${profile.first_name}, your golf simulator booking has been successfully rescheduled!`
+          : `Hi ${profile.first_name}, your golf simulator booking has been confirmed!`;
+        
         const bodyContent = `
               <p style="margin:0 0 18px; font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">
-                Hi ${profile.first_name}, your golf simulator booking has been confirmed!
+                ${introText}
               </p>
               
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FFFFFF; border-radius:12px; margin:18px 0; border-left:4px solid #EC622D;">
@@ -382,12 +396,12 @@ serve(async (req) => {
               </p>
         `;
         
-        htmlContent = buildEmailTemplate("Booking Confirmed!", bodyContent, {
+        htmlContent = buildEmailTemplate(headingText, bodyContent, {
           text: "View My Bookings",
           url: "https://hub.birdiesbayside.com.au/my-bookings"
         });
       }
-    } else {
+    } else if (notification_type === "cancellation") {
       // Cancellation
       subject = emailTemplate?.subject || "Booking Cancelled - Birdies Bayside";
       smsMessage = `Birdies Bayside: Your booking for ${shortDate} ${startTime}-${endTime} has been cancelled. Questions? Contact us.`;
@@ -425,6 +439,8 @@ serve(async (req) => {
           url: "https://hub.birdiesbayside.com.au/booking"
         });
       }
+    } else {
+      throw new Error(`Unknown notification type: ${notification_type}`);
     }
 
     // Apply tag replacement to subject if custom
@@ -442,11 +458,11 @@ serve(async (req) => {
 
     logStep("Email sent successfully", { emailResponse });
 
-    // Send SMS only for confirmations (not cancellations)
+    // Send SMS for confirmations and reschedules (not cancellations)
     let smsResult: { success: boolean; response?: string; error?: string } = { success: false, error: "SMS not sent" };
     let gateSmsResult: { success: boolean; response?: string; error?: string } | null = null;
     
-    if (notification_type === "confirmation" && profile.phone) {
+    if ((notification_type === "confirmation" || notification_type === "reschedule") && profile.phone) {
       // Send main booking SMS
       smsResult = await sendSMS(profile.phone, smsMessage);
       logStep("SMS send result", smsResult);
