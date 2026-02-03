@@ -1,44 +1,28 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { LeagueLayout } from "@/components/league/LeagueLayout";
 import { ScorecardDisplay } from "@/components/league/ScorecardDisplay";
-import { sgtClient, PlayerRound } from "@/lib/sgt-api";
+import { usePlayerScorecards, PlayerRoundWithScorecard } from "@/hooks/usePlayerScorecards";
 import { Loader2, MapPin, ChevronDown } from "lucide-react";
+import { useState } from "react";
 
 export default function LeagueRounds() {
   const { user, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [rounds, setRounds] = useState<PlayerRound[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [expandedRound, setExpandedRound] = useState<string | null>(
     searchParams.get("round")
   );
+  
+  // Use cached scorecards - minimizes API calls by reading from DB first
+  const { data: rounds = [], isLoading } = usePlayerScorecards();
 
   useEffect(() => {
     if (!authLoading && !user) {
       navigate("/");
     }
   }, [user, authLoading, navigate]);
-
-  useEffect(() => {
-    if (authLoading || !user) return;
-
-    async function loadRounds() {
-      setIsLoading(true);
-      try {
-        const data = await sgtClient.getPlayerRounds();
-        setRounds(data);
-      } catch (error) {
-        console.error("Failed to load rounds:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
-    loadRounds();
-  }, [user, authLoading]);
 
   if (authLoading || !user) {
     return (
@@ -76,9 +60,32 @@ export default function LeagueRounds() {
         </div>
       ) : (
         <div className="space-y-3 animate-slide-up">
-          {rounds.map((round, index) => {
+          {rounds.map((round: PlayerRoundWithScorecard, index: number) => {
             const roundKey = `${round.tournamentId}-${round.scorecard?.round || index}`;
             const isExpanded = expandedRound === roundKey;
+            
+            // Convert cached scorecard format to the format ScorecardDisplay expects
+            const displayScorecard = round.scorecard ? {
+              tournamentId: round.scorecard.tournament_id,
+              playerId: round.scorecard.player_id,
+              player_name: round.scorecard.player_name,
+              hcp_index: round.scorecard.hcp_index ?? 0,
+              round: round.scorecard.round ?? 1,
+              courseName: round.scorecard.course_name ?? "",
+              teetype: round.scorecard.teetype ?? "",
+              rating: round.scorecard.rating ?? 0,
+              slope: round.scorecard.slope ?? 0,
+              total_gross: round.scorecard.total_gross ?? 0,
+              total_net: round.scorecard.total_net ?? 0,
+              toPar_gross: round.scorecard.to_par_gross ?? 0,
+              toPar_net: round.scorecard.to_par_net ?? 0,
+              in_gross: round.scorecard.in_gross ?? 0,
+              out_gross: round.scorecard.out_gross ?? 0,
+              in_net: round.scorecard.in_net ?? 0,
+              out_net: round.scorecard.out_net ?? 0,
+              holeData: round.scorecard.hole_data as Record<string, number | string> | undefined,
+            } : undefined;
+
             return (
               <div
                 key={roundKey}
@@ -120,9 +127,9 @@ export default function LeagueRounds() {
                   </div>
                 </button>
 
-                {isExpanded && (
+                {isExpanded && displayScorecard && (
                   <div className="px-4 pb-4 pt-2 border-t border-border/50 animate-fade-in">
-                    <ScorecardDisplay scorecard={round.scorecard} showDetails />
+                    <ScorecardDisplay scorecard={displayScorecard} showDetails />
                   </div>
                 )}
               </div>

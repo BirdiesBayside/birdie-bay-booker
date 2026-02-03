@@ -293,48 +293,54 @@ serve(async (req) => {
           }, { onConflict: 'tournament_id' });
           totalRecords++;
 
-          // Sync Scorecards
-          try {
-            const scorecardsResponse = await sgtRequest("/tournaments/scorecards", apiKey, { tournamentId: tourn.tournamentId.toString() });
-            const scorecards = extractArray(scorecardsResponse, ['scorecards', 'results']);
-            
-            for (const scorecard of scorecards) {
-              const sc = scorecard as Record<string, unknown>;
-              const playerId = sc.playerId as number;
-              const round = (sc.round as number) ?? 1;
+          // Sync Scorecards - ONLY for completed tournaments to minimize API calls
+          // In-progress scorecards are fetched on-demand when users view their Round History
+          if (tourn.status === 'Completed') {
+            try {
+              const scorecardsResponse = await sgtRequest("/tournaments/scorecards", apiKey, { tournamentId: tourn.tournamentId.toString() });
+              const scorecards = extractArray(scorecardsResponse, ['scorecards', 'results']);
               
-              const holeData: Record<string, unknown> = {};
-              for (const [key, value] of Object.entries(sc)) {
-                if (/^h\d+/.test(key) || /^hole\d+/.test(key)) {
-                  holeData[key] = value;
+              for (const scorecard of scorecards) {
+                const sc = scorecard as Record<string, unknown>;
+                const playerId = sc.playerId as number;
+                const round = (sc.round as number) ?? 1;
+                
+                const holeData: Record<string, unknown> = {};
+                for (const [key, value] of Object.entries(sc)) {
+                  if (/^h\d+/.test(key) || /^hole\d+/.test(key)) {
+                    holeData[key] = value;
+                  }
                 }
-              }
 
-              await supabase.from("sgt_scorecards").upsert({
-                tournament_id: tourn.tournamentId,
-                player_id: playerId,
-                player_name: sc.player_name as string,
-                hcp_index: sc.hcp_index as number,
-                round: round,
-                course_name: sc.courseName as string,
-                teetype: sc.teetype as string,
-                rating: sc.rating as number,
-                slope: sc.slope as number,
-                total_gross: sc.total_gross as number,
-                total_net: sc.total_net as number,
-                to_par_gross: sc.toPar_gross as number,
-                to_par_net: sc.toPar_net as number,
-                in_gross: sc.in_gross as number,
-                out_gross: sc.out_gross as number,
-                in_net: sc.in_net as number,
-                out_net: sc.out_net as number,
-                hole_data: holeData,
-                updated_at: new Date().toISOString(),
-              }, { onConflict: 'tournament_id,player_id,round' });
-              totalRecords++;
+                await supabase.from("sgt_scorecards").upsert({
+                  tournament_id: tourn.tournamentId,
+                  player_id: playerId,
+                  player_name: sc.player_name as string,
+                  hcp_index: sc.hcp_index as number,
+                  round: round,
+                  course_name: sc.courseName as string,
+                  teetype: sc.teetype as string,
+                  rating: sc.rating as number,
+                  slope: sc.slope as number,
+                  total_gross: sc.total_gross as number,
+                  total_net: sc.total_net as number,
+                  to_par_gross: sc.toPar_gross as number,
+                  to_par_net: sc.toPar_net as number,
+                  in_gross: sc.in_gross as number,
+                  out_gross: sc.out_gross as number,
+                  in_net: sc.in_net as number,
+                  out_net: sc.out_net as number,
+                  hole_data: holeData,
+                  updated_at: new Date().toISOString(),
+                }, { onConflict: 'tournament_id,player_id,round' });
+                totalRecords++;
+              }
+              console.log(`[SGT-SYNC] Synced ${scorecards.length} scorecards for completed tournament`);
+            } catch (e) {
+              console.error(`[SGT-SYNC] Error syncing scorecards for tournament ${tourn.tournamentId}:`, e);
             }
-          } catch (e) {
-            console.error(`[SGT-SYNC] Error syncing scorecards for tournament ${tourn.tournamentId}:`, e);
+          } else {
+            console.log(`[SGT-SYNC] Skipping scorecards for ${tourn.status} tournament ${tourn.tournamentId} (on-demand only)`);
           }
         }
         console.log(`[SGT-SYNC] Synced ${Math.min(tournaments.length, 20)} tournaments`);
