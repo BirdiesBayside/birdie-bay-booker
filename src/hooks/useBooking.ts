@@ -403,6 +403,26 @@ export function useBooking() {
     };
   };
 
+  /**
+   * Get user's pending booking IDs for a given bay/time slot (for "see through" logic)
+   */
+  const getUserPendingBookingForSlot = (
+    bayId: string,
+    startTime: string,
+    durationHours: number
+  ): Booking | undefined => {
+    const startHour = parseInt(startTime.split(":")[0]);
+    const startMinute = parseInt(startTime.split(":")[1]);
+    const endHour = startHour + durationHours;
+    const endTime = `${endHour.toString().padStart(2, "0")}:${startMinute.toString().padStart(2, "0")}`;
+    
+    return userBookingsForDate.find(booking => 
+      booking.bay_id === bayId && 
+      booking.status === "pending" &&
+      timesOverlap(startTime, endTime, booking.start_time, booking.end_time)
+    );
+  };
+
   const checkBayAvailability = (
     bayId: string,
     startTime: string,
@@ -413,9 +433,20 @@ export function useBooking() {
     const startMinutes = startHour * 60 + startMinute;
     const endMinutes = startMinutes + durationHours * 60;
 
-    // Check existing bookings
+    // Get user's own pending booking for this slot (if any) - they can "see through" it
+    const userPendingBooking = getUserPendingBookingForSlot(bayId, startTime, durationHours);
+
+    // Check existing bookings (excluding user's own pending booking for this slot)
     const bayBookings = bookings.filter((b) => b.bay_id === bayId);
     for (const booking of bayBookings) {
+      // Skip user's own pending booking - they can replace it
+      if (userPendingBooking && 
+          booking.bay_id === userPendingBooking.bay_id &&
+          booking.start_time === userPendingBooking.start_time &&
+          booking.end_time === userPendingBooking.end_time) {
+        continue;
+      }
+      
       const bookingStartHour = parseInt(booking.start_time.split(":")[0]);
       const bookingStartMin = parseInt(booking.start_time.split(":")[1]);
       const bookingEndHour = parseInt(booking.end_time.split(":")[0]);
@@ -466,6 +497,30 @@ export function useBooking() {
     const startMinute = parseInt(startTime.split(":")[1]);
     const endHour = startHour + durationHours;
     const endTime = `${endHour.toString().padStart(2, "0")}:${startMinute.toString().padStart(2, "0")}`;
+
+    // Delete any existing PENDING bookings by this user that overlap with this slot
+    // This allows users to "replace" their failed pending bookings seamlessly
+    const { data: existingPendingBookings } = await supabase
+      .from("bookings")
+      .select("id, start_time, end_time")
+      .eq("user_id", user.id)
+      .eq("bay_id", bayId)
+      .eq("booking_date", dateStr)
+      .eq("status", "pending");
+    
+    if (existingPendingBookings && existingPendingBookings.length > 0) {
+      const overlappingPending = existingPendingBookings.filter(booking =>
+        timesOverlap(startTime, endTime, booking.start_time, booking.end_time)
+      );
+      
+      if (overlappingPending.length > 0) {
+        console.log("[useBooking] Deleting user's stale pending bookings:", overlappingPending.map(b => b.id));
+        await supabase
+          .from("bookings")
+          .delete()
+          .in("id", overlappingPending.map(b => b.id));
+      }
+    }
 
     // CRITICAL: Fresh database check for multi-bay restriction
     // This prevents race conditions when users book multiple bays quickly
