@@ -1,17 +1,20 @@
 import { Trophy, Medal, Award, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSGTTournamentStandings } from "@/hooks/useSGTEmbedData";
+import { useActiveTourData } from "@/hooks/useActiveTourData";
 import birdiesLogo from "@/assets/birdies-b-orange.png";
 
-// Tournament ID for the current week
-const CURRENT_TOURNAMENT_ID = 46274;
-
 export default function EmbedTVWeekly() {
-  const { standings, isLoading, lastUpdated } = useSGTTournamentStandings({
-    id: CURRENT_TOURNAMENT_ID,
+  const { currentTournament, isLoading: tourLoading } = useActiveTourData();
+  
+  const { standings, isLoading: standingsLoading, lastUpdated } = useSGTTournamentStandings({
+    id: currentTournament?.tournament_id ?? null,
     scoreType: "net",
+    enabled: !!currentTournament,
     refreshInterval: 30000, // 30 second refresh for live updates
   });
+
+  const isLoading = tourLoading || standingsLoading;
 
   const getPositionIcon = (position: number) => {
     switch (position) {
@@ -45,10 +48,10 @@ export default function EmbedTVWeekly() {
           <img src={birdiesLogo} alt="Birdies" className="h-16" />
           <div>
             <h1 className="font-bold text-4xl text-[hsl(128,42%,21%)] tracking-tight">
-              WEEKLY RESULTS
+              {currentTournament?.name || "WEEKLY RESULTS"}
             </h1>
             <p className="text-xl text-[hsl(128,20%,40%)]">
-              Birdies League Hub • NET Scores
+              {currentTournament?.course_name || "Birdies League Hub"} • NET Scores
             </p>
           </div>
         </div>
