@@ -279,8 +279,7 @@ export default function LeagueLeaderboard() {
             {/* Table Header */}
             <div className="hidden md:grid grid-cols-12 gap-4 px-4 py-3 bg-muted/50 border-b border-border font-inter text-sm font-medium text-muted-foreground">
               <div className="col-span-1 text-center">#</div>
-              <div className="col-span-4">Player</div>
-              <div className="col-span-1 text-center">HCP</div>
+              <div className="col-span-5">Player</div>
               <div className="col-span-1 text-center">Events</div>
               <div className="col-span-1 text-center">Wins</div>
               <div className="col-span-1 text-center">Top 5</div>
@@ -311,7 +310,7 @@ export default function LeagueLeaderboard() {
                       </span>
                     </div>
 
-                    <div className="col-span-7 md:col-span-4 flex items-center gap-3">
+                    <div className="col-span-7 md:col-span-5 flex items-center gap-3">
                       <div className={cn(
                         "w-10 h-10 rounded-full flex items-center justify-center font-display text-lg",
                         isCurrentPlayer
@@ -326,6 +325,9 @@ export default function LeagueLeaderboard() {
                           isCurrentPlayer ? "text-secondary" : "text-foreground"
                         )}>
                           {standing.playerName}
+                          <span className="text-muted-foreground font-normal ml-1">
+                            ({standing.hcp ?? "-"})
+                          </span>
                           {isCurrentPlayer && <span className="text-xs ml-2">(You)</span>}
                         </p>
                         <p className="font-inter text-xs text-muted-foreground md:hidden">
@@ -334,9 +336,6 @@ export default function LeagueLeaderboard() {
                       </div>
                     </div>
 
-                    <div className="hidden md:block col-span-1 text-center font-inter text-muted-foreground">
-                      {standing.hcp ?? "-"}
-                    </div>
                     <div className="hidden md:block col-span-1 text-center font-inter text-muted-foreground">
                       {standing.events}
                     </div>
@@ -400,8 +399,7 @@ export default function LeagueLeaderboard() {
             {/* Table Header - Desktop */}
             <div className="hidden md:grid grid-cols-12 gap-4 px-4 py-3 bg-muted/50 border-b border-border font-inter text-sm font-medium text-muted-foreground">
               <div className="col-span-1 text-center">#</div>
-              <div className="col-span-3">Player</div>
-              <div className="col-span-1 text-center">HCP</div>
+              <div className="col-span-4">Player</div>
               <div className="col-span-2 text-center">R1</div>
               <div className="col-span-2 text-center">R2</div>
               <div className="col-span-1 text-center">Total</div>
@@ -439,11 +437,14 @@ export default function LeagueLeaderboard() {
                         isCurrentPlayer ? "text-secondary" : "text-foreground"
                       )}>
                         {result.playerName}
+                        <span className="text-muted-foreground font-normal ml-1">
+                          ({result.hcp ?? "-"})
+                        </span>
                       </p>
                     </div>
 
                     {/* Player - Desktop */}
-                    <div className="hidden md:flex col-span-3 items-center gap-3">
+                    <div className="hidden md:flex col-span-4 items-center gap-3">
                       <div className={cn(
                         "w-8 h-8 rounded-full flex items-center justify-center font-display text-sm",
                         isCurrentPlayer
@@ -457,13 +458,11 @@ export default function LeagueLeaderboard() {
                         isCurrentPlayer ? "text-secondary" : "text-foreground"
                       )}>
                         {result.playerName}
+                        <span className="text-muted-foreground font-normal ml-1">
+                          ({result.hcp ?? "-"})
+                        </span>
                         {isCurrentPlayer && <span className="text-xs ml-2">(You)</span>}
                       </p>
-                    </div>
-
-                    {/* HCP - Desktop */}
-                    <div className="hidden md:block col-span-1 text-center font-inter text-muted-foreground">
-                      {result.hcp ?? "-"}
                     </div>
 
                     {/* Rounds */}
