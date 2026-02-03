@@ -82,11 +82,62 @@ serve(async (req) => {
       limit: 50,
     });
 
-    const matchingSession = sessions.data.find(
-      (s: Stripe.Checkout.Session) => s.metadata?.booking_id === bookingId && s.payment_status === "paid"
+    // Look for any session matching this booking
+    const matchingSessions = sessions.data.filter(
+      (s: Stripe.Checkout.Session) => s.metadata?.booking_id === bookingId
     );
 
-    if (!matchingSession) {
+    // Check for paid session first
+    const paidSession = matchingSessions.find(
+      (s: Stripe.Checkout.Session) => s.payment_status === "paid"
+    );
+    
+    if (!paidSession) {
+      // Check if there's a failed or expired session
+      const failedSession = matchingSessions.find(
+        (s: Stripe.Checkout.Session) => 
+          s.payment_status === "unpaid" && (s.status === "expired" || s.status === "complete")
+      );
+      
+      // Check for payment intent failures
+      const sessionWithIntent = matchingSessions.find(
+        (s: Stripe.Checkout.Session) => s.payment_intent
+      );
+      let paymentFailed = false;
+      let failureReason = "";
+      
+      if (sessionWithIntent?.payment_intent) {
+        try {
+          const paymentIntent = await stripe.paymentIntents.retrieve(
+            sessionWithIntent.payment_intent as string
+          );
+          if (paymentIntent.status === "requires_payment_method" || 
+              paymentIntent.status === "canceled") {
+            paymentFailed = true;
+            failureReason = paymentIntent.last_payment_error?.message || "Card was declined";
+            logStep("Payment intent failed", { 
+              status: paymentIntent.status, 
+              reason: failureReason 
+            });
+          }
+        } catch (e) {
+          logStep("Could not retrieve payment intent", { error: (e as Error).message });
+        }
+      }
+      
+      if (paymentFailed || failedSession) {
+        logStep("Payment failed for booking", { bookingId, failureReason });
+        return new Response(JSON.stringify({ 
+          success: false, 
+          status: "failed",
+          message: failureReason || "Payment was not completed",
+          booking: bookingDetails
+        }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 200,
+        });
+      }
+      
       logStep("No paid session found for booking", { bookingId });
       return new Response(JSON.stringify({ 
         success: false, 
@@ -97,6 +148,8 @@ serve(async (req) => {
         status: 200,
       });
     }
+    
+    const matchingSession = paidSession;
 
     logStep("Found paid session", { 
       sessionId: matchingSession.id, 

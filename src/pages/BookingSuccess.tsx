@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
-import { CheckCircle, Calendar, Clock, MapPin, CreditCard, Loader2 } from "lucide-react";
+import { CheckCircle, Calendar, Clock, MapPin, CreditCard, Loader2, XCircle, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import birdieLogo from "@/assets/birdies-b-logo.png";
@@ -21,11 +21,14 @@ interface BookingDetails {
   };
 }
 
+type PaymentStatus = "loading" | "confirmed" | "failed" | "pending" | "error";
+
 const BookingSuccess = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [booking, setBooking] = useState<BookingDetails | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>("loading");
+  const [failureMessage, setFailureMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const bookingId = searchParams.get("booking_id");
@@ -34,13 +37,11 @@ const BookingSuccess = () => {
     const verifyAndFetchBooking = async () => {
       if (!bookingId) {
         setError("No booking ID provided");
-        setIsLoading(false);
+        setPaymentStatus("error");
         return;
       }
 
       try {
-        // Verify the payment and get booking details from the edge function
-        // This works without authentication since it uses service role
         const { data: verifyResult, error: verifyError } = await supabase.functions.invoke(
           "verify-booking-payment",
           { body: { bookingId } }
@@ -49,23 +50,42 @@ const BookingSuccess = () => {
         if (verifyError) {
           console.error("Verification error:", verifyError);
           setError("Unable to verify booking");
-          setIsLoading(false);
+          setPaymentStatus("error");
           return;
         }
 
         console.log("Verification result:", verifyResult);
 
-        // Use booking details returned from the edge function
-        if (verifyResult?.booking) {
-          setBooking(verifyResult.booking as BookingDetails);
-        } else {
-          setError("Unable to load booking details");
+        // Handle different payment statuses
+        if (verifyResult?.status === "failed") {
+          setPaymentStatus("failed");
+          setFailureMessage(verifyResult.message || "Payment was not completed");
+          if (verifyResult.booking) {
+            setBooking(verifyResult.booking as BookingDetails);
+          }
+          return;
         }
-        setIsLoading(false);
+
+        if (verifyResult?.status === "pending") {
+          setPaymentStatus("pending");
+          if (verifyResult.booking) {
+            setBooking(verifyResult.booking as BookingDetails);
+          }
+          return;
+        }
+
+        if (verifyResult?.status === "confirmed" && verifyResult?.booking) {
+          setBooking(verifyResult.booking as BookingDetails);
+          setPaymentStatus("confirmed");
+          return;
+        }
+
+        setError("Unable to load booking details");
+        setPaymentStatus("error");
       } catch (err) {
         console.error("Error:", err);
         setError("An error occurred while loading your booking");
-        setIsLoading(false);
+        setPaymentStatus("error");
       }
     };
 
@@ -80,7 +100,8 @@ const BookingSuccess = () => {
     return `${displayHour}:${minutes} ${ampm}`;
   };
 
-  if (isLoading) {
+  // Loading state
+  if (paymentStatus === "loading") {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -91,11 +112,108 @@ const BookingSuccess = () => {
     );
   }
 
-  if (error || !booking) {
+  // Payment Failed state
+  if (paymentStatus === "failed") {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <header className="bg-primary text-primary-foreground py-4 px-4 safe-area-top">
+          <div className="container mx-auto flex items-center justify-center">
+            <img src={birdieLogo} alt="Birdies Logo" className="h-10 w-auto" />
+          </div>
+        </header>
+
+        <main className="flex-1 flex items-center justify-center p-4">
+          <Card className="w-full max-w-md">
+            <CardContent className="pt-8 pb-6">
+              <div className="flex justify-center mb-6">
+                <div className="bg-destructive/10 rounded-full p-4">
+                  <XCircle className="h-16 w-16 text-destructive" />
+                </div>
+              </div>
+
+              <h1 className="text-2xl font-bold text-center text-foreground mb-2">
+                Payment Failed
+              </h1>
+              <p className="text-center text-muted-foreground mb-6">
+                {failureMessage || "Your payment could not be processed. No booking has been made."}
+              </p>
+
+              <div className="bg-muted/50 rounded-lg p-4 mb-6">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="h-5 w-5 text-muted-foreground mt-0.5" />
+                  <div className="text-sm text-muted-foreground">
+                    <p className="font-medium text-foreground mb-1">What to do next:</p>
+                    <ul className="list-disc list-inside space-y-1">
+                      <li>Check your card details are correct</li>
+                      <li>Ensure you have sufficient funds</li>
+                      <li>Try a different payment method</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <Button 
+                  className="w-full" 
+                  onClick={() => navigate("/booking")}
+                >
+                  Try Again
+                </Button>
+                <Button 
+                  variant="outline" 
+                  className="w-full"
+                  onClick={() => navigate("/dashboard")}
+                >
+                  Back to Dashboard
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </main>
+      </div>
+    );
+  }
+
+  // Pending state (payment still processing)
+  if (paymentStatus === "pending") {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <header className="bg-primary text-primary-foreground py-4 px-4 safe-area-top">
+          <div className="container mx-auto flex items-center justify-center">
+            <img src={birdieLogo} alt="Birdies Logo" className="h-10 w-auto" />
+          </div>
+        </header>
+
+        <main className="flex-1 flex items-center justify-center p-4">
+          <Card className="w-full max-w-md">
+            <CardContent className="pt-8 pb-6 text-center">
+              <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-4" />
+              <h1 className="text-2xl font-bold text-foreground mb-2">
+                Processing Payment
+              </h1>
+              <p className="text-muted-foreground mb-6">
+                Your payment is still being processed. This may take a moment.
+              </p>
+              <Button 
+                variant="outline" 
+                onClick={() => window.location.reload()}
+              >
+                Check Status
+              </Button>
+            </CardContent>
+          </Card>
+        </main>
+      </div>
+    );
+  }
+
+  // Error state
+  if (paymentStatus === "error" || !booking) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
           <CardContent className="pt-6 text-center">
+            <XCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
             <p className="text-destructive mb-4">{error || "Booking not found"}</p>
             <Button onClick={() => navigate("/dashboard")}>Go to Dashboard</Button>
           </CardContent>
