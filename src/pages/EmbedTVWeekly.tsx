@@ -1,87 +1,17 @@
-import { useEffect, useState } from "react";
 import { Trophy, Medal, Award, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { supabase } from "@/integrations/supabase/client";
+import { useSGTTournamentStandings } from "@/hooks/useSGTEmbedData";
 import birdiesLogo from "@/assets/birdies-b-orange.png";
 
-interface Tour {
-  tour_id: number;
-  name: string;
-  active: number;
-}
-
-interface Tournament {
-  tournament_id: number;
-  name: string;
-  course_name: string | null;
-  start_date: string | null;
-  status: string | null;
-}
-
-interface TournamentResult {
-  position: number;
-  playerName: string;
-  hcp: number | null;
-  rd1: number | null;
-  rd1Thru: number | null;
-  rd2: number | null;
-  rd2Thru: number | null;
-  total: number | null;
-  toPar: number | null;
-  dnf: boolean;
-  thru: number | null;
-}
-
-async function fetchPublicLeaderboard(action: string, params: Record<string, string> = {}) {
-  const { data, error } = await supabase.functions.invoke("public-leaderboard", {
-    method: "POST",
-    body: { action, ...params },
-  });
-  if (error) throw error;
-  return data;
-}
+// Tournament ID for the current week
+const CURRENT_TOURNAMENT_ID = 46274;
 
 export default function EmbedTVWeekly() {
-  const [activeTour, setActiveTour] = useState<Tour | null>(null);
-  const [currentTournament, setCurrentTournament] = useState<Tournament | null>(null);
-  const [results, setResults] = useState<TournamentResult[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
-
-  const loadData = async () => {
-    try {
-      // Get tours and find active one
-      const toursData = await fetchPublicLeaderboard("tours");
-      const active = toursData.tours?.find((t: Tour) => t.active === 1) || toursData.tours?.[0];
-      if (!active) return;
-      setActiveTour(active);
-
-      // Get tournaments for active tour
-      const tournamentsData = await fetchPublicLeaderboard("tournaments", { tourId: active.tour_id.toString() });
-      const latest = tournamentsData.tournaments?.[0];
-      if (!latest) return;
-      setCurrentTournament(latest);
-
-      // Get results for latest tournament
-      const resultsData = await fetchPublicLeaderboard("tournament-results", {
-        tournamentId: latest.tournament_id.toString(),
-        grossOrNet: "net",
-      });
-      setResults(resultsData.results || []);
-      setLastUpdated(new Date());
-    } catch (error) {
-      console.error("Failed to load TV data:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadData();
-    // Auto-refresh every 60 seconds for live updates
-    const interval = setInterval(loadData, 60 * 1000);
-    return () => clearInterval(interval);
-  }, []);
+  const { standings, isLoading, lastUpdated } = useSGTTournamentStandings({
+    id: CURRENT_TOURNAMENT_ID,
+    scoreType: "net",
+    refreshInterval: 30000, // 30 second refresh for live updates
+  });
 
   const getPositionIcon = (position: number) => {
     switch (position) {
@@ -92,11 +22,11 @@ export default function EmbedTVWeekly() {
     }
   };
 
-  const formatScore = (score: number | null) => {
-    if (score === null || score === undefined) return "-";
-    if (score === 0) return "E";
-    if (score > 0) return `+${score}`;
-    return score.toString();
+  const getScoreColor = (score: string) => {
+    if (score === "-" || score === "") return "text-[hsl(128,20%,40%)]";
+    if (score === "E") return "text-[hsl(128,42%,21%)]";
+    if (score.startsWith("-")) return "text-red-600"; // Under par = red (good)
+    return "text-blue-600"; // Over par = blue
   };
 
   if (isLoading) {
@@ -115,10 +45,10 @@ export default function EmbedTVWeekly() {
           <img src={birdiesLogo} alt="Birdies" className="h-16" />
           <div>
             <h1 className="font-bold text-4xl text-[hsl(128,42%,21%)] tracking-tight">
-              {currentTournament?.name || "Weekly Results"}
+              WEEKLY RESULTS
             </h1>
             <p className="text-xl text-[hsl(128,20%,40%)]">
-              {currentTournament?.course_name} • NET Scores
+              Birdies League Hub • NET Scores
             </p>
           </div>
         </div>
@@ -126,9 +56,11 @@ export default function EmbedTVWeekly() {
           <div className="px-6 py-3 bg-[hsl(128,42%,21%)] text-white rounded-lg text-xl font-bold">
             CURRENT WEEK
           </div>
-          <p className="text-sm text-[hsl(128,20%,40%)] mt-2">
-            Updated: {lastUpdated.toLocaleTimeString()}
-          </p>
+          {lastUpdated && (
+            <p className="text-sm text-[hsl(128,20%,40%)] mt-2">
+              Updated: {lastUpdated.toLocaleTimeString()}
+            </p>
+          )}
         </div>
       </div>
 
@@ -141,13 +73,12 @@ export default function EmbedTVWeekly() {
           <div className="col-span-1 text-center">HCP</div>
           <div className="col-span-2 text-center">Rd 1</div>
           <div className="col-span-2 text-center">Rd 2</div>
-          <div className="col-span-1 text-center">Total</div>
-          <div className="col-span-1 text-center">+/-</div>
+          <div className="col-span-2 text-center">Total</div>
         </div>
 
         {/* Table Body */}
         <div className="divide-y divide-[hsl(128,20%,85%)]">
-          {results.slice(0, 12).map((result) => (
+          {standings.slice(0, 12).map((result) => (
             <div
               key={result.playerName}
               className={cn(
@@ -172,36 +103,37 @@ export default function EmbedTVWeekly() {
               <div className="col-span-1 text-center text-xl text-[hsl(128,20%,40%)]">
                 {result.hcp ?? "-"}
               </div>
-              <div className="col-span-2 text-center text-xl text-[hsl(128,20%,40%)]">
-                {result.dnf && result.rd1 === null ? "DNF" : (
-                  <>
-                    {result.rd1 ?? "-"}
-                    {result.rd1Thru && <span className="text-sm ml-1">({result.rd1Thru})</span>}
-                  </>
+              
+              <div className="col-span-2 text-center">
+                <span className={cn("text-xl font-medium", getScoreColor(result.r1))}>
+                  {result.r1}
+                </span>
+                {result.r1Thru && (
+                  <span className="text-sm text-[hsl(128,20%,40%)] ml-1">
+                    {result.r1Thru === "F" ? "F" : `(${result.r1Thru})`}
+                  </span>
                 )}
               </div>
-              <div className="col-span-2 text-center text-xl text-[hsl(128,20%,40%)]">
-                {result.dnf && result.rd2 === null ? "DNF" : (
-                  <>
-                    {result.rd2 ?? "-"}
-                    {result.rd2Thru && <span className="text-sm ml-1">({result.rd2Thru})</span>}
-                  </>
+              
+              <div className="col-span-2 text-center">
+                <span className={cn("text-xl font-medium", getScoreColor(result.r2))}>
+                  {result.r2}
+                </span>
+                {result.r2Thru && (
+                  <span className="text-sm text-[hsl(128,20%,40%)] ml-1">
+                    {result.r2Thru === "F" ? "F" : `(${result.r2Thru})`}
+                  </span>
                 )}
               </div>
-              <div className="col-span-1 text-center font-bold text-2xl text-[hsl(128,42%,21%)]">
-                {result.dnf ? "DNF" : result.total ?? "-"}
-              </div>
-              <div className="col-span-1 text-center">
-                <span
-                  className={cn(
-                    "px-3 py-1 rounded-lg font-bold text-xl",
-                    result.dnf && "bg-muted text-muted-foreground",
-                    !result.dnf && result.toPar !== null && result.toPar < 0 && "bg-red-100 text-red-700",
-                    !result.dnf && result.toPar === 0 && "bg-green-100 text-green-700",
-                    !result.dnf && result.toPar !== null && result.toPar > 0 && "bg-blue-100 text-blue-700",
-                  )}
-                >
-                  {result.dnf ? "DNF" : formatScore(result.toPar)}
+              
+              <div className="col-span-2 text-center">
+                <span className={cn(
+                  "px-4 py-2 rounded-lg font-bold text-2xl",
+                  result.total.startsWith("-") && "bg-red-100 text-red-700",
+                  result.total === "E" && "bg-green-100 text-green-700",
+                  result.total.startsWith("+") && "bg-blue-100 text-blue-700",
+                )}>
+                  {result.total}
                 </span>
               </div>
             </div>
@@ -211,7 +143,7 @@ export default function EmbedTVWeekly() {
 
       {/* Footer */}
       <div className="mt-4 text-center text-lg text-[hsl(128,20%,40%)]">
-        Live updates every 60 seconds • Powered by Birdies League Hub
+        Live updates every 30 seconds • Powered by Birdies League Hub
       </div>
     </div>
   );

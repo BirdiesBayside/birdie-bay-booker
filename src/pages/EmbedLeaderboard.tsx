@@ -9,77 +9,23 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { supabase } from "@/integrations/supabase/client";
+import { useSGTTourStandings, useSGTTournamentStandings, TourStanding, TournamentStanding } from "@/hooks/useSGTEmbedData";
 import birdiesB from "@/assets/birdies-b-icon.png";
 
-interface Tour {
-  tour_id: number;
-  name: string;
-  active: number;
-  start_date: string | null;
-  end_date: string | null;
-}
+// Hardcoded tour/tournament options - update as needed
+const TOURS = [
+  { id: 2458, name: "Season 5", active: true },
+];
 
-interface Standing {
-  position: number;
-  user_name: string;
-  hcp: number | null;
-  events: number | null;
-  first: number | null;
-  top5: number | null;
-  top10: number | null;
-  points: number | null;
-}
-
-interface Tournament {
-  tournament_id: number;
-  name: string;
-  course_name: string | null;
-  start_date: string | null;
-  end_date: string | null;
-  status: string | null;
-}
-
-interface TournamentResult {
-  position: number;
-  playerName: string;
-  hcp: number | null;
-  rd1: number | null;
-  rd1ToPar: number | null;
-  rd1Thru: number | null;
-  rd2: number | null;
-  rd2ToPar: number | null;
-  rd2Thru: number | null;
-  total: number | null;
-  toPar: number | null;
-  courseName: string | null;
-  dnf: boolean;
-  thru: number | null;
-}
-
-async function fetchPublicLeaderboard(action: string, params: Record<string, string> = {}) {
-  const { data, error } = await supabase.functions.invoke("public-leaderboard", {
-    method: "POST",
-    body: { action, ...params },
-  });
-
-  if (error) throw error;
-  return data;
-}
+const TOURNAMENTS = [
+  { id: 46274, name: "Week 4 - Muirfield Village GC", tourId: 2458 },
+];
 
 export default function EmbedLeaderboard() {
-  const [tours, setTours] = useState<Tour[]>([]);
-  const [selectedTour, setSelectedTour] = useState<number | null>(null);
-  const [standings, setStandings] = useState<Standing[]>([]);
-  const [tournaments, setTournaments] = useState<Tournament[]>([]);
-  const [selectedTournament, setSelectedTournament] = useState<number | null>(null);
-  const [tournamentResults, setTournamentResults] = useState<TournamentResult[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [selectedTour, setSelectedTour] = useState<number>(TOURS[0].id);
+  const [selectedTournament, setSelectedTournament] = useState<number>(TOURNAMENTS[0].id);
   const [scoreType, setScoreType] = useState<"gross" | "net">("net");
   const [viewMode, setViewMode] = useState<"overall" | "weekly">("weekly");
-  const [showAllWeeks, setShowAllWeeks] = useState(false);
-
-  const INITIAL_WEEKS_TO_SHOW = 5;
 
   // Parse URL params for defaults
   useEffect(() => {
@@ -88,111 +34,36 @@ export default function EmbedLeaderboard() {
     const tour = params.get("tour");
     const type = params.get("scoreType");
     
-    if (view === "weekly") setViewMode("weekly");
+    if (view === "overall") setViewMode("overall");
     if (type === "gross") setScoreType("gross");
     if (tour) setSelectedTour(parseInt(tour));
   }, []);
 
-  // Load tours on mount
-  useEffect(() => {
-    async function loadTours() {
-      try {
-        const data = await fetchPublicLeaderboard("tours");
-        setTours(data.tours || []);
-        
-        // Only set default if not already set from URL
-        if (!selectedTour && data.tours?.length > 0) {
-          const activeTour = data.tours.find((t: Tour) => t.active === 1);
-          setSelectedTour(activeTour?.tour_id || data.tours[0].tour_id);
-        }
-      } catch (error) {
-        console.error("Failed to load tours:", error);
-      }
-    }
-    loadTours();
-  }, []);
+  // Fetch data based on view mode
+  const { 
+    standings: tourStandings, 
+    isLoading: tourLoading,
+    lastUpdated: tourLastUpdated 
+  } = useSGTTourStandings({
+    id: selectedTour,
+    scoreType,
+    enabled: viewMode === "overall",
+    refreshInterval: 30000,
+  });
 
-  // Load tournaments when tour changes
-  useEffect(() => {
-    if (!selectedTour) return;
+  const { 
+    standings: tournamentStandings, 
+    isLoading: tournamentLoading,
+    lastUpdated: tournamentLastUpdated 
+  } = useSGTTournamentStandings({
+    id: selectedTournament,
+    scoreType,
+    enabled: viewMode === "weekly",
+    refreshInterval: 30000,
+  });
 
-    async function loadTournaments() {
-      try {
-        const data = await fetchPublicLeaderboard("tournaments", { tourId: selectedTour.toString() });
-        setTournaments(data.tournaments || []);
-        if (data.tournaments?.length > 0) {
-          setSelectedTournament(data.tournaments[0].tournament_id);
-        }
-      } catch (error) {
-        console.error("Failed to load tournaments:", error);
-        setTournaments([]);
-      }
-    }
-    loadTournaments();
-  }, [selectedTour]);
-
-  // Load overall standings
-  useEffect(() => {
-    if (!selectedTour || viewMode !== "overall") return;
-
-    async function loadStandings() {
-      setIsLoading(true);
-      try {
-        const data = await fetchPublicLeaderboard("standings", {
-          tourId: selectedTour.toString(),
-          grossOrNet: scoreType,
-        });
-        setStandings(data.standings || []);
-      } catch (error) {
-        console.error("Failed to load standings:", error);
-        setStandings([]);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-    loadStandings();
-  }, [selectedTour, scoreType, viewMode]);
-
-  // Load tournament results
-  useEffect(() => {
-    if (!selectedTournament || viewMode !== "weekly") return;
-
-    async function loadResults() {
-      setIsLoading(true);
-      try {
-        const data = await fetchPublicLeaderboard("tournament-results", {
-          tournamentId: selectedTournament.toString(),
-          grossOrNet: scoreType,
-        });
-        setTournamentResults(data.results || []);
-      } catch (error) {
-        console.error("Failed to load results:", error);
-        setTournamentResults([]);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-    loadResults();
-  }, [selectedTournament, scoreType, viewMode]);
-
-  // Auto-refresh every 5 minutes
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (viewMode === "overall" && selectedTour) {
-        fetchPublicLeaderboard("standings", {
-          tourId: selectedTour.toString(),
-          grossOrNet: scoreType,
-        }).then(data => setStandings(data.standings || []));
-      } else if (viewMode === "weekly" && selectedTournament) {
-        fetchPublicLeaderboard("tournament-results", {
-          tournamentId: selectedTournament.toString(),
-          grossOrNet: scoreType,
-        }).then(data => setTournamentResults(data.results || []));
-      }
-    }, 5 * 60 * 1000);
-
-    return () => clearInterval(interval);
-  }, [viewMode, selectedTour, selectedTournament, scoreType]);
+  const isLoading = viewMode === "overall" ? tourLoading : tournamentLoading;
+  const lastUpdated = viewMode === "overall" ? tourLastUpdated : tournamentLastUpdated;
 
   const getPositionIcon = (position: number) => {
     switch (position) {
@@ -203,11 +74,11 @@ export default function EmbedLeaderboard() {
     }
   };
 
-  const formatScore = (score: number | null) => {
-    if (score === null || score === undefined) return "-";
-    if (score === 0) return "E";
-    if (score > 0) return `+${score}`;
-    return score.toString();
+  const getScoreColor = (score: string) => {
+    if (score === "-" || score === "") return "";
+    if (score === "E") return "bg-green-100 text-green-700";
+    if (score.startsWith("-")) return "bg-red-100 text-red-700";
+    return "bg-blue-100 text-blue-700";
   };
 
   return (
@@ -221,6 +92,11 @@ export default function EmbedLeaderboard() {
             <p className="text-sm text-[hsl(128,20%,40%)]">Birdies League Hub</p>
           </div>
         </div>
+        {lastUpdated && (
+          <p className="text-xs text-[hsl(128,20%,40%)]">
+            Updated: {lastUpdated.toLocaleTimeString()}
+          </p>
+        )}
       </div>
 
       {/* View Mode Tabs */}
@@ -244,18 +120,18 @@ export default function EmbedLeaderboard() {
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
         <Select
-          value={selectedTour?.toString()}
+          value={selectedTour.toString()}
           onValueChange={(val) => setSelectedTour(parseInt(val))}
         >
           <SelectTrigger className="w-full sm:w-[250px] bg-white border-[hsl(128,20%,85%)]">
             <SelectValue placeholder="Select tour" />
           </SelectTrigger>
           <SelectContent>
-            {tours.map((tour) => (
-              <SelectItem key={tour.tour_id} value={tour.tour_id.toString()}>
+            {TOURS.map((tour) => (
+              <SelectItem key={tour.id} value={tour.id.toString()}>
                 <div className="flex items-center gap-2">
                   <span>{tour.name}</span>
-                  {tour.active === 1 && (
+                  {tour.active && (
                     <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-green-500/20 text-green-600 rounded">
                       ACTIVE
                     </span>
@@ -266,17 +142,17 @@ export default function EmbedLeaderboard() {
           </SelectContent>
         </Select>
 
-        {viewMode === "weekly" && tournaments.length > 0 && (
+        {viewMode === "weekly" && (
           <Select
-            value={selectedTournament?.toString()}
+            value={selectedTournament.toString()}
             onValueChange={(val) => setSelectedTournament(parseInt(val))}
           >
             <SelectTrigger className="w-full sm:w-[300px] bg-white border-[hsl(128,20%,85%)]">
               <SelectValue placeholder="Select week" />
             </SelectTrigger>
             <SelectContent>
-              {(showAllWeeks ? tournaments : tournaments.slice(0, INITIAL_WEEKS_TO_SHOW)).map((tournament, index) => (
-                <SelectItem key={tournament.tournament_id} value={tournament.tournament_id.toString()}>
+              {TOURNAMENTS.filter(t => t.tourId === selectedTour).map((tournament, index) => (
+                <SelectItem key={tournament.id} value={tournament.id.toString()}>
                   <div className="flex items-center gap-2">
                     <span>{tournament.name}</span>
                     {index === 0 && (
@@ -287,17 +163,6 @@ export default function EmbedLeaderboard() {
                   </div>
                 </SelectItem>
               ))}
-              {tournaments.length > INITIAL_WEEKS_TO_SHOW && (
-                <div
-                  className="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-gray-100 text-[hsl(128,20%,40%)]"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowAllWeeks(!showAllWeeks);
-                  }}
-                >
-                  {showAllWeeks ? "Show less" : `Show ${tournaments.length - INITIAL_WEEKS_TO_SHOW} more weeks...`}
-                </div>
-              )}
             </SelectContent>
           </Select>
         )}
@@ -336,7 +201,7 @@ export default function EmbedLeaderboard() {
           <Loader2 className="h-8 w-8 text-[hsl(18,84%,55%)] animate-spin" />
         </div>
       ) : viewMode === "overall" ? (
-        standings.length === 0 ? (
+        tourStandings.length === 0 ? (
           <div className="bg-white rounded-xl border border-[hsl(128,20%,85%)] p-12 text-center">
             <h3 className="font-bold text-lg text-[hsl(128,42%,21%)] mb-2">NO STANDINGS YET</h3>
             <p className="text-[hsl(128,20%,40%)]">Standings will appear once players have completed rounds</p>
@@ -355,11 +220,10 @@ export default function EmbedLeaderboard() {
               <div className="col-span-2 text-center">Points</div>
             </div>
 
-            {/* Table Body */}
             <div className="divide-y divide-[hsl(128,20%,85%)]">
-              {standings.map((standing) => (
+              {tourStandings.map((standing) => (
                 <div
-                  key={standing.user_name}
+                  key={standing.playerName}
                   className="grid grid-cols-12 gap-4 px-4 py-3 items-center hover:bg-[hsl(37,100%,97%)] transition-colors"
                 >
                   <div className="col-span-2 md:col-span-1 flex items-center justify-center gap-1">
@@ -373,7 +237,7 @@ export default function EmbedLeaderboard() {
                   </div>
 
                   <div className="col-span-7 md:col-span-4">
-                    <p className="font-semibold text-[hsl(128,42%,21%)]">{standing.user_name}</p>
+                    <p className="font-semibold text-[hsl(128,42%,21%)]">{standing.playerName}</p>
                     <p className="text-xs text-[hsl(128,20%,40%)] md:hidden">
                       {standing.events} events • {standing.points} pts
                     </p>
@@ -386,7 +250,7 @@ export default function EmbedLeaderboard() {
                     {standing.events ?? 0}
                   </div>
                   <div className="hidden md:block col-span-1 text-center font-medium text-[hsl(128,42%,21%)]">
-                    {standing.first || "-"}
+                    {standing.wins || "-"}
                   </div>
                   <div className="hidden md:block col-span-1 text-center text-[hsl(128,20%,40%)]">
                     {standing.top5 || "-"}
@@ -406,28 +270,14 @@ export default function EmbedLeaderboard() {
         )
       ) : (
         // Weekly Results View
-        tournamentResults.length === 0 ? (
+        tournamentStandings.length === 0 ? (
           <div className="bg-white rounded-xl border border-[hsl(128,20%,85%)] p-12 text-center">
             <h3 className="font-bold text-lg text-[hsl(128,42%,21%)] mb-2">NO RESULTS YET</h3>
-            <p className="text-[hsl(128,20%,40%)]">
-              {tournaments.length === 0 ? "No completed tournaments in this tour yet" : "No results available for this tournament"}
-            </p>
+            <p className="text-[hsl(128,20%,40%)]">No results available for this tournament</p>
           </div>
         ) : (
           <div className="bg-white rounded-xl border border-[hsl(128,20%,85%)] overflow-hidden shadow-sm">
-            {/* Tournament Info Header */}
-            {selectedTournament && tournaments.find(t => t.tournament_id === selectedTournament) && (
-              <div className="px-4 py-3 bg-[hsl(128,42%,21%)]/10 border-b border-[hsl(128,20%,85%)]">
-                <h3 className="font-bold text-[hsl(128,42%,21%)]">
-                  {tournaments.find(t => t.tournament_id === selectedTournament)?.name}
-                </h3>
-                <p className="text-sm text-[hsl(128,20%,40%)]">
-                  {tournaments.find(t => t.tournament_id === selectedTournament)?.course_name}
-                </p>
-              </div>
-            )}
-
-            {/* Table Header - Desktop */}
+            {/* Table Header */}
             <div className="hidden sm:grid grid-cols-12 gap-2 px-4 py-3 bg-[hsl(128,42%,21%)] text-sm font-medium text-white">
               <div className="col-span-1 text-center">#</div>
               <div className="col-span-3">Player</div>
@@ -438,7 +288,7 @@ export default function EmbedLeaderboard() {
               <div className="col-span-2 text-center">To Par</div>
             </div>
 
-            {/* Table Header - Mobile */}
+            {/* Mobile Header */}
             <div className="grid sm:hidden grid-cols-12 gap-1 px-3 py-2 bg-[hsl(128,42%,21%)] text-xs font-medium text-white">
               <div className="col-span-1 text-center">#</div>
               <div className="col-span-3">Player</div>
@@ -448,14 +298,12 @@ export default function EmbedLeaderboard() {
               <div className="col-span-2 text-center">+/-</div>
             </div>
 
-            {/* Table Body */}
             <div className="divide-y divide-[hsl(128,20%,85%)]">
-              {tournamentResults.map((result) => (
+              {tournamentStandings.map((result) => (
                 <div
                   key={result.playerName}
                   className="grid grid-cols-12 gap-1 sm:gap-2 px-3 sm:px-4 py-2 sm:py-3 items-center hover:bg-[hsl(37,100%,97%)] transition-colors"
                 >
-                  {/* Position */}
                   <div className="col-span-1 flex items-center justify-center gap-0.5 sm:gap-1">
                     <span className="hidden sm:inline">{getPositionIcon(result.position)}</span>
                     <span className={cn(
@@ -466,7 +314,6 @@ export default function EmbedLeaderboard() {
                     </span>
                   </div>
 
-                  {/* Player Name */}
                   <div className="col-span-3">
                     <p className="font-semibold text-[hsl(128,42%,21%)] text-xs sm:text-base truncate">
                       {result.playerName}
@@ -476,43 +323,38 @@ export default function EmbedLeaderboard() {
                     </p>
                   </div>
 
-                  {/* Rd1 */}
+                  <div className="hidden sm:block col-span-1 text-center text-[hsl(128,20%,40%)]">
+                    {result.hcp ?? "-"}
+                  </div>
+
                   <div className="col-span-2 text-center text-xs sm:text-sm text-[hsl(128,20%,40%)]">
-                    {result.dnf && result.rd1 === null ? "DNF" : (
-                      <>
-                        {result.rd1 ?? "-"}
-                        {result.rd1Thru && <span className="text-[10px] ml-0.5">({result.rd1Thru})</span>}
-                      </>
+                    {result.r1}
+                    {result.r1Thru && (
+                      <span className="text-[10px] ml-0.5">
+                        {result.r1Thru === "F" ? "F" : `(${result.r1Thru})`}
+                      </span>
                     )}
                   </div>
 
-                  {/* Rd2 */}
                   <div className="col-span-2 text-center text-xs sm:text-sm text-[hsl(128,20%,40%)]">
-                    {result.dnf && result.rd2 === null ? "DNF" : (
-                      <>
-                        {result.rd2 ?? "-"}
-                        {result.rd2Thru && <span className="text-[10px] ml-0.5">({result.rd2Thru})</span>}
-                      </>
+                    {result.r2}
+                    {result.r2Thru && (
+                      <span className="text-[10px] ml-0.5">
+                        {result.r2Thru === "F" ? "F" : `(${result.r2Thru})`}
+                      </span>
                     )}
                   </div>
 
-                  {/* Total */}
                   <div className="col-span-2 sm:col-span-1 text-center font-bold text-xs sm:text-base text-[hsl(128,42%,21%)]">
-                    {result.dnf ? "DNF" : result.total ?? "-"}
+                    {result.total}
                   </div>
 
-                  {/* To Par */}
                   <div className="col-span-2 text-center">
-                    <span
-                      className={cn(
-                        "px-1 sm:px-2 py-0.5 sm:py-1 rounded font-bold text-xs sm:text-sm",
-                        result.dnf && "bg-muted text-muted-foreground",
-                        !result.dnf && result.toPar !== null && result.toPar < 0 && "bg-red-100 text-red-700",
-                        !result.dnf && result.toPar === 0 && "bg-green-100 text-green-700",
-                        !result.dnf && result.toPar !== null && result.toPar > 0 && "bg-blue-100 text-blue-700",
-                      )}
-                    >
-                      {result.dnf ? "DNF" : formatScore(result.toPar)}
+                    <span className={cn(
+                      "px-1 sm:px-2 py-0.5 sm:py-1 rounded font-bold text-xs sm:text-sm",
+                      getScoreColor(result.toPar)
+                    )}>
+                      {result.toPar}
                     </span>
                   </div>
                 </div>
@@ -524,7 +366,7 @@ export default function EmbedLeaderboard() {
 
       {/* Footer */}
       <div className="mt-6 text-center text-xs text-[hsl(128,20%,40%)]">
-        Powered by Birdies League Hub • Auto-updates every 5 minutes
+        Powered by Birdies League Hub • Live updates every 30 seconds
       </div>
     </div>
   );

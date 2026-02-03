@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { LeagueLayout } from "@/components/league/LeagueLayout";
-import { sgtClient, Tour, TourStanding, Tournament, TournamentResult } from "@/lib/sgt-api";
+import { useSGTTourStandings, useSGTTournamentStandings } from "@/hooks/useSGTEmbedData";
+import { sgtClient, Tour, Tournament } from "@/lib/sgt-api";
 import { Loader2, Trophy, Medal, Award } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -21,16 +22,37 @@ export default function LeagueLeaderboard() {
   const [displayName, setDisplayName] = useState<string>("");
   const [tours, setTours] = useState<Tour[]>([]);
   const [selectedTour, setSelectedTour] = useState<number | null>(null);
-  const [standings, setStandings] = useState<TourStanding[]>([]);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [selectedTournament, setSelectedTournament] = useState<number | null>(null);
-  const [tournamentResults, setTournamentResults] = useState<TournamentResult[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [scoreType, setScoreType] = useState<"gross" | "net">("net");
   const [viewMode, setViewMode] = useState<"overall" | "weekly">("weekly");
   const [showAllWeeks, setShowAllWeeks] = useState(false);
+  const [toursLoading, setToursLoading] = useState(true);
 
   const INITIAL_WEEKS_TO_SHOW = 5;
+
+  // Fetch standings using embed scraper
+  const { 
+    standings: tourStandings, 
+    isLoading: tourStandingsLoading,
+  } = useSGTTourStandings({
+    id: selectedTour,
+    scoreType,
+    enabled: viewMode === "overall" && !!selectedTour,
+    refreshInterval: 30000,
+  });
+
+  const { 
+    standings: tournamentStandings, 
+    isLoading: tournamentStandingsLoading,
+  } = useSGTTournamentStandings({
+    id: selectedTournament,
+    scoreType,
+    enabled: viewMode === "weekly" && !!selectedTournament,
+    refreshInterval: 30000,
+  });
+
+  const isLoading = viewMode === "overall" ? tourStandingsLoading : tournamentStandingsLoading;
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -51,20 +73,16 @@ export default function LeagueLeaderboard() {
       
       setDisplayName(profile?.display_name || "");
 
-      // Load tours - include finished tours for historical viewing
+      // Load tours
       try {
         const data = await sgtClient.getTours();
-        // Sort tours: active first, then by start date (most recent first)
         const sortedTours = data.sort((a, b) => {
-          // Active tours first
           if (a.active !== b.active) return b.active - a.active;
-          // Then by start date descending (most recent first)
           const dateA = a.start_date ? new Date(a.start_date).getTime() : 0;
           const dateB = b.start_date ? new Date(b.start_date).getTime() : 0;
           return dateB - dateA;
         });
         setTours(sortedTours);
-        // Default to first active tour, or first tour if none active
         const activeTour = sortedTours.find(t => t.active === 1);
         if (activeTour) {
           setSelectedTour(activeTour.tourId);
@@ -73,6 +91,8 @@ export default function LeagueLeaderboard() {
         }
       } catch (error) {
         console.error("Failed to load tours:", error);
+      } finally {
+        setToursLoading(false);
       }
     }
     loadInitial();
@@ -88,11 +108,8 @@ export default function LeagueLeaderboard() {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        // Include tournaments that are completed, in progress, or have started
         const availableTournaments = data.results.filter(t => {
-          // Always show completed or in progress tournaments
           if (t.status === "Completed" || t.status === "In Progress") return true;
-          // For upcoming, check if start date has passed
           if (!t.start_date) return false;
           const startDate = new Date(t.start_date + 'T00:00:00');
           return startDate <= today;
@@ -109,47 +126,7 @@ export default function LeagueLeaderboard() {
     loadTournaments();
   }, [selectedTour]);
 
-  // Load overall standings
-  useEffect(() => {
-    if (!selectedTour || viewMode !== "overall") return;
-
-    async function loadStandings() {
-      setIsLoading(true);
-      try {
-        const data = await sgtClient.getTourStandings(selectedTour, scoreType);
-        setStandings(data);
-      } catch (error) {
-        console.error("Failed to load standings:", error);
-        setStandings([]);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
-    loadStandings();
-  }, [selectedTour, scoreType, viewMode]);
-
-  // Load tournament results
-  useEffect(() => {
-    if (!selectedTournament || viewMode !== "weekly") return;
-
-    async function loadTournamentResults() {
-      setIsLoading(true);
-      try {
-        const data = await sgtClient.getTournamentResults(selectedTournament, scoreType);
-        setTournamentResults(data);
-      } catch (error) {
-        console.error("Failed to load tournament results:", error);
-        setTournamentResults([]);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
-    loadTournamentResults();
-  }, [selectedTournament, scoreType, viewMode]);
-
-  if (authLoading || !user) {
+  if (authLoading || !user || toursLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 text-secondary animate-spin" />
@@ -159,21 +136,18 @@ export default function LeagueLeaderboard() {
 
   const getPositionIcon = (position: number) => {
     switch (position) {
-      case 1:
-        return <Trophy className="h-5 w-5 text-yellow-500" />;
-      case 2:
-        return <Medal className="h-5 w-5 text-gray-400" />;
-      case 3:
-        return <Award className="h-5 w-5 text-amber-600" />;
-      default:
-        return null;
+      case 1: return <Trophy className="h-5 w-5 text-yellow-500" />;
+      case 2: return <Medal className="h-5 w-5 text-gray-400" />;
+      case 3: return <Award className="h-5 w-5 text-amber-600" />;
+      default: return null;
     }
   };
 
-  const formatScore = (score: number) => {
-    if (score === 0) return "E";
-    if (score > 0) return `+${score}`;
-    return score.toString();
+  const getScoreColor = (score: string) => {
+    if (score === "-" || score === "") return "";
+    if (score === "E") return "text-foreground";
+    if (score.startsWith("-")) return "text-green-500";
+    return "text-red-500";
   };
 
   return (
@@ -253,11 +227,7 @@ export default function LeagueLeaderboard() {
                     setShowAllWeeks(!showAllWeeks);
                   }}
                 >
-                  {showAllWeeks ? (
-                    <span>Show less</span>
-                  ) : (
-                    <span>Show {tournaments.length - INITIAL_WEEKS_TO_SHOW} more weeks...</span>
-                  )}
+                  {showAllWeeks ? "Show less" : `Show ${tournaments.length - INITIAL_WEEKS_TO_SHOW} more weeks...`}
                 </div>
               )}
             </SelectContent>
@@ -297,7 +267,7 @@ export default function LeagueLeaderboard() {
           <Loader2 className="h-8 w-8 text-secondary animate-spin" />
         </div>
       ) : viewMode === "overall" ? (
-        standings.length === 0 ? (
+        tourStandings.length === 0 ? (
           <div className="bg-card rounded-xl border border-border p-12 text-center animate-fade-in">
             <h3 className="font-anton text-xl text-foreground mb-2">NO STANDINGS YET</h3>
             <p className="text-muted-foreground font-inter">
@@ -318,13 +288,12 @@ export default function LeagueLeaderboard() {
               <div className="col-span-2 text-center">Points</div>
             </div>
 
-            {/* Table Body */}
             <div className="divide-y divide-border">
-              {standings.map((standing, index) => {
-                const isCurrentPlayer = displayName && standing.user_name.toLowerCase() === displayName.toLowerCase();
+              {tourStandings.map((standing, index) => {
+                const isCurrentPlayer = displayName && standing.playerName.toLowerCase() === displayName.toLowerCase();
                 return (
                   <div
-                    key={standing.user_name}
+                    key={standing.playerName}
                     className={cn(
                       "grid grid-cols-12 gap-4 px-4 py-4 items-center transition-colors",
                       isCurrentPlayer && "bg-secondary/10 border-l-4 border-secondary",
@@ -332,7 +301,6 @@ export default function LeagueLeaderboard() {
                     )}
                     style={{ animationDelay: `${index * 30}ms` }}
                   >
-                    {/* Position */}
                     <div className="col-span-2 md:col-span-1 flex items-center justify-center gap-2">
                       {getPositionIcon(standing.position)}
                       <span className={cn(
@@ -343,7 +311,6 @@ export default function LeagueLeaderboard() {
                       </span>
                     </div>
 
-                    {/* Player */}
                     <div className="col-span-7 md:col-span-4 flex items-center gap-3">
                       <div className={cn(
                         "w-10 h-10 rounded-full flex items-center justify-center font-display text-lg",
@@ -351,14 +318,14 @@ export default function LeagueLeaderboard() {
                           ? "bg-secondary text-secondary-foreground"
                           : "bg-primary text-primary-foreground"
                       )}>
-                        {standing.user_name.charAt(0).toUpperCase()}
+                        {standing.playerName.charAt(0).toUpperCase()}
                       </div>
                       <div>
                         <p className={cn(
                           "font-inter font-semibold",
                           isCurrentPlayer ? "text-secondary" : "text-foreground"
                         )}>
-                          {standing.user_name}
+                          {standing.playerName}
                           {isCurrentPlayer && <span className="text-xs ml-2">(You)</span>}
                         </p>
                         <p className="font-inter text-xs text-muted-foreground md:hidden">
@@ -367,15 +334,14 @@ export default function LeagueLeaderboard() {
                       </div>
                     </div>
 
-                    {/* Stats - Desktop */}
                     <div className="hidden md:block col-span-1 text-center font-inter text-muted-foreground">
-                      {standing.hcp}
+                      {standing.hcp ?? "-"}
                     </div>
                     <div className="hidden md:block col-span-1 text-center font-inter text-muted-foreground">
                       {standing.events}
                     </div>
                     <div className="hidden md:block col-span-1 text-center font-inter font-medium text-foreground">
-                      {standing.first || "-"}
+                      {standing.wins || "-"}
                     </div>
                     <div className="hidden md:block col-span-1 text-center font-inter text-muted-foreground">
                       {standing.top5 || "-"}
@@ -384,7 +350,6 @@ export default function LeagueLeaderboard() {
                       {standing.top10 || "-"}
                     </div>
 
-                    {/* Points */}
                     <div className="col-span-3 md:col-span-2 text-center">
                       <span className="font-display text-xl text-foreground">
                         {standing.points}
@@ -399,7 +364,7 @@ export default function LeagueLeaderboard() {
         )
       ) : (
         // Weekly Results View
-        tournamentResults.length === 0 ? (
+        tournamentStandings.length === 0 ? (
           <div className="bg-card rounded-xl border border-border p-12 text-center animate-fade-in">
             <h3 className="font-anton text-xl text-foreground mb-2">NO RESULTS YET</h3>
             <p className="text-muted-foreground font-inter">
@@ -443,18 +408,13 @@ export default function LeagueLeaderboard() {
               <div className="col-span-2 text-center">To Par</div>
             </div>
 
-            {/* Table Body */}
             <div className="divide-y divide-border">
-              {tournamentResults.map((result, index) => {
-                const isCurrentPlayer = displayName && result.player_name.toLowerCase() === displayName.toLowerCase();
-                const r1 = scoreType === "gross" ? result.r1_gross : result.r1_net;
-                const r2 = scoreType === "gross" ? result.r2_gross : result.r2_net;
-                const total = scoreType === "gross" ? result.total_gross : result.total_net;
-                const toPar = scoreType === "gross" ? result.to_par_gross : result.to_par_net;
+              {tournamentStandings.map((result, index) => {
+                const isCurrentPlayer = displayName && result.playerName.toLowerCase() === displayName.toLowerCase();
 
                 return (
                   <div
-                    key={result.player_name}
+                    key={result.playerName}
                     className={cn(
                       "grid grid-cols-12 gap-4 px-4 py-4 items-center transition-colors",
                       isCurrentPlayer && "bg-secondary/10 border-l-4 border-secondary",
@@ -462,7 +422,6 @@ export default function LeagueLeaderboard() {
                     )}
                     style={{ animationDelay: `${index * 30}ms` }}
                   >
-                    {/* Position */}
                     <div className="col-span-2 md:col-span-1 flex items-center justify-center gap-1">
                       {getPositionIcon(result.position)}
                       <span className={cn(
@@ -479,7 +438,7 @@ export default function LeagueLeaderboard() {
                         "font-inter font-semibold text-sm truncate",
                         isCurrentPlayer ? "text-secondary" : "text-foreground"
                       )}>
-                        {result.player_name}
+                        {result.playerName}
                       </p>
                     </div>
 
@@ -491,59 +450,53 @@ export default function LeagueLeaderboard() {
                           ? "bg-secondary text-secondary-foreground"
                           : "bg-primary text-primary-foreground"
                       )}>
-                        {result.player_name.charAt(0).toUpperCase()}
+                        {result.playerName.charAt(0).toUpperCase()}
                       </div>
                       <p className={cn(
                         "font-inter font-semibold",
                         isCurrentPlayer ? "text-secondary" : "text-foreground"
                       )}>
-                        {result.player_name}
+                        {result.playerName}
                         {isCurrentPlayer && <span className="text-xs ml-2">(You)</span>}
                       </p>
                     </div>
 
                     {/* HCP - Desktop */}
                     <div className="hidden md:block col-span-1 text-center font-inter text-muted-foreground">
-                      {result.hcp}
+                      {result.hcp ?? "-"}
                     </div>
 
                     {/* Rounds */}
                     <div className="col-span-2 text-center font-display text-muted-foreground">
-                      {result.dnf && r1 === null ? "DNF" : (
-                        <>
-                          {r1 ?? "-"}
-                          {result.r1_thru && <span className="text-xs ml-0.5">({result.r1_thru})</span>}
-                        </>
+                      {result.r1}
+                      {result.r1Thru && (
+                        <span className="text-xs ml-0.5">
+                          {result.r1Thru === "F" ? "" : `(${result.r1Thru})`}
+                        </span>
                       )}
                     </div>
                     <div className="col-span-2 text-center font-display text-muted-foreground">
-                      {result.dnf && r2 === null ? "DNF" : (
-                        <>
-                          {r2 ?? "-"}
-                          {result.r2_thru && <span className="text-xs ml-0.5">({result.r2_thru})</span>}
-                        </>
+                      {result.r2}
+                      {result.r2Thru && (
+                        <span className="text-xs ml-0.5">
+                          {result.r2Thru === "F" ? "" : `(${result.r2Thru})`}
+                        </span>
                       )}
                     </div>
 
                     {/* Total - Desktop */}
                     <div className="hidden md:block col-span-1 text-center font-display font-medium text-foreground">
-                      {result.dnf ? "DNF" : total}
+                      {result.total}
                     </div>
 
                     {/* To Par */}
                     <div className="col-span-2 text-center">
-                      {result.dnf ? (
-                        <span className="px-3 py-1.5 rounded-lg font-display text-lg text-muted-foreground">
-                          DNF
-                        </span>
-                      ) : (
-                        <span className={cn(
-                          "px-3 py-1.5 rounded-lg font-display text-lg",
-                          toPar < 0 ? "text-green-500" : toPar === 0 ? "text-foreground" : "text-red-500"
-                        )}>
-                          {formatScore(toPar)}
-                        </span>
-                      )}
+                      <span className={cn(
+                        "px-3 py-1.5 rounded-lg font-display text-lg",
+                        getScoreColor(result.toPar)
+                      )}>
+                        {result.toPar}
+                      </span>
                     </div>
                   </div>
                 );
