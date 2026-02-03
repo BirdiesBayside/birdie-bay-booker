@@ -63,6 +63,7 @@ const MyAccount = () => {
   const [isAddingPaymentMethod, setIsAddingPaymentMethod] = useState(false);
   const [deletingPaymentMethodId, setDeletingPaymentMethodId] = useState<string | null>(null);
   const [showMembershipBlockDialog, setShowMembershipBlockDialog] = useState(false);
+  const [isOpeningBillingPortal, setIsOpeningBillingPortal] = useState(false);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
@@ -200,6 +201,25 @@ const MyAccount = () => {
       toast.error("Failed to remove payment method");
     } finally {
       setDeletingPaymentMethodId(null);
+    }
+  };
+
+  const handleOpenBillingPortal = async () => {
+    setIsOpeningBillingPortal(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("customer-portal");
+      
+      if (error) throw error;
+      if (data.error) throw new Error(data.error);
+      
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    } catch (error) {
+      console.error("Error opening billing portal:", error);
+      toast.error("Failed to open billing portal. Please try again.");
+    } finally {
+      setIsOpeningBillingPortal(false);
     }
   };
 
@@ -664,25 +684,47 @@ const MyAccount = () => {
                       </div>
                     </div>
                   ))}
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={handleAddPaymentMethod}
-                    disabled={isAddingPaymentMethod}
-                    className="mt-2"
-                  >
-                    {isAddingPaymentMethod ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Setting up...
-                      </>
-                    ) : (
-                      <>
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add Another Card
-                      </>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {/* For members: show Update Card button to open Stripe billing portal */}
+                    {profile?.membership_tier && profile.membership_tier !== "visitor" && (
+                      <Button 
+                        variant="default" 
+                        size="sm"
+                        onClick={handleOpenBillingPortal}
+                        disabled={isOpeningBillingPortal}
+                      >
+                        {isOpeningBillingPortal ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Opening...
+                          </>
+                        ) : (
+                          <>
+                            <Pencil className="h-4 w-4 mr-2" />
+                            Update Card
+                          </>
+                        )}
+                      </Button>
                     )}
-                  </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={handleAddPaymentMethod}
+                      disabled={isAddingPaymentMethod}
+                    >
+                      {isAddingPaymentMethod ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Setting up...
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="h-4 w-4 mr-2" />
+                          Add Another Card
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </div>
               )}
             </CardContent>
