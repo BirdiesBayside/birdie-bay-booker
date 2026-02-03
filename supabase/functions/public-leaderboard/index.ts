@@ -113,18 +113,39 @@ Deno.serve(async (req) => {
       }
 
       case "last-completed-tournament": {
-        // Get the most recently completed tournament across ALL tours
-        const today = new Date().toISOString().split('T')[0];
+        // Get the "previous week" tournament - the one before the current active tournament
+        // This could be "Completed" or still "In Progress" if current week is underway
+        
+        // Get Brisbane timezone date
+        const brisbaneNow = new Date().toLocaleString("en-AU", { timeZone: "Australia/Brisbane" });
+        const brisbaneParts = brisbaneNow.split(/[/,\s:]+/);
+        const brisbaneToday = `${brisbaneParts[2]}-${brisbaneParts[1].padStart(2, '0')}-${brisbaneParts[0].padStart(2, '0')}`;
+        
+        console.log(`[PUBLIC-LEADERBOARD] last-completed-tournament: Brisbane today = ${brisbaneToday}`);
+        
+        // Get tournaments that have started, ordered by start date descending
+        // We want the second one (previous week) - skip the current active tournament
         const { data: tournaments, error } = await supabase
           .from("sgt_tournaments")
           .select("tournament_id, name, course_name, start_date, end_date, status, tour_id")
-          .eq("status", "Completed")
-          .order("end_date", { ascending: false })
-          .limit(1);
+          .or("status.eq.Completed,status.eq.In Progress")
+          .lte("start_date", brisbaneToday)
+          .order("start_date", { ascending: false })
+          .limit(2);
 
         if (error) throw error;
+        
+        console.log(`[PUBLIC-LEADERBOARD] Found ${tournaments?.length || 0} tournaments`);
+        tournaments?.forEach((t, i) => console.log(`  [${i}] ${t.name} - ${t.status} (start: ${t.start_date})`));
 
-        const tournament = tournaments?.[0] || null;
+        // Get the second tournament (previous week) if available, otherwise the first
+        // If current week has started, tournaments[0] is current, tournaments[1] is previous
+        // We want the "previous" one for the Last Week display
+        const tournament = tournaments && tournaments.length >= 2 
+          ? tournaments[1] 
+          : tournaments?.[0] || null;
+        
+        console.log(`[PUBLIC-LEADERBOARD] Selected tournament: ${tournament?.name || 'none'}`);
 
         // Also get the tour name for context
         let tourName = null;
