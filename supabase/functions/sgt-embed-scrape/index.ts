@@ -22,27 +22,33 @@ interface TournamentStanding {
   r1Thru: string;
   r2: string;
   r2Thru: string;
-  score: string;
+  total: string;
   toPar: string;
-  thru: string;
 }
 
 function parseTourStandings(html: string): TourStanding[] {
   const standings: TourStanding[] = [];
   
-  // Normalize whitespace and quotes for easier regex matching
+  // Normalize whitespace
   const normalizedHtml = html.replace(/\s+/g, ' ');
   
-  // Match player rows - using ['""] to handle both single and double quotes
-  // Looking for: <tr class="player-row" data-player-name="PlayerName">
-  const rowRegex = /<tr[^>]*class=['"]player-row['"][^>]*data-player-name=['"]([^'"]+)['"][^>]*>(.*?)<\/tr>/gi;
+  // Match rows with data-player-name attribute
+  const rowRegex = /<tr[^>]*data-player-name=['"]([^'"]+)['"][^>]*>(.*?)<\/tr>/gi;
   let match;
   
   while ((match = rowRegex.exec(normalizedHtml)) !== null) {
     const playerName = match[1];
     const rowContent = match[2];
     
-    // Extract all td cell text content
+    // Extract position from first td
+    const posMatch = rowContent.match(/<td[^>]*position[^>]*>(\d+)<\/td>/i);
+    const position = posMatch ? parseInt(posMatch[1], 10) : 0;
+    
+    // Extract handicap from three-quarter-font div after player name
+    const hcpMatch = rowContent.match(/three-quarter-font[^>]*>(\d+)<\/div>/i);
+    const hcp = hcpMatch ? parseInt(hcpMatch[1], 10) : null;
+    
+    // Extract all td cells and get their text content
     const cellRegex = /<td[^>]*>(.*?)<\/td>/gi;
     const cells: string[] = [];
     let cellMatch;
@@ -53,35 +59,26 @@ function parseTourStandings(html: string): TourStanding[] {
       cells.push(text);
     }
     
-    // Extract handicap from the player cell (small number after player name)
-    // Looking for pattern like: three-quarter-font">5</div>
-    const hcpMatch = rowContent.match(/three-quarter-font['"]?>\s*(\d+)\s*<\/div>/i);
-    const hcp = hcpMatch ? parseInt(hcpMatch[1], 10) : null;
-    
-    if (cells.length >= 5) {
-      const position = parseInt(cells[0], 10) || 0;
-      
-      // Extract numeric values from cells
-      const numericValues: number[] = [];
-      for (let i = 2; i < cells.length; i++) {
-        const num = parseInt(cells[i], 10);
-        if (!isNaN(num)) {
-          numericValues.push(num);
-        }
+    // Extract numeric values from cells (skip first 2: position and player)
+    // Order: events, wins, top5, top10, points
+    const numericValues: number[] = [];
+    for (let i = 2; i < cells.length; i++) {
+      const num = parseInt(cells[i], 10);
+      if (!isNaN(num)) {
+        numericValues.push(num);
       }
-      
-      // numericValues should be: [events, wins, top5, top10, points]
-      standings.push({
-        position,
-        playerName,
-        hcp,
-        events: numericValues[0] || 0,
-        wins: numericValues[1] || 0,
-        top5: numericValues[2] || 0,
-        top10: numericValues[3] || 0,
-        points: numericValues[4] || numericValues[numericValues.length - 1] || 0,
-      });
     }
+    
+    standings.push({
+      position,
+      playerName,
+      hcp,
+      events: numericValues[0] || 0,
+      wins: numericValues[1] || 0,
+      top5: numericValues[2] || 0,
+      top10: numericValues[3] || 0,
+      points: numericValues[4] || numericValues[numericValues.length - 1] || 0,
+    });
   }
   
   return standings;
@@ -92,8 +89,7 @@ function parseTournamentStandings(html: string): TournamentStanding[] {
   
   const normalizedHtml = html.replace(/\s+/g, ' ');
   
-  // Tournament rows may or may not have class="player-row", but they all have data-player-name
-  // Match: <tr data-player-name="PlayerName">...</tr>
+  // Match rows with data-player-name attribute
   const rowRegex = /<tr[^>]*data-player-name=['"]([^'"]+)['"][^>]*>(.*?)<\/tr>/gi;
   let match;
   
@@ -101,43 +97,37 @@ function parseTournamentStandings(html: string): TournamentStanding[] {
     const playerName = match[1];
     const rowContent = match[2];
     
-    // Extract position from first td
-    const posMatch = rowContent.match(/<td[^>]*class=['"][^'"]*position[^'"]*['"][^>]*>(\d+)<\/td>/i);
+    // Extract position from td with class containing "position"
+    const posMatch = rowContent.match(/<td[^>]*position[^>]*>(\d+)<\/td>/i);
     const position = posMatch ? parseInt(posMatch[1], 10) : 0;
     
     // Extract handicap from three-quarter-font div after player name
-    const hcpMatch = rowContent.match(/<div[^>]*class=['"][^'"]*three-quarter-font[^'"]*['"][^>]*>(\d+)<\/div>/i);
+    const hcpMatch = rowContent.match(/three-quarter-font[^>]*>(\d+)<\/div>/i);
     const hcp = hcpMatch ? parseInt(hcpMatch[1], 10) : null;
     
-    // Extract round scores and total from td cells
-    // Structure: position | player | rd1 | rd2 | total
-    const roundRegex = /<td[^>]*class=['"][^'"]*round[^'"]*['"][^>]*>([^<]*(?:<span[^>]*>[^<]*<\/span>)?)<\/td>/gi;
+    // Extract round scores from td cells with "round" in class
+    // Pattern: <td class="... round ...">+5 <span class="three-quarter-font">F</span></td>
+    const roundRegex = /<td[^>]*\bround\b[^>]*>([^<]*(?:<span[^>]*>[^<]*<\/span>)?[^<]*)<\/td>/gi;
     const rounds: { score: string; thru: string }[] = [];
     let roundMatch;
     
     while ((roundMatch = roundRegex.exec(rowContent)) !== null) {
-      const content = roundMatch[1];
-      // Extract score (e.g., "+3" or "-2" or "E")
-      const scoreMatch = content.match(/([+-]?\d+|E)/);
-      const score = scoreMatch ? scoreMatch[1] : '-';
-      // Extract thru from span (e.g., "F" or "(12)")
+      const content = roundMatch[1].trim();
+      
+      // Extract score: +1, -2, E, or empty
+      const scoreMatch = content.match(/^([+-]?\d+|E)/);
+      const score = scoreMatch ? scoreMatch[1] : '';
+      
+      // Extract thru from span: F or (12)
       const thruMatch = content.match(/<span[^>]*>([^<]*)<\/span>/);
-      const thru = thruMatch ? thruMatch[1].replace(/[()]/g, '').trim() : '';
-      rounds.push({ score, thru });
+      const thruRaw = thruMatch ? thruMatch[1].replace(/[()]/g, '').trim() : '';
+      
+      rounds.push({ score, thru: thruRaw });
     }
     
-    // Extract total from td with class containing "total"
-    const totalMatch = rowContent.match(/<td[^>]*class=['"][^'"]*total[^'"]*['"][^>]*>([+-]?\d+|E)<\/td>/i);
+    // Extract total from td with "total" in class
+    const totalMatch = rowContent.match(/<td[^>]*\btotal\b[^>]*>([+-]?\d+|E)<\/td>/i);
     const total = totalMatch ? totalMatch[1] : '-';
-    
-    // Determine thru status - check last round with content
-    let thruStatus = 'F';
-    for (let i = rounds.length - 1; i >= 0; i--) {
-      if (rounds[i].thru) {
-        thruStatus = rounds[i].thru;
-        break;
-      }
-    }
     
     standings.push({
       position,
@@ -145,11 +135,10 @@ function parseTournamentStandings(html: string): TournamentStanding[] {
       hcp,
       r1: rounds[0]?.score || '-',
       r1Thru: rounds[0]?.thru || '',
-      r2: rounds[1]?.score || '-', 
+      r2: rounds[1]?.score || '-',
       r2Thru: rounds[1]?.thru || '',
-      score: total,
-      toPar: total,
-      thru: thruStatus || 'F',
+      total,
+      toPar: total, // For single-round tournaments, total = toPar
     });
   }
   
@@ -227,11 +216,6 @@ Deno.serve(async (req) => {
 
     const html = await response.text();
     console.log(`[SGT-EMBED-SCRAPE] Received ${html.length} bytes`);
-    
-    // Debug: Check if player-row class exists
-    const hasPlayerRows = html.includes('player-row');
-    const hasDataPlayerName = html.includes('data-player-name');
-    console.log(`[SGT-EMBED-SCRAPE] Contains player-row: ${hasPlayerRows}, data-player-name: ${hasDataPlayerName}`);
 
     // Parse the HTML based on type
     let standings;
@@ -242,6 +226,9 @@ Deno.serve(async (req) => {
     }
 
     console.log(`[SGT-EMBED-SCRAPE] Parsed ${standings.length} standings`);
+    if (standings.length > 0) {
+      console.log(`[SGT-EMBED-SCRAPE] First standing:`, JSON.stringify(standings[0]));
+    }
 
     return new Response(
       JSON.stringify({ 
