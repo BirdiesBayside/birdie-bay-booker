@@ -1,161 +1,57 @@
 
+# Fix: TV Leaderboards Showing Blank Data
 
-# Automated "First Session Free" Campaign
+## Problem Identified
+The Overall Standings (`/embed/tv-standings`) and Current Week (`/embed/tv-weekly`) TV displays are blank, while Last Week (`/embed/tv-lastweek`) works correctly.
 
-## Overview
+**Root Cause**: Row Level Security (RLS) policies on `sgt_tours` and `sgt_tournaments` tables require authenticated users to read data. The TV embed pages are accessed anonymously (no login), so the client-side Supabase queries in `useActiveTourData` return empty results.
 
-This plan creates an automated system that monitors for new customers who haven't booked yet. When the count reaches 30 eligible users, it automatically gifts them $35 credit and sends a personalized welcome/promotion email.
+**Why Last Week Works**: The `EmbedTVLastWeek` page uses the `public-leaderboard` edge function, which runs server-side with the service role key and bypasses RLS.
 
----
+## Solution Options
 
-## How It Works
+### Option A: Add Public SELECT Policies (Simplest)
+Add RLS policies allowing anonymous SELECT access to tour/tournament metadata. This is low-risk since this data is already publicly visible on SGT's website.
 
-```text
-+---------------------------+
-|   Daily Check (6am AEST)  |
-+---------------------------+
-            |
-            v
-+---------------------------+
-|  Count eligible users:    |
-|  - No bookings ever       |
-|  - Not bulk imported      |
-|  - Not opted out          |
-|  - Not already gifted     |
-+---------------------------+
-            |
-            v
-     [ >= 30 users? ]
-        /        \
-      No          Yes
-       |            |
-       v            v
-    (wait)      +---------------------------+
-                |  For each user:           |
-                |  1. Add $35 to balance    |
-                |  2. Mark as "promo_sent"  |
-                |  3. Send welcome email    |
-                +---------------------------+
+### Option B: Move Active Tour Logic to Edge Function (Consistent Architecture)  
+Create a new edge function endpoint to fetch active tour data server-side, similar to how `public-leaderboard` works. This keeps all TV displays using the same pattern.
+
+## Recommended Approach: Option A + Fallback Enhancement
+
+Since the tour and tournament data is non-sensitive metadata (tour names, tournament names, dates, statuses), adding public read access is appropriate and simpler. However, we'll also enhance the hook to be more resilient.
+
+## Implementation Plan
+
+### Step 1: Add Public SELECT Policies
+Create RLS policies to allow anonymous read access to `sgt_tours` and `sgt_tournaments` tables:
+
+```sql
+CREATE POLICY "Public can view tours" ON public.sgt_tours
+  FOR SELECT USING (true);
+
+CREATE POLICY "Public can view tournaments" ON public.sgt_tournaments
+  FOR SELECT USING (true);
 ```
 
----
+### Step 2: Verify Existing Policies Don't Conflict
+The existing "Authenticated users can view" policies are PERMISSIVE, so they will combine correctly with the new public policies using OR logic.
 
-## Components to Build
-
-### 1. Database Changes
-
-**Add tracking column to profiles table:**
-- `first_session_promo_sent` (timestamp) - Records when the promo was sent so we never double-gift
-
-**Add new email template:**
-- Template key: `first_session_promo`
-- Subject: "Your Free Hour is Waiting, {first_name}!"
-- Content: Gift card-style design with $35 credit emphasis and clear "Book Now" CTA
-
-### 2. New Edge Function: `first-session-promo`
-
-This function will:
-1. Query for eligible users (organic signups, no bookings, not opted out, not already sent)
-2. If count >= 30: process all eligible users
-3. For each user:
-   - Update `deposit_balance` by adding $35
-   - Set `first_session_promo_sent` timestamp
-   - Send personalized email using the branded template
-
-**Eligibility criteria:**
-- Has zero bookings (excluding cancelled)
-- `marketing_opt_out = false`
-- `first_session_promo_sent IS NULL`
-- Not part of bulk import (created_at spread check OR explicit flag)
-- Account created more than 24 hours ago (give them time to book naturally)
-
-### 3. Cron Schedule
-
-Run daily at **6am Brisbane time** (8pm UTC) to check if threshold is met.
+### Step 3: Test All Three TV Pages
+After adding the policies:
+- `/embed/tv-standings` - Should show overall tour standings
+- `/embed/tv-weekly` - Should show current tournament leaderboard  
+- `/embed/tv-lastweek` - Should continue working as before
 
 ---
 
-## Email Design
+## Technical Notes
 
-The email will follow the branded gift card template style:
+- The `sgt-embed-scrape` edge function itself works correctly (verified with direct API calls)
+- The `useSGTEmbedData` hook correctly handles the data when valid IDs are passed
+- The issue is purely that `useActiveTourData` cannot fetch tour/tournament IDs without authentication
+- No changes needed to the React components or hooks - only the database RLS policies
 
-**Subject:** "Your Free Hour is Waiting, {first_name}!"
-
-**Design:**
-- Green header with Birdies logo
-- Cream body with headline: "A Gift From Us To You!"
-- Large "$35.00" value display (gift card style)
-- Personal message: "We noticed you haven't booked your first session yet..."
-- Explanation: Credit has been added to your account
-- Prominent "Book Now" button
-- Social links and footer
-
-**Template tags supported:**
-- `{first_name}`, `{last_name}`, `{email}`
-
----
-
-## Technical Details
-
-### Edge Function Logic
-
-```text
-1. Fetch eligible users:
-   SELECT * FROM profiles p
-   WHERE p.first_session_promo_sent IS NULL
-     AND p.marketing_opt_out = false
-     AND p.created_at < NOW() - INTERVAL '24 hours'
-     AND NOT EXISTS (
-       SELECT 1 FROM bookings b 
-       WHERE b.user_id = p.user_id 
-         AND b.status != 'cancelled'
-     )
-   
-2. If count >= 30:
-   - Process all users in batch
-   - For each: update balance, set promo timestamp, send email
-   - Log results
-
-3. Return summary: processed count, success/fail counts
-```
-
-### Fail-safes
-
-- **Idempotent**: Once `first_session_promo_sent` is set, user is never re-processed
-- **Rate limiting**: Emails sent in batches of 50 with 200ms delays
-- **Logging**: Full audit trail for debugging
-
----
-
-## Configuration Options
-
-The function will support optional parameters for manual triggering:
-
-- `force: true` - Process regardless of count threshold
-- `threshold: N` - Override the default 30-user threshold
-- `dry_run: true` - Preview eligible users without sending
-
-This allows admins to manually trigger campaigns or test the system.
-
----
-
-## Summary of Changes
-
-| Component | Action |
-|-----------|--------|
-| `profiles` table | Add `first_session_promo_sent` column |
-| `email_templates` table | Add "first_session_promo" template |
-| Edge function | Create `first-session-promo` |
-| `config.toml` | Register new function |
-| Cron job | Schedule daily at 8pm UTC (6am Brisbane) |
-
----
-
-## Post-Implementation
-
-After this is live, you'll be able to:
-1. View eligible user counts in the admin dashboard
-2. Manually trigger the campaign early if needed
-3. Customize the email template via Admin Settings > Notifications
-4. Monitor campaign results via edge function logs
-
+## Risk Assessment
+- **Low Risk**: Tour/tournament metadata is already publicly visible on SGT website
+- **No PII Exposure**: These tables contain only tour names, dates, and status - no personal data
+- **Backward Compatible**: Authenticated users continue to have access as before
