@@ -9,23 +9,30 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useSGTTourStandings, useSGTTournamentStandings, TourStanding, TournamentStanding } from "@/hooks/useSGTEmbedData";
+import { useSGTTourStandings, useSGTTournamentStandings } from "@/hooks/useSGTEmbedData";
+import { useActiveTourData } from "@/hooks/useActiveTourData";
 import birdiesB from "@/assets/birdies-b-icon.png";
 
-// Hardcoded tour/tournament options - update as needed
-const TOURS = [
-  { id: 2458, name: "Season 5", active: true },
-];
-
-const TOURNAMENTS = [
-  { id: 46274, name: "Week 4 - Muirfield Village GC", tourId: 2458 },
-];
-
 export default function EmbedLeaderboard() {
-  const [selectedTour, setSelectedTour] = useState<number>(TOURS[0].id);
-  const [selectedTournament, setSelectedTournament] = useState<number>(TOURNAMENTS[0].id);
+  const { activeTour, currentTournament, tours, tournaments, isLoading: dataLoading } = useActiveTourData();
+  
+  const [selectedTour, setSelectedTour] = useState<number | null>(null);
+  const [selectedTournament, setSelectedTournament] = useState<number | null>(null);
   const [scoreType, setScoreType] = useState<"gross" | "net">("net");
   const [viewMode, setViewMode] = useState<"overall" | "weekly">("weekly");
+
+  // Initialize selections when data loads
+  useEffect(() => {
+    if (activeTour && !selectedTour) {
+      setSelectedTour(activeTour.tour_id);
+    }
+  }, [activeTour, selectedTour]);
+
+  useEffect(() => {
+    if (currentTournament && !selectedTournament) {
+      setSelectedTournament(currentTournament.tournament_id);
+    }
+  }, [currentTournament, selectedTournament]);
 
   // Parse URL params for defaults
   useEffect(() => {
@@ -47,7 +54,7 @@ export default function EmbedLeaderboard() {
   } = useSGTTourStandings({
     id: selectedTour,
     scoreType,
-    enabled: viewMode === "overall",
+    enabled: viewMode === "overall" && !!selectedTour,
     refreshInterval: 30000,
   });
 
@@ -58,12 +65,15 @@ export default function EmbedLeaderboard() {
   } = useSGTTournamentStandings({
     id: selectedTournament,
     scoreType,
-    enabled: viewMode === "weekly",
+    enabled: viewMode === "weekly" && !!selectedTournament,
     refreshInterval: 30000,
   });
 
-  const isLoading = viewMode === "overall" ? tourLoading : tournamentLoading;
+  const isLoading = dataLoading || (viewMode === "overall" ? tourLoading : tournamentLoading);
   const lastUpdated = viewMode === "overall" ? tourLastUpdated : tournamentLastUpdated;
+
+  // Filter tournaments for selected tour
+  const filteredTournaments = tournaments.filter(t => t.tour_id === selectedTour);
 
   const getPositionIcon = (position: number) => {
     switch (position) {
@@ -120,18 +130,25 @@ export default function EmbedLeaderboard() {
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
         <Select
-          value={selectedTour.toString()}
-          onValueChange={(val) => setSelectedTour(parseInt(val))}
+          value={selectedTour?.toString() || ""}
+          onValueChange={(val) => {
+            setSelectedTour(parseInt(val));
+            // Reset tournament selection when tour changes
+            const tourTournaments = tournaments.filter(t => t.tour_id === parseInt(val));
+            if (tourTournaments.length > 0) {
+              setSelectedTournament(tourTournaments[0].tournament_id);
+            }
+          }}
         >
           <SelectTrigger className="w-full sm:w-[250px] bg-white border-[hsl(128,20%,85%)]">
             <SelectValue placeholder="Select tour" />
           </SelectTrigger>
           <SelectContent>
-            {TOURS.map((tour) => (
-              <SelectItem key={tour.id} value={tour.id.toString()}>
+            {tours.map((tour) => (
+              <SelectItem key={tour.tour_id} value={tour.tour_id.toString()}>
                 <div className="flex items-center gap-2">
                   <span>{tour.name}</span>
-                  {tour.active && (
+                  {tour.active === 1 && (
                     <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-green-500/20 text-green-600 rounded">
                       ACTIVE
                     </span>
@@ -142,17 +159,17 @@ export default function EmbedLeaderboard() {
           </SelectContent>
         </Select>
 
-        {viewMode === "weekly" && (
+        {viewMode === "weekly" && filteredTournaments.length > 0 && (
           <Select
-            value={selectedTournament.toString()}
+            value={selectedTournament?.toString() || ""}
             onValueChange={(val) => setSelectedTournament(parseInt(val))}
           >
             <SelectTrigger className="w-full sm:w-[300px] bg-white border-[hsl(128,20%,85%)]">
               <SelectValue placeholder="Select week" />
             </SelectTrigger>
             <SelectContent>
-              {TOURNAMENTS.filter(t => t.tourId === selectedTour).map((tournament, index) => (
-                <SelectItem key={tournament.id} value={tournament.id.toString()}>
+              {filteredTournaments.map((tournament, index) => (
+                <SelectItem key={tournament.tournament_id} value={tournament.tournament_id.toString()}>
                   <div className="flex items-center gap-2">
                     <span>{tournament.name}</span>
                     {index === 0 && (

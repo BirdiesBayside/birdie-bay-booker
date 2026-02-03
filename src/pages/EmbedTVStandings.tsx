@@ -1,17 +1,20 @@
 import { Trophy, Medal, Award, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSGTTourStandings } from "@/hooks/useSGTEmbedData";
+import { useActiveTourData } from "@/hooks/useActiveTourData";
 import birdiesLogo from "@/assets/birdies-b-orange.png";
 
-// Tour ID for the current active tour
-const ACTIVE_TOUR_ID = 2458;
-
 export default function EmbedTVStandings() {
-  const { standings, isLoading, lastUpdated } = useSGTTourStandings({
-    id: ACTIVE_TOUR_ID,
+  const { activeTour, isLoading: tourLoading } = useActiveTourData();
+  
+  const { standings, isLoading: standingsLoading, lastUpdated } = useSGTTourStandings({
+    id: activeTour?.tour_id ?? null,
     scoreType: "net",
+    enabled: !!activeTour,
     refreshInterval: 30000, // 30 second refresh for live updates
   });
+
+  const isLoading = tourLoading || standingsLoading;
 
   const getPositionIcon = (position: number) => {
     switch (position) {
@@ -41,7 +44,7 @@ export default function EmbedTVStandings() {
               OVERALL STANDINGS
             </h1>
             <p className="text-xl text-[hsl(128,20%,40%)]">
-              Birdies League Hub • NET Scores
+              {activeTour?.name || "Birdies League Hub"} • NET Scores
             </p>
           </div>
         </div>
