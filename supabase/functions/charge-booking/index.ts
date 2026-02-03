@@ -290,13 +290,28 @@ serve(async (req) => {
     });
 
   } catch (error: any) {
-    logStep("ERROR", { message: error.message, code: error.code });
+    logStep("ERROR", { message: error.message, code: error.code, type: error.type });
     
-    // Handle card declined or payment errors
-    if (error.type === "StripeCardError") {
+    // Handle Stripe card/payment errors with specific messages
+    if (error.type === "StripeCardError" || error.code) {
+      // Map common Stripe decline codes to user-friendly messages
+      const declineMessages: Record<string, string> = {
+        expired_card: "Your card has expired. Please update your payment method.",
+        card_declined: "Your card was declined. Please try a different card.",
+        insufficient_funds: "Your card has insufficient funds. Please try a different card.",
+        incorrect_cvc: "The CVC code is incorrect. Please check and try again.",
+        processing_error: "There was an error processing your card. Please try again.",
+        incorrect_number: "The card number is incorrect. Please check and try again.",
+        authentication_required: "Your card requires authentication. Please try again or use a different card.",
+      };
+      
+      const friendlyMessage = declineMessages[error.code] || 
+        error.message || 
+        "Your card was declined. Please update your payment method.";
+      
       return new Response(JSON.stringify({ 
-        error: "Your card was declined. Please update your payment method.",
-        code: "card_declined"
+        error: friendlyMessage,
+        code: error.code || "card_error"
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 400,
