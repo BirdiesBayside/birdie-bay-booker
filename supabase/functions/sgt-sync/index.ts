@@ -300,10 +300,15 @@ serve(async (req) => {
               const scorecardsResponse = await sgtRequest("/tournaments/scorecards", apiKey, { tournamentId: tourn.tournamentId.toString() });
               const scorecards = extractArray(scorecardsResponse, ['scorecards', 'results']);
               
+              // Track player IDs from this completed tournament for handicap refresh
+              const playerIdsInTournament = new Set<number>();
+              
               for (const scorecard of scorecards) {
                 const sc = scorecard as Record<string, unknown>;
                 const playerId = sc.playerId as number;
                 const round = (sc.round as number) ?? 1;
+                
+                playerIdsInTournament.add(playerId);
                 
                 const holeData: Record<string, unknown> = {};
                 for (const [key, value] of Object.entries(sc)) {
@@ -336,6 +341,39 @@ serve(async (req) => {
                 totalRecords++;
               }
               console.log(`[SGT-SYNC] Synced ${scorecards.length} scorecards for completed tournament`);
+              
+              // After syncing completed tournament scorecards, refresh handicaps for participating players
+              // This ensures handicaps update immediately when a round completes
+              if (playerIdsInTournament.size > 0) {
+                try {
+                  const tourMembersResponse = await sgtRequest("/tours/members", apiKey, { tourId: t.tourId.toString() });
+                  const allTourMembers = extractArray(tourMembersResponse, ['members', 'results']);
+                  
+                  let handicapsUpdated = 0;
+                  for (const member of allTourMembers) {
+                    const m = member as { user_id: number; user_name: string; hcp_index?: number };
+                    
+                    // Only update handicaps for players who participated in this tournament
+                    if (playerIdsInTournament.has(m.user_id)) {
+                      const { error: updateError } = await supabase
+                        .from("sgt_tour_members")
+                        .update({ 
+                          hcp_index: m.hcp_index,
+                          updated_at: new Date().toISOString()
+                        })
+                        .eq("tour_id", t.tourId)
+                        .eq("user_id", m.user_id);
+                      
+                      if (!updateError) {
+                        handicapsUpdated++;
+                      }
+                    }
+                  }
+                  console.log(`[SGT-SYNC] Refreshed handicaps for ${handicapsUpdated} players in completed tournament`);
+                } catch (e) {
+                  console.error(`[SGT-SYNC] Error refreshing handicaps post-scorecard sync:`, e);
+                }
+              }
             } catch (e) {
               console.error(`[SGT-SYNC] Error syncing scorecards for tournament ${tourn.tournamentId}:`, e);
             }
