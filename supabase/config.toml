@@ -101,3 +101,6 @@ verify_jwt = false
 
 [functions.first-session-promo]
 verify_jwt = false
+
+[functions.sgt-embed-scrape]
+verify_jwt = false
