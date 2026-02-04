@@ -154,6 +154,14 @@ serve(async (req) => {
             logStep("Error resetting profile", { error: error.message });
           } else {
             logStep("Membership tier reset to visitor");
+
+            // Cancel the subscription in Stripe to prevent duplicate subscriptions
+            try {
+              await stripe.subscriptions.cancel(subscription.id);
+              logStep("Subscription cancelled in Stripe due to past_due status", { subscriptionId: subscription.id });
+            } catch (cancelError) {
+              logStep("Failed to cancel subscription in Stripe", { error: cancelError, subscriptionId: subscription.id });
+            }
             
             // Send payment failed notification
             if (resend) {
@@ -559,6 +567,15 @@ serve(async (req) => {
 
           if (error) {
             logStep("Error resetting profile", { error: error.message });
+          }
+
+          // Cancel the subscription in Stripe to prevent duplicate subscriptions
+          // When user updates their card and re-subscribes, they'll get a fresh subscription
+          try {
+            await stripe.subscriptions.cancel(subscriptionId);
+            logStep("Subscription cancelled in Stripe due to failed payment", { subscriptionId });
+          } catch (cancelError) {
+            logStep("Failed to cancel subscription in Stripe", { error: cancelError, subscriptionId });
           }
 
           // Send payment failed notification email using customizable template
