@@ -281,12 +281,26 @@ serve(async (req) => {
         for (const tournament of tournaments.slice(0, 20)) {
           const tourn = tournament as { tournamentId: number; name: string; courseName?: string; status?: string; start_date?: string; end_date?: string };
           
+          // Determine status - if SGT says "In Progress" but end_date has passed, mark as Completed
+          let status = tourn.status;
+          if (status === 'In Progress' && tourn.end_date) {
+            const endDate = new Date(tourn.end_date);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            // If end_date is in the past, tournament should be Completed
+            if (endDate < today) {
+              console.log(`[SGT-SYNC] Correcting status for tournament ${tourn.tournamentId}: end_date ${tourn.end_date} has passed, marking as Completed`);
+              status = 'Completed';
+            }
+          }
+          
           await supabase.from("sgt_tournaments").upsert({
             tournament_id: tourn.tournamentId,
             tour_id: t.tourId,
             name: tourn.name,
             course_name: tourn.courseName,
-            status: tourn.status,
+            status: status,
             start_date: tourn.start_date,
             end_date: tourn.end_date,
             updated_at: new Date().toISOString(),
@@ -295,7 +309,7 @@ serve(async (req) => {
 
           // Sync Scorecards - ONLY for completed tournaments to minimize API calls
           // In-progress scorecards are fetched on-demand when users view their Round History
-          if (tourn.status === 'Completed') {
+          if (status === 'Completed') {
             try {
               const scorecardsResponse = await sgtRequest("/tournaments/scorecards", apiKey, { tournamentId: tourn.tournamentId.toString() });
               const scorecards = extractArray(scorecardsResponse, ['scorecards', 'results']);
