@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, HashRouter, Routes, Route, useLocation, useNavigate } from "react-router-dom";
 import { Capacitor } from "@capacitor/core";
 import { App as CapacitorApp } from "@capacitor/app";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
 
 // Lazy load all pages for code splitting
 const Index = lazy(() => import("./pages/Index"));
@@ -155,11 +156,19 @@ function NativeRoutePersistence() {
 
   return null;
 }
+
+// Push notification initializer component
+function PushNotificationInit() {
+  usePushNotifications();
+  return null;
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
       <Sonner />
+      <PushNotificationInit />
       <Router>
         <DeepLinkHandler />
         <NativeRoutePersistence />
