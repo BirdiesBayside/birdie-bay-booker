@@ -66,6 +66,25 @@ export const usePushNotifications = () => {
       console.log('[PUSH] Initializing push notifications on native platform');
       setIsSupported(true);
 
+      // IMPORTANT: Add listeners BEFORE registering, otherwise the token callback can be missed.
+      // (This is a common gotcha if APNs responds quickly.)
+      PushNotifications.addListener('registration', async (tokenData) => {
+        console.log('[PUSH] ✅ Registration SUCCESS! Token:', tokenData.value.substring(0, 20) + '...');
+        setToken(tokenData.value);
+      });
+
+      PushNotifications.addListener('registrationError', (error) => {
+        console.error('[PUSH] ❌ Registration ERROR:', JSON.stringify(error));
+      });
+
+      PushNotifications.addListener('pushNotificationReceived', (notification) => {
+        console.log('[PUSH] Notification received:', JSON.stringify(notification));
+      });
+
+      PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
+        console.log('[PUSH] Notification action:', JSON.stringify(notification));
+      });
+
       try {
         // Check current permission status first
         const currentStatus = await PushNotifications.checkPermissions();
@@ -90,27 +109,6 @@ export const usePushNotifications = () => {
       } catch (err) {
         console.error('[PUSH] Error during permission/registration:', err);
       }
-
-      // Listen for registration success
-      PushNotifications.addListener('registration', async (tokenData) => {
-        console.log('[PUSH] ✅ Registration SUCCESS! Token:', tokenData.value.substring(0, 20) + '...');
-        setToken(tokenData.value);
-      });
-
-      // Listen for registration errors
-      PushNotifications.addListener('registrationError', (error) => {
-        console.error('[PUSH] ❌ Registration ERROR:', JSON.stringify(error));
-      });
-
-      // Listen for push notifications received
-      PushNotifications.addListener('pushNotificationReceived', (notification) => {
-        console.log('[PUSH] Notification received:', JSON.stringify(notification));
-      });
-
-      // Listen for push notification action performed
-      PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
-        console.log('[PUSH] Notification action:', JSON.stringify(notification));
-      });
     };
 
     initPushNotifications();
