@@ -294,6 +294,17 @@ serve(async (req) => {
     
     // Handle Stripe card/payment errors with specific messages
     if (error.type === "StripeCardError" || error.code) {
+      // If the card is expired, automatically remove it from the customer's account
+      if (error.code === "expired_card" && error.payment_method) {
+        try {
+          const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", { apiVersion: "2025-08-27.basil" });
+          await stripe.paymentMethods.detach(error.payment_method.id);
+          logStep("Expired card automatically removed", { paymentMethodId: error.payment_method.id });
+        } catch (detachError) {
+          logStep("Failed to detach expired card", { error: String(detachError) });
+        }
+      }
+
       // Map common Stripe decline codes to user-friendly messages
       const declineMessages: Record<string, string> = {
         expired_card: "Your card has expired. Please update your payment method.",
