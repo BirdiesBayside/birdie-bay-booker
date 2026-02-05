@@ -159,6 +159,23 @@ serve(async (req) => {
             try {
               await stripe.subscriptions.cancel(subscription.id);
               logStep("Subscription cancelled in Stripe due to past_due status", { subscriptionId: subscription.id });
+
+              // Remove all payment methods from the customer to force them to re-add a card
+              // This provides a cleaner UX since the declined card won't work again
+              const paymentMethods = await stripe.paymentMethods.list({
+                customer: customerId,
+                type: "card",
+              });
+              
+              for (const pm of paymentMethods.data) {
+                try {
+                  await stripe.paymentMethods.detach(pm.id);
+                  logStep("Detached failed payment method", { paymentMethodId: pm.id });
+                } catch (detachError) {
+                  logStep("Failed to detach payment method", { paymentMethodId: pm.id, error: detachError });
+                }
+              }
+              logStep("Removed payment methods from customer after subscription cancellation");
             } catch (cancelError) {
               logStep("Failed to cancel subscription in Stripe", { error: cancelError, subscriptionId: subscription.id });
             }
