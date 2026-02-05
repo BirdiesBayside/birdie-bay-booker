@@ -1,10 +1,36 @@
-import { CheckCircle } from "lucide-react";
+import { useEffect, useState } from "react";
+import { CheckCircle, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import birdiesLogo from "@/assets/birdies-logo.png";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function CardAdded() {
   const navigate = useNavigate();
+  const [isSyncing, setIsSyncing] = useState(true);
+  const [syncResult, setSyncResult] = useState<{ updatedSubscriptions?: number } | null>(null);
+
+  useEffect(() => {
+    const syncPaymentMethod = async () => {
+      try {
+        // Sync the new card to any active subscriptions
+        const { data, error } = await supabase.functions.invoke("sync-subscription-payment-method");
+        
+        if (error) {
+          console.error("Error syncing payment method:", error);
+        } else if (data) {
+          setSyncResult(data);
+          console.log("Payment method synced:", data);
+        }
+      } catch (err) {
+        console.error("Failed to sync payment method:", err);
+      } finally {
+        setIsSyncing(false);
+      }
+    };
+
+    syncPaymentMethod();
+  }, []);
 
   const handleContinue = () => {
     // Clear any setup flags
@@ -35,14 +61,26 @@ export default function CardAdded() {
             <p className="text-muted-foreground text-lg">
               Your payment method has been saved successfully.
             </p>
+            {isSyncing && (
+              <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>Updating your account...</span>
+              </div>
+            )}
+            {!isSyncing && syncResult?.updatedSubscriptions && syncResult.updatedSubscriptions > 0 && (
+              <p className="text-sm text-green-600">
+                Your membership payment method has been updated.
+              </p>
+            )}
           </div>
 
           <Button 
             onClick={handleContinue}
             size="lg"
             className="w-full text-lg py-6"
+            disabled={isSyncing}
           >
-            Continue Booking
+            {isSyncing ? "Please wait..." : "Continue Booking"}
           </Button>
         </div>
       </main>
