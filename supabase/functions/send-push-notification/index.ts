@@ -67,9 +67,14 @@ async function sendPushToDevice(
   title: string, 
   body: string, 
   jwt: string,
-  bundleId: string
+  bundleId: string,
+  useSandbox: boolean = false
 ): Promise<{ success: boolean; error?: string }> {
-  const url = `https://api.push.apple.com/3/device/${token}`;
+  // Use sandbox for development builds, production for App Store builds
+  const apnsHost = useSandbox ? 'api.sandbox.push.apple.com' : 'api.push.apple.com';
+  const url = `https://${apnsHost}/3/device/${token}`;
+  
+  console.log(`[PUSH] Sending to ${useSandbox ? 'SANDBOX' : 'PRODUCTION'}: ${url.substring(0, 60)}...`);
 
   const payload = {
     aps: {
@@ -96,14 +101,15 @@ async function sendPushToDevice(
     });
 
     if (response.ok) {
+      console.log(`[PUSH] ✅ Success via ${useSandbox ? 'sandbox' : 'production'}`);
       return { success: true };
     } else {
       const errorText = await response.text();
-      console.error(`APNs error for token ${token.slice(0, 10)}...: ${response.status} - ${errorText}`);
+      console.error(`[PUSH] APNs ${useSandbox ? 'sandbox' : 'prod'} error: ${response.status} - ${errorText}`);
       return { success: false, error: `${response.status}: ${errorText}` };
     }
   } catch (error) {
-    console.error(`Failed to send to token ${token.slice(0, 10)}...:`, error);
+    console.error(`[PUSH] Failed to send:`, error);
     return { success: false, error: String(error) };
   }
 }
@@ -166,12 +172,26 @@ serve(async (req) => {
     const invalidTokens: string[] = [];
 
     for (const { token } of tokens) {
-      const result = await sendPushToDevice(token, title, body, jwt, bundleId);
+      // Try production first, then sandbox if it fails
+      let result = await sendPushToDevice(token, title, body, jwt, bundleId, false);
+      
+      // If production fails with BadDeviceToken, try sandbox (for dev builds)
+      if (!result.success && result.error?.includes('BadDeviceToken')) {
+        console.log(`[PUSH] Production failed, trying sandbox for token...`);
+        result = await sendPushToDevice(token, title, body, jwt, bundleId, true);
+        
+        if (result.success) {
+          console.log(`[PUSH] ✅ Sandbox worked for this token`);
+          successCount++;
+          continue;
+        }
+      }
+      
       if (result.success) {
         successCount++;
       } else {
         failCount++;
-        // Track invalid tokens to clean up
+        // Track invalid tokens to clean up (only if both prod and sandbox fail)
         if (result.error?.includes('BadDeviceToken') || result.error?.includes('Unregistered')) {
           invalidTokens.push(token);
         }

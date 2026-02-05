@@ -9,23 +9,31 @@ export const usePushNotifications = () => {
   const [userId, setUserId] = useState<string | null>(null);
 
   // Save token to database
-  const saveTokenToDatabase = async (pushToken: string, userId: string) => {
+  const saveTokenToDatabase = async (pushToken: string, uId: string) => {
     try {
-      console.log('[PUSH] Saving token to database for user:', userId);
+      console.log('[PUSH] Saving token to database for user:', uId);
+      // Development builds from Xcode use sandbox, App Store builds use production
+      // We can detect this by checking if we're in a debug/development environment
+      // For now, we'll store both and let the server try both endpoints
       const { error } = await supabase
         .from('push_tokens')
         .upsert(
-          { user_id: userId, token: pushToken, platform: 'ios' },
+          { 
+            user_id: uId, 
+            token: pushToken, 
+            platform: 'ios',
+            updated_at: new Date().toISOString()
+          },
           { onConflict: 'user_id,token' }
         );
 
       if (error) {
-        console.error('Failed to save push token:', error);
+        console.error('[PUSH] Failed to save push token:', error);
       } else {
-        console.log('Push token saved to database');
+        console.log('[PUSH] Push token saved successfully!');
       }
     } catch (err) {
-      console.error('Error saving push token:', err);
+      console.error('[PUSH] Error saving push token:', err);
     }
   };
 
@@ -51,44 +59,57 @@ export const usePushNotifications = () => {
   useEffect(() => {
     const initPushNotifications = async () => {
       if (!Capacitor.isNativePlatform()) {
-        console.log('Push notifications only work on native platforms');
+        console.log('[PUSH] Not on native platform, skipping push setup');
         return;
       }
 
       console.log('[PUSH] Initializing push notifications on native platform');
       setIsSupported(true);
 
-      // Request permission
-      const permStatus = await PushNotifications.requestPermissions();
-      console.log('[PUSH] Permission status:', permStatus.receive);
-      
-      if (permStatus.receive === 'granted') {
-        // Register with Apple / Google to receive push
-        console.log('[PUSH] Permission granted, registering...');
-        await PushNotifications.register();
-      } else {
-        console.log('[PUSH] Permission denied');
+      try {
+        // Check current permission status first
+        const currentStatus = await PushNotifications.checkPermissions();
+        console.log('[PUSH] Current permission status:', currentStatus.receive);
+
+        let permStatus = currentStatus;
+        
+        // Request permission if not already granted
+        if (currentStatus.receive !== 'granted') {
+          console.log('[PUSH] Requesting permission...');
+          permStatus = await PushNotifications.requestPermissions();
+          console.log('[PUSH] Permission response:', permStatus.receive);
+        }
+        
+        if (permStatus.receive === 'granted') {
+          console.log('[PUSH] Permission granted, registering with APNs...');
+          await PushNotifications.register();
+          console.log('[PUSH] Registration request sent to APNs');
+        } else {
+          console.log('[PUSH] Permission denied or not determined:', permStatus.receive);
+        }
+      } catch (err) {
+        console.error('[PUSH] Error during permission/registration:', err);
       }
 
       // Listen for registration success
       PushNotifications.addListener('registration', async (tokenData) => {
-        console.log('Push registration success, token:', tokenData.value);
+        console.log('[PUSH] ✅ Registration SUCCESS! Token:', tokenData.value.substring(0, 20) + '...');
         setToken(tokenData.value);
       });
 
       // Listen for registration errors
       PushNotifications.addListener('registrationError', (error) => {
-        console.error('Push registration error:', error.error);
+        console.error('[PUSH] ❌ Registration ERROR:', JSON.stringify(error));
       });
 
       // Listen for push notifications received
       PushNotifications.addListener('pushNotificationReceived', (notification) => {
-        console.log('Push notification received:', notification);
+        console.log('[PUSH] Notification received:', JSON.stringify(notification));
       });
 
       // Listen for push notification action performed
       PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
-        console.log('Push notification action performed:', notification);
+        console.log('[PUSH] Notification action:', JSON.stringify(notification));
       });
     };
 
