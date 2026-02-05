@@ -77,6 +77,20 @@ serve(async (req) => {
       });
       logStep("Attached and set default payment method");
 
+      // Update any active subscriptions to use this payment method
+      const subscriptions = await stripe.subscriptions.list({
+        customer: customerId,
+        status: "active",
+        limit: 10,
+      });
+      
+      for (const sub of subscriptions.data) {
+        await stripe.subscriptions.update(sub.id, {
+          default_payment_method: paymentMethodId,
+        });
+        logStep("Updated subscription payment method", { subscriptionId: sub.id });
+      }
+
       // Charge using the new payment method
       const paymentIntent = await stripe.paymentIntents.create({
         amount: Math.round(amount * 100),
