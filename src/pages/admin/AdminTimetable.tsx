@@ -771,14 +771,12 @@ export default function AdminTimetable() {
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  // Only allow clicking on confirmed bookings
-                                  if (booking.status === 'confirmed') {
-                                    setSelectedBooking(booking);
-                                  }
+                                  // Allow clicking on both confirmed and pending bookings
+                                  setSelectedBooking(booking);
                                 }}
                                 className={`absolute inset-x-0.5 top-0.5 rounded-sm border px-1.5 py-0.5 text-left transition-colors z-10 overflow-hidden ${
                                   booking.status === 'pending'
-                                    ? "bg-muted/60 border-muted-foreground/30 cursor-default"
+                                    ? "bg-amber-500/80 border-amber-600/50 hover:bg-amber-500/90 cursor-pointer"
                                     : "bg-primary border-primary/40 hover:bg-primary/90"
                                 }`}
                                 style={{
@@ -788,21 +786,23 @@ export default function AdminTimetable() {
                                 {/* Payment/Status Indicator */}
                                 <div className={`absolute top-1 right-1 w-2.5 h-2.5 rounded-full border border-white/30 ${
                                   booking.status === 'pending'
-                                    ? "bg-amber-400"
+                                    ? "bg-amber-400 animate-pulse"
                                     : isBookingPaid(booking) 
                                       ? "bg-green-400" 
                                       : "bg-red-400"
-                                }`} title={booking.status === 'pending' ? "Pending Payment" : isBookingPaid(booking) ? "Paid" : "Unpaid"} />
+                                }`} title={booking.status === 'pending' ? "Processing Payment" : isBookingPaid(booking) ? "Paid" : "Unpaid"} />
                                 
                                 <p className={`text-[10px] font-medium truncate leading-tight pr-4 ${
-                                  booking.status === 'pending' ? "text-muted-foreground" : "text-primary-foreground"
+                                  booking.status === 'pending' ? "text-white" : "text-primary-foreground"
                                 }`}>
-                                  {booking.status === 'pending' ? "Processing..." : `${booking.profile?.first_name} ${booking.profile?.last_name}`}
+                                  {booking.status === 'pending' 
+                                    ? `${booking.profile?.first_name || 'Processing'} ${booking.profile?.last_name || '...'}` 
+                                    : `${booking.profile?.first_name} ${booking.profile?.last_name}`}
                                 </p>
                                 <p className={`text-[9px] truncate leading-tight ${
-                                  booking.status === 'pending' ? "text-muted-foreground/70" : "text-primary-foreground/70"
+                                  booking.status === 'pending' ? "text-white/70" : "text-primary-foreground/70"
                                 }`}>
-                                  {formatTime(booking.start_time)} - {formatTime(booking.end_time)}
+                                  {booking.status === 'pending' ? 'Payment pending...' : `${formatTime(booking.start_time)} - ${formatTime(booking.end_time)}`}
                                 </p>
                               </button>
                             )}
@@ -838,6 +838,19 @@ export default function AdminTimetable() {
             
             {selectedBooking && !isEditing && (
               <div className="space-y-4">
+                {/* Pending Status Banner */}
+                {selectedBooking.status === 'pending' && (
+                  <div className="flex items-center gap-2 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+                    <div className="w-3 h-3 rounded-full bg-amber-500 animate-pulse" />
+                    <div>
+                      <p className="text-sm font-medium text-amber-600">Payment Processing</p>
+                      <p className="text-xs text-amber-600/70">
+                        Customer is completing checkout. This booking will auto-expire in 5 minutes if not completed.
+                      </p>
+                    </div>
+                  </div>
+                )}
+                
                 {/* Customer Info */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
