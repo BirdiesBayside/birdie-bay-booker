@@ -40,6 +40,7 @@ import { useLocation } from "react-router-dom";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { CustomerSearchCombobox } from "@/components/admin/CustomerSearchCombobox";
 
 interface POSProduct {
   id: string;
@@ -666,26 +667,11 @@ export default function AdminPOS() {
 
       {/* Customer Selection */}
       <div className="p-4 border-b">
-        <Select value={selectedCustomer} onValueChange={setSelectedCustomer}>
-          <SelectTrigger>
-            <SelectValue placeholder="Select customer (optional)">
-              {selectedCustomer && customers.find(c => c.user_id === selectedCustomer) && (
-                <span className="flex items-center gap-2">
-                  <User className="h-4 w-4" />
-                  {customers.find(c => c.user_id === selectedCustomer)?.first_name}{' '}
-                  {customers.find(c => c.user_id === selectedCustomer)?.last_name}
-                </span>
-              )}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {customers.map(customer => (
-              <SelectItem key={customer.user_id} value={customer.user_id}>
-                {customer.first_name} {customer.last_name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <CustomerSearchCombobox
+          customers={customers}
+          value={selectedCustomer}
+          onValueChange={setSelectedCustomer}
+        />
       </div>
 
       {/* Cart Items */}
