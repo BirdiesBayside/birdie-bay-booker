@@ -2,16 +2,16 @@ import { useEffect, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/hooks/useAuth';
 
 export const usePushNotifications = () => {
   const [token, setToken] = useState<string | null>(null);
   const [isSupported, setIsSupported] = useState(false);
-  const { user } = useAuth();
+  const [userId, setUserId] = useState<string | null>(null);
 
   // Save token to database
   const saveTokenToDatabase = async (pushToken: string, userId: string) => {
     try {
+      console.log('[PUSH] Saving token to database for user:', userId);
       const { error } = await supabase
         .from('push_tokens')
         .upsert(
@@ -29,6 +29,25 @@ export const usePushNotifications = () => {
     }
   };
 
+  // Subscribe to auth state changes
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        console.log('[PUSH] Auth state changed:', event, session?.user?.id);
+        setUserId(session?.user?.id ?? null);
+      }
+    );
+
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log('[PUSH] Initial session user:', session?.user?.id);
+      setUserId(session?.user?.id ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Initialize push notifications on native platform
   useEffect(() => {
     const initPushNotifications = async () => {
       if (!Capacitor.isNativePlatform()) {
@@ -36,25 +55,25 @@ export const usePushNotifications = () => {
         return;
       }
 
+      console.log('[PUSH] Initializing push notifications on native platform');
       setIsSupported(true);
 
       // Request permission
       const permStatus = await PushNotifications.requestPermissions();
+      console.log('[PUSH] Permission status:', permStatus.receive);
       
       if (permStatus.receive === 'granted') {
         // Register with Apple / Google to receive push
+        console.log('[PUSH] Permission granted, registering...');
         await PushNotifications.register();
+      } else {
+        console.log('[PUSH] Permission denied');
       }
 
       // Listen for registration success
       PushNotifications.addListener('registration', async (tokenData) => {
         console.log('Push registration success, token:', tokenData.value);
         setToken(tokenData.value);
-        
-        // Save to database if user is logged in
-        if (user?.id) {
-          await saveTokenToDatabase(tokenData.value, user.id);
-        }
       });
 
       // Listen for registration errors
@@ -80,12 +99,13 @@ export const usePushNotifications = () => {
     };
   }, []);
 
-  // Re-save token when user logs in
+  // Save token when we have both token and userId
   useEffect(() => {
-    if (token && user?.id) {
-      saveTokenToDatabase(token, user.id);
+    if (token && userId) {
+      console.log('[PUSH] Have both token and userId, saving to database');
+      saveTokenToDatabase(token, userId);
     }
-  }, [user?.id, token]);
+  }, [userId, token]);
 
   return { token, isSupported };
 };
