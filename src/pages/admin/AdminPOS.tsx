@@ -24,6 +24,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -71,6 +72,7 @@ interface Customer {
   first_name: string;
   last_name: string;
   email: string;
+  deposit_balance?: number;
 }
 
 interface BookingDataFromNav {
@@ -109,6 +111,9 @@ export default function AdminPOS() {
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [processedNavBooking, setProcessedNavBooking] = useState<string | null>(null);
   const [terminalCountdown, setTerminalCountdown] = useState<number | null>(null);
+  const [customerBalance, setCustomerBalance] = useState<number>(0);
+  const [showCreditDialog, setShowCreditDialog] = useState(false);
+  const [creditToApply, setCreditToApply] = useState<number>(0);
   
   // Surcharge state - persisted to localStorage
   const [surchargeEnabled, setSurchargeEnabled] = useState(() => {
@@ -247,7 +252,7 @@ export default function AdminPOS() {
   const fetchCustomers = async () => {
     const { data, error } = await supabase
       .from('profiles')
-      .select('user_id, first_name, last_name, email')
+      .select('user_id, first_name, last_name, email, deposit_balance')
       .order('first_name', { ascending: true });
 
     if (error) {
@@ -256,6 +261,16 @@ export default function AdminPOS() {
       setCustomers(data || []);
     }
   };
+
+  // Update customer balance when customer is selected
+  useEffect(() => {
+    if (selectedCustomer) {
+      const customer = customers.find(c => c.user_id === selectedCustomer);
+      setCustomerBalance(customer?.deposit_balance || 0);
+    } else {
+      setCustomerBalance(0);
+    }
+  }, [selectedCustomer, customers]);
 
   const addToCart = (product: POSProduct) => {
     setCart(prev => {
@@ -291,6 +306,7 @@ export default function AdminPOS() {
     setCart([]);
     setSelectedBooking(null);
     setSelectedCustomer("");
+    setCreditToApply(0);
   };
 
   const addBookingToCart = (booking: UnpaidBooking) => {
@@ -305,11 +321,52 @@ export default function AdminPOS() {
     setShowBookingsDialog(false);
   };
 
-  const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const surchargeAmount = surchargeEnabled ? subtotal * (parseFloat(surchargePercent) || 0) / 100 : 0;
-  const total = subtotal + surchargeAmount;
+  const cartSubtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const surchargeAmount = surchargeEnabled ? cartSubtotal * (parseFloat(surchargePercent) || 0) / 100 : 0;
+  const subtotalWithSurcharge = cartSubtotal + surchargeAmount;
+  const total = Math.max(0, subtotalWithSurcharge - creditToApply);
 
   const [terminalPaymentIntentId, setTerminalPaymentIntentId] = useState<string | null>(null);
+
+  const handleCreditPayment = async () => {
+    if (!selectedCustomer || customerBalance <= 0) {
+      toast.error("No credit balance available");
+      return;
+    }
+
+    if (customerBalance >= subtotalWithSurcharge) {
+      setIsProcessing(true);
+      try {
+        const newBalance = customerBalance - subtotalWithSurcharge;
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({ deposit_balance: newBalance })
+          .eq('user_id', selectedCustomer);
+
+        if (updateError) throw updateError;
+
+        await saveTransaction('credit_balance', null, subtotalWithSurcharge);
+        
+        toast.success(`Payment successful! $${subtotalWithSurcharge.toFixed(2)} deducted from credit balance`);
+        setShowPaymentDialog(false);
+        clearCart();
+        fetchCustomers();
+      } catch (error: any) {
+        console.error('Credit payment error:', error);
+        toast.error(error.message || "Payment failed");
+      } finally {
+        setIsProcessing(false);
+      }
+    } else {
+      setShowCreditDialog(true);
+    }
+  };
+
+  const handleApplyPartialCredit = () => {
+    setCreditToApply(customerBalance);
+    setShowCreditDialog(false);
+    toast.success(`$${customerBalance.toFixed(2)} credit applied. Remaining: $${(subtotalWithSurcharge - customerBalance).toFixed(2)}`);
+  };
 
   const handleCancelTerminal = async () => {
     try {
@@ -326,9 +383,14 @@ export default function AdminPOS() {
     }
   };
 
-  const handlePayment = async (method: 'cash' | 'customer_account' | 'pos') => {
+  const handlePayment = async (method: 'cash' | 'customer_account' | 'pos' | 'credit_balance') => {
     if (cart.length === 0) {
       toast.error("Cart is empty");
+      return;
+    }
+
+    if (method === 'credit_balance') {
+      handleCreditPayment();
       return;
     }
 
@@ -508,7 +570,7 @@ export default function AdminPOS() {
     }
   };
 
-  const saveTransaction = async (paymentMethod: string, stripePaymentIntentId: string | null) => {
+  const saveTransaction = async (paymentMethod: string, stripePaymentIntentId: string | null, creditUsed?: number) => {
     // Build items array - include surcharge as a line item if applicable
     const transactionItems = [...cart];
     if (surchargeEnabled && surchargeAmount > 0) {
@@ -520,10 +582,34 @@ export default function AdminPOS() {
       });
     }
     
+    if (creditUsed && creditUsed > 0) {
+      transactionItems.push({
+        id: 'credit_applied',
+        name: 'Credit Balance Applied',
+        price: -creditUsed,
+        quantity: 1,
+      });
+    }
+    
+    if (creditToApply > 0 && !creditUsed) {
+      const newBalance = customerBalance - creditToApply;
+      await supabase
+        .from('profiles')
+        .update({ deposit_balance: newBalance })
+        .eq('user_id', selectedCustomer);
+      
+      transactionItems.push({
+        id: 'credit_applied',
+        name: 'Credit Balance Applied',
+        price: -creditToApply,
+        quantity: 1,
+      });
+    }
+    
     // Save POS transaction
     await supabase.from('pos_transactions').insert({
       items: JSON.parse(JSON.stringify(transactionItems)),
-      subtotal,
+      subtotal: cartSubtotal,
       total,
       payment_method: paymentMethod,
       stripe_payment_intent_id: stripePaymentIntentId,
@@ -682,16 +768,24 @@ export default function AdminPOS() {
         </div>
 
         {/* Subtotal and Surcharge breakdown */}
-        {surchargeEnabled && surchargeAmount > 0 && (
+        {((surchargeEnabled && surchargeAmount > 0) || creditToApply > 0) && (
           <div className="space-y-1 text-sm text-muted-foreground">
             <div className="flex justify-between">
               <span>Subtotal</span>
-              <span>${subtotal.toFixed(2)}</span>
+              <span>${cartSubtotal.toFixed(2)}</span>
             </div>
-            <div className="flex justify-between">
-              <span>Surcharge ({surchargePercent}%)</span>
-              <span>${surchargeAmount.toFixed(2)}</span>
-            </div>
+            {surchargeEnabled && surchargeAmount > 0 && (
+              <div className="flex justify-between">
+                <span>Surcharge ({surchargePercent}%)</span>
+                <span>${surchargeAmount.toFixed(2)}</span>
+              </div>
+            )}
+            {creditToApply > 0 && (
+              <div className="flex justify-between text-green-600">
+                <span>Credit Applied</span>
+                <span>-${creditToApply.toFixed(2)}</span>
+              </div>
+            )}
           </div>
         )}
 
@@ -888,6 +982,11 @@ export default function AdminPOS() {
             <DialogTitle className="font-display text-2xl uppercase text-center">
               Pay ${total.toFixed(2)}
             </DialogTitle>
+            {creditToApply > 0 && (
+              <p className="text-sm text-green-600 text-center">
+                (${creditToApply.toFixed(2)} credit already applied)
+              </p>
+            )}
             {surchargeEnabled && surchargeAmount > 0 && (
               <p className="text-sm text-muted-foreground text-center">
                 (includes ${surchargeAmount.toFixed(2)} card surcharge)
@@ -895,6 +994,20 @@ export default function AdminPOS() {
             )}
           </DialogHeader>
           <div className="space-y-3 pt-4">
+            {selectedCustomer && customerBalance > 0 && creditToApply === 0 && (
+              <Button
+                variant="outline"
+                className="w-full h-16 text-lg justify-start gap-4 border-green-200 bg-green-50 hover:bg-green-100"
+                onClick={() => handlePayment('credit_balance')}
+                disabled={isProcessing}
+              >
+                <Wallet className="h-8 w-8 text-green-600" />
+                <div className="text-left">
+                  <span className="text-green-700">Credit Balance</span>
+                  <p className="text-sm text-green-600">${customerBalance.toFixed(2)} available</p>
+                </div>
+              </Button>
+            )}
             <Button
               variant="outline"
               className="w-full h-16 text-lg justify-start gap-4"
@@ -959,6 +1072,51 @@ export default function AdminPOS() {
               <p className="text-muted-foreground">Processing payment...</p>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Partial Credit Dialog */}
+      <Dialog open={showCreditDialog} onOpenChange={setShowCreditDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-display text-xl uppercase text-center">
+              Partial Credit
+            </DialogTitle>
+            <DialogDescription className="text-center pt-2">
+              Your credit balance (${customerBalance.toFixed(2)}) doesn't cover the full amount (${subtotalWithSurcharge.toFixed(2)}).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-4">
+            <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+              <div className="flex justify-between text-sm">
+                <span>Total Amount</span>
+                <span>${subtotalWithSurcharge.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-sm text-green-600">
+                <span>Credit to Apply</span>
+                <span>-${customerBalance.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between font-bold border-t pt-2">
+                <span>Remaining to Pay</span>
+                <span>${(subtotalWithSurcharge - customerBalance).toFixed(2)}</span>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setShowCreditDialog(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="flex-1 bg-green-600 hover:bg-green-700"
+                onClick={handleApplyPartialCredit}
+              >
+                Apply ${customerBalance.toFixed(2)} Credit
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
