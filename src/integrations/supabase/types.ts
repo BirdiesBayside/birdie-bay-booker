@@ -995,6 +995,48 @@ export type Database = {
         }
         Relationships: []
       }
+      sgt_monthly_awards: {
+        Row: {
+          awarded_at: string
+          awarded_by: string | null
+          created_at: string | null
+          id: string
+          month: string
+          notes: string | null
+          prize_description: string | null
+          tour_id: number
+          winner_player_id: number | null
+          winner_player_name: string
+          winner_profile_user_id: string | null
+        }
+        Insert: {
+          awarded_at?: string
+          awarded_by?: string | null
+          created_at?: string | null
+          id?: string
+          month: string
+          notes?: string | null
+          prize_description?: string | null
+          tour_id: number
+          winner_player_id?: number | null
+          winner_player_name: string
+          winner_profile_user_id?: string | null
+        }
+        Update: {
+          awarded_at?: string
+          awarded_by?: string | null
+          created_at?: string | null
+          id?: string
+          month?: string
+          notes?: string | null
+          prize_description?: string | null
+          tour_id?: number
+          winner_player_id?: number | null
+          winner_player_name?: string
+          winner_profile_user_id?: string | null
+        }
+        Relationships: []
+      }
       sgt_notification_settings: {
         Row: {
           created_at: string
@@ -1312,6 +1354,42 @@ export type Database = {
           team_tour?: number | null
           tour_id?: number
           updated_at?: string
+        }
+        Relationships: []
+      }
+      sgt_weekly_prizes: {
+        Row: {
+          awarded_at: string
+          created_at: string | null
+          email_sent: boolean | null
+          id: string
+          player_id: number
+          player_name: string
+          prize_amount: number
+          profile_user_id: string | null
+          tournament_id: number
+        }
+        Insert: {
+          awarded_at?: string
+          created_at?: string | null
+          email_sent?: boolean | null
+          id?: string
+          player_id: number
+          player_name: string
+          prize_amount?: number
+          profile_user_id?: string | null
+          tournament_id: number
+        }
+        Update: {
+          awarded_at?: string
+          created_at?: string | null
+          email_sent?: boolean | null
+          id?: string
+          player_id?: number
+          player_name?: string
+          prize_amount?: number
+          profile_user_id?: string | null
+          tournament_id?: number
         }
         Relationships: []
       }

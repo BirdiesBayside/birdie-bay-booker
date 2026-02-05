@@ -9,7 +9,8 @@ import { SGTTournaments } from "@/components/admin/sgt/SGTTournaments";
 import { SGTMembers } from "@/components/admin/sgt/SGTMembers";
 import { SGTScorecards } from "@/components/admin/sgt/SGTScorecards";
 import { SGTRegistrations } from "@/components/admin/sgt/SGTRegistrations";
-import { LayoutDashboard, Trophy, Calendar, Users, FileText, ClipboardList } from "lucide-react";
+import { SGTWinners } from "@/components/admin/sgt/SGTWinners";
+import { LayoutDashboard, Trophy, Calendar, Users, FileText, ClipboardList, Award } from "lucide-react";
 
 export default function AdminSGTManager() {
   const { isLoading } = useAdminAuth();
@@ -19,7 +20,7 @@ export default function AdminSGTManager() {
   // Handle URL tab parameter (for email links)
   useEffect(() => {
     const tabParam = searchParams.get("tab");
-    if (tabParam && ["dashboard", "registrations", "tours", "tournaments", "members", "scorecards"].includes(tabParam)) {
+    if (tabParam && ["dashboard", "registrations", "tours", "tournaments", "members", "scorecards", "winners"].includes(tabParam)) {
       setActiveTab(tabParam);
       // Clean up URL after reading
       searchParams.delete("tab");
@@ -75,6 +76,10 @@ export default function AdminSGTManager() {
               <FileText className="h-4 w-4" />
               <span className="hidden sm:inline">Scorecards</span>
             </TabsTrigger>
+            <TabsTrigger value="winners" className="gap-2">
+              <Award className="h-4 w-4" />
+              <span className="hidden sm:inline">Winners</span>
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="dashboard" className="mt-6">
@@ -99,6 +104,10 @@ export default function AdminSGTManager() {
 
           <TabsContent value="scorecards" className="mt-6">
             <SGTScorecards />
+          </TabsContent>
+
+          <TabsContent value="winners" className="mt-6">
+            <SGTWinners />
           </TabsContent>
         </Tabs>
       </div>
