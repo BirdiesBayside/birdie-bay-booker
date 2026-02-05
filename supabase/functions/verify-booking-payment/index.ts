@@ -12,6 +12,28 @@ const logStep = (step: string, details?: any) => {
   console.log(`[VERIFY-BOOKING-PAYMENT] ${step}${detailsStr}`);
 };
 
+// Auto-refund orphaned payment when booking was deleted or already confirmed
+const refundOrphanedPayment = async (
+  stripe: Stripe, 
+  paymentIntentId: string, 
+  reason: string
+): Promise<boolean> => {
+  try {
+    logStep("Initiating auto-refund for orphaned payment", { paymentIntentId, reason });
+    
+    const refund = await stripe.refunds.create({
+      payment_intent: paymentIntentId,
+      reason: "duplicate",
+    });
+    
+    logStep("Auto-refund successful", { refundId: refund.id, amount: refund.amount });
+    return true;
+  } catch (error: any) {
+    logStep("Auto-refund failed", { error: error.message, paymentIntentId });
+    return false;
+  }
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -35,6 +57,8 @@ serve(async (req) => {
     if (!bookingId) throw new Error("Missing bookingId");
     logStep("Request parsed", { bookingId });
 
+    const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
+
     // Check if booking exists (using UUID provides security - only holder knows it)
     const { data: booking, error: bookingError } = await supabaseClient
       .from("bookings")
@@ -46,12 +70,42 @@ serve(async (req) => {
         duration_hours,
         total_price,
         status,
+        stripe_payment_intent_id,
         bay:bays(name, bay_number)
       `)
       .eq("id", bookingId)
       .maybeSingle();
 
+    // CASE 1: Booking was deleted (user retried and replaced it)
     if (bookingError || !booking) {
+      logStep("Booking not found - checking for orphaned payment to refund", { bookingId });
+      
+      // Find any paid session for this booking ID and refund it
+      const sessions = await stripe.checkout.sessions.list({ limit: 50 });
+      const paidSession = sessions.data.find(
+        (s: Stripe.Checkout.Session) => 
+          s.metadata?.booking_id === bookingId && s.payment_status === "paid"
+      );
+      
+      if (paidSession?.payment_intent) {
+        const refunded = await refundOrphanedPayment(
+          stripe, 
+          paidSession.payment_intent as string,
+          "Booking was deleted/replaced before payment confirmation"
+        );
+        
+        return new Response(JSON.stringify({ 
+          success: false, 
+          status: "refunded",
+          message: refunded 
+            ? "This booking was replaced. Your payment has been automatically refunded."
+            : "Booking not found. Please contact support regarding your payment."
+        }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 200,
+        });
+      }
+      
       throw new Error("Booking not found");
     }
 
@@ -61,9 +115,35 @@ serve(async (req) => {
       bay: Array.isArray(booking.bay) ? booking.bay[0] : booking.bay,
     };
 
-    // If already confirmed, return success with booking details
+    // CASE 2: Booking already confirmed by another payment (race condition)
     if (booking.status === "confirmed") {
       logStep("Booking already confirmed", { bookingId });
+      
+      // Check if there's a DIFFERENT paid session trying to confirm the same booking
+      const sessions = await stripe.checkout.sessions.list({ limit: 50 });
+      const paidSessions = sessions.data.filter(
+        (s: Stripe.Checkout.Session) => 
+          s.metadata?.booking_id === bookingId && s.payment_status === "paid"
+      );
+      
+      // If multiple paid sessions exist, refund any that don't match the stored payment intent
+      if (paidSessions.length > 1 && booking.stripe_payment_intent_id) {
+        for (const session of paidSessions) {
+          const sessionPaymentIntent = session.payment_intent as string;
+          if (sessionPaymentIntent && sessionPaymentIntent !== booking.stripe_payment_intent_id) {
+            logStep("Found duplicate payment for already-confirmed booking", { 
+              orphanedIntent: sessionPaymentIntent,
+              confirmedIntent: booking.stripe_payment_intent_id 
+            });
+            await refundOrphanedPayment(
+              stripe, 
+              sessionPaymentIntent,
+              "Duplicate payment - booking already confirmed by another payment"
+            );
+          }
+        }
+      }
+      
       return new Response(JSON.stringify({ 
         success: true, 
         status: "confirmed",
@@ -74,8 +154,6 @@ serve(async (req) => {
         status: 200,
       });
     }
-
-    const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
 
     // Find checkout sessions for this booking (increased limit for high traffic periods)
     const sessions = await stripe.checkout.sessions.list({
