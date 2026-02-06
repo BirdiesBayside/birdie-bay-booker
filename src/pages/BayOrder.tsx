@@ -60,26 +60,27 @@ export default function BayOrder() {
 
     const todayHours = data.find((h) => h.day_of_week === dayOfWeek);
 
+    const formatTime = (time: string) => {
+      const [hours] = time.split(":");
+      const hour = parseInt(hours);
+      if (hour === 0) return "12:00 AM";
+      if (hour === 12) return "12:00 PM";
+      if (hour > 12) return `${hour - 12}:00 PM`;
+      return `${hour}:00 AM`;
+    };
+
     if (!todayHours || !todayHours.is_open) {
       setServiceHours({
         isOpen: false,
-        message: "Table service is closed today. Please order at the bar.",
+        message: "Closed today",
       });
       return;
     }
 
     if (currentTime < todayHours.open_time || currentTime >= todayHours.close_time) {
-      const formatTime = (time: string) => {
-        const [hours] = time.split(":");
-        const hour = parseInt(hours);
-        if (hour === 0) return "12:00 AM";
-        if (hour === 12) return "12:00 PM";
-        if (hour > 12) return `${hour - 12}:00 PM`;
-        return `${hour}:00 AM`;
-      };
       setServiceHours({
         isOpen: false,
-        message: `Table service is available ${formatTime(todayHours.open_time)} - ${formatTime(todayHours.close_time)}. Please order at the bar.`,
+        message: `Closed — opens ${formatTime(todayHours.open_time)} to ${formatTime(todayHours.close_time)}`,
       });
       return;
     }
