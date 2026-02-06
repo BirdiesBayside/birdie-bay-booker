@@ -8,7 +8,10 @@ import { supabase } from "@/integrations/supabase/client";
 export default function CardAdded() {
   const navigate = useNavigate();
   const [isSyncing, setIsSyncing] = useState(true);
-  const [syncResult, setSyncResult] = useState<{ updatedSubscriptions?: number } | null>(null);
+  const [syncResult, setSyncResult] = useState<{ 
+    updatedSubscriptions?: number;
+    invoiceRetry?: { attempted: boolean; paid: boolean; error: string | null } | null;
+  } | null>(null);
 
   useEffect(() => {
     const syncPaymentMethod = async () => {
@@ -71,6 +74,17 @@ export default function CardAdded() {
               <p className="text-sm text-green-600">
                 Your membership payment method has been updated.
               </p>
+            )}
+            {!isSyncing && syncResult?.invoiceRetry?.attempted && (
+              syncResult.invoiceRetry.paid ? (
+                <p className="text-sm text-green-600">
+                  ✅ Outstanding payment has been processed successfully!
+                </p>
+              ) : (
+                <p className="text-sm text-amber-600">
+                  ⚠️ We couldn't process your outstanding payment with this card. Please try a different card.
+                </p>
+              )
             )}
           </div>
 

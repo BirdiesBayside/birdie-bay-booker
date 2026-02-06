@@ -95,6 +95,43 @@ serve(async (req) => {
       updatedCount++;
     }
 
+    // SAFE RETRY: Check if there's an open invoice that needs payment
+    // This prevents charging fully paid-up members who just update their card
+    let invoicePaid = false;
+    let invoiceError: string | null = null;
+
+    const openInvoices = await stripe.invoices.list({
+      customer: customerId,
+      status: "open",
+      limit: 1,
+    });
+
+    if (openInvoices.data.length > 0) {
+      const invoice = openInvoices.data[0];
+      logStep("Found open invoice, attempting payment", { 
+        invoiceId: invoice.id, 
+        amount: invoice.amount_due 
+      });
+      
+      try {
+        // Pay the invoice with the new payment method
+        await stripe.invoices.pay(invoice.id, {
+          payment_method: latestPaymentMethod.id,
+        });
+        logStep("Successfully paid outstanding invoice", { invoiceId: invoice.id });
+        invoicePaid = true;
+        
+        // The webhook will handle clearing payment_failed_at when invoice.payment_succeeded fires
+      } catch (payError) {
+        const errorMessage = payError instanceof Error ? payError.message : String(payError);
+        logStep("Failed to pay invoice with new card", { invoiceId: invoice.id, error: errorMessage });
+        invoiceError = errorMessage;
+        // Card still didn't work - they'll need to try again with a different card
+      }
+    } else {
+      logStep("No open invoices - just syncing card for future payments");
+    }
+
     return new Response(
       JSON.stringify({ 
         success: true, 
@@ -102,7 +139,12 @@ serve(async (req) => {
         paymentMethod: {
           brand: latestPaymentMethod.card?.brand,
           last4: latestPaymentMethod.card?.last4,
-        }
+        },
+        invoiceRetry: openInvoices.data.length > 0 ? {
+          attempted: true,
+          paid: invoicePaid,
+          error: invoiceError,
+        } : null
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
     );

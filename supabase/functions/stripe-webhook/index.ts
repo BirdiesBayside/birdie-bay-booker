@@ -127,101 +127,10 @@ serve(async (req) => {
 
       logStep("Found customer email", { email });
 
-      // Handle past_due or unpaid subscriptions - revert to visitor
+      // Handle past_due or unpaid subscriptions - 24-hour grace period instead of immediate downgrade
+      // The grace period is handled by invoice.payment_failed event, so we just log here
       if (subscription.status === "past_due" || subscription.status === "unpaid") {
-        logStep("Subscription is past_due/unpaid, checking if should revert", { email, status: subscription.status });
-        
-        const { data: profile } = await supabaseAdmin
-          .from("profiles")
-          .select("first_name, last_name, membership_tier, custom_billing")
-          .eq("email", email)
-          .maybeSingle();
-
-        // Skip if custom billing enabled
-        if (profile?.custom_billing) {
-          logStep("Customer has custom billing enabled, skipping tier reset", { email });
-        } else if (profile?.membership_tier && profile.membership_tier !== "visitor") {
-          const previousTier = TIER_NAMES[profile.membership_tier] || profile.membership_tier;
-          
-          logStep("Resetting membership to visitor due to past_due status", { email, previousTier });
-          
-          const { error } = await supabaseAdmin
-            .from("profiles")
-            .update({ membership_tier: "visitor" })
-            .eq("email", email);
-
-          if (error) {
-            logStep("Error resetting profile", { error: error.message });
-          } else {
-            logStep("Membership tier reset to visitor");
-
-            // Cancel the subscription in Stripe to prevent duplicate subscriptions
-            try {
-              await stripe.subscriptions.cancel(subscription.id);
-              logStep("Subscription cancelled in Stripe due to past_due status", { subscriptionId: subscription.id });
-
-              // Remove all payment methods from the customer to force them to re-add a card
-              // This provides a cleaner UX since the declined card won't work again
-              const paymentMethods = await stripe.paymentMethods.list({
-                customer: customerId,
-                type: "card",
-              });
-              
-              for (const pm of paymentMethods.data) {
-                try {
-                  await stripe.paymentMethods.detach(pm.id);
-                  logStep("Detached failed payment method", { paymentMethodId: pm.id });
-                } catch (detachError) {
-                  logStep("Failed to detach payment method", { paymentMethodId: pm.id, error: detachError });
-                }
-              }
-              logStep("Removed payment methods from customer after subscription cancellation");
-            } catch (cancelError) {
-              logStep("Failed to cancel subscription in Stripe", { error: cancelError, subscriptionId: subscription.id });
-            }
-            
-            // Send payment failed notification
-            if (resend) {
-              const firstName = profile.first_name || customer.name?.split(" ")[0] || "there";
-              
-              const { data: emailTemplate } = await supabaseAdmin
-                .from("email_templates")
-                .select("*")
-                .eq("template_key", "payment_failed")
-                .eq("is_active", true)
-                .single();
-
-              if (emailTemplate) {
-                const templateTags: Record<string, string> = {
-                  '{first_name}': firstName,
-                  '{last_name}': profile.last_name || '',
-                  '{email}': email,
-                  '{tier_name}': previousTier,
-                };
-
-                let subject = emailTemplate.subject || "Payment Failed - Membership Update";
-                let htmlContent = emailTemplate.html_content || "";
-                
-                if (htmlContent) {
-                  htmlContent = replaceTemplateTags(htmlContent, templateTags);
-                  subject = replaceTemplateTags(subject, templateTags);
-
-                  try {
-                    await resend.emails.send({
-                      from: "Birdies Bayside <info@birdiesbayside.com.au>",
-                      to: [email],
-                      subject: subject,
-                      html: htmlContent,
-                    });
-                    logStep("Payment failed email sent", { email });
-                  } catch (emailError) {
-                    logStep("Failed to send payment failed email", { error: emailError });
-                  }
-                }
-              }
-            }
-          }
-        }
+        logStep("Subscription is past_due/unpaid - grace period handled by invoice.payment_failed", { email, status: subscription.status });
         
         return new Response(JSON.stringify({ received: true }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -534,7 +443,7 @@ serve(async (req) => {
       }
     }
 
-    // Handle failed payment for subscriptions
+    // Handle failed payment for subscriptions - 24-hour grace period
     if (event.type === "invoice.payment_failed") {
       const invoice = event.data.object as Stripe.Invoice;
       const customerId = invoice.customer as string;
@@ -559,13 +468,13 @@ serve(async (req) => {
           // Get the current profile to find their tier and check custom billing
           const { data: profile } = await supabaseAdmin
             .from("profiles")
-            .select("first_name, last_name, membership_tier, custom_billing")
+            .select("first_name, last_name, membership_tier, custom_billing, payment_failed_at")
             .eq("email", email)
             .maybeSingle();
 
-          // Skip tier reset if customer has custom billing enabled
+          // Skip if customer has custom billing enabled
           if (profile?.custom_billing) {
-            logStep("Customer has custom billing enabled, skipping tier reset for failed payment", { email });
+            logStep("Customer has custom billing enabled, skipping grace period for failed payment", { email });
             return new Response(JSON.stringify({ received: true }), {
               headers: { ...corsHeaders, "Content-Type": "application/json" },
             });
@@ -574,45 +483,31 @@ serve(async (req) => {
           const firstName = profile?.first_name || customerName.split(" ")[0];
           const previousTier = profile?.membership_tier ? TIER_NAMES[profile.membership_tier] || profile.membership_tier : "Member";
 
-          logStep("Resetting membership to visitor due to failed payment", { email, previousTier });
+          // Set grace period flag if not already set (idempotent - don't reset the 24h clock on retries)
+          if (!profile?.payment_failed_at) {
+            logStep("Setting 24-hour grace period for failed payment", { email, previousTier });
 
-          // Reset to visitor tier
-          const { error } = await supabaseAdmin
-            .from("profiles")
-            .update({ membership_tier: "visitor" })
-            .eq("email", email);
+            const { error } = await supabaseAdmin
+              .from("profiles")
+              .update({ payment_failed_at: new Date().toISOString() })
+              .eq("email", email);
 
-          if (error) {
-            logStep("Error resetting profile", { error: error.message });
-          }
-
-          // Cancel the subscription in Stripe to prevent duplicate subscriptions
-          // When user updates their card and re-subscribes, they'll get a fresh subscription
-          try {
-            await stripe.subscriptions.cancel(subscriptionId);
-            logStep("Subscription cancelled in Stripe due to failed payment", { subscriptionId });
-            
-            // Remove all payment methods from the customer to force them to re-add a card
-            // This prevents them from re-subscribing with the same failing card
-            const paymentMethods = await stripe.paymentMethods.list({
-              customer: customerId,
-              type: "card",
-            });
-            
-            for (const pm of paymentMethods.data) {
-              try {
-                await stripe.paymentMethods.detach(pm.id);
-                logStep("Detached payment method after failed payment", { paymentMethodId: pm.id });
-              } catch (detachError) {
-                logStep("Failed to detach payment method", { paymentMethodId: pm.id, error: detachError });
-              }
+            if (error) {
+              logStep("Error setting grace period", { error: error.message });
+            } else {
+              logStep("Grace period set - membership remains active for 24 hours");
             }
-            logStep("Removed all payment methods from customer after subscription cancellation");
-          } catch (cancelError) {
-            logStep("Failed to cancel subscription in Stripe", { error: cancelError, subscriptionId });
+          } else {
+            logStep("Grace period already active, skipping flag update", { 
+              email, 
+              existingGracePeriodStart: profile.payment_failed_at 
+            });
           }
 
-          // Send payment failed notification email using customizable template
+          // Do NOT cancel subscription or remove payment methods
+          // Keep everything intact so they can update their card and retry
+
+          // Send payment failed notification email with 24-hour deadline messaging
           if (resend) {
             // Fetch custom template
             const { data: emailTemplate } = await supabaseAdmin
@@ -631,9 +526,11 @@ serve(async (req) => {
                 '{last_name}': profile?.last_name || '',
                 '{email}': email,
                 '{tier_name}': previousTier,
+                '{hub_account_url}': 'https://hub.birdiesbayside.com.au/account',
+                '{deadline_hours}': '24',
               };
 
-              let subject = emailTemplate?.subject || "Payment Failed - Membership Update";
+              let subject = emailTemplate?.subject || "Action Required: Payment Failed - Update Within 24 Hours";
               let htmlContent: string;
 
               if (emailTemplate?.html_content) {
@@ -646,13 +543,20 @@ serve(async (req) => {
                     
                     <p>We were unable to process your weekly membership payment.</p>
                     
-                    <p>Unfortunately, this means your <strong>${previousTier}</strong> membership has been reverted to <strong>Visitor</strong> status.</p>
+                    <div style="background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; padding: 16px; margin: 20px 0;">
+                      <p style="margin: 0; font-weight: bold; color: #856404;">⚠️ Action Required Within 24 Hours</p>
+                      <p style="margin: 8px 0 0 0; color: #856404;">Please update your payment method to avoid losing your <strong>${previousTier}</strong> membership benefits.</p>
+                    </div>
                     
-                    <p>To continue enjoying member rates, please update your payment method and resubscribe to your preferred membership tier.</p>
+                    <p>Your membership is still active, but you need to update your card within 24 hours to continue.</p>
+                    
+                    <div style="text-align: center; margin: 24px 0;">
+                      <a href="https://hub.birdiesbayside.com.au/account" style="display: inline-block; background-color: #ec622d; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">Update Payment Method</a>
+                    </div>
+                    
+                    <p>If you don't update your card within 24 hours, your membership will be automatically cancelled.</p>
                     
                     <p>If you believe this is an error or need assistance, please contact us at info@birdiesbayside.com.au</p>
-                    
-                    <p>Thank you for being a valued customer.</p>
                     
                     <p>Best regards,<br>The Birdies Team</p>
                   </div>
@@ -666,7 +570,7 @@ serve(async (req) => {
                   subject: subject,
                   html: htmlContent,
                 });
-                logStep("Payment failed notification email sent", { email });
+                logStep("Payment failed notification email sent with 24h deadline", { email });
               } catch (emailError) {
                 logStep("Failed to send payment failed email", { error: emailError });
               }
@@ -748,7 +652,7 @@ serve(async (req) => {
       // Get user profile
       const { data: profile, error: profileError } = await supabaseAdmin
         .from("profiles")
-        .select("user_id, membership_tier")
+        .select("user_id, membership_tier, payment_failed_at")
         .eq("email", email)
         .maybeSingle();
 
@@ -767,6 +671,21 @@ serve(async (req) => {
       }
 
       logStep("Profile found", { userId: profile.user_id, membershipTier: profile.membership_tier });
+
+      // Clear any grace period flag - they've successfully paid
+      if (profile.payment_failed_at) {
+        logStep("Clearing grace period flag after successful payment", { email });
+        const { error: clearError } = await supabaseAdmin
+          .from("profiles")
+          .update({ payment_failed_at: null })
+          .eq("email", email);
+        
+        if (clearError) {
+          logStep("Error clearing grace period", { error: clearError.message });
+        } else {
+          logStep("Grace period cleared successfully");
+        }
+      }
 
       // Determine tier from subscription price
       let tier = profile.membership_tier || "unknown";
