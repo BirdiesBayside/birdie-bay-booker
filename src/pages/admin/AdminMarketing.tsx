@@ -125,6 +125,9 @@ export default function AdminMarketing() {
   // First session promo counter
   const [promoEligibleCount, setPromoEligibleCount] = useState<number | null>(null);
   const PROMO_THRESHOLD = 10;
+  
+  // First session promo success tracking
+  const [promoStats, setPromoStats] = useState<{ sent: number; converted: number } | null>(null);
   const [isSavingTemplate, setIsSavingTemplate] = useState(false);
 
   useEffect(() => {
@@ -132,8 +135,51 @@ export default function AdminMarketing() {
       fetchCampaigns();
       fetchTemplates();
       fetchPromoEligibleCount();
+      fetchPromoSuccessRate();
     }
   }, [isAdmin]);
+
+  const fetchPromoSuccessRate = async () => {
+    try {
+      // Get all users who received the promo
+      const { data: promoRecipients, error: recipientsError } = await supabase
+        .from("profiles")
+        .select("user_id")
+        .not("first_session_promo_sent", "is", null);
+      
+      if (recipientsError) {
+        console.error("Error fetching promo recipients:", recipientsError);
+        return;
+      }
+      
+      if (!promoRecipients || promoRecipients.length === 0) {
+        setPromoStats({ sent: 0, converted: 0 });
+        return;
+      }
+      
+      const sentCount = promoRecipients.length;
+      const userIds = promoRecipients.map(p => p.user_id);
+      
+      // Find how many of those users have made a non-cancelled booking
+      const { data: bookings, error: bookingsError } = await supabase
+        .from("bookings")
+        .select("user_id")
+        .in("user_id", userIds)
+        .neq("status", "cancelled");
+      
+      if (bookingsError) {
+        console.error("Error fetching bookings:", bookingsError);
+        return;
+      }
+      
+      // Count unique users who booked
+      const convertedUsers = new Set(bookings?.map(b => b.user_id) || []);
+      
+      setPromoStats({ sent: sentCount, converted: convertedUsers.size });
+    } catch (error) {
+      console.error("Error calculating promo success rate:", error);
+    }
+  };
 
   const fetchPromoEligibleCount = async () => {
     try {
@@ -600,19 +646,39 @@ export default function AdminMarketing() {
                       )}
                     </CardHeader>
                     <CardContent className="pt-0">
-                      {/* Progress bar for First Session Free */}
-                      {isFirstSessionPromo && promoEligibleCount !== null && (
-                        <div className="mb-3 space-y-1">
-                          <div className="flex items-center justify-between text-xs text-muted-foreground">
-                            <span>Eligible customers</span>
-                            <span className={promoEligibleCount >= PROMO_THRESHOLD ? "text-primary font-medium" : ""}>
-                              {promoEligibleCount >= PROMO_THRESHOLD ? "Ready to trigger!" : `${PROMO_THRESHOLD - promoEligibleCount} more needed`}
-                            </span>
-                          </div>
-                          <Progress 
-                            value={Math.min((promoEligibleCount / PROMO_THRESHOLD) * 100, 100)} 
-                            className="h-2"
-                          />
+                      {/* Progress bar and success rate for First Session Free */}
+                      {isFirstSessionPromo && (
+                        <div className="mb-3 space-y-3">
+                          {/* Eligible customers progress */}
+                          {promoEligibleCount !== null && (
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                                <span>Eligible customers</span>
+                                <span className={promoEligibleCount >= PROMO_THRESHOLD ? "text-primary font-medium" : ""}>
+                                  {promoEligibleCount >= PROMO_THRESHOLD ? "Ready to trigger!" : `${PROMO_THRESHOLD - promoEligibleCount} more needed`}
+                                </span>
+                              </div>
+                              <Progress 
+                                value={Math.min((promoEligibleCount / PROMO_THRESHOLD) * 100, 100)} 
+                                className="h-2"
+                              />
+                            </div>
+                          )}
+                          
+                          {/* Success rate metric */}
+                          {promoStats && promoStats.sent > 0 && (
+                            <div className="p-2 bg-accent/20 rounded-lg border border-accent/30">
+                              <div className="flex items-center justify-between text-sm">
+                                <span className="text-muted-foreground">Success rate</span>
+                                <span className="font-semibold text-accent-foreground">
+                                  {Math.round((promoStats.converted / promoStats.sent) * 100)}%
+                                </span>
+                              </div>
+                              <div className="text-xs text-muted-foreground mt-1">
+                                {promoStats.converted} of {promoStats.sent} recipients have booked
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
                       
