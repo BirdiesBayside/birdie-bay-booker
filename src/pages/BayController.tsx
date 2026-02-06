@@ -1513,27 +1513,50 @@ export default function BayController() {
   const changeoverInProgressRef = useRef<string | null>(null);
   
   useEffect(() => {
-    if (!isElectron || !activeBooking) return;
+    if (!isElectron || !activeBooking) {
+      if (!isElectron) console.log('[Changeover] Not running in Electron, skipping');
+      if (!activeBooking) console.log('[Changeover] No active booking, skipping');
+      return;
+    }
     
     const checkChangeover = async () => {
       const now = new Date();
       const today = format(now, "yyyy-MM-dd");
       
+      console.log(`[Changeover] Checking changeover at ${format(now, "HH:mm:ss")}, active: ${activeBooking.customer_name} (${activeBooking.start_time}-${activeBooking.end_time})`);
+      
       const nextBooking = getNextBooking(activeBooking);
-      if (!nextBooking) return;
+      if (!nextBooking) {
+        console.log(`[Changeover] No next booking found after ${activeBooking.end_time}`);
+        return;
+      }
+      
+      console.log(`[Changeover] Found next booking: ${nextBooking.customer_name} at ${nextBooking.start_time}`);
       
       // Only proceed if it's a DIFFERENT customer (back-to-back with same customer doesn't need reset)
-      if (nextBooking.user_id === activeBooking.user_id) return;
+      if (nextBooking.user_id === activeBooking.user_id) {
+        console.log(`[Changeover] Same customer booking, skipping changeover`);
+        return;
+      }
       
       const nextStartTime = parseISO(`${today}T${nextBooking.start_time}`);
       const secondsUntilNextStart = (nextStartTime.getTime() - now.getTime()) / 1000;
+      
+      console.log(`[Changeover] Seconds until next start: ${secondsUntilNextStart.toFixed(0)}s (trigger window: 60s to -5s)`);
       
       // Trigger 60 seconds before the next booking starts (T-1m)
       if (secondsUntilNextStart <= 60 && secondsUntilNextStart > -5) {
         const changeoverKey = `${activeBooking.id}-${nextBooking.id}`;
         
         // Prevent duplicate changeover sequences
-        if (shownChangeoverWelcomes.has(changeoverKey) || changeoverInProgressRef.current === changeoverKey) return;
+        if (shownChangeoverWelcomes.has(changeoverKey)) {
+          console.log(`[Changeover] Already shown for this pair, skipping`);
+          return;
+        }
+        if (changeoverInProgressRef.current === changeoverKey) {
+          console.log(`[Changeover] Already in progress, skipping`);
+          return;
+        }
         
         changeoverInProgressRef.current = changeoverKey;
         setShownChangeoverWelcomes(prev => new Set([...prev, changeoverKey]));
@@ -1547,19 +1570,25 @@ export default function BayController() {
           try {
             // Step 1: Show welcome overlay immediately (masks the screen for current customer)
             console.log(`[Changeover] Step 1: Showing welcome screen for ${firstName}`);
-            await window.electronAPI.showWelcomeWindows(firstName);
+            const welcomeResult = await window.electronAPI.showWelcomeWindows(firstName);
+            console.log(`[Changeover] Welcome screen result:`, welcomeResult);
+            bayLogger.sendLog('automation_decision', `[Changeover Step 1] Welcome screen shown: ${JSON.stringify(welcomeResult)}`, { bookingId: activeBooking.id });
             
             // Step 2: Close apps (triggers GSPro baseline reset in electron main.js)
             if (appsRunning) {
               console.log(`[Changeover] Step 2: Closing apps to trigger baseline reset`);
+              bayLogger.sendLog('automation_decision', '[Changeover Step 2] Closing apps for baseline reset', { bookingId: activeBooking.id });
               await window.electronAPI.closeApps(["GSPro.exe", "ProteeLabs.exe"]);
               setAppsRunning(false);
               setAppLaunchStatus(null);
+            } else {
+              console.log(`[Changeover] Step 2: Apps not running, skipping close`);
             }
             
             // Step 3: Wait a moment for baseline restore to complete, then relaunch apps
             setTimeout(async () => {
               console.log(`[Changeover] Step 3: Relaunching apps behind welcome screen`);
+              bayLogger.sendLog('automation_decision', '[Changeover Step 3] Relaunching apps', { bookingId: activeBooking.id });
               // Apps will launch using the standard sequence
               if (appLaunchConfig.enabled && window.electronAPI) {
                 setIsLaunchingApps(true);
@@ -1570,6 +1599,8 @@ export default function BayController() {
                   const freshDisplays = await window.electronAPI.getDisplays();
                   const gsproDisplayIndex = freshDisplays.findIndex(d => d.label === appLaunchConfig.gsproDisplayLabel);
                   const proteeDisplayIndex = freshDisplays.findIndex(d => d.label === appLaunchConfig.proteeDisplayLabel);
+                  
+                  console.log(`[Changeover] Display resolution: GSPro display index=${gsproDisplayIndex}, Protee display index=${proteeDisplayIndex}`);
                   
                   const result = await window.electronAPI.runAppSequence({
                     gsproPath: appLaunchConfig.gsproPath,
@@ -1583,16 +1614,21 @@ export default function BayController() {
                   if (result.success) {
                     setAppsRunning(true);
                     setAppLaunchStatus("Apps ready for new session");
-                    console.log(`[Changeover] Apps relaunched successfully`);
+                    console.log(`[Changeover] Step 3: Apps relaunched successfully`);
+                    bayLogger.sendLog('automation_decision', '[Changeover Step 3] Apps relaunched successfully', { bookingId: activeBooking.id });
                   } else {
-                    console.error(`[Changeover] App relaunch failed:`, result.error);
+                    console.error(`[Changeover] Step 3: App relaunch failed:`, result.error);
                     setAppLaunchStatus(`Relaunch failed: ${result.error}`);
+                    bayLogger.sendLog('automation_decision', `[Changeover Step 3 FAILED] App relaunch error: ${result.error}`, { bookingId: activeBooking.id });
                   }
                 } catch (err) {
-                  console.error(`[Changeover] App relaunch error:`, err);
+                  console.error(`[Changeover] Step 3: App relaunch error:`, err);
+                  bayLogger.logError(`[Changeover Step 3] App relaunch exception`, err, activeBooking.id);
                 } finally {
                   setIsLaunchingApps(false);
                 }
+              } else {
+                console.log(`[Changeover] Step 3: App launch disabled or API unavailable`);
               }
             }, 3000); // 3 second delay for baseline restore
             
@@ -1601,15 +1637,19 @@ export default function BayController() {
             const closeWelcomeDelay = Math.max(msUntilNextStart + 30000, 30000); // At least 30s from now
             
             setTimeout(async () => {
-              console.log(`[Changeover] Step 4: Closing welcome screen`);
+              console.log(`[Changeover] Step 4: Closing welcome screen after ${closeWelcomeDelay}ms`);
+              bayLogger.sendLog('automation_decision', '[Changeover Step 4] Closing welcome screen', { bookingId: activeBooking.id });
               await window.electronAPI?.closeWelcomeWindows();
               changeoverInProgressRef.current = null;
             }, closeWelcomeDelay);
             
           } catch (err) {
             console.error(`[Changeover] Error during changeover sequence:`, err);
+            bayLogger.logError(`[Changeover] Sequence error`, err, activeBooking.id);
             changeoverInProgressRef.current = null;
           }
+        } else {
+          console.log(`[Changeover] Electron API not available`);
         }
       }
     };
