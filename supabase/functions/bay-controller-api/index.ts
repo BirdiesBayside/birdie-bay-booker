@@ -1,15 +1,56 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
 
+// Version tracking for deployment debugging
+const VERSION = "2.0.0";
+const DEPLOYED_AT = new Date().toISOString();
+
+// Full CORS headers compatible with supabase-js client
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-bay-number, x-app-version",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-bay-number, x-app-version, x-action, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+};
+
+// Helper to add version info to all responses
+const jsonResponse = (data: Record<string, unknown>, status = 200) => {
+  return new Response(
+    JSON.stringify({
+      ...data,
+      _version: VERSION,
+      _deployed_at: DEPLOYED_AT,
+    }),
+    { 
+      status, 
+      headers: { ...corsHeaders, "Content-Type": "application/json" } 
+    }
+  );
+};
+
+// Helper to determine action from multiple sources
+const getAction = (
+  url: URL, 
+  headers: Headers, 
+  body: Record<string, unknown> | null
+): string | null => {
+  // Priority: header > query param > body
+  const headerAction = headers.get("x-action");
+  if (headerAction) return headerAction;
+  
+  const queryAction = url.searchParams.get("action");
+  if (queryAction) return queryAction;
+  
+  if (body && typeof body.action === "string") return body.action;
+  
+  // Auto-detect log request by payload shape
+  if (body && Array.isArray(body.logs)) return "log";
+  
+  return null;
 };
 
 serve(async (req) => {
-  // Handle CORS preflight
+  // Handle CORS preflight with proper response body
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response("ok", { headers: corsHeaders });
   }
 
   try {
@@ -18,17 +59,26 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const url = new URL(req.url);
-    const action = url.searchParams.get("action");
     const bayNumber = parseInt(req.headers.get("x-bay-number") || url.searchParams.get("bay") || "0");
     const appVersion = req.headers.get("x-app-version") || "unknown";
 
-    console.log(`Bay Controller API - Action: ${action}, Bay: ${bayNumber}, Version: ${appVersion}`);
+    // Parse body once for action detection and payload
+    let body: Record<string, unknown> | null = null;
+    if (req.method === "POST" || req.method === "PUT") {
+      try {
+        body = await req.json();
+      } catch {
+        // Body might be empty or not JSON - that's OK
+        body = null;
+      }
+    }
+
+    const action = getAction(url, req.headers, body);
+
+    console.log(`[${VERSION}] Bay Controller API - Action: ${action || "bookings"}, Bay: ${bayNumber}, Version: ${appVersion}`);
 
     if (!bayNumber || bayNumber < 1 || bayNumber > 6) {
-      return new Response(
-        JSON.stringify({ error: "Invalid bay number. Must be 1-6." }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return jsonResponse({ error: "Invalid bay number. Must be 1-6." }, 400);
     }
 
     // Get the bay ID from bay number
@@ -39,44 +89,48 @@ serve(async (req) => {
       .single();
 
     if (bayError || !bay) {
-      console.error("Bay lookup error:", bayError);
-      return new Response(
-        JSON.stringify({ error: "Bay not found" }),
-        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      console.error(`[${VERSION}] Bay lookup error:`, bayError);
+      return jsonResponse({ error: "Bay not found" }, 404);
     }
 
     // Handle different actions
     switch (action) {
       case "heartbeat": {
-        // Update or insert device status
-        const { error: upsertError } = await supabase
+        // Lightweight heartbeat - only upsert device status, no bookings fetch
+        const { data: deviceData, error: upsertError } = await supabase
           .from("bay_devices")
           .upsert({
             bay_id: bay.id,
             is_online: true,
             last_seen: new Date().toISOString(),
             app_version: appVersion,
-          }, { onConflict: "bay_id" });
+          }, { onConflict: "bay_id" })
+          .select("control_mode")
+          .single();
 
         if (upsertError) {
-          console.error("Heartbeat upsert error:", upsertError);
+          console.error(`[${VERSION}] Heartbeat upsert error:`, upsertError);
+          return jsonResponse({ error: "Failed to update heartbeat" }, 500);
         }
 
-        return new Response(
-          JSON.stringify({ success: true, timestamp: new Date().toISOString() }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        return jsonResponse({ 
+          success: true, 
+          timestamp: new Date().toISOString(),
+          control_mode: deviceData?.control_mode || 'auto',
+        });
       }
 
       case "log": {
         // Handle logging from bay controller apps
-        const body = await req.json();
-        const logs = Array.isArray(body.logs) ? body.logs : [body];
+        const logs = Array.isArray(body?.logs) ? body.logs : (body ? [body] : []);
         
-        console.log(`Received ${logs.length} log entries from bay ${bayNumber}`);
+        if (logs.length === 0) {
+          return jsonResponse({ error: "No logs provided" }, 400);
+        }
         
-        const logEntries = logs.map((log: any) => ({
+        console.log(`[${VERSION}] Received ${logs.length} log entries from bay ${bayNumber}`);
+        
+        const logEntries = logs.map((log: Record<string, unknown>) => ({
           bay_number: bayNumber,
           event_type: log.event_type || 'unknown',
           event_level: log.event_level || 'info',
@@ -91,17 +145,11 @@ serve(async (req) => {
           .insert(logEntries);
         
         if (insertError) {
-          console.error("Log insert error:", insertError);
-          return new Response(
-            JSON.stringify({ error: "Failed to store logs", details: insertError.message }),
-            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
+          console.error(`[${VERSION}] Log insert error:`, insertError);
+          return jsonResponse({ error: "Failed to store logs", details: insertError.message }, 500);
         }
         
-        return new Response(
-          JSON.stringify({ success: true, count: logEntries.length }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        return jsonResponse({ success: true, count: logEntries.length });
       }
 
       case "bookings":
@@ -133,7 +181,7 @@ serve(async (req) => {
         const localDateStr = now.toLocaleDateString('en-CA', tzOptions); // "YYYY-MM-DD"
         const localTimeStr = now.toLocaleTimeString('en-GB', { ...tzOptions, hour12: false }); // "HH:MM:SS"
         
-        console.log(`Server UTC time: ${now.toISOString()}, Timezone: ${timezone}, Local date: ${localDateStr}, Local time: ${localTimeStr}`);
+        console.log(`[${VERSION}] Server UTC time: ${now.toISOString()}, Timezone: ${timezone}, Local date: ${localDateStr}, Local time: ${localTimeStr}`);
 
         // Fetch bookings for this bay from today onwards
         // Include both confirmed and pending bookings (exclude cancelled only)
@@ -156,25 +204,22 @@ serve(async (req) => {
           .order("start_time", { ascending: true });
 
         // Filter out past bookings for today (only keep bookings that haven't ended yet)
-        const filteredBookings = (bookings || []).filter((booking: any) => {
-          if (booking.booking_date > localDateStr) {
+        const filteredBookings = (bookings || []).filter((booking: Record<string, unknown>) => {
+          if ((booking.booking_date as string) > localDateStr) {
             // Future date - always include
             return true;
           }
           // Today's date - only include if booking hasn't ended yet
-          return booking.end_time > localTimeStr;
+          return (booking.end_time as string) > localTimeStr;
         });
 
         if (bookingsError) {
-          console.error("Bookings fetch error:", bookingsError);
-          return new Response(
-            JSON.stringify({ error: "Failed to fetch bookings" }),
-            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
+          console.error(`[${VERSION}] Bookings fetch error:`, bookingsError);
+          return jsonResponse({ error: "Failed to fetch bookings" }, 500);
         }
 
         // Fetch customer names and SGT info for each booking
-        const userIds = [...new Set(filteredBookings.map((b: any) => b.user_id))];
+        const userIds = [...new Set(filteredBookings.map((b: Record<string, unknown>) => b.user_id as string))];
         let profilesMap: Record<string, { first_name: string; last_name: string; sgt_user_id: number | null }> = {};
         
         if (userIds.length > 0) {
@@ -184,11 +229,11 @@ serve(async (req) => {
             .in("user_id", userIds);
           
           if (profiles) {
-            profiles.forEach((p: any) => {
-              profilesMap[p.user_id] = { 
-                first_name: p.first_name, 
-                last_name: p.last_name,
-                sgt_user_id: p.sgt_user_id 
+            profiles.forEach((p: Record<string, unknown>) => {
+              profilesMap[p.user_id as string] = { 
+                first_name: p.first_name as string, 
+                last_name: p.last_name as string,
+                sgt_user_id: p.sgt_user_id as number | null
               };
             });
           }
@@ -207,15 +252,18 @@ serve(async (req) => {
             .in("user_id", sgtUserIds);
           
           if (sgtMembers) {
-            sgtMembers.forEach((m: any) => {
-              sgtMembersMap[m.user_id] = { user_name: m.user_name, user_game_id: m.user_game_id };
+            sgtMembers.forEach((m: Record<string, unknown>) => {
+              sgtMembersMap[m.user_id as number] = { 
+                user_name: m.user_name as string, 
+                user_game_id: m.user_game_id as string | null 
+              };
             });
           }
         }
 
         // Transform bookings to include customer_name and SGT info
-        const bookingsWithNames = filteredBookings.map((booking: any) => {
-          const profile = profilesMap[booking.user_id];
+        const bookingsWithNames = filteredBookings.map((booking: Record<string, unknown>) => {
+          const profile = profilesMap[booking.user_id as string];
           const sgtMember = profile?.sgt_user_id ? sgtMembersMap[profile.sgt_user_id] : null;
           return {
             id: booking.id,
@@ -235,29 +283,23 @@ serve(async (req) => {
           };
         });
 
-        console.log(`Returning ${filteredBookings.length} bookings for bay ${bayNumber} (filtered from ${bookings?.length || 0})`);
+        console.log(`[${VERSION}] Returning ${filteredBookings.length} bookings for bay ${bayNumber} (filtered from ${bookings?.length || 0})`);
 
-        return new Response(
-          JSON.stringify({
-            bay: {
-              id: bay.id,
-              number: bayNumber,
-              name: bay.name,
-            },
-            bookings: bookingsWithNames,
-            control_mode: deviceData?.control_mode || 'auto',
-            server_time: new Date().toISOString(),
-          }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        return jsonResponse({
+          bay: {
+            id: bay.id,
+            number: bayNumber,
+            name: bay.name,
+          },
+          bookings: bookingsWithNames,
+          control_mode: deviceData?.control_mode || 'auto',
+          server_time: new Date().toISOString(),
+        });
       }
     }
   } catch (error: unknown) {
-    console.error("Bay Controller API error:", error);
+    console.error(`[${VERSION}] Bay Controller API error:`, error);
     const message = error instanceof Error ? error.message : "Unknown error";
-    return new Response(
-      JSON.stringify({ error: message }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return jsonResponse({ error: message }, 500);
   }
 });
