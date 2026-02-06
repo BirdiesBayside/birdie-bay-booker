@@ -55,7 +55,13 @@ export function TableServiceSettings() {
       .order("day_of_week");
 
     if (!error && data) {
-      setHours(data);
+      // Normalize time format: database returns HH:MM:SS, we need HH:MM
+      const normalized = data.map((h) => ({
+        ...h,
+        open_time: h.open_time?.substring(0, 5) || "09:00",
+        close_time: h.close_time?.substring(0, 5) || "17:00",
+      }));
+      setHours(normalized);
     }
     setIsLoading(false);
   };
