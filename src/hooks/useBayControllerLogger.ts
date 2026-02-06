@@ -1,4 +1,4 @@
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 export type LogEventType = 
@@ -17,7 +17,9 @@ export type LogEventType =
   | 'error'
   | 'controller_start'
   | 'connection_lost'
-  | 'connection_restored';
+  | 'connection_restored'
+  | 'automation_decision'
+  | 'plug_control_result';
 
 export type LogEventLevel = 'info' | 'warning' | 'error';
 
@@ -43,7 +45,7 @@ export function useBayControllerLogger({
   const logQueueRef = useRef<LogEntry[]>([]);
   const isFlushingRef = useRef(false);
   
-  // Flush queued logs to the server
+  // Flush queued logs to the server with explicit action
   const flushLogs = useCallback(async () => {
     if (!bayNumber || !enabled || logQueueRef.current.length === 0 || isFlushingRef.current) {
       return;
@@ -59,6 +61,7 @@ export function useBayControllerLogger({
         headers: {
           "x-bay-number": bayNumber.toString(),
           "x-app-version": appVersion,
+          "x-action": "log", // Explicit action for logging
         },
       });
       
@@ -75,6 +78,30 @@ export function useBayControllerLogger({
       isFlushingRef.current = false;
     }
   }, [bayNumber, appVersion, enabled]);
+  
+  // Flush logs on page unload/hide (minimize to tray, close, etc.)
+  useEffect(() => {
+    if (!enabled || !bayNumber) return;
+    
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        // Use sendBeacon for reliable delivery during unload
+        flushLogs();
+      }
+    };
+    
+    const handleBeforeUnload = () => {
+      flushLogs();
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [enabled, bayNumber, flushLogs]);
   
   // Add a log entry to the queue
   const sendLog = useCallback((
@@ -171,6 +198,51 @@ export function useBayControllerLogger({
     sendLog('notification_shown', `Notification shown: ${notificationType}`, { bookingId });
   }, [sendLog]);
   
+  // New: Log automation decision with full context
+  const logAutomationDecision = useCallback((
+    decision: 'plug_on' | 'plug_off' | 'app_launch' | 'app_close' | 'no_action',
+    reason: string,
+    context: {
+      bookingId?: string;
+      bookingWindow?: { start: string; end: string };
+      preStartMinutes?: number;
+      localTime?: string;
+      serverTimeOffset?: number;
+    }
+  ) => {
+    sendLog('automation_decision', `Automation decision: ${decision} - ${reason}`, {
+      details: {
+        decision,
+        reason,
+        ...context,
+        timestamp: new Date().toISOString(),
+      },
+      bookingId: context.bookingId,
+    });
+  }, [sendLog]);
+  
+  // New: Log plug control result with per-plug details
+  const logPlugControlResult = useCallback((
+    action: 'on' | 'off',
+    results: Array<{ plugName: string; ip: string; success: boolean; error?: string }>,
+    totalRuntimeMs: number,
+    bookingId?: string
+  ) => {
+    const successCount = results.filter(r => r.success).length;
+    const level: LogEventLevel = successCount === results.length ? 'info' : 'warning';
+    
+    sendLog('plug_control_result', `Plug ${action.toUpperCase()} completed: ${successCount}/${results.length} successful (${totalRuntimeMs}ms)`, {
+      level,
+      details: {
+        action,
+        results,
+        totalRuntimeMs,
+        allSuccessful: successCount === results.length,
+      },
+      bookingId,
+    });
+  }, [sendLog]);
+  
   return {
     sendLog,
     flushLogs,
@@ -185,5 +257,7 @@ export function useBayControllerLogger({
     logConnectionStatus,
     logWindowFixed,
     logNotificationShown,
+    logAutomationDecision,
+    logPlugControlResult,
   };
 }

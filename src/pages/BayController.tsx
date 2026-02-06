@@ -624,8 +624,47 @@ export default function BayController() {
 
   // Track the previous bay to know when we're switching bays vs just refreshing
   const previousBayRef = useRef<number | null>(null);
+  
+  // Track last known API version for diagnostics
+  const lastApiVersionRef = useRef<string | null>(null);
+  
+  // Offline fallback cache key
+  const CACHE_KEY = "bayController_bookingsCache";
+  const CACHE_MAX_AGE_MS = 10 * 60 * 1000; // 10 minutes
 
-  // Fetch bookings for selected bay
+  // Save bookings to cache
+  const cacheBookings = useCallback((bayNum: number, bookingsData: Booking[], serverTime: string) => {
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify({
+        bayNumber: bayNum,
+        bookings: bookingsData,
+        serverTime,
+        cachedAt: Date.now(),
+      }));
+    } catch (e) {
+      console.warn("Failed to cache bookings:", e);
+    }
+  }, []);
+
+  // Load bookings from cache if valid
+  const loadCachedBookings = useCallback((bayNum: number): { bookings: Booking[]; cachedAt: number } | null => {
+    try {
+      const cached = localStorage.getItem(CACHE_KEY);
+      if (!cached) return null;
+      
+      const data = JSON.parse(cached);
+      if (data.bayNumber !== bayNum) return null;
+      
+      const age = Date.now() - data.cachedAt;
+      if (age > CACHE_MAX_AGE_MS) return null;
+      
+      return { bookings: data.bookings, cachedAt: data.cachedAt };
+    } catch {
+      return null;
+    }
+  }, []);
+
+  // Fetch bookings for selected bay with explicit action and offline fallback
   const fetchBookings = useCallback(async () => {
     if (!selectedBay) return;
     
@@ -644,14 +683,20 @@ export default function BayController() {
     
     try {
       const { data, error } = await supabase.functions.invoke("bay-controller-api", {
-        body: {},
+        body: { action: "bookings" },
         headers: {
           "x-bay-number": selectedBay.toString(),
           "x-app-version": APP_VERSION,
+          "x-action": "bookings", // Explicit action header
         },
       });
 
       if (error) throw error;
+      
+      // Track API version for diagnostics
+      if (data._version) {
+        lastApiVersionRef.current = data._version;
+      }
 
       setBookings(data.bookings || []);
       setConnectionStatus(prev => {
@@ -661,6 +706,9 @@ export default function BayController() {
         return "connected";
       });
       
+      // Cache successful response for offline fallback
+      cacheBookings(selectedBay, data.bookings || [], data.server_time);
+      
       // Sync control_mode from server response (reliable fallback if realtime fails)
       if (data.control_mode) {
         const isManual = data.control_mode === 'manual';
@@ -668,9 +716,21 @@ export default function BayController() {
         console.log(`Synced control mode from API: ${data.control_mode}`);
       }
       
-      console.log(`Fetched ${data.bookings?.length || 0} bookings for bay ${selectedBay}`);
-    } catch (error) {
+      console.log(`Fetched ${data.bookings?.length || 0} bookings for bay ${selectedBay} (API v${data._version || 'unknown'})`);
+    } catch (error: unknown) {
       console.error("Failed to fetch bookings:", error);
+      
+      // Enhanced error diagnostics
+      const errorInfo = {
+        timestamp: new Date().toISOString(),
+        lastApiVersion: lastApiVersionRef.current,
+        errorType: error instanceof Error ? error.name : 'Unknown',
+        errorMessage: error instanceof Error ? error.message : String(error),
+        bayNumber: selectedBay,
+        appVersion: APP_VERSION,
+      };
+      console.error("Connection error details:", errorInfo);
+      
       setConnectionStatus(prev => {
         if (prev !== "disconnected") {
           bayLogger.logConnectionStatus(false);
@@ -678,23 +738,60 @@ export default function BayController() {
         return "disconnected";
       });
       bayLogger.logError("Failed to connect to server", error);
-      toast.error("Failed to connect to server");
+      
+      // Try to use cached bookings for offline fallback
+      const cached = loadCachedBookings(selectedBay);
+      if (cached) {
+        const ageMinutes = Math.round((Date.now() - cached.cachedAt) / 60000);
+        console.log(`Using cached bookings from ${ageMinutes} minutes ago`);
+        setBookings(cached.bookings);
+        addLog(`Offline mode: using cached data (${ageMinutes}min old)`, 'info');
+        toast.warning(`Offline mode - using cached data (${ageMinutes}min old)`);
+      } else {
+        toast.error(`Failed to connect to server. ${errorInfo.errorType}: ${errorInfo.errorMessage}`);
+      }
     } finally {
       setIsLoadingBookings(false);
     }
-  }, [selectedBay]);
+  }, [selectedBay, cacheBookings, loadCachedBookings, addLog, bayLogger]);
 
-  // Send heartbeat
+  // Send lightweight heartbeat with explicit action
   const sendHeartbeat = useCallback(async () => {
     if (!selectedBay) return;
     
     try {
-      await supabase.functions.invoke("bay-controller-api", {
-        body: {},
+      const { data, error } = await supabase.functions.invoke("bay-controller-api", {
+        body: { action: "heartbeat" },
         headers: {
           "x-bay-number": selectedBay.toString(),
           "x-app-version": APP_VERSION,
+          "x-action": "heartbeat", // Explicit lightweight heartbeat
         },
+      });
+      
+      if (error) throw error;
+      
+      // Track API version for diagnostics
+      if (data?._version) {
+        lastApiVersionRef.current = data._version;
+      }
+      
+      // Sync control mode from heartbeat response
+      if (data?.control_mode) {
+        const isManual = data.control_mode === 'manual';
+        if (isManual !== manualOverride) {
+          setManualOverride(isManual);
+          console.log(`Control mode synced from heartbeat: ${data.control_mode}`);
+        }
+      }
+      
+      // Restore connected status if we were disconnected
+      setConnectionStatus(prev => {
+        if (prev === "disconnected") {
+          bayLogger.logConnectionStatus(true);
+          return "connected";
+        }
+        return prev;
       });
     } catch (error) {
       console.error("Heartbeat failed:", error);
@@ -705,7 +802,7 @@ export default function BayController() {
         return "disconnected";
       });
     }
-  }, [selectedBay]);
+  }, [selectedBay, manualOverride, bayLogger]);
 
   // Fetch and sync control mode from database
   const fetchControlMode = useCallback(async () => {
@@ -1852,6 +1949,19 @@ export default function BayController() {
   const turnOnPlugs = async (isManual = false, showToast = true) => {
     console.log("Turning ON plugs for bay:", selectedBay, isManual ? "(MANUAL)" : "(AUTO)");
     
+    // Log automation decision with full context
+    const now = new Date();
+    bayLogger.logAutomationDecision(
+      'plug_on',
+      isManual ? 'Manual trigger' : 'Auto trigger from booking window',
+      {
+        bookingId: activeBooking?.id,
+        bookingWindow: activeBooking ? { start: activeBooking.start_time, end: activeBooking.end_time } : undefined,
+        preStartMinutes,
+        localTime: now.toISOString(),
+      }
+    );
+    
     // Set manual override when manually controlling
     if (isManual) {
       setManualOverride(true);
@@ -1873,7 +1983,7 @@ export default function BayController() {
         return;
       }
       
-      const newStatus = { monitor: false, projector: false };
+      const startTime = Date.now();
       
       // PARALLEL plug control - send all commands simultaneously for faster response
       const plugPromises = bayPlugs.map(async (plug) => {
@@ -1899,6 +2009,20 @@ export default function BayController() {
       
       // Wait for all plug commands to complete in parallel
       const results = await Promise.all(plugPromises);
+      const totalRuntimeMs = Date.now() - startTime;
+      
+      // Log plug control results with per-plug details
+      bayLogger.logPlugControlResult(
+        'on',
+        results.map(r => ({
+          plugName: r.plug.name,
+          ip: r.plug.ip,
+          success: r.success,
+          error: r.error,
+        })),
+        totalRuntimeMs,
+        activeBooking?.id
+      );
       
       // Process results and update status
       const newStatusUpdated = { monitor: false, projector: false };
@@ -1923,6 +2047,19 @@ export default function BayController() {
   const turnOffPlugs = async (isManual = false, showToast = true) => {
     console.log("Turning OFF plugs for bay:", selectedBay, isManual ? "(MANUAL)" : "(AUTO)");
     
+    // Log automation decision with full context
+    const now = new Date();
+    bayLogger.logAutomationDecision(
+      'plug_off',
+      isManual ? 'Manual trigger' : 'Auto trigger - booking ended or no active booking',
+      {
+        bookingId: activeBooking?.id,
+        bookingWindow: activeBooking ? { start: activeBooking.start_time, end: activeBooking.end_time } : undefined,
+        preStartMinutes,
+        localTime: now.toISOString(),
+      }
+    );
+    
     // Set manual override when manually controlling
     if (isManual) {
       setManualOverride(true);
@@ -1937,7 +2074,7 @@ export default function BayController() {
         return;
       }
       
-      const newStatus = { monitor: false, projector: false };
+      const startTime = Date.now();
       
       // PARALLEL plug control - send all commands simultaneously for faster response
       const plugPromises = bayPlugs.map(async (plug) => {
@@ -1954,6 +2091,20 @@ export default function BayController() {
       
       // Wait for all plug commands to complete in parallel
       const results = await Promise.all(plugPromises);
+      const totalRuntimeMs = Date.now() - startTime;
+      
+      // Log plug control results with per-plug details
+      bayLogger.logPlugControlResult(
+        'off',
+        results.map(r => ({
+          plugName: r.plug.name,
+          ip: r.plug.ip,
+          success: r.success,
+          error: r.error,
+        })),
+        totalRuntimeMs,
+        activeBooking?.id
+      );
       
       // Process results and update status
       const newStatusUpdated = { monitor: false, projector: false };
