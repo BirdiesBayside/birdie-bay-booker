@@ -215,8 +215,8 @@ serve(async (req) => {
       .eq("player_id", sgt_user_id);
 
     const roundCount = !scError && existingScorecards ? existingScorecards.length : 0;
-    // Require at least 2 completed rounds before switching to Combo HCP
-    const hasEnoughRoundsForCombo = roundCount >= 2;
+    // Require at least 4 completed rounds (2 full tournaments) before switching to Combo HCP
+    const hasEnoughRoundsForCombo = roundCount >= 4;
     
     if (hasEnoughRoundsForCombo) {
       console.log(`[SGT-AUTO-REG] Player has ${roundCount} rounds - will use Combo HCP for future tournaments`);
@@ -233,7 +233,7 @@ serve(async (req) => {
       
       // Use custom HCP only if:
       // 1. A custom HCP is set AND
-      // 2. The player has NOT completed 2+ rounds yet (SGT needs 2 rounds for Combo HCP)
+      // 2. The player has NOT completed 4+ rounds yet (needs 4 rounds/2 tournaments before Combo HCP)
       const useCustomCap = !hasEnoughRoundsForCombo && customHcp !== null && customHcp !== undefined;
 
       if (useCustomCap) {
