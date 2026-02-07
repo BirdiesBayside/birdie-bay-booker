@@ -1040,6 +1040,57 @@ export type Database = {
         }
         Relationships: []
       }
+      sgt_monthly_standings: {
+        Row: {
+          best_gross: number | null
+          best_net: number | null
+          created_at: string
+          gross_position: number | null
+          id: string
+          month: string
+          net_position: number | null
+          player_id: number
+          player_name: string
+          total_gross_score: number | null
+          total_net_score: number | null
+          tour_id: number
+          tournaments_played: number
+          updated_at: string
+        }
+        Insert: {
+          best_gross?: number | null
+          best_net?: number | null
+          created_at?: string
+          gross_position?: number | null
+          id?: string
+          month: string
+          net_position?: number | null
+          player_id: number
+          player_name: string
+          total_gross_score?: number | null
+          total_net_score?: number | null
+          tour_id: number
+          tournaments_played?: number
+          updated_at?: string
+        }
+        Update: {
+          best_gross?: number | null
+          best_net?: number | null
+          created_at?: string
+          gross_position?: number | null
+          id?: string
+          month?: string
+          net_position?: number | null
+          player_id?: number
+          player_name?: string
+          total_gross_score?: number | null
+          total_net_score?: number | null
+          tour_id?: number
+          tournaments_played?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       sgt_notification_settings: {
         Row: {
           created_at: string

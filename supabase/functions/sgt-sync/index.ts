@@ -395,10 +395,32 @@ serve(async (req) => {
             console.log(`[SGT-SYNC] Skipping scorecards for ${tourn.status} tournament ${tourn.tournamentId} (on-demand only)`);
           }
         }
-        console.log(`[SGT-SYNC] Synced ${Math.min(tournaments.length, 20)} tournaments`);
+      console.log(`[SGT-SYNC] Synced ${Math.min(tournaments.length, 20)} tournaments`);
       } catch (e) {
         console.error(`[SGT-SYNC] Error syncing tournaments:`, e);
       }
+    }
+
+    // After syncing all data, trigger monthly standings calculation
+    console.log("[SGT-SYNC] Triggering monthly standings calculation...");
+    try {
+      const monthlyResponse = await fetch(`${supabaseUrl}/functions/v1/sgt-calculate-monthly-standings`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-sync-secret": expectedSecret || "",
+        },
+        body: JSON.stringify({}),
+      });
+      
+      if (monthlyResponse.ok) {
+        const monthlyResult = await monthlyResponse.json();
+        console.log(`[SGT-SYNC] Monthly standings calculated: ${monthlyResult.totalRecords} records, ${monthlyResult.monthsProcessed} months`);
+      } else {
+        console.error("[SGT-SYNC] Failed to calculate monthly standings:", await monthlyResponse.text());
+      }
+    } catch (e) {
+      console.error("[SGT-SYNC] Error triggering monthly standings calculation:", e);
     }
 
     console.log(`[SGT-SYNC] ✓ Sync complete. Total records updated: ${totalRecords}`);
