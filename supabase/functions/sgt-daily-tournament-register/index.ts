@@ -154,16 +154,31 @@
          const existingRegs = extractArray(registrationsResponse, ['registrations', 'results']) as { user_id: number }[];
          const registeredUserIds = new Set(existingRegs.map(r => r.user_id));
  
-         const toRegister: RegistrationItem[] = [];
-         for (const member of tourMembers) {
-           if (registeredUserIds.has(member.user_id)) continue;
-           const { data: scorecards } = await supabaseClient.from("sgt_scorecards").select("id").eq("player_id", member.user_id).limit(1);
-           const hasPlayedRounds = scorecards && scorecards.length > 0;
-           const useCustomCap = !hasPlayedRounds && member.custom_hcp !== null;
-           const regItem: RegistrationItem = { user_id: member.user_id, useComboCap: useCustomCap ? "false" : "true", useCustomCap: useCustomCap ? "true" : "false" };
-           if (useCustomCap && member.custom_hcp !== null) regItem.customCap = member.custom_hcp;
-           toRegister.push(regItem);
-         }
+          const toRegister: RegistrationItem[] = [];
+          for (const member of tourMembers) {
+            if (registeredUserIds.has(member.user_id)) continue;
+            
+            // Check how many rounds the player has completed
+            // SGT needs at least 2 rounds for Combo HCP to be accurate
+            const { data: scorecards } = await supabaseClient
+              .from("sgt_scorecards")
+              .select("id")
+              .eq("player_id", member.user_id);
+            
+            const roundCount = scorecards ? scorecards.length : 0;
+            const hasEnoughRoundsForCombo = roundCount >= 2;
+            const useCustomCap = !hasEnoughRoundsForCombo && member.custom_hcp !== null;
+            
+            console.log(`[SGT-DAILY-REG] Member ${member.user_id}: ${roundCount} rounds, useCustomCap: ${useCustomCap}`);
+            
+            const regItem: RegistrationItem = { 
+              user_id: member.user_id, 
+              useComboCap: useCustomCap ? "false" : "true", 
+              useCustomCap: useCustomCap ? "true" : "false" 
+            };
+            if (useCustomCap && member.custom_hcp !== null) regItem.customCap = member.custom_hcp;
+            toRegister.push(regItem);
+          }
  
          if (toRegister.length === 0) continue;
  
