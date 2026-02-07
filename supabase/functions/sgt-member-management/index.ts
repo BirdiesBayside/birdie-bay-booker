@@ -159,7 +159,9 @@ serve(async (req) => {
     switch (action) {
       case "delete-member": {
         // Delete/remove a member from the club
-        const { userId } = params;
+        // NOTE: We do NOT clear sgt_user_id from profiles anymore - 
+        // this allows us to re-add them later if they become a paying member again
+        const { userId, clearProfileLink } = params;
         if (!userId) throw new Error("userId is required");
 
         // Try the members/delete endpoint
@@ -173,11 +175,17 @@ serve(async (req) => {
           .delete()
           .eq("user_id", userId);
 
-        // Clear the sgt_user_id from any linked profile
-        await adminClient
-          .from("profiles")
-          .update({ sgt_user_id: null })
-          .eq("sgt_user_id", userId);
+        // Only clear the sgt_user_id from profile if explicitly requested
+        // Default behavior: keep the link so we can re-add them later
+        if (clearProfileLink === true) {
+          await adminClient
+            .from("profiles")
+            .update({ sgt_user_id: null })
+            .eq("sgt_user_id", userId);
+          console.log(`[SGT-MEMBER-MGMT] Cleared profile link for user ${userId}`);
+        } else {
+          console.log(`[SGT-MEMBER-MGMT] Kept profile link for user ${userId} (can re-add later)`);
+        }
 
         result = { success: true, response };
         break;
