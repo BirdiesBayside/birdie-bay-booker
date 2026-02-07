@@ -1,180 +1,179 @@
 
+# Birdies League Format Overhaul Plan
 
-# Analytics Dashboard for Birdies
+## Current State Analysis
 
-## Overview
+### Existing API Architecture
 
-I recommend creating a **dedicated Analytics page** in the admin menu (rather than a section within Settings) because the scope of metrics warrants its own focused view. This will give you a clear, data-driven command center for monitoring business performance.
+| Function | Schedule | Purpose |
+|----------|----------|---------|
+| `sgt-refresh-api-key` | Daily 4am Brisbane (18:00 UTC) | Refreshes the 24-hour SGT API key |
+| `sgt-daily-tournament-register` | Daily 6am Brisbane (20:00 UTC) | Registers tour members for tomorrow's tournaments |
+| `sgt-course-sync` | Daily 1pm Brisbane (03:00 UTC) | Syncs course data |
+| `sgt-sync` | **NOT SCHEDULED** | Main sync for tours, tournaments, standings, scorecards |
+| `sgt-auto-register` | Triggered by admin onboarding | Registers new member for all active tournaments |
 
----
+**Critical Finding**: The main `sgt-sync` function is NOT on a cron schedule! It only runs when manually triggered from the admin panel.
 
-## Recommended Key Performance Indicators (KPIs)
+### API Call Summary
 
-Based on your data and business model, here are the most critical metrics organized by category:
-
-### 1. Customer Growth & Retention (Most Important)
-
-| Metric | What It Tells You | Current Data |
-|--------|-------------------|--------------|
-| **New Customers (Weekly/Monthly)** | Acquisition velocity | 42 in last 7 days |
-| **Return Rate** | % of first-timers who book again | 9.5% (4/42 recently) |
-| **Customer Lifetime Bookings** | Distribution of engagement depth | 63% have 1 booking, 25% have 2-3 |
-| **Membership Conversion Rate** | % of users who upgrade from visitor | 4.3% (33/769) |
-
-### 2. Revenue Health
-
-| Metric | What It Tells You | Current Data |
-|--------|-------------------|--------------|
-| **Month-over-Month Revenue Growth** | Business trajectory | Already tracked |
-| **Revenue by Source** | Bookings vs POS vs Memberships | Integrated in existing dashboard |
-| **Average Booking Value** | Pricing effectiveness | $33.94 |
-| **Average Session Duration** | Customer engagement | 1.6 hours |
-
-### 3. Operational Efficiency
-
-| Metric | What It Tells You | Current Data |
-|--------|-------------------|--------------|
-| **Bay Utilization by Day** | Peak demand patterns | Saturdays highest (89 hrs), Wednesdays lowest (59 hrs) |
-| **Peak Hours Heatmap** | When to staff up | Derivable from booking times |
-| **Occupancy Rate** | Capacity usage | Already tracked on dashboard |
-
-### 4. Marketing Effectiveness
-
-| Metric | What It Tells You | Current Data |
-|--------|-------------------|--------------|
-| **First Session Free Conversion** | Promo ROI | Tracked in Marketing page |
-| **Gift Card Redemption Rate** | Credit program effectiveness | 67% (2/3 redeemed) |
-| **Member Churn Rate** | Retention health | New metric to calculate |
+Currently, each sync cycle makes these calls:
+1. `/members/list` - Get all club members
+2. `/tours/list` - Get all tours
+3. `/tours/standings?grossOrNet=gross` - Per active tour
+4. `/tours/standings?grossOrNet=net` - Per active tour  
+5. `/tours/members` - Per active tour (handicap refresh)
+6. `/tournaments/list` - Per active tour
+7. `/tournaments/scorecards` - Per **completed** tournament only
 
 ---
 
-## Proposed Implementation
+## Proposed Changes
 
-### New Admin Page: `/admin/analytics`
+### 1. Monthly Winner System (Build Our Own)
 
-```text
-+------------------------------------------------------------------+
-|  ANALYTICS                                          [Date Range] |
-+------------------------------------------------------------------+
-|                                                                  |
-|  GROWTH METRICS                                                  |
-|  +------------+  +------------+  +------------+  +------------+  |
-|  | New        |  | Return     |  | Member     |  | Churn      |  |
-|  | Customers  |  | Rate       |  | Conversion |  | Rate       |  |
-|  |    42      |  |   9.5%     |  |    4.3%    |  |   2.1%     |  |
-|  | +18% ↑     |  | (target:   |  | (target:   |  | (low is    |  |
-|  |            |  |  15%)      |  |  10%)      |  |  good)     |  |
-|  +------------+  +------------+  +------------+  +------------+  |
-|                                                                  |
-|  REVENUE TRENDS                                                  |
-|  +-------------------------------------------------------+       |
-|  |   Monthly Revenue Chart (6 months)                    |       |
-|  |   [Bar chart: Dec $80 -> Jan $6,930 -> Feb $3,880*]   |       |
-|  +-------------------------------------------------------+       |
-|                                                                  |
-|  CUSTOMER ENGAGEMENT                                             |
-|  +---------------------------+  +---------------------------+    |
-|  | Booking Frequency         |  | Day-of-Week Performance   |    |
-|  | Pie: 1x (63%), 2-3x (25%),|  | Bar: Mon-Sun utilization  |    |
-|  |      4-10x (9%), 10+ (3%) |  |                           |    |
-|  +---------------------------+  +---------------------------+    |
-|                                                                  |
-|  OPERATIONAL INSIGHTS                                            |
-|  +-------------------------------------------------------+       |
-|  |   Hourly Heatmap: Bay utilization by hour/day         |       |
-|  +-------------------------------------------------------+       |
-|                                                                  |
-+------------------------------------------------------------------+
+Since you're keeping one continuous tour, SGT's overall standings will accumulate points year-round. We need our own monthly aggregation:
+
+**New Table: `sgt_monthly_standings`**
+```
+- id (uuid)
+- tour_id (integer)
+- month (text, e.g., "February 2026")
+- player_name (text)
+- player_id (integer)
+- total_net_score (integer) - Sum of weekly to_par_net
+- total_gross_score (integer) - Sum of weekly to_par_gross
+- tournaments_played (integer)
+- best_net (integer) - Best single-week net score
+- position (integer) - Calculated rank
+- created_at / updated_at
 ```
 
-### Navigation Update
+**Logic**: After each tournament completes, sum `to_par_net` and `to_par_gross` for all tournaments in that calendar month to calculate monthly rankings. The lower total wins.
 
-Add "Analytics" to the admin sidebar with a `BarChart3` icon, positioned after "Dashboard" for logical grouping of overview pages.
+**Benefits**:
+- Uses existing `sgt_scorecards` data (no extra API calls)
+- Works automatically as tournaments complete
+- Supports both gross and net rankings
+- Can handle partial months and DNFs
 
----
+### 2. URL Leaderboard Scraper (Already Correct)
 
-## Technical Approach
+The current implementation in `useActiveTourData.ts` correctly:
+1. Queries `sgt_tours` for `active = 1`
+2. Queries `sgt_tournaments` ordered by `start_date DESC`
+3. Returns the most recent tournament that has started
 
-### Files to Create/Modify
+The `useSGTEmbedData` hook then scrapes `https://simulatorgolftour.com/embed/tournament/{id}/standings/net` for live scoring.
 
-1. **Create `src/pages/admin/AdminAnalytics.tsx`**
-   - New page component with the analytics dashboard
-   - Uses Recharts (already installed) for visualizations
-   - Date range selector for flexible time periods
-   - Auto-refresh every 60 seconds
+**No changes needed** - the scraper already dynamically finds the latest tournament.
 
-2. **Modify `src/components/admin/AdminLayout.tsx`**
-   - Add Analytics to the nav items array
+### 3. Handicap Clarification
 
-3. **Modify `src/App.tsx`**
-   - Add route for `/admin/analytics`
+Based on SGT API documentation and your current implementation:
 
-4. **Create `src/components/admin/analytics/`** (optional folder for sub-components)
-   - `GrowthMetricCard.tsx` - Stat card with trend indicator
-   - `RevenueChart.tsx` - Monthly revenue bar chart
-   - `CustomerEngagementChart.tsx` - Booking frequency pie chart
-   - `DayOfWeekChart.tsx` - Bar chart for day-of-week utilization
-   - `HourlyHeatmap.tsx` - Heatmap grid for peak hours
+**How SGT Handicaps Work:**
+- **hcp_index**: SGT's calculated "Combo HCP" based on a player's rounds
+- **custom_hcp**: A manually-set override (only used if `useCustomCap=true`)
+- New tour = **does NOT** reset handicaps (they're player-level, not tour-level)
+- SGT calculates combo HCP from a player's best differentials across all their rounds
 
-### Data Sources
+**Current Flow (First Week Only)**:
+1. Admin links SGT account and sets `custom_hcp` in `sgt_tour_members`
+2. `sgt-auto-register` checks if player has scorecards:
+   - If NO scorecards: Uses `custom_hcp` for registration
+   - If HAS scorecards: Uses SGT's combo HCP
+3. After first tournament completes, `sgt-sync` refreshes `hcp_index` from SGT
 
-All metrics are derivable from existing tables:
-- `bookings` - Customer activity, revenue, occupancy
-- `profiles` - Membership tiers, conversion tracking
-- `pos_transactions` - POS revenue
-- `membership_payments` - Subscription revenue
-- `gift_cards` - Promo effectiveness
+This matches your preference of "first week only" - the custom HCP applies for their first tournament, then SGT takes over.
 
-### Key Queries
+### 4. Pending Player Workflow Enhancement
+
+Current flow is already correct but can be improved with better visibility:
+
+```
+1. Customer links SGT account → status: "pending"
+2. Admin receives notification → navigates to SGT Manager
+3. Admin sets custom_hcp → adds to sgt_tour_members
+4. Database trigger fires sgt-auto-register → player registered for all active tournaments
+5. Player plays first round → sgt-sync updates their hcp_index
+6. Future tournaments use SGT combo HCP automatically
+```
+
+### 5. Schedule the Missing sgt-sync Cron Job
+
+Add `sgt-sync` to run every 4 hours:
 
 ```sql
--- Return Rate (customers with 2+ bookings)
-WITH user_counts AS (
-  SELECT user_id, COUNT(*) as bookings
-  FROM bookings WHERE status != 'cancelled'
-  GROUP BY user_id
-)
-SELECT 
-  COUNT(*) FILTER (WHERE bookings >= 2) * 100.0 / COUNT(*) as return_rate
-FROM user_counts;
-
--- New Customers This Period
-SELECT COUNT(DISTINCT user_id)
-FROM (
-  SELECT user_id, MIN(created_at) as first_booking
-  FROM bookings WHERE status != 'cancelled'
-  GROUP BY user_id
-) WHERE first_booking >= [start_date];
-
--- Membership Churn (cancelled subscriptions this month)
-SELECT COUNT(*) FROM profiles 
-WHERE membership_tier = 'visitor'
-  AND updated_at >= [start_of_month]
-  AND user_id IN (
-    SELECT user_id FROM membership_payments 
-    WHERE paid_at < [start_of_month]
-  );
+SELECT cron.schedule(
+  'sgt-sync-regular',
+  '0 */4 * * *',  -- Every 4 hours at :00
+  $$
+  SELECT net.http_post(
+    url := 'https://hltrcuypuxhetcjyvedl.supabase.co/functions/v1/sgt-sync',
+    headers := '{"Content-Type": "application/json", "x-sync-secret": "<SYNC_SECRET>"}'::jsonb,
+    body := '{}'::jsonb
+  ) AS request_id;
+  $$
+);
 ```
 
 ---
 
-## Why These Metrics Matter
+## Implementation Tasks
 
-1. **Return Rate** - Your single most important growth lever. If only 9.5% come back, you need 10 new customers to replace every churned regular. Increasing this to 20% would double your organic growth.
+### Phase 1: Fix Missing Sync Schedule
+1. Add `sgt-sync` to cron.job table (every 4 hours)
+2. Verify API key refresh timing aligns (currently 4am Brisbane)
 
-2. **New Customer Acquisition** - Shows marketing effectiveness and word-of-mouth. The 42/week is strong; track whether it's growing or declining.
+### Phase 2: Monthly Winner Tables
+1. Create `sgt_monthly_standings` table with RLS
+2. Create edge function `sgt-calculate-monthly-standings` that:
+   - Queries `sgt_scorecards` filtered by tournament start_date
+   - Groups by player and sums scores for the calendar month
+   - Upserts into `sgt_monthly_standings`
+3. Trigger calculation when tournaments complete (in `sgt-sync` or via webhook)
 
-3. **Member Conversion** - At 4.3%, there's significant upside. Members pay $15-35/week recurring vs one-off bookings.
+### Phase 3: Update SGTWinners Component
+1. Add a new "Monthly Leaderboard" section showing computed standings
+2. Allow admin to confirm/award monthly winner from the calculated rankings
+3. Show both net and gross monthly standings
 
-4. **Day/Hour Patterns** - Saturdays and Fridays are busiest. Use this to optimize staffing, promotions for slow periods, and premium pricing for peak times.
+### Phase 4: Documentation Updates
+1. Update memory files with new monthly winner logic
+2. Document the complete API call flow
 
 ---
 
-## Next Steps After Approval
+## Technical Details
 
-1. Create the AdminAnalytics page with core KPI cards
-2. Add Recharts visualizations for trends
-3. Implement date range filtering
-4. Add the navigation item and route
-5. Test the data calculations for accuracy
+### API Efficiency Optimizations Already in Place:
+- Scorecards only fetched for **Completed** tournaments (not in-progress)
+- Live leaderboards use the **web scraper** (no API key required)
+- API key is cached and refreshed daily at 4am
+- Handicap refresh only for players in completed tournaments
 
+### Proposed API Call Schedule:
+| Time (Brisbane) | Function | API Calls |
+|-----------------|----------|-----------|
+| 4:00 AM | sgt-refresh-api-key | 1 (auth) |
+| 6:00 AM | sgt-daily-tournament-register | 1-3 per tournament |
+| Every 4 hours | sgt-sync | ~15-25 total |
+| On-demand | sgt-embed-scrape | 0 (web scrape only) |
+
+### Monthly Calculation SQL Example:
+```sql
+SELECT 
+  player_name,
+  player_id,
+  COUNT(DISTINCT tournament_id) as tournaments_played,
+  SUM(to_par_net) as total_net_score,
+  SUM(to_par_gross) as total_gross_score,
+  MIN(to_par_net) as best_net
+FROM sgt_scorecards sc
+JOIN sgt_tournaments t ON sc.tournament_id = t.tournament_id
+WHERE t.status = 'Completed'
+  AND to_char(t.start_date, 'Month YYYY') = 'February 2026'
+GROUP BY player_name, player_id
+ORDER BY total_net_score ASC;
+```
