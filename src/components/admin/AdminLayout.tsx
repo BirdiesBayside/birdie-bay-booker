@@ -28,12 +28,12 @@ interface AdminLayoutProps {
 
 const navItems = [
   { path: "/admin", label: "Dashboard", icon: LayoutDashboard },
-  { path: "/admin/analytics", label: "Analytics", icon: BarChart3 },
   { path: "/admin/timetable", label: "Timetable", icon: Calendar },
   { path: "/admin/pos", label: "POS", icon: ShoppingCart },
   { path: "/admin/customers", label: "Customers", icon: Users },
   { path: "/admin/bay-control", label: "Bay Control", icon: Zap },
   { path: "/admin/sgt", label: "SGT Manager", icon: Trophy },
+  { path: "/admin/analytics", label: "Analytics", icon: BarChart3 },
   { path: "/admin/marketing", label: "Marketing", icon: Mail },
   { path: "/admin/announcements", label: "Announcements", icon: Bell },
   { path: "/admin/settings", label: "Settings", icon: Settings },
