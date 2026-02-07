@@ -37,6 +37,7 @@ const BayOrder = lazy(() => import("./pages/BayOrder"));
 
 // Admin pages
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
+const AdminAnalytics = lazy(() => import("./pages/admin/AdminAnalytics"));
 const AdminTimetable = lazy(() => import("./pages/admin/AdminTimetable"));
 const AdminCustomers = lazy(() => import("./pages/admin/AdminCustomers"));
 const AdminPOS = lazy(() => import("./pages/admin/AdminPOS"));
@@ -200,6 +201,7 @@ const App = () => (
             <Route path="/order/:bayNumber" element={<BayOrder />} />
             {/* Admin Routes */}
             <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/admin/analytics" element={<AdminAnalytics />} />
             <Route path="/admin/timetable" element={<AdminTimetable />} />
             <Route path="/admin/customers" element={<AdminCustomers />} />
             <Route path="/admin/pos" element={<AdminPOS />} />
