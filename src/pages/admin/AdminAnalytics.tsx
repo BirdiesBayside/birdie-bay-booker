@@ -1,0 +1,182 @@
+import { AdminLayout } from "@/components/admin/AdminLayout";
+import { useAdminAuth } from "@/hooks/useAdminAuth";
+import { useAnalyticsData } from "@/hooks/useAnalyticsData";
+import { GrowthMetricCard } from "@/components/admin/analytics/GrowthMetricCard";
+import { RevenueChart } from "@/components/admin/analytics/RevenueChart";
+import { CustomerEngagementChart } from "@/components/admin/analytics/CustomerEngagementChart";
+import { DayOfWeekChart } from "@/components/admin/analytics/DayOfWeekChart";
+import { HourlyHeatmap } from "@/components/admin/analytics/HourlyHeatmap";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
+
+export default function AdminAnalytics() {
+  const { isAdmin, isLoading: authLoading } = useAdminAuth();
+  const { data, isLoading, refetch, isFetching } = useAnalyticsData();
+
+  if (authLoading) {
+    return (
+      <AdminLayout>
+        <div className="p-6">
+          <Skeleton className="h-8 w-48 mb-6" />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[...Array(4)].map((_, i) => (
+              <Skeleton key={i} className="h-32" />
+            ))}
+          </div>
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  if (!isAdmin) return null;
+
+  // Calculate trend for new customers
+  const customerTrend = data
+    ? data.newCustomersLastWeek > 0
+      ? ((data.newCustomersThisWeek - data.newCustomersLastWeek) / data.newCustomersLastWeek) * 100
+      : data.newCustomersThisWeek > 0
+      ? 100
+      : 0
+    : 0;
+  const customerTrendDirection = customerTrend > 0 ? "up" : customerTrend < 0 ? "down" : "neutral";
+
+  return (
+    <AdminLayout>
+      <div className="p-4 lg:p-6 space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-display font-bold uppercase tracking-wide">
+              Analytics
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Key performance metrics for Birdies Bay Side
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => refetch()}
+            disabled={isFetching}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+        </div>
+
+        {isLoading || !data ? (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {[...Array(4)].map((_, i) => (
+                <Skeleton key={i} className="h-32" />
+              ))}
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Skeleton className="h-[350px]" />
+              <Skeleton className="h-[350px]" />
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Growth Metrics */}
+            <div>
+              <h2 className="text-sm font-medium text-muted-foreground mb-3 uppercase tracking-wide">
+                Growth Metrics
+              </h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <GrowthMetricCard
+                  title="New Customers"
+                  value={data.newCustomersThisWeek}
+                  subtitle="This week"
+                  trend={customerTrendDirection}
+                  trendValue={`${customerTrend > 0 ? "+" : ""}${customerTrend.toFixed(0)}%`}
+                />
+                <GrowthMetricCard
+                  title="Return Rate"
+                  value={`${data.returnRate.toFixed(1)}%`}
+                  subtitle="Customers with 2+ bookings"
+                  target="15%"
+                />
+                <GrowthMetricCard
+                  title="Member Conversion"
+                  value={`${data.memberConversionRate.toFixed(1)}%`}
+                  subtitle="Visitors → Members"
+                  target="10%"
+                />
+                <GrowthMetricCard
+                  title="Churn Rate"
+                  value={`${data.churnRate.toFixed(1)}%`}
+                  subtitle="Members cancelled"
+                  trend={data.churnRate < 5 ? "up" : "down"}
+                  trendValue={data.churnRate < 5 ? "Good" : "High"}
+                />
+              </div>
+            </div>
+
+            {/* Revenue & Averages */}
+            <div>
+              <h2 className="text-sm font-medium text-muted-foreground mb-3 uppercase tracking-wide">
+                Revenue Health
+              </h2>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <div className="lg:col-span-2">
+                  <RevenueChart data={data.monthlyRevenue} />
+                </div>
+                <div className="space-y-4">
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base font-medium">
+                        Booking Averages
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div>
+                        <p className="text-sm text-muted-foreground">Avg Booking Value</p>
+                        <p className="text-2xl font-bold">
+                          ${data.avgBookingValue.toFixed(2)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Avg Session Duration</p>
+                        <p className="text-2xl font-bold">
+                          {data.avgSessionDuration.toFixed(1)} hrs
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Total Customers</p>
+                        <p className="text-2xl font-bold">
+                          {data.totalCustomers.toLocaleString()}
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            </div>
+
+            {/* Customer Engagement */}
+            <div>
+              <h2 className="text-sm font-medium text-muted-foreground mb-3 uppercase tracking-wide">
+                Customer Engagement
+              </h2>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <CustomerEngagementChart data={data.bookingFrequency} />
+                <DayOfWeekChart data={data.dayOfWeekUtilization} />
+              </div>
+            </div>
+
+            {/* Operational Insights */}
+            <div>
+              <h2 className="text-sm font-medium text-muted-foreground mb-3 uppercase tracking-wide">
+                Operational Insights
+              </h2>
+              <HourlyHeatmap data={data.hourlyHeatmap} />
+            </div>
+          </>
+        )}
+      </div>
+    </AdminLayout>
+  );
+}
