@@ -688,6 +688,7 @@ export default function BayController() {
     }
     
     try {
+      console.log(`[BayController] Fetching bookings for bay ${selectedBay}...`);
       const { data, error } = await supabase.functions.invoke("bay-controller-api", {
         body: { action: "bookings" },
         headers: {
@@ -697,7 +698,17 @@ export default function BayController() {
         },
       });
 
-      if (error) throw error;
+      console.log(`[BayController] API response - error:`, error, `data:`, data ? `${data.bookings?.length || 0} bookings` : 'null');
+
+      if (error) {
+        console.error(`[BayController] API returned error object:`, error);
+        throw error;
+      }
+      
+      if (!data) {
+        console.error(`[BayController] API returned null data`);
+        throw new Error("API returned null data");
+      }
       
       // Track API version for diagnostics
       if (data._version) {
