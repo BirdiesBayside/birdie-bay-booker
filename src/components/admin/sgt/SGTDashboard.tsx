@@ -1,13 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Trophy, Calendar, Users, FileText, RefreshCw, MapPin, Mail, Bell } from "lucide-react";
+import { Trophy, Calendar, Users, FileText, RefreshCw, MapPin, Mail, Bell, Zap, Clock, UserPlus, CalendarPlus, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { format } from "date-fns";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 
 export function SGTDashboard() {
   const { toast } = useToast();
@@ -299,6 +300,115 @@ export function SGTDashboard() {
           ) : (
             <p className="text-muted-foreground text-center py-8">No tournaments found</p>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Automation Rules Card */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Zap className="h-5 w-5 text-amber-500" />
+            <CardTitle>Automation Rules</CardTitle>
+          </div>
+          <CardDescription>
+            These rules run automatically in the background
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Daily Tournament Registration */}
+          <div className="p-4 rounded-lg border bg-card">
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-lg bg-blue-500/10 mt-0.5">
+                <CalendarPlus className="h-4 w-4 text-blue-500" />
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <h4 className="font-medium">Daily Tournament Registration</h4>
+                  <Badge variant="secondary" className="text-xs">
+                    <Clock className="h-3 w-3 mr-1" />
+                    6:00 AM (Brisbane)
+                  </Badge>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Automatically registers all tour members for tournaments starting the next day.
+                </p>
+                <ul className="text-xs text-muted-foreground mt-2 space-y-1 ml-4 list-disc">
+                  <li>Uses <strong>Custom HCP</strong> for players with fewer than 4 completed rounds</li>
+                  <li>Switches to <strong>Combo HCP</strong> once player has 4+ rounds</li>
+                  <li>Uses tournament default tees</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          {/* On-Demand Registration (Trigger) */}
+          <div className="p-4 rounded-lg border bg-card">
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-lg bg-green-500/10 mt-0.5">
+                <UserPlus className="h-4 w-4 text-green-500" />
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <h4 className="font-medium">New Member Registration</h4>
+                  <Badge variant="secondary" className="text-xs">
+                    <Zap className="h-3 w-3 mr-1" />
+                    Instant
+                  </Badge>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  When you onboard a new member (set their handicap in Pending Onboarding), they are immediately registered for all active tournaments.
+                </p>
+                <ul className="text-xs text-muted-foreground mt-2 space-y-1 ml-4 list-disc">
+                  <li>Triggered by database when member is added to a tour</li>
+                  <li>Uses the Custom HCP you set until they complete 4 rounds</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          {/* Data Sync */}
+          <div className="p-4 rounded-lg border bg-card">
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-lg bg-purple-500/10 mt-0.5">
+                <RefreshCw className="h-4 w-4 text-purple-500" />
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <h4 className="font-medium">Data Sync</h4>
+                  <Badge variant="secondary" className="text-xs">
+                    <Clock className="h-3 w-3 mr-1" />
+                    Every 4 hours
+                  </Badge>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Syncs tours, tournaments, standings, and scorecards from SGT platform to local cache.
+                </p>
+                <ul className="text-xs text-muted-foreground mt-2 space-y-1 ml-4 list-disc">
+                  <li>Updates player Combo HCP when tournaments complete</li>
+                  <li>Refreshes monthly standings for leaderboards</li>
+                  <li>Manual sync available via button above</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          {/* Handicap Transition Rule */}
+          <div className="p-4 rounded-lg border bg-muted/50">
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-lg bg-amber-500/10 mt-0.5">
+                <Settings2 className="h-4 w-4 text-amber-500" />
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <h4 className="font-medium">Handicap Transition Rule</h4>
+                  <Badge variant="outline" className="text-xs">Logic</Badge>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  New players start with the <strong>Custom HCP</strong> you set during onboarding. After completing <strong>4 rounds</strong> (2 full tournaments), they automatically switch to SGT's calculated <strong>Combo HCP</strong>.
+                </p>
+              </div>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
