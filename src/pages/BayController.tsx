@@ -918,13 +918,27 @@ export default function BayController() {
     }
   }, [bayDeviceId, selectedBay]);
 
+  // Keep booking/mode/heartbeat polling effects stable: avoid leaking channels/intervals on re-render
+  const fetchBookingsRef = useRef(fetchBookings);
+  const fetchControlModeRef = useRef(fetchControlMode);
+  const sendHeartbeatRef = useRef(sendHeartbeat);
+
+  useEffect(() => {
+    fetchBookingsRef.current = fetchBookings;
+    fetchControlModeRef.current = fetchControlMode;
+    sendHeartbeatRef.current = sendHeartbeat;
+  }, [fetchBookings, fetchControlMode, sendHeartbeat]);
+
   // Set up real-time subscription for bookings, control mode, heartbeat, and polling fallback
   useEffect(() => {
     if (!selectedBay) return;
 
+    let cancelled = false;
+    let channels: { bookingChannel: ReturnType<typeof supabase.channel>; deviceChannel: ReturnType<typeof supabase.channel> } | null = null;
+
     // Initial fetch
-    fetchBookings();
-    fetchControlMode();
+    fetchBookingsRef.current();
+    fetchControlModeRef.current();
 
     // Get bay_id for the selected bay number
     const setupRealtimeSubscription = async () => {
@@ -933,6 +947,8 @@ export default function BayController() {
         .select("id")
         .eq("bay_number", selectedBay)
         .maybeSingle();
+
+      if (cancelled) return;
 
       if (!bayData?.id) {
         console.error("Could not find bay ID for bay number:", selectedBay);
@@ -945,23 +961,17 @@ export default function BayController() {
         .on(
           'postgres_changes',
           {
-            event: '*', // Listen to INSERT, UPDATE, DELETE
+            event: '*',
             schema: 'public',
             table: 'bookings',
-            filter: `bay_id=eq.${bayData.id}`
+            filter: `bay_id=eq.${bayData.id}`,
           },
-          (payload) => {
-            console.log('Real-time booking update received:', payload);
+          () => {
             // Refetch bookings to get the latest data
-            fetchBookings();
+            fetchBookingsRef.current();
           }
         )
-        .subscribe((status) => {
-          console.log('Realtime booking subscription status:', status);
-          if (status === 'SUBSCRIBED') {
-            console.log('Successfully subscribed to real-time booking updates');
-          }
-        });
+        .subscribe();
 
       // Subscribe to real-time changes on bay_devices for mode sync from admin
       const deviceChannel = supabase
@@ -972,62 +982,55 @@ export default function BayController() {
             event: 'UPDATE',
             schema: 'public',
             table: 'bay_devices',
-            filter: `bay_id=eq.${bayData.id}`
+            filter: `bay_id=eq.${bayData.id}`,
           },
           (payload) => {
-            console.log('Real-time bay_devices update received:', payload);
             const newMode = (payload.new as { control_mode?: string }).control_mode;
             if (newMode) {
-              const isManual = newMode === 'manual';
-              setManualOverride(isManual);
-              console.log(`Mode changed via real-time to: ${newMode}`);
+              setManualOverride(newMode === 'manual');
             }
           }
         )
-        .subscribe((status) => {
-          console.log('Realtime device mode subscription status:', status);
-        });
+        .subscribe();
 
-      return { bookingChannel, deviceChannel };
+      channels = { bookingChannel, deviceChannel };
+
+      // If this effect already cleaned up before the async finished, remove immediately
+      if (cancelled) {
+        supabase.removeChannel(bookingChannel);
+        supabase.removeChannel(deviceChannel);
+      }
     };
 
-    let channels: { bookingChannel: ReturnType<typeof supabase.channel>; deviceChannel: ReturnType<typeof supabase.channel> } | undefined;
-    setupRealtimeSubscription().then(result => {
-      channels = result;
-    });
+    setupRealtimeSubscription();
 
     // Heartbeat to keep device status updated
-    const heartbeatInterval = setInterval(sendHeartbeat, 30000); // Every 30 seconds
+    const heartbeatInterval = setInterval(() => sendHeartbeatRef.current(), 30000);
 
     // Track realtime connection status for intelligent polling
     let isRealtimeConnected = false;
-    
-    // Polling fallback - runs when realtime is disconnected OR as a safety net
-    // Use shorter interval (15s) to catch cancellations quickly
+
+    // Polling fallback - runs when realtime is disconnected
     const pollingInterval = setInterval(() => {
       if (!isRealtimeConnected) {
-        console.log('[BayController] Polling fallback - realtime disconnected');
-        fetchBookings();
+        fetchBookingsRef.current();
       }
-    }, 15000); // Reduced to 15 seconds for faster cancellation detection
-    
-    // Additional active booking poll - when there's an active booking, poll more frequently
-    // This ensures cancellations are detected quickly even if realtime misses an update
+    }, 15000);
+
+    // Safety-net poll even when realtime is connected
     const activeBookingPollInterval = setInterval(() => {
-      // Always poll every 30 seconds as a safety net, even when realtime is connected
-      fetchBookings();
+      fetchBookingsRef.current();
     }, 30000);
 
     // Monitor realtime connection status
-    const connectionChannel = supabase.channel('bay-controller-status')
+    const connectionChannel = supabase
+      .channel('bay-controller-status')
       .subscribe((status) => {
         isRealtimeConnected = status === 'SUBSCRIBED';
-        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          console.warn('[BayController] Realtime disconnected, polling will take over');
-        }
       });
 
     return () => {
+      cancelled = true;
       clearInterval(heartbeatInterval);
       clearInterval(pollingInterval);
       clearInterval(activeBookingPollInterval);
@@ -1037,7 +1040,7 @@ export default function BayController() {
         supabase.removeChannel(channels.deviceChannel);
       }
     };
-  }, [selectedBay, fetchBookings, fetchControlMode, sendHeartbeat]);
+  }, [selectedBay]);
 
   // Save bay selection
   useEffect(() => {

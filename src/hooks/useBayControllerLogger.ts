@@ -1,4 +1,4 @@
-import { useCallback, useRef, useEffect } from "react";
+import { useCallback, useRef, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 export type LogEventType = 
@@ -210,15 +210,17 @@ export function useBayControllerLogger({
       serverTimeOffset?: number;
     }
   ) => {
-    sendLog('automation_decision', `Automation decision: ${decision} - ${reason}`, {
-      details: {
-        decision,
-        reason,
-        ...context,
-        timestamp: new Date().toISOString(),
-      },
-      bookingId: context.bookingId,
-    });
+    sendLog('automation_decision', `Automation decision: ${decision} - ${reason}`,
+      {
+        details: {
+          decision,
+          reason,
+          ...context,
+          timestamp: new Date().toISOString(),
+        },
+        bookingId: context.bookingId,
+      }
+    );
   }, [sendLog]);
   
   // New: Log plug control result with per-plug details
@@ -242,8 +244,27 @@ export function useBayControllerLogger({
       bookingId,
     });
   }, [sendLog]);
-  
-  return {
+
+  // Memoize the returned object so consumers don't re-run effects every render
+  return useMemo(() => {
+    return {
+      sendLog,
+      flushLogs,
+      logAppLaunch,
+      logAppClose,
+      logPlugControl,
+      logBookingActive,
+      logBookingEnded,
+      logManualOverride,
+      logError,
+      logControllerStart,
+      logConnectionStatus,
+      logWindowFixed,
+      logNotificationShown,
+      logAutomationDecision,
+      logPlugControlResult,
+    };
+  }, [
     sendLog,
     flushLogs,
     logAppLaunch,
@@ -259,5 +280,6 @@ export function useBayControllerLogger({
     logNotificationShown,
     logAutomationDecision,
     logPlugControlResult,
-  };
+  ]);
 }
+
