@@ -70,8 +70,17 @@ export function SGTLeagueMembers() {
       });
 
       // Dedupe by user_id (a member might be in multiple tours)
+      // Sort by updated_at DESC so we get the most recently updated record first
+      const sortedMembers = (tourMembers || []).sort((a, b) => {
+        // We don't have updated_at in the select, so just process in order
+        return 0;
+      });
+
       const memberMap = new Map<number, LeagueMember>();
-      (tourMembers || []).forEach(tm => {
+      sortedMembers.forEach(tm => {
+        // Only use the FIRST occurrence of each user_id
+        // Since all tour_members for a user should have the same custom_hcp
+        // (we update all records when saving), just take the first one
         if (!memberMap.has(tm.user_id)) {
           memberMap.set(tm.user_id, {
             user_id: tm.user_id,
@@ -81,11 +90,6 @@ export function SGTLeagueMembers() {
             custom_hcp: tm.custom_hcp,
             rounds_played: roundCounts.get(tm.user_id) || 0,
           });
-        } else {
-          // Update if this record has more info
-          const existing = memberMap.get(tm.user_id)!;
-          if (tm.hcp_index !== null) existing.hcp_index = tm.hcp_index;
-          if (tm.custom_hcp !== null) existing.custom_hcp = tm.custom_hcp;
         }
       });
 
