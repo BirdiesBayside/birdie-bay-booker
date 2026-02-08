@@ -61,6 +61,30 @@ async function sgtRequest(endpoint: string, apiKey: string, params: Record<strin
   return data;
 }
 
+async function sgtPostRequest(endpoint: string, apiKey: string, body: Record<string, string | number>): Promise<unknown> {
+  const formData = new URLSearchParams();
+  formData.append("api-key", apiKey);
+  
+  for (const [key, value] of Object.entries(body)) {
+    formData.append(key, value.toString());
+  }
+
+  console.log(`[SGT-SYNC] POST: ${endpoint}`);
+  
+  const response = await fetch(`${SGT_BASE_URL}/${CLUB_URL}${endpoint}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`SGT API error: ${response.status} - ${text}`);
+  }
+
+  return response.json();
+}
+
 function extractArray(data: unknown, keys: string[]): unknown[] {
   if (Array.isArray(data)) return data;
   if (data && typeof data === 'object') {
@@ -281,16 +305,26 @@ serve(async (req) => {
         for (const tournament of tournaments.slice(0, 20)) {
           const tourn = tournament as { tournamentId: number; name: string; courseName?: string; status?: string; start_date?: string; end_date?: string };
           
-          // Determine status - if SGT says "In Progress" but end_date has passed, mark as Completed
+          // Get today's date in Brisbane timezone for accurate comparison
+          const now = new Date();
+          const brisbaneTime = new Date(now.getTime() + 10 * 60 * 60 * 1000);
+          const todayStr = brisbaneTime.toISOString().split('T')[0];
+          
           let status = tourn.status;
-          if (status === 'In Progress' && tourn.end_date) {
-            const endDate = new Date(tourn.end_date);
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            
-            // If end_date is in the past, tournament should be Completed
-            if (endDate < today) {
-              console.log(`[SGT-SYNC] Correcting status for tournament ${tourn.tournamentId}: end_date ${tourn.end_date} has passed, marking as Completed`);
+          
+          // AUTO-CLOSE: If tournament is "In Progress" and end_date has passed, close it via API
+          if ((status === 'In Progress' || status === 'Active') && tourn.end_date && tourn.end_date < todayStr) {
+            console.log(`[SGT-SYNC] Auto-closing tournament ${tourn.tournamentId} (${tourn.name}): end_date ${tourn.end_date} has passed`);
+            try {
+              const closeResult = await sgtPostRequest("/tournaments/close", apiKey, {
+                tournamentId: tourn.tournamentId,
+                assess_points: 1, // ALWAYS award tour standings points
+              });
+              console.log(`[SGT-SYNC] Tournament ${tourn.tournamentId} closed successfully:`, closeResult);
+              status = 'Completed';
+            } catch (closeError) {
+              console.error(`[SGT-SYNC] Failed to close tournament ${tourn.tournamentId}:`, closeError);
+              // Still mark as Completed in local DB even if API fails
               status = 'Completed';
             }
           }
