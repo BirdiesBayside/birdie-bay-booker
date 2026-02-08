@@ -117,7 +117,7 @@ export default function EmbedTVStandings() {
           <img src={birdiesLogo} alt="Birdies" className="h-16" />
           <div>
             <h1 className="font-bold text-4xl text-[hsl(128,42%,21%)] tracking-tight">
-              MONTHLY MEDAL
+              MONTHLY WINNER
             </h1>
             <p className="text-xl text-[hsl(128,20%,40%)]">
               {currentMonth} • {tourName} • NET Scores
@@ -217,7 +217,7 @@ export default function EmbedTVStandings() {
 
       {/* Footer */}
       <div className="mt-4 text-center text-lg text-[hsl(128,20%,40%)]">
-        Monthly Medal rankings • Updates every 60 seconds • Powered by Birdies League Hub
+        Monthly Winner rankings • Updates every 60 seconds • Powered by Birdies League Hub
       </div>
     </div>
   );
