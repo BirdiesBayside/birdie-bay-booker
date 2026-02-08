@@ -251,6 +251,9 @@ export default function BayController() {
   
   // Flag to suppress "unexpected close" events during intentional app closures (changeover, end-of-session)
   const intentionalCloseInProgressRef = useRef(false);
+
+  // Timestamp of the last intentional app-close, used to prevent immediate auto-relaunch races
+  const lastIntentionalAppCloseAtRef = useRef<number | null>(null);
   
   // SGT Player overlay state
   const [showSGTOverlay, setShowSGTOverlay] = useState(false);
@@ -1516,9 +1519,10 @@ export default function BayController() {
   const changeoverInProgressRef = useRef<string | null>(null);
   
   useEffect(() => {
-    if (!isElectron || !activeBooking) {
+    if (!isElectron || !activeBooking || manualOverride) {
       if (!isElectron) console.log('[Changeover] Not running in Electron, skipping');
       if (!activeBooking) console.log('[Changeover] No active booking, skipping');
+      if (manualOverride) console.log('[Changeover] Manual mode enabled, skipping');
       return;
     }
     
@@ -1563,7 +1567,15 @@ export default function BayController() {
         
         changeoverInProgressRef.current = changeoverKey;
         setShownChangeoverWelcomes(prev => new Set([...prev, changeoverKey]));
-        
+
+        // Failsafe: ensure changeover state cannot block automation indefinitely
+        setTimeout(() => {
+          if (changeoverInProgressRef.current === changeoverKey) {
+            console.warn('[Changeover] Failsafe clearing stuck changeover flag:', changeoverKey);
+            bayLogger.logError('[Changeover] Failsafe cleared stuck changeover flag', undefined, activeBooking.id);
+            changeoverInProgressRef.current = null;
+          }
+        }, 120000);
         const firstName = nextBooking.customer_name?.split(' ')[0] || 'Guest';
         
         console.log(`[BayController] Back-to-back changeover: ${activeBooking.customer_name} -> ${nextBooking.customer_name}`);
@@ -1583,6 +1595,7 @@ export default function BayController() {
               bayLogger.sendLog('automation_decision', '[Changeover Step 2] Closing apps for baseline reset', { bookingId: activeBooking.id });
               // Set flag to prevent "unexpected close" log from onGsproClosed listener
               intentionalCloseInProgressRef.current = true;
+              lastIntentionalAppCloseAtRef.current = Date.now();
               await window.electronAPI.closeApps(["GSPro.exe", "ProteeLabs.exe"]);
               setAppsRunning(false);
               setAppLaunchStatus(null);
@@ -1625,8 +1638,9 @@ export default function BayController() {
                     bayLogger.sendLog('automation_decision', '[Changeover Step 3] Apps relaunched successfully', { bookingId: activeBooking.id });
                   } else {
                     console.error(`[Changeover] Step 3: App relaunch failed:`, result.error);
-                    setAppLaunchStatus(`Relaunch failed: ${result.error}`);
+                    setAppLaunchStatus(`Relaunch failed: ${result.error} (will auto-retry)`);
                     bayLogger.sendLog('automation_decision', `[Changeover Step 3 FAILED] App relaunch error: ${result.error}`, { bookingId: activeBooking.id });
+                    bayLogger.logError(`[Changeover Step 3] App relaunch failed: ${result.error}`, undefined, activeBooking.id);
                   }
                 } catch (err) {
                   console.error(`[Changeover] Step 3: App relaunch error:`, err);
@@ -1665,7 +1679,7 @@ export default function BayController() {
     checkChangeover();
     
     return () => clearInterval(interval);
-  }, [activeBooking, appsRunning, isElectron, shownChangeoverWelcomes, getNextBooking, appLaunchConfig]);
+  }, [activeBooking, appsRunning, isElectron, manualOverride, shownChangeoverWelcomes, getNextBooking, appLaunchConfig]);
 
   // Helper function to calculate if plugs should be on based on bookings
   const calculateShouldPlugsBeOn = useCallback(() => {
@@ -2371,6 +2385,7 @@ export default function BayController() {
     try {
       // Set flag to prevent "unexpected close" log from onGsproClosed listener
       intentionalCloseInProgressRef.current = true;
+      lastIntentionalAppCloseAtRef.current = Date.now();
       const result = await window.electronAPI.closeApps(["GSPro.exe", "ProteeLabs.exe"]);
       if (result.success) {
         setAppsRunning(false);
@@ -2451,17 +2466,30 @@ export default function BayController() {
       }
     }
 
-    // Don't auto-launch/close if in manual mode or changeover is in progress
-    if (manualOverride || changeoverInProgressRef.current) {
+    // Auto-launch/close rules:
+    // - Manual mode blocks all automation.
+    // - Changeover in progress should NOT prevent recovery launches (if apps are down),
+    //   but it SHOULD prevent scheduled closes to avoid fighting the changeover.
+    if (manualOverride) {
       return;
     }
 
+    const changeoverInProgress = !!changeoverInProgressRef.current;
+    const msSinceIntentionalClose = lastIntentionalAppCloseAtRef.current
+      ? now.getTime() - lastIntentionalAppCloseAtRef.current
+      : null;
+    const inIntentionalCloseCooldown = msSinceIntentionalClose !== null && msSinceIntentionalClose < 5000;
+
     if (shouldLaunchApps && !appsRunning && !isLaunchingApps) {
+      // Avoid racing the intentional relaunch that happens a few seconds after a changeover close.
+      if (changeoverInProgress && inIntentionalCloseCooldown) {
+        return;
+      }
       launchApps();
-    } else if (shouldCloseApps && appsRunning) {
+    } else if (!changeoverInProgress && shouldCloseApps && appsRunning) {
       console.log(`Closing apps ${appLaunchConfig.appCloseSeconds}s before booking ends (while screens still on)`);
       closeApps('scheduled');
-    } else if (!shouldLaunchApps && !shouldCloseApps && appsRunning) {
+    } else if (!changeoverInProgress && !shouldLaunchApps && !shouldCloseApps && appsRunning) {
       // Fallback: close apps if no active booking window at all (including when all bookings cancelled)
       console.log('No active booking window - closing apps as fallback');
       closeApps('scheduled');
