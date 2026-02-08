@@ -10,7 +10,6 @@ const SGT_BASE_URL = "https://simulatorgolftour.com/sgt-api/club-admin";
 const CLUB_URL = "birdiesbayside";
 
 // Get API key - READ-ONLY from database
-// New keys are only created by the daily sgt-refresh-api-key cron job at 4am
 async function getApiKey(supabase: unknown): Promise<string> {
   const client = supabase as ReturnType<typeof createClient>;
   
@@ -51,6 +50,37 @@ function extractArray(data: unknown, keys: string[]): unknown[] {
   return [];
 }
 
+// SGT API POST request helper
+async function sgtPost(
+  apiKey: string, 
+  endpoint: string, 
+  body: Record<string, string>
+): Promise<{ success?: boolean; feedback?: string }> {
+  const formData = new URLSearchParams();
+  formData.append("api-key", apiKey);
+  
+  for (const [key, value] of Object.entries(body)) {
+    formData.append(key, value);
+  }
+  
+  console.log(`[SGT-CLEANUP] POST: ${endpoint}`, body);
+  
+  const response = await fetch(`${SGT_BASE_URL}/${CLUB_URL}${endpoint}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: formData.toString(),
+  });
+
+  const text = await response.text();
+  console.log(`[SGT-CLEANUP] Response: ${text}`);
+  
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { success: false, feedback: text };
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -83,7 +113,7 @@ serve(async (req) => {
 
     console.log(`[SGT-CLEANUP] Active tour: ${activeTour.name} (ID: ${activeTour.tourId})`);
 
-    // 2. Get current tournament from local database (more reliable than API)
+    // 2. Get current tournament from local database (most recent upcoming/in-progress)
     const { data: localTournaments } = await supabase
       .from("sgt_tournaments")
       .select("tournament_id, name, status, start_date, end_date")
@@ -95,89 +125,95 @@ serve(async (req) => {
     const currentTournament = localTournaments?.[0];
 
     if (!currentTournament) {
-      return new Response(
-        JSON.stringify({ error: "No current tournament found", message: "No upcoming or in-progress tournaments in local database" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      console.log(`[SGT-CLEANUP] No current tournament found, will skip registration cleanup`);
+    } else {
+      console.log(`[SGT-CLEANUP] Current tournament: ${currentTournament.name} (ID: ${currentTournament.tournament_id})`);
     }
 
-    console.log(`[SGT-CLEANUP] Current tournament: ${currentTournament.name} (ID: ${currentTournament.tournament_id})`);
+    // 3. Get club members from SGT API
+    const clubMembersResponse = await fetch(`${SGT_BASE_URL}/${CLUB_URL}/members/list?api-key=${apiKey}`);
+    const clubMembersData = await clubMembersResponse.json();
+    const clubMembers = extractArray(clubMembersData, ['members', 'results']) as { user_id: number; user_name: string }[];
 
-    // 3. Get tour members from SGT API
+    console.log(`[SGT-CLEANUP] Club has ${clubMembers.length} members from SGT API`);
+
+    // 4. Get tour members from SGT API
     const tourMembersResponse = await fetch(`${SGT_BASE_URL}/${CLUB_URL}/tours/members?api-key=${apiKey}&tourId=${activeTour.tourId}`);
     const tourMembersData = await tourMembersResponse.json();
     const tourMembers = extractArray(tourMembersData, ['members', 'results']) as { user_id: number; user_name: string }[];
 
     console.log(`[SGT-CLEANUP] Tour has ${tourMembers.length} members from SGT API`);
 
-    // 4. Get tournament registrations from SGT API
-    const registrationsResponse = await fetch(`${SGT_BASE_URL}/${CLUB_URL}/registrations/view?api-key=${apiKey}&tournamentId=${currentTournament.tournament_id}`);
-    const registrationsData = await registrationsResponse.json();
-    const registrations = extractArray(registrationsData, ['registrations', 'results']) as { user_id: number; user_name?: string }[];
+    // 5. Get tournament registrations if we have a current tournament
+    let registrations: { user_id: number; user_name?: string }[] = [];
+    if (currentTournament) {
+      const registrationsResponse = await fetch(
+        `${SGT_BASE_URL}/${CLUB_URL}/registrations/view?api-key=${apiKey}&tournamentId=${currentTournament.tournament_id}`
+      );
+      const registrationsData = await registrationsResponse.json();
+      registrations = extractArray(registrationsData, ['registrations', 'results']) as { user_id: number; user_name?: string }[];
+      console.log(`[SGT-CLEANUP] Tournament has ${registrations.length} registrations from SGT API`);
+    }
 
-    console.log(`[SGT-CLEANUP] Tournament has ${registrations.length} registrations from SGT API`);
-
-    // 5. Get exempt members from our database
+    // 6. Get exempt members from our database
     const { data: exemptMembers } = await supabase
       .from("sgt_members")
       .select("user_id")
       .eq("exempt_from_cleanup", true);
 
     const exemptUserIds = new Set((exemptMembers || []).map(m => m.user_id));
-    console.log(`[SGT-CLEANUP] Found ${exemptUserIds.size} exempt members: ${Array.from(exemptUserIds).join(', ')}`);
+    console.log(`[SGT-CLEANUP] Found ${exemptUserIds.size} exempt members`);
 
-    // 6. Get linked profiles with paying memberships
+    // 7. Get linked profiles with paying memberships (birdie or eagle)
     const { data: linkedProfiles } = await supabase
       .from("profiles")
       .select("sgt_user_id, membership_tier, email, first_name, last_name")
       .not("sgt_user_id", "is", null)
-      .neq("membership_tier", "visitor");
+      .in("membership_tier", ["birdie", "eagle"]);
 
     const payingMemberIds = new Set((linkedProfiles || []).map(p => p.sgt_user_id));
-    console.log(`[SGT-CLEANUP] Found ${payingMemberIds.size} paying members: ${linkedProfiles?.map(p => `${p.sgt_user_id}`).join(', ')}`);
+    console.log(`[SGT-CLEANUP] Found ${payingMemberIds.size} paying Birdie/Eagle members`);
 
-    // 7. Find ineligible tour members (not exempt AND not paying)
-    const ineligibleTourMembers = tourMembers.filter(member => {
-      const isExempt = exemptUserIds.has(member.user_id);
-      const isPaying = payingMemberIds.has(member.user_id);
-      return !isExempt && !isPaying;
-    });
-
-    console.log(`[SGT-CLEANUP] Found ${ineligibleTourMembers.length} ineligible TOUR members: ${ineligibleTourMembers.map(m => m.user_name).join(', ')}`);
-
-    // 8. Find ineligible tournament registrations (not exempt AND not paying)
-    const ineligibleRegistrations = registrations.filter(reg => {
-      const isExempt = exemptUserIds.has(reg.user_id);
-      const isPaying = payingMemberIds.has(reg.user_id);
-      return !isExempt && !isPaying;
-    });
-
-    console.log(`[SGT-CLEANUP] Found ${ineligibleRegistrations.length} ineligible TOURNAMENT registrations`);
-
-    // Combine all unique user IDs that need cleanup
-    const allIneligibleUsers = new Map<number, string>();
+    // 8. Find ineligible members across all three: club, tour, and registrations
+    const allMemberIds = new Map<number, string>();
     
-    for (const member of ineligibleTourMembers) {
-      allIneligibleUsers.set(member.user_id, member.user_name);
+    // Add all club members
+    for (const member of clubMembers) {
+      allMemberIds.set(member.user_id, member.user_name);
     }
     
-    for (const reg of ineligibleRegistrations) {
-      if (!allIneligibleUsers.has(reg.user_id)) {
-        // Try to get username from tour members or use a placeholder
-        const tourMember = tourMembers.find(m => m.user_id === reg.user_id);
-        allIneligibleUsers.set(reg.user_id, tourMember?.user_name || reg.user_name || `User_${reg.user_id}`);
+    // Add all tour members (in case some are in tour but not club)
+    for (const member of tourMembers) {
+      if (!allMemberIds.has(member.user_id)) {
+        allMemberIds.set(member.user_id, member.user_name);
+      }
+    }
+    
+    // Add registrations
+    for (const reg of registrations) {
+      if (!allMemberIds.has(reg.user_id)) {
+        allMemberIds.set(reg.user_id, reg.user_name || `User_${reg.user_id}`);
       }
     }
 
-    console.log(`[SGT-CLEANUP] Total unique ineligible users: ${allIneligibleUsers.size}`);
-    console.log(`[SGT-CLEANUP] Users to remove: ${Array.from(allIneligibleUsers.values()).join(', ')}`);
+    // Filter to ineligible (not exempt AND not paying)
+    const ineligibleUsers = new Map<number, string>();
+    for (const [userId, userName] of allMemberIds) {
+      if (!exemptUserIds.has(userId) && !payingMemberIds.has(userId)) {
+        ineligibleUsers.set(userId, userName);
+      }
+    }
 
-    if (allIneligibleUsers.size === 0) {
+    console.log(`[SGT-CLEANUP] Found ${ineligibleUsers.size} ineligible users to clean up`);
+    console.log(`[SGT-CLEANUP] Users: ${Array.from(ineligibleUsers.values()).join(', ')}`);
+
+    if (ineligibleUsers.size === 0) {
       return new Response(
         JSON.stringify({ 
           message: "No ineligible members found",
           tour: activeTour.name,
-          tournament: currentTournament.name,
+          tournament: currentTournament?.name || null,
+          club_members_checked: clubMembers.length,
           tour_members_checked: tourMembers.length,
           registrations_checked: registrations.length,
           exempt_count: exemptUserIds.size,
@@ -193,75 +229,90 @@ serve(async (req) => {
         JSON.stringify({ 
           message: "Dry run - no changes made",
           tour: activeTour.name,
-          tournament: currentTournament.name,
+          tournament: currentTournament?.name || null,
+          club_members_checked: clubMembers.length,
           tour_members_checked: tourMembers.length,
           registrations_checked: registrations.length,
-          ineligible_tour_members: ineligibleTourMembers.length,
-          ineligible_registrations: ineligibleRegistrations.length,
-          would_remove: Array.from(allIneligibleUsers.entries()).map(([id, name]) => ({ user_id: id, user_name: name }))
+          would_remove: Array.from(ineligibleUsers.entries()).map(([id, name]) => ({ 
+            user_id: id, 
+            user_name: name,
+            in_club: clubMembers.some(m => m.user_id === id),
+            in_tour: tourMembers.some(m => m.user_id === id),
+            in_tournament: registrations.some(r => r.user_id === id),
+          }))
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     // Perform actual cleanup
-    const results: { user_name: string; user_id: number; tournament_removed: boolean; tour_removed: boolean; error?: string }[] = [];
+    const results: { 
+      user_name: string; 
+      user_id: number; 
+      registration_removed: boolean;
+      tour_removed: boolean;
+      club_removed: boolean;
+      error?: string;
+    }[] = [];
 
-    for (const [userId, userName] of allIneligibleUsers) {
-      const result: typeof results[0] = {
+    for (const [userId, userName] of ineligibleUsers) {
+      const result = {
         user_name: userName,
         user_id: userId,
-        tournament_removed: false,
+        registration_removed: false,
         tour_removed: false,
+        club_removed: false,
+        error: undefined as string | undefined,
       };
 
       try {
-        // Use the same API key for all users (key is refreshed daily at 4am)
-        // Remove from tournament registration
+        // Step 1: Remove from tournament registration (must happen first)
         const isRegistered = registrations.some(r => r.user_id === userId);
-        if (isRegistered) {
-          const deleteRegForm = new URLSearchParams();
-          deleteRegForm.append("api-key", apiKey);
-          deleteRegForm.append("tournamentId", currentTournament.tournament_id.toString());
-          deleteRegForm.append("tourId", activeTour.tourId.toString());
-          deleteRegForm.append("userId", userId.toString());
-
-          const deleteRegResponse = await fetch(`${SGT_BASE_URL}/${CLUB_URL}/registrations/delete`, {
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: deleteRegForm.toString(),
+        if (isRegistered && currentTournament) {
+          // API requires: tournamentId, tourId, user_id (note: userId uses underscore)
+          const regResult = await sgtPost("/registrations/delete", {
+            tournamentId: currentTournament.tournament_id.toString(),
+            tourId: activeTour.tourId.toString(),
+            user_id: userId.toString(),
           });
-
-          const deleteRegData = await deleteRegResponse.json();
-          result.tournament_removed = deleteRegData.success === true;
-          console.log(`[SGT-CLEANUP] Tournament removal for ${userName}:`, deleteRegData);
+          result.registration_removed = regResult.success === true;
+          console.log(`[SGT-CLEANUP] Registration removal for ${userName}: ${result.registration_removed}`);
         }
 
-        // Remove from tour
+        // Step 2: Remove from tour
         const isInTour = tourMembers.some(m => m.user_id === userId);
         if (isInTour) {
-          const removeTourForm = new URLSearchParams();
-          removeTourForm.append("api-key", apiKey);
-          removeTourForm.append("tourId", activeTour.tourId.toString());
-          removeTourForm.append("user_id", userId.toString());
-
-          const removeTourResponse = await fetch(`${SGT_BASE_URL}/${CLUB_URL}/tours/remove-member`, {
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: removeTourForm.toString(),
+          // API requires: tourId, user_id (note: tourId is camelCase!)
+          const tourResult = await sgtPost("/tours/remove-member", {
+            tourId: activeTour.tourId.toString(),
+            user_id: userId.toString(),
           });
-
-          const removeTourData = await removeTourResponse.json();
-          result.tour_removed = removeTourData.success === true;
-          console.log(`[SGT-CLEANUP] Tour removal for ${userName}:`, removeTourData);
+          result.tour_removed = tourResult.success === true;
+          console.log(`[SGT-CLEANUP] Tour removal for ${userName}: ${result.tour_removed}`);
         }
 
-        // Remove from local sgt_tour_members table
+        // Step 3: Remove from club (use /members/remove NOT /members/delete!)
+        const isInClub = clubMembers.some(m => m.user_id === userId);
+        if (isInClub) {
+          // API requires: user_id
+          const clubResult = await sgtPost("/members/remove", {
+            user_id: userId.toString(),
+          });
+          result.club_removed = clubResult.success === true;
+          console.log(`[SGT-CLEANUP] Club removal for ${userName}: ${result.club_removed}`);
+        }
+
+        // Clean up local database
         await supabase
           .from("sgt_tour_members")
           .delete()
           .eq("user_id", userId)
           .eq("tour_id", activeTour.tourId);
+
+        await supabase
+          .from("sgt_members")
+          .delete()
+          .eq("user_id", userId);
 
         console.log(`[SGT-CLEANUP] ✓ Cleaned up ${userName}`);
       } catch (error) {
@@ -271,21 +322,23 @@ serve(async (req) => {
 
       results.push(result);
       
-      // Small delay between API calls
+      // Small delay between API calls to avoid rate limiting
       await new Promise(resolve => setTimeout(resolve, 300));
     }
 
-    const successCount = results.filter(r => r.tournament_removed || r.tour_removed).length;
+    const successCount = results.filter(r => 
+      r.registration_removed || r.tour_removed || r.club_removed
+    ).length;
 
-    console.log(`[SGT-CLEANUP] Completed: ${successCount}/${allIneligibleUsers.size} removed`);
+    console.log(`[SGT-CLEANUP] Completed: ${successCount}/${ineligibleUsers.size} users cleaned up`);
 
     return new Response(
       JSON.stringify({
         success: true,
         tour: activeTour.name,
-        tournament: currentTournament.name,
-        total_ineligible: allIneligibleUsers.size,
-        removed: successCount,
+        tournament: currentTournament?.name || null,
+        total_ineligible: ineligibleUsers.size,
+        cleaned_up: successCount,
         results,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
