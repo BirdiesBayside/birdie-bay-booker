@@ -153,14 +153,18 @@ export function SGTWinners() {
     },
   });
 
-  // Fetch completed tournaments that need prize approval
+  // Fetch completed tournaments that need prize approval (only from Feb 2025 onwards)
   const { data: completedTournaments, isLoading: loadingCompleted } = useQuery({
     queryKey: ["sgt-completed-tournaments-pending"],
     queryFn: async () => {
+      // Only show tournaments from February 2025 onwards (when prizes started)
+      const prizeStartDate = "2025-02-01";
+      
       const { data: tournaments, error: tournError } = await supabase
         .from("sgt_tournaments")
         .select("tournament_id, name, status, start_date, end_date")
         .eq("status", "Completed")
+        .gte("start_date", prizeStartDate)
         .order("end_date", { ascending: false })
         .limit(20);
       
@@ -369,10 +373,16 @@ export function SGTWinners() {
     return score > 0 ? `+${score}` : `${score}`;
   };
 
-  // Generate month options for the last 6 months
+  // Generate month options starting from February 2025 (when monthly prizes started)
   const monthOptions = Array.from({ length: 6 }, (_, i) => {
     const date = subMonths(new Date(), i);
     return format(date, "MMMM yyyy");
+  }).filter(month => {
+    // Only include February 2025 and onwards
+    const [monthName, year] = month.split(" ");
+    if (parseInt(year) > 2025) return true;
+    if (parseInt(year) === 2025 && monthName !== "January") return true;
+    return false;
   });
 
   return (
