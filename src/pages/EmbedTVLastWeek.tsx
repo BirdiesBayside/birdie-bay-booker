@@ -38,7 +38,6 @@ async function fetchPublicLeaderboard(action: string, params: Record<string, str
 }
 
 export default function EmbedTVLastWeek() {
-  const [tourName, setTourName] = useState<string | null>(null);
   const [lastTournament, setLastTournament] = useState<Tournament | null>(null);
   const [results, setResults] = useState<TournamentResult[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -46,7 +45,7 @@ export default function EmbedTVLastWeek() {
 
   const loadData = async () => {
     try {
-      // Get the last completed tournament across ALL tours
+      // Get the last completed tournament from the Birdies Tour
       const lastCompletedData = await fetchPublicLeaderboard("last-completed-tournament");
       const tournament = lastCompletedData.tournament;
       
@@ -56,7 +55,6 @@ export default function EmbedTVLastWeek() {
       }
       
       setLastTournament(tournament);
-      setTourName(lastCompletedData.tourName);
 
       // Get results for this tournament
       const resultsData = await fetchPublicLeaderboard("tournament-results", {
@@ -74,7 +72,7 @@ export default function EmbedTVLastWeek() {
 
   useEffect(() => {
     loadData();
-    // Auto-refresh every 60 seconds for live updates
+    // Auto-refresh every 60 seconds
     const interval = setInterval(loadData, 60 * 1000);
     return () => clearInterval(interval);
   }, []);
@@ -111,16 +109,16 @@ export default function EmbedTVLastWeek() {
           <img src={birdiesLogo} alt="Birdies" className="h-16" />
           <div>
             <h1 className="font-bold text-4xl text-[hsl(128,42%,21%)] tracking-tight">
-              {lastTournament?.name || "Last Completed Tournament"}
+              {lastTournament?.name || "Last Week"}
             </h1>
             <p className="text-xl text-[hsl(128,20%,40%)]">
-              {lastTournament?.course_name} • {tourName} • NET Scores
+              {lastTournament?.course_name} • NET Scores
             </p>
           </div>
         </div>
         <div className="text-right">
           <div className="px-6 py-3 bg-[hsl(128,42%,21%)] text-white rounded-lg text-xl font-bold">
-            LAST COMPLETED
+            LAST WEEK
           </div>
           <p className="text-sm text-[hsl(128,20%,40%)] mt-2">
             Updated: {lastUpdated.toLocaleTimeString()}
@@ -143,71 +141,79 @@ export default function EmbedTVLastWeek() {
 
         {/* Table Body */}
         <div className="divide-y divide-[hsl(128,20%,85%)]">
-          {results.slice(0, 12).map((result) => (
-            <div
-              key={result.playerName}
-              className={cn(
-                "grid grid-cols-12 gap-4 px-6 py-4 items-center",
-                result.position <= 3 && "bg-[hsl(37,100%,97%)]"
-              )}
-            >
-              <div className="col-span-1 flex items-center justify-center gap-2">
-                {getPositionIcon(result.position)}
-                <span className={cn(
-                  "font-bold text-2xl",
-                  result.position <= 3 ? "text-[hsl(128,42%,21%)]" : "text-[hsl(128,20%,40%)]"
-                )}>
-                  {result.position}
-                </span>
-              </div>
-
-              <div className="col-span-4">
-                <p className="font-bold text-2xl text-[hsl(128,42%,21%)]">{result.playerName}</p>
-              </div>
-
-              <div className="col-span-1 text-center text-xl text-[hsl(128,20%,40%)]">
-                {result.hcp ?? "-"}
-              </div>
-              <div className="col-span-2 text-center text-xl text-[hsl(128,20%,40%)]">
-                {result.dnf && result.rd1 === null ? "DNF" : (
-                  <>
-                    {result.rd1 ?? "-"}
-                    {result.rd1Thru && <span className="text-sm ml-1">({result.rd1Thru})</span>}
-                  </>
-                )}
-              </div>
-              <div className="col-span-2 text-center text-xl text-[hsl(128,20%,40%)]">
-                {result.dnf && result.rd2 === null ? "DNF" : (
-                  <>
-                    {result.rd2 ?? "-"}
-                    {result.rd2Thru && <span className="text-sm ml-1">({result.rd2Thru})</span>}
-                  </>
-                )}
-              </div>
-              <div className="col-span-1 text-center font-bold text-2xl text-[hsl(128,42%,21%)]">
-                {result.dnf ? "DNF" : result.total ?? "-"}
-              </div>
-              <div className="col-span-1 text-center">
-                <span
-                  className={cn(
-                    "px-3 py-1 rounded-lg font-bold text-xl",
-                    result.dnf && "bg-muted text-muted-foreground",
-                    !result.dnf && result.toPar !== null && result.toPar < 0 && "bg-red-100 text-red-700",
-                    !result.dnf && result.toPar === 0 && "bg-green-100 text-green-700",
-                    !result.dnf && result.toPar !== null && result.toPar > 0 && "bg-blue-100 text-blue-700",
-                  )}
-                >
-                  {result.dnf ? "DNF" : formatScore(result.toPar)}
-                </span>
-              </div>
+          {results.length === 0 ? (
+            <div className="px-6 py-12 text-center">
+              <p className="text-2xl text-[hsl(128,20%,40%)]">
+                No results available
+              </p>
             </div>
-          ))}
+          ) : (
+            results.slice(0, 12).map((result) => (
+              <div
+                key={result.playerName}
+                className={cn(
+                  "grid grid-cols-12 gap-4 px-6 py-4 items-center",
+                  result.position <= 3 && "bg-[hsl(37,100%,97%)]"
+                )}
+              >
+                <div className="col-span-1 flex items-center justify-center gap-2">
+                  {getPositionIcon(result.position)}
+                  <span className={cn(
+                    "font-bold text-2xl",
+                    result.position <= 3 ? "text-[hsl(128,42%,21%)]" : "text-[hsl(128,20%,40%)]"
+                  )}>
+                    {result.position}
+                  </span>
+                </div>
+
+                <div className="col-span-4">
+                  <p className="font-bold text-2xl text-[hsl(128,42%,21%)]">{result.playerName}</p>
+                </div>
+
+                <div className="col-span-1 text-center text-xl text-[hsl(128,20%,40%)]">
+                  {result.hcp ?? "-"}
+                </div>
+                <div className="col-span-2 text-center text-xl text-[hsl(128,20%,40%)]">
+                  {result.dnf && result.rd1 === null ? "DNF" : (
+                    <>
+                      {result.rd1 ?? "-"}
+                      {result.rd1Thru && <span className="text-sm ml-1">({result.rd1Thru})</span>}
+                    </>
+                  )}
+                </div>
+                <div className="col-span-2 text-center text-xl text-[hsl(128,20%,40%)]">
+                  {result.dnf && result.rd2 === null ? "DNF" : (
+                    <>
+                      {result.rd2 ?? "-"}
+                      {result.rd2Thru && <span className="text-sm ml-1">({result.rd2Thru})</span>}
+                    </>
+                  )}
+                </div>
+                <div className="col-span-1 text-center font-bold text-2xl text-[hsl(128,42%,21%)]">
+                  {result.dnf ? "DNF" : result.total ?? "-"}
+                </div>
+                <div className="col-span-1 text-center">
+                  <span
+                    className={cn(
+                      "px-3 py-1 rounded-lg font-bold text-xl",
+                      result.dnf && "bg-muted text-muted-foreground",
+                      !result.dnf && result.toPar !== null && result.toPar < 0 && "bg-red-100 text-red-700",
+                      !result.dnf && result.toPar === 0 && "bg-green-100 text-green-700",
+                      !result.dnf && result.toPar !== null && result.toPar > 0 && "bg-blue-100 text-blue-700",
+                    )}
+                  >
+                    {result.dnf ? "DNF" : formatScore(result.toPar)}
+                  </span>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
 
       {/* Footer */}
       <div className="mt-4 text-center text-lg text-[hsl(128,20%,40%)]">
-        Live updates every 60 seconds • Powered by Birdies League Hub
+        Last Week's Results • Powered by Birdies League Hub
       </div>
     </div>
   );

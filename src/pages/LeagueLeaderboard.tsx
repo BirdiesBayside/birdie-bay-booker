@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { LeagueLayout } from "@/components/league/LeagueLayout";
-import { useSGTTourStandings, useSGTTournamentStandings } from "@/hooks/useSGTEmbedData";
-import { sgtClient, Tour, Tournament } from "@/lib/sgt-api";
+import { useSGTTournamentStandings } from "@/hooks/useSGTEmbedData";
+import { useActiveTourData } from "@/hooks/useActiveTourData";
 import { Loader2, Trophy, Medal, Award } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -13,34 +13,28 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 
 export default function LeagueLeaderboard() {
   const { user, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [displayName, setDisplayName] = useState<string>("");
-  const [tours, setTours] = useState<Tour[]>([]);
-  const [selectedTour, setSelectedTour] = useState<number | null>(null);
-  const [tournaments, setTournaments] = useState<Tournament[]>([]);
-  const [selectedTournament, setSelectedTournament] = useState<number | null>(null);
   const [scoreType, setScoreType] = useState<"gross" | "net">("net");
-  const [viewMode, setViewMode] = useState<"overall" | "weekly">("weekly");
   const [showAllWeeks, setShowAllWeeks] = useState(false);
-  const [toursLoading, setToursLoading] = useState(true);
 
   const INITIAL_WEEKS_TO_SHOW = 5;
 
-  // Fetch standings using embed scraper
-  const { 
-    standings: tourStandings, 
-    isLoading: tourStandingsLoading,
-  } = useSGTTourStandings({
-    id: selectedTour,
-    scoreType,
-    enabled: viewMode === "overall" && !!selectedTour,
-    refreshInterval: 30000,
-  });
+  // Get active tour and tournaments automatically
+  const { activeTour, tournaments, isLoading: tourLoading } = useActiveTourData();
+  
+  const [selectedTournament, setSelectedTournament] = useState<number | null>(null);
+
+  // Set initial tournament when data loads
+  useEffect(() => {
+    if (tournaments.length > 0 && !selectedTournament) {
+      setSelectedTournament(tournaments[0].tournament_id);
+    }
+  }, [tournaments, selectedTournament]);
 
   const { 
     standings: tournamentStandings, 
@@ -48,11 +42,11 @@ export default function LeagueLeaderboard() {
   } = useSGTTournamentStandings({
     id: selectedTournament,
     scoreType,
-    enabled: viewMode === "weekly" && !!selectedTournament,
+    enabled: !!selectedTournament,
     refreshInterval: 30000,
   });
 
-  const isLoading = viewMode === "overall" ? tourStandingsLoading : tournamentStandingsLoading;
+  const isLoading = tourLoading || tournamentStandingsLoading;
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -63,8 +57,7 @@ export default function LeagueLeaderboard() {
   useEffect(() => {
     if (authLoading || !user) return;
 
-    async function loadInitial() {
-      // Get display name
+    async function loadDisplayName() {
       const { data: profile } = await supabase
         .from("profiles")
         .select("display_name")
@@ -72,61 +65,11 @@ export default function LeagueLeaderboard() {
         .maybeSingle();
       
       setDisplayName(profile?.display_name || "");
-
-      // Load tours
-      try {
-        const data = await sgtClient.getTours();
-        const sortedTours = data.sort((a, b) => {
-          if (a.active !== b.active) return b.active - a.active;
-          const dateA = a.start_date ? new Date(a.start_date).getTime() : 0;
-          const dateB = b.start_date ? new Date(b.start_date).getTime() : 0;
-          return dateB - dateA;
-        });
-        setTours(sortedTours);
-        const activeTour = sortedTours.find(t => t.active === 1);
-        if (activeTour) {
-          setSelectedTour(activeTour.tourId);
-        } else if (sortedTours.length > 0) {
-          setSelectedTour(sortedTours[0].tourId);
-        }
-      } catch (error) {
-        console.error("Failed to load tours:", error);
-      } finally {
-        setToursLoading(false);
-      }
     }
-    loadInitial();
+    loadDisplayName();
   }, [authLoading, user]);
 
-  // Load tournaments when tour changes
-  useEffect(() => {
-    if (!selectedTour) return;
-
-    async function loadTournaments() {
-      try {
-        const data = await sgtClient.getTournaments(selectedTour);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        const availableTournaments = data.results.filter(t => {
-          if (t.status === "Completed" || t.status === "In Progress") return true;
-          if (!t.start_date) return false;
-          const startDate = new Date(t.start_date + 'T00:00:00');
-          return startDate <= today;
-        });
-        setTournaments(availableTournaments);
-        if (availableTournaments.length > 0) {
-          setSelectedTournament(availableTournaments[0].tournamentId);
-        }
-      } catch (error) {
-        console.error("Failed to load tournaments:", error);
-        setTournaments([]);
-      }
-    }
-    loadTournaments();
-  }, [selectedTour]);
-
-  if (authLoading || !user || toursLoading) {
+  if (authLoading || !user || tourLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 text-secondary animate-spin" />
@@ -150,55 +93,25 @@ export default function LeagueLeaderboard() {
     return "text-red-500";
   };
 
+  // Filter tournaments for the active tour only
+  const filteredTournaments = activeTour 
+    ? tournaments.filter(t => t.tour_id === activeTour.tour_id)
+    : tournaments;
+
   return (
     <LeagueLayout>
       <div className="mb-8 animate-fade-in">
         <h1 className="font-anton text-3xl md:text-4xl text-foreground mb-2">
-          LEADERBOARD
+          WEEKLY RESULTS
         </h1>
         <p className="font-inter text-muted-foreground">
-          See how you compare to other League Hub players
+          {activeTour?.name || "Birdies Tour"} • See how you compare each week
         </p>
       </div>
 
-      {/* View Mode Tabs */}
-      <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "overall" | "weekly")} className="mb-6">
-        <TabsList className="grid w-full max-w-md grid-cols-2">
-          <TabsTrigger value="overall" className="font-inter">Overall Standings</TabsTrigger>
-          <TabsTrigger value="weekly" className="font-inter">Weekly Results</TabsTrigger>
-        </TabsList>
-      </Tabs>
-
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4 mb-6 animate-slide-up">
-        <Select
-          value={selectedTour?.toString()}
-          onValueChange={(val) => setSelectedTour(parseInt(val))}
-        >
-          <SelectTrigger className="w-full sm:w-[280px] font-inter">
-            <SelectValue placeholder="Select tour" />
-          </SelectTrigger>
-          <SelectContent>
-            {tours.map((tour) => (
-              <SelectItem key={tour.tourId} value={tour.tourId.toString()}>
-                <div className="flex items-center gap-2">
-                  <span>{tour.name}</span>
-                  {tour.active === 1 ? (
-                    <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-green-500/20 text-green-600 rounded">
-                      ACTIVE
-                    </span>
-                  ) : (
-                    <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-muted text-muted-foreground rounded">
-                      FINISHED
-                    </span>
-                  )}
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {viewMode === "weekly" && tournaments.length > 0 && (
+        {filteredTournaments.length > 0 && (
           <Select
             value={selectedTournament?.toString()}
             onValueChange={(val) => setSelectedTournament(parseInt(val))}
@@ -207,8 +120,8 @@ export default function LeagueLeaderboard() {
               <SelectValue placeholder="Select week" />
             </SelectTrigger>
             <SelectContent>
-              {(showAllWeeks ? tournaments : tournaments.slice(0, INITIAL_WEEKS_TO_SHOW)).map((tournament, index) => (
-                <SelectItem key={tournament.tournamentId} value={tournament.tournamentId.toString()}>
+              {(showAllWeeks ? filteredTournaments : filteredTournaments.slice(0, INITIAL_WEEKS_TO_SHOW)).map((tournament, index) => (
+                <SelectItem key={tournament.tournament_id} value={tournament.tournament_id.toString()}>
                   <div className="flex items-center gap-2">
                     <span>{tournament.name}</span>
                     {index === 0 && (
@@ -219,7 +132,7 @@ export default function LeagueLeaderboard() {
                   </div>
                 </SelectItem>
               ))}
-              {tournaments.length > INITIAL_WEEKS_TO_SHOW && (
+              {filteredTournaments.length > INITIAL_WEEKS_TO_SHOW && (
                 <div
                   className="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground font-inter text-muted-foreground"
                   onClick={(e) => {
@@ -227,7 +140,7 @@ export default function LeagueLeaderboard() {
                     setShowAllWeeks(!showAllWeeks);
                   }}
                 >
-                  {showAllWeeks ? "Show less" : `Show ${tournaments.length - INITIAL_WEEKS_TO_SHOW} more weeks...`}
+                  {showAllWeeks ? "Show less" : `Show ${filteredTournaments.length - INITIAL_WEEKS_TO_SHOW} more weeks...`}
                 </div>
               )}
             </SelectContent>
@@ -266,193 +179,141 @@ export default function LeagueLeaderboard() {
         <div className="flex items-center justify-center py-20">
           <Loader2 className="h-8 w-8 text-secondary animate-spin" />
         </div>
-      ) : viewMode === "overall" ? (
-        tourStandings.length === 0 ? (
-          <div className="bg-card rounded-xl border border-border p-12 text-center animate-fade-in">
-            <h3 className="font-anton text-xl text-foreground mb-2">NO STANDINGS YET</h3>
-            <p className="text-muted-foreground font-inter">
-              Standings will appear once players have completed rounds
-            </p>
-          </div>
-        ) : (
-          <div className="bg-card rounded-xl border border-border overflow-hidden animate-slide-up">
-            {/* Table Header */}
-            <div className="hidden md:grid grid-cols-12 gap-4 px-4 py-3 bg-muted/50 border-b border-border font-inter text-sm font-medium text-muted-foreground">
-              <div className="col-span-1 text-center">#</div>
-              <div className="col-span-5">Player</div>
-              <div className="col-span-1 text-center">Events</div>
-              <div className="col-span-1 text-center">Wins</div>
-              <div className="col-span-1 text-center">Top 5</div>
-              <div className="col-span-1 text-center">Top 10</div>
-              <div className="col-span-2 text-center">Points</div>
-            </div>
-
-            <div className="divide-y divide-border">
-              {tourStandings.map((standing, index) => {
-                const isCurrentPlayer = displayName && standing.playerName.toLowerCase() === displayName.toLowerCase();
-                return (
-                  <div
-                    key={standing.playerName}
-                    className={cn(
-                      "grid grid-cols-12 gap-4 px-4 py-4 items-center transition-colors",
-                      isCurrentPlayer && "bg-secondary/10 border-l-4 border-secondary",
-                      !isCurrentPlayer && "hover:bg-muted/30"
-                    )}
-                    style={{ animationDelay: `${index * 30}ms` }}
-                  >
-                    <div className="col-span-2 md:col-span-1 flex items-center justify-center gap-2">
-                      {getPositionIcon(standing.position)}
-                      <span className={cn(
-                        "font-display text-lg",
-                        standing.position <= 3 ? "text-foreground" : "text-muted-foreground"
-                      )}>
-                        {standing.position}
-                      </span>
-                    </div>
-
-                    <div className="col-span-7 md:col-span-5 flex items-center gap-3">
-                      <div className={cn(
-                        "w-10 h-10 rounded-full flex items-center justify-center font-display text-lg",
-                        isCurrentPlayer
-                          ? "bg-secondary text-secondary-foreground"
-                          : "bg-primary text-primary-foreground"
-                      )}>
-                        {standing.playerName.charAt(0).toUpperCase()}
-                      </div>
-                      <div>
-                        <p className={cn(
-                          "font-inter font-semibold",
-                          isCurrentPlayer ? "text-secondary" : "text-foreground"
-                        )}>
-                          {standing.playerName}
-                          <span className="text-muted-foreground font-normal ml-1">
-                            ({standing.hcp ?? "-"})
-                          </span>
-                          {isCurrentPlayer && <span className="text-xs ml-2">(You)</span>}
-                        </p>
-                        <p className="font-inter text-xs text-muted-foreground md:hidden">
-                          {standing.events} events • {standing.points} pts
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="hidden md:block col-span-1 text-center font-inter text-muted-foreground">
-                      {standing.events}
-                    </div>
-                    <div className="hidden md:block col-span-1 text-center font-inter font-medium text-foreground">
-                      {standing.wins || "-"}
-                    </div>
-                    <div className="hidden md:block col-span-1 text-center font-inter text-muted-foreground">
-                      {standing.top5 || "-"}
-                    </div>
-                    <div className="hidden md:block col-span-1 text-center font-inter text-muted-foreground">
-                      {standing.top10 || "-"}
-                    </div>
-
-                    <div className="col-span-3 md:col-span-2 text-center">
-                      <span className="font-display text-xl text-foreground">
-                        {standing.points}
-                      </span>
-                      <span className="text-xs text-muted-foreground font-inter ml-1">pts</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )
+      ) : tournamentStandings.length === 0 ? (
+        <div className="bg-card rounded-xl border border-border p-12 text-center animate-fade-in">
+          <h3 className="font-anton text-xl text-foreground mb-2">NO RESULTS YET</h3>
+          <p className="text-muted-foreground font-inter">
+            {filteredTournaments.length === 0
+              ? "No tournaments available yet"
+              : "No results available for this tournament"
+            }
+          </p>
+        </div>
       ) : (
-        // Weekly Results View
-        tournamentStandings.length === 0 ? (
-          <div className="bg-card rounded-xl border border-border p-12 text-center animate-fade-in">
-            <h3 className="font-anton text-xl text-foreground mb-2">NO RESULTS YET</h3>
-            <p className="text-muted-foreground font-inter">
-              {tournaments.length === 0
-                ? "No completed tournaments in this tour yet"
-                : "No results available for this tournament"
-              }
-            </p>
+        <div className="bg-card rounded-xl border border-border overflow-hidden animate-slide-up">
+          {/* Tournament Info Header */}
+          {selectedTournament && filteredTournaments.find(t => t.tournament_id === selectedTournament) && (
+            <div className="px-4 py-3 bg-primary/10 border-b border-border">
+              <h3 className="font-anton text-lg text-foreground">
+                {filteredTournaments.find(t => t.tournament_id === selectedTournament)?.name}
+              </h3>
+              <p className="font-inter text-sm text-muted-foreground">
+                {filteredTournaments.find(t => t.tournament_id === selectedTournament)?.course_name}
+              </p>
+            </div>
+          )}
+
+          {/* Table Header - Mobile */}
+          <div className="grid md:hidden grid-cols-12 gap-4 px-4 py-2 bg-muted/50 border-b border-border font-inter text-xs font-medium text-muted-foreground">
+            <div className="col-span-2 text-center">#</div>
+            <div className="col-span-4">Player</div>
+            <div className="col-span-2 text-center">R1</div>
+            <div className="col-span-2 text-center">R2</div>
+            <div className="col-span-2 text-center">+/-</div>
           </div>
-        ) : (
-          <div className="bg-card rounded-xl border border-border overflow-hidden animate-slide-up">
-            {/* Tournament Info Header */}
-            {selectedTournament && tournaments.find(t => t.tournamentId === selectedTournament) && (
-              <div className="px-4 py-3 bg-primary/10 border-b border-border">
-                <h3 className="font-anton text-lg text-foreground">
-                  {tournaments.find(t => t.tournamentId === selectedTournament)?.name}
-                </h3>
-                <p className="font-inter text-sm text-muted-foreground">
-                  {tournaments.find(t => t.tournamentId === selectedTournament)?.courseName}
-                </p>
-              </div>
-            )}
 
-            {/* Table Header - Mobile */}
-            <div className="grid md:hidden grid-cols-12 gap-4 px-4 py-2 bg-muted/50 border-b border-border font-inter text-xs font-medium text-muted-foreground">
-              <div className="col-span-2 text-center">#</div>
-              <div className="col-span-4">Player</div>
-              <div className="col-span-2 text-center">R1</div>
-              <div className="col-span-2 text-center">R2</div>
-              <div className="col-span-2 text-center">+/-</div>
-            </div>
+          {/* Table Header - Desktop */}
+          <div className="hidden md:grid grid-cols-12 gap-4 px-4 py-3 bg-muted/50 border-b border-border font-inter text-sm font-medium text-muted-foreground">
+            <div className="col-span-1 text-center">#</div>
+            <div className="col-span-4">Player</div>
+            <div className="col-span-2 text-center">R1</div>
+            <div className="col-span-2 text-center">R2</div>
+            <div className="col-span-1 text-center">Total</div>
+            <div className="col-span-2 text-center">To Par</div>
+          </div>
 
-            {/* Table Header - Desktop */}
-            <div className="hidden md:grid grid-cols-12 gap-4 px-4 py-3 bg-muted/50 border-b border-border font-inter text-sm font-medium text-muted-foreground">
-              <div className="col-span-1 text-center">#</div>
-              <div className="col-span-4">Player</div>
-              <div className="col-span-2 text-center">R1</div>
-              <div className="col-span-2 text-center">R2</div>
-              <div className="col-span-1 text-center">Total</div>
-              <div className="col-span-2 text-center">To Par</div>
-            </div>
+          <div className="divide-y divide-border">
+            {tournamentStandings.map((result, index) => {
+              const isCurrentPlayer = displayName && result.playerName.toLowerCase() === displayName.toLowerCase();
 
-            <div className="divide-y divide-border">
-              {tournamentStandings.map((result, index) => {
-                const isCurrentPlayer = displayName && result.playerName.toLowerCase() === displayName.toLowerCase();
+              return (
+                <div
+                  key={result.playerName}
+                  className={cn(
+                    "grid grid-cols-12 gap-4 px-4 py-4 items-center transition-colors",
+                    isCurrentPlayer && "bg-secondary/10 border-l-4 border-secondary",
+                    !isCurrentPlayer && "hover:bg-muted/30"
+                  )}
+                  style={{ animationDelay: `${index * 30}ms` }}
+                >
+                  {/* Mobile Layout */}
+                  <div className="col-span-2 md:hidden flex items-center justify-center gap-1">
+                    {getPositionIcon(result.position)}
+                    <span className={cn(
+                      "font-display text-lg",
+                      result.position <= 3 ? "text-foreground" : "text-muted-foreground"
+                    )}>
+                      {result.position}
+                    </span>
+                  </div>
 
-                return (
-                  <div
-                    key={result.playerName}
-                    className={cn(
-                      "grid grid-cols-12 gap-4 px-4 py-4 items-center transition-colors",
-                      isCurrentPlayer && "bg-secondary/10 border-l-4 border-secondary",
-                      !isCurrentPlayer && "hover:bg-muted/30"
-                    )}
-                    style={{ animationDelay: `${index * 30}ms` }}
-                  >
-                    <div className="col-span-2 md:col-span-1 flex items-center justify-center gap-1">
-                      {getPositionIcon(result.position)}
-                      <span className={cn(
-                        "font-display text-lg",
-                        result.position <= 3 ? "text-foreground" : "text-muted-foreground"
-                      )}>
-                        {result.position}
-                      </span>
+                  <div className="col-span-4 md:hidden flex items-center gap-2">
+                    <div className={cn(
+                      "w-8 h-8 rounded-full flex items-center justify-center font-display text-sm",
+                      isCurrentPlayer
+                        ? "bg-secondary text-secondary-foreground"
+                        : "bg-primary text-primary-foreground"
+                    )}>
+                      {result.playerName.charAt(0).toUpperCase()}
                     </div>
-
-                    {/* Player - Mobile */}
-                    <div className="col-span-4 md:hidden">
+                    <div className="truncate">
                       <p className={cn(
-                        "font-inter font-semibold text-sm truncate",
+                        "font-inter text-sm font-semibold truncate",
                         isCurrentPlayer ? "text-secondary" : "text-foreground"
                       )}>
                         {result.playerName}
-                        <span className="text-muted-foreground font-normal ml-1">
-                          ({result.hcp ?? "-"})
-                        </span>
+                        {isCurrentPlayer && <span className="text-xs ml-1">(You)</span>}
+                      </p>
+                      <p className="font-inter text-xs text-muted-foreground">
+                        HCP: {result.hcp ?? "-"}
                       </p>
                     </div>
+                  </div>
 
-                    {/* Player - Desktop */}
-                    <div className="hidden md:flex col-span-4 items-center gap-3">
-                      <div className={cn(
-                        "w-8 h-8 rounded-full flex items-center justify-center font-display text-sm",
-                        isCurrentPlayer
-                          ? "bg-secondary text-secondary-foreground"
-                          : "bg-primary text-primary-foreground"
-                      )}>
-                        {result.playerName.charAt(0).toUpperCase()}
-                      </div>
+                  <div className="col-span-2 md:hidden text-center">
+                    <span className={cn("font-inter text-sm", getScoreColor(result.r1))}>
+                      {result.r1}
+                    </span>
+                  </div>
+
+                  <div className="col-span-2 md:hidden text-center">
+                    <span className={cn("font-inter text-sm", getScoreColor(result.r2))}>
+                      {result.r2}
+                    </span>
+                  </div>
+
+                  <div className="col-span-2 md:hidden text-center">
+                    <span className={cn(
+                      "px-2 py-1 rounded font-medium text-sm",
+                      result.toPar.startsWith("-") && "bg-green-100 text-green-700",
+                      result.toPar === "E" && "bg-muted text-foreground",
+                      result.toPar.startsWith("+") && "bg-red-100 text-red-700",
+                    )}>
+                      {result.toPar}
+                    </span>
+                  </div>
+
+                  {/* Desktop Layout */}
+                  <div className="hidden md:flex col-span-1 items-center justify-center gap-2">
+                    {getPositionIcon(result.position)}
+                    <span className={cn(
+                      "font-display text-lg",
+                      result.position <= 3 ? "text-foreground" : "text-muted-foreground"
+                    )}>
+                      {result.position}
+                    </span>
+                  </div>
+
+                  <div className="hidden md:flex col-span-4 items-center gap-3">
+                    <div className={cn(
+                      "w-10 h-10 rounded-full flex items-center justify-center font-display text-lg",
+                      isCurrentPlayer
+                        ? "bg-secondary text-secondary-foreground"
+                        : "bg-primary text-primary-foreground"
+                    )}>
+                      {result.playerName.charAt(0).toUpperCase()}
+                    </div>
+                    <div>
                       <p className={cn(
                         "font-inter font-semibold",
                         isCurrentPlayer ? "text-secondary" : "text-foreground"
@@ -464,45 +325,49 @@ export default function LeagueLeaderboard() {
                         {isCurrentPlayer && <span className="text-xs ml-2">(You)</span>}
                       </p>
                     </div>
-
-                    {/* Rounds */}
-                    <div className="col-span-2 text-center font-display text-muted-foreground">
-                      {result.r1}
-                      {result.r1Thru && (
-                        <span className="text-xs ml-0.5">
-                          {result.r1Thru === "F" ? "" : `(${result.r1Thru})`}
-                        </span>
-                      )}
-                    </div>
-                    <div className="col-span-2 text-center font-display text-muted-foreground">
-                      {result.r2}
-                      {result.r2Thru && (
-                        <span className="text-xs ml-0.5">
-                          {result.r2Thru === "F" ? "" : `(${result.r2Thru})`}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Total - Desktop */}
-                    <div className="hidden md:block col-span-1 text-center font-display font-medium text-foreground">
-                      {result.total}
-                    </div>
-
-                    {/* To Par */}
-                    <div className="col-span-2 text-center">
-                      <span className={cn(
-                        "px-3 py-1.5 rounded-lg font-display text-lg",
-                        getScoreColor(result.toPar)
-                      )}>
-                        {result.toPar}
-                      </span>
-                    </div>
                   </div>
-                );
-              })}
-            </div>
+
+                  <div className="hidden md:block col-span-2 text-center">
+                    <span className={cn("font-inter", getScoreColor(result.r1))}>
+                      {result.r1}
+                    </span>
+                    {result.r1Thru && (
+                      <span className="text-xs text-muted-foreground ml-1">
+                        {result.r1Thru === "F" ? "F" : `(${result.r1Thru})`}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="hidden md:block col-span-2 text-center">
+                    <span className={cn("font-inter", getScoreColor(result.r2))}>
+                      {result.r2}
+                    </span>
+                    {result.r2Thru && (
+                      <span className="text-xs text-muted-foreground ml-1">
+                        {result.r2Thru === "F" ? "F" : `(${result.r2Thru})`}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="hidden md:block col-span-1 text-center font-display text-lg">
+                    {result.total}
+                  </div>
+
+                  <div className="hidden md:block col-span-2 text-center">
+                    <span className={cn(
+                      "px-3 py-1 rounded-lg font-display text-lg",
+                      result.toPar.startsWith("-") && "bg-green-100 text-green-700",
+                      result.toPar === "E" && "bg-muted text-foreground",
+                      result.toPar.startsWith("+") && "bg-red-100 text-red-700",
+                    )}>
+                      {result.toPar}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        )
+        </div>
       )}
     </LeagueLayout>
   );

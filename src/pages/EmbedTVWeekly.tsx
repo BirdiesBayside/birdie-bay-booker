@@ -48,10 +48,10 @@ export default function EmbedTVWeekly() {
           <img src={birdiesLogo} alt="Birdies" className="h-16" />
           <div>
             <h1 className="font-bold text-4xl text-[hsl(128,42%,21%)] tracking-tight">
-              {currentTournament?.name || "WEEKLY RESULTS"}
+              {currentTournament?.name || "THIS WEEK"}
             </h1>
             <p className="text-xl text-[hsl(128,20%,40%)]">
-              {currentTournament?.course_name || "Birdies League Hub"} • NET Scores
+              {currentTournament?.course_name || "Birdies Tour"} • NET Scores
             </p>
           </div>
         </div>
