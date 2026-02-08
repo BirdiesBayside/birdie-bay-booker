@@ -44,8 +44,8 @@ function parseTourStandings(html: string): TourStanding[] {
     const posMatch = rowContent.match(/<td[^>]*position[^>]*>(\d+)<\/td>/i);
     const position = posMatch ? parseInt(posMatch[1], 10) : 0;
     
-    // Extract handicap from three-quarter-font div after player name
-    const hcpMatch = rowContent.match(/three-quarter-font[^>]*>(\d+)<\/div>/i);
+    // Extract handicap from three-quarter-font div after player name (can be negative like -18)
+    const hcpMatch = rowContent.match(/three-quarter-font[^>]*>(-?\d+)<\/div>/i);
     const hcp = hcpMatch ? parseInt(hcpMatch[1], 10) : null;
     
     // Extract all td cells and get their text content
@@ -101,8 +101,8 @@ function parseTournamentStandings(html: string): TournamentStanding[] {
     const posMatch = rowContent.match(/<td[^>]*position[^>]*>(\d+)<\/td>/i);
     const position = posMatch ? parseInt(posMatch[1], 10) : 0;
     
-    // Extract handicap from three-quarter-font div after player name
-    const hcpMatch = rowContent.match(/three-quarter-font[^>]*>(\d+)<\/div>/i);
+    // Extract handicap from three-quarter-font div after player name (can be negative like -18)
+    const hcpMatch = rowContent.match(/three-quarter-font[^>]*>(-?\d+)<\/div>/i);
     const hcp = hcpMatch ? parseInt(hcpMatch[1], 10) : null;
     
     // Extract round scores from td cells with "round" in class
