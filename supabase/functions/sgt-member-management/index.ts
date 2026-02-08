@@ -157,6 +157,40 @@ serve(async (req) => {
     let result: unknown;
 
     switch (action) {
+      case "add-member": {
+        // Add an existing SGT user to the club by their user_id
+        const { userId, email, userName } = params;
+        if (!userId) throw new Error("userId is required");
+
+        console.log(`[SGT-MEMBER-MGMT] Adding SGT user ${userId} to club`);
+        
+        const response = await sgtRequest(clubUrl, "/members/add", "POST", {
+          user_id: userId.toString(),
+        }) as { success?: boolean; feedback?: string };
+
+        if (response.success) {
+          // Add to local sgt_members table
+          await adminClient.from("sgt_members").upsert({
+            user_id: userId,
+            user_name: userName || `SGT User ${userId}`,
+            user_email: email || null,
+            user_active: 1,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'user_id' });
+
+          // If email provided, try to link to a profile
+          if (email) {
+            await adminClient
+              .from("profiles")
+              .update({ sgt_user_id: userId })
+              .eq("email", email.toLowerCase());
+          }
+        }
+
+        result = { success: response.success ?? false, feedback: response.feedback };
+        break;
+      }
+
       case "delete-member": {
         // Delete/remove a member from the club
         // NOTE: We do NOT clear sgt_user_id from profiles anymore - 

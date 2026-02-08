@@ -105,13 +105,17 @@ serve(async (req) => {
     const clubMembersData = await clubMembersResponse.json();
     const clubMembers = extractArray(clubMembersData, ['members', 'results']) as SGTMember[];
 
-    // Create lookup maps
+    // Create lookup maps - by email AND by username (lowercase)
     const clubMembersByEmail = new Map<string, SGTMember>();
+    const clubMembersByUsername = new Map<string, SGTMember>();
     const clubMembersByUserId = new Set<number>();
     
     for (const member of clubMembers) {
       if (member.user_email) {
         clubMembersByEmail.set(member.user_email.toLowerCase(), member);
+      }
+      if (member.user_name) {
+        clubMembersByUsername.set(member.user_name.toLowerCase(), member);
       }
       clubMembersByUserId.add(member.user_id);
     }
@@ -124,12 +128,10 @@ serve(async (req) => {
     const tourMembers = extractArray(tourMembersData, ['members', 'results']) as SGTMember[];
     const tourMemberIds = new Set(tourMembers.map(m => m.user_id));
 
-    console.log(`[SGT-SYNC-ELIGIBLE] Active tour has ${tourMembers.length} members`);
-
     // 4. Get paying members (birdie/eagle) from our profiles
     const { data: payingMembers, error: profilesError } = await supabase
       .from("profiles")
-      .select("user_id, email, first_name, last_name, membership_tier, sgt_user_id")
+      .select("user_id, email, first_name, last_name, display_name, membership_tier, sgt_user_id")
       .in("membership_tier", ["birdie", "eagle"]);
 
     if (profilesError) {
@@ -312,57 +314,38 @@ serve(async (req) => {
             console.log(`[SGT-SYNC-ELIGIBLE] Re-linked ${name} (${email}) to SGT user ${sgtMember.user_id}`);
           }
         } else {
-          // Case 4: Not in current SGT club - check if they have historical scorecards
-          const { data: historicalScorecards } = await supabase
-            .from("sgt_scorecards")
-            .select("player_id, player_name")
-            .ilike("player_name", `%${member.first_name}%`)
-            .limit(1);
+          // Case 4: Not in current SGT club by email - try matching by display_name as username
+          const displayName = member.display_name?.toLowerCase();
+          const firstNameMatch = displayName ? clubMembersByUsername.get(displayName) : undefined;
           
-          if (historicalScorecards && historicalScorecards.length > 0) {
-            const historicalPlayer = historicalScorecards[0];
-            result.sgt_user_id = historicalPlayer.player_id;
-            result.action = "found_historical";
-            console.log(`[SGT-SYNC-ELIGIBLE] Found historical SGT ID for ${name}: ${historicalPlayer.player_id} (${historicalPlayer.player_name})`);
+          if (firstNameMatch) {
+            // Found by display name / username match
+            result.sgt_user_id = firstNameMatch.user_id;
+            result.action = "matched_by_username";
+            console.log(`[SGT-SYNC-ELIGIBLE] Matched ${name} to SGT user ${firstNameMatch.user_name} (${firstNameMatch.user_id}) by display_name`);
             
             if (!dryRun) {
-              // Try to re-add using historical user_id
-              const addClubForm = new URLSearchParams();
-              addClubForm.append("api-key", apiKey);
-              addClubForm.append("user_id", historicalPlayer.player_id.toString());
-
-              const addClubResponse = await fetch(`${SGT_BASE_URL}/${CLUB_URL}/members/add`, {
-                method: "POST",
-                headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                body: addClubForm.toString(),
-              });
-
-              const addClubData = await addClubResponse.json();
-              result.club_added = addClubData.success === true;
+              // Update profile with sgt_user_id
+              await supabase.from("profiles").update({ sgt_user_id: firstNameMatch.user_id }).eq("user_id", member.user_id);
               
-              if (result.club_added) {
-                addedToClub++;
-                
-                // Update profile with sgt_user_id
-                await supabase
-                  .from("profiles")
-                  .update({ sgt_user_id: historicalPlayer.player_id })
-                  .eq("user_id", member.user_id);
-                
-                // Re-add to sgt_members
-                await supabase.from("sgt_members").upsert({
-                  user_id: historicalPlayer.player_id,
-                  user_name: historicalPlayer.player_name,
-                  user_email: member.email,
-                  user_active: 1,
-                  updated_at: new Date().toISOString(),
-                }, { onConflict: 'user_id' });
-                
-                // Add to tour
+              // Ensure they're in the local sgt_members table
+              await supabase.from("sgt_members").upsert({
+                user_id: firstNameMatch.user_id,
+                user_name: firstNameMatch.user_name,
+                user_email: firstNameMatch.user_email || member.email,
+                user_active: firstNameMatch.user_active ?? 1,
+                updated_at: new Date().toISOString(),
+              }, { onConflict: 'user_id' });
+
+              result.club_added = true;
+              addedToClub++;
+
+              // Check if in tour and add if not
+              if (!tourMemberIds.has(firstNameMatch.user_id)) {
                 const addTourForm = new URLSearchParams();
                 addTourForm.append("api-key", apiKey);
                 addTourForm.append("tourId", activeTour.tourId.toString());
-                addTourForm.append("user_id", historicalPlayer.player_id.toString());
+                addTourForm.append("user_id", firstNameMatch.user_id.toString());
 
                 const addTourResponse = await fetch(`${SGT_BASE_URL}/${CLUB_URL}/tours/add-member`, {
                   method: "POST",
@@ -376,19 +359,94 @@ serve(async (req) => {
                   addedToTour++;
                   await supabase.from("sgt_tour_members").upsert({
                     tour_id: activeTour.tourId,
-                    user_id: historicalPlayer.player_id,
-                    user_name: historicalPlayer.player_name,
+                    user_id: firstNameMatch.user_id,
+                    user_name: firstNameMatch.user_name,
                     updated_at: new Date().toISOString(),
                   }, { onConflict: 'tour_id,user_id' });
                 }
+              } else {
+                result.tour_added = true;
               }
-              console.log(`[SGT-SYNC-ELIGIBLE] Re-added ${name} using historical ID:`, addClubData);
             }
           } else {
-            // Not in SGT club and no historical data - need manual setup
-            result.action = "needs_manual_setup";
-            needsManualSetup++;
-            console.log(`[SGT-SYNC-ELIGIBLE] ${name} (${email}) not found in SGT club or history - needs manual setup`);
+            // Check if they have historical scorecards
+            const { data: historicalScorecards } = await supabase
+              .from("sgt_scorecards")
+              .select("player_id, player_name")
+              .ilike("player_name", `%${member.first_name}%`)
+              .limit(1);
+            
+            if (historicalScorecards && historicalScorecards.length > 0) {
+              const historicalPlayer = historicalScorecards[0];
+              result.sgt_user_id = historicalPlayer.player_id;
+              result.action = "found_historical";
+              console.log(`[SGT-SYNC-ELIGIBLE] Found historical SGT ID for ${name}: ${historicalPlayer.player_id} (${historicalPlayer.player_name})`);
+              
+              if (!dryRun) {
+                // Try to re-add using historical user_id
+                const addClubForm = new URLSearchParams();
+                addClubForm.append("api-key", apiKey);
+                addClubForm.append("user_id", historicalPlayer.player_id.toString());
+
+                const addClubResponse = await fetch(`${SGT_BASE_URL}/${CLUB_URL}/members/add`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                  body: addClubForm.toString(),
+                });
+
+                const addClubData = await addClubResponse.json();
+                result.club_added = addClubData.success === true;
+                
+                if (result.club_added) {
+                  addedToClub++;
+                  
+                  // Update profile with sgt_user_id
+                  await supabase
+                    .from("profiles")
+                    .update({ sgt_user_id: historicalPlayer.player_id })
+                    .eq("user_id", member.user_id);
+                  
+                  // Re-add to sgt_members
+                  await supabase.from("sgt_members").upsert({
+                    user_id: historicalPlayer.player_id,
+                    user_name: historicalPlayer.player_name,
+                    user_email: member.email,
+                    user_active: 1,
+                    updated_at: new Date().toISOString(),
+                  }, { onConflict: 'user_id' });
+                  
+                  // Add to tour
+                  const addTourForm = new URLSearchParams();
+                  addTourForm.append("api-key", apiKey);
+                  addTourForm.append("tourId", activeTour.tourId.toString());
+                  addTourForm.append("user_id", historicalPlayer.player_id.toString());
+
+                  const addTourResponse = await fetch(`${SGT_BASE_URL}/${CLUB_URL}/tours/add-member`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                    body: addTourForm.toString(),
+                  });
+
+                  const addTourData = await addTourResponse.json();
+                  result.tour_added = addTourData.success === true;
+                  if (result.tour_added) {
+                    addedToTour++;
+                    await supabase.from("sgt_tour_members").upsert({
+                      tour_id: activeTour.tourId,
+                      user_id: historicalPlayer.player_id,
+                      user_name: historicalPlayer.player_name,
+                      updated_at: new Date().toISOString(),
+                    }, { onConflict: 'tour_id,user_id' });
+                  }
+                }
+                console.log(`[SGT-SYNC-ELIGIBLE] Re-added ${name} using historical ID:`, addClubData);
+              }
+            } else {
+              // Not in SGT club and no historical data - need manual setup
+              result.action = "needs_manual_setup";
+              needsManualSetup++;
+              console.log(`[SGT-SYNC-ELIGIBLE] ${name} (${email}) not found in SGT club or history - needs manual setup`);
+            }
           }
         }
 
