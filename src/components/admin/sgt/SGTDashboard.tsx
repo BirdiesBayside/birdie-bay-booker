@@ -342,7 +342,7 @@ export function SGTDashboard() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Daily Tournament Registration */}
+          {/* Tournament Start Day Registration */}
           <div className="p-4 rounded-lg border bg-card">
             <div className="flex items-start gap-3">
               <div className="p-2 rounded-lg bg-blue-500/10 mt-0.5">
@@ -350,25 +350,25 @@ export function SGTDashboard() {
               </div>
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
-                  <h4 className="font-medium">Daily Tournament Registration</h4>
+                  <h4 className="font-medium">Tournament Start Day Registration</h4>
                   <Badge variant="secondary" className="text-xs">
                     <Clock className="h-3 w-3 mr-1" />
                     6:00 AM (Brisbane)
                   </Badge>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  Automatically registers all tour members for tournaments starting the next day.
+                  Runs on the morning of each tournament start date. Registers all tour members for that tournament.
                 </p>
                 <ul className="text-xs text-muted-foreground mt-2 space-y-1 ml-4 list-disc">
-                  <li>Uses <strong>Custom HCP</strong> for players with fewer than 4 completed rounds</li>
-                  <li>Switches to <strong>Combo HCP</strong> once player has 4+ rounds</li>
+                  <li>Uses <strong>Custom HCP</strong> if set, otherwise uses <strong>Combo HCP</strong></li>
                   <li>Uses tournament default tees</li>
+                  <li>Only runs on tournament start dates (typically Sundays)</li>
                 </ul>
               </div>
             </div>
           </div>
 
-          {/* On-Demand Registration (Trigger) */}
+          {/* New Member Onboarding Registration */}
           <div className="p-4 rounded-lg border bg-card">
             <div className="flex items-start gap-3">
               <div className="p-2 rounded-lg bg-green-500/10 mt-0.5">
@@ -376,18 +376,19 @@ export function SGTDashboard() {
               </div>
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
-                  <h4 className="font-medium">New Member Registration</h4>
+                  <h4 className="font-medium">New Member Onboarding</h4>
                   <Badge variant="secondary" className="text-xs">
                     <Zap className="h-3 w-3 mr-1" />
                     Instant
                   </Badge>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  When you onboard a new member (set their handicap in Pending Onboarding), they are immediately registered for all active tournaments.
+                  When you onboard a new member (set their handicap in Pending Onboarding), they are registered for the <strong>current tournament only</strong>.
                 </p>
                 <ul className="text-xs text-muted-foreground mt-2 space-y-1 ml-4 list-disc">
-                  <li>Triggered by database when member is added to a tour</li>
-                  <li>Uses the Custom HCP you set until they complete 4 rounds</li>
+                  <li>Triggered immediately when member is added to a tour</li>
+                  <li>Registers only for the current active tournament</li>
+                  <li>Future tournaments: member is included in the start-day auto-registration</li>
                 </ul>
               </div>
             </div>

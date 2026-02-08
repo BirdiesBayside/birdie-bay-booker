@@ -234,16 +234,30 @@ serve(async (req) => {
         end_date?: string;
       }[];
 
-      // Filter for active/upcoming tournaments (not closed)
+      // NEW MEMBER ONBOARDING: Only register for the CURRENT tournament
+      // The member will be included in the auto-registration for future tournaments
+      // on the morning of those tournament start dates
       const today = new Date().toISOString().split('T')[0];
-      const activeTournaments = tournaments.filter(t => {
+      
+      // Find the current tournament (started but not ended, or starts today)
+      const currentTournament = tournaments.find(t => {
         const isNotClosed = t.status !== 'Closed' && t.status !== 'Completed';
+        const startDate = t.start_date || '';
         const endDate = t.end_date || '';
-        const isFutureOrToday = !endDate || endDate >= today;
-        return isNotClosed && isFutureOrToday;
+        const hasStarted = startDate <= today;
+        const notEnded = !endDate || endDate >= today;
+        return isNotClosed && hasStarted && notEnded;
       });
 
-      console.log(`[SGT-AUTO-REG] Found ${activeTournaments.length} active tournaments for tour ${tourId}`);
+      if (!currentTournament) {
+        console.log(`[SGT-AUTO-REG] No current tournament found for tour ${tourId} - member will be auto-registered on next tournament start date`);
+        continue;
+      }
+
+      // Only process the current tournament (not all active/future ones)
+      const activeTournaments = [currentTournament];
+
+      console.log(`[SGT-AUTO-REG] Found current tournament for tour ${tourId}: ${currentTournament.name}`);
 
       // Register user for each active tournament
       for (const tournament of activeTournaments) {

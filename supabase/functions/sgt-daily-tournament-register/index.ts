@@ -101,26 +101,26 @@
    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
    supabaseClient = createClient(supabaseUrl, supabaseKey);
  
-   try {
-     const now = new Date();
-     const brisbaneTime = new Date(now.getTime() + 10 * 60 * 60 * 1000);
-     const tomorrow = new Date(brisbaneTime);
-     tomorrow.setDate(tomorrow.getDate() + 1);
-     const tomorrowStr = tomorrow.toISOString().split('T')[0];
- 
-     console.log(`[SGT-DAILY-REG] Looking for tournaments starting tomorrow: ${tomorrowStr}`);
- 
-     const { data: tournamentsData, error: tError } = await supabaseClient
-       .from("sgt_tournaments")
-       .select("tournament_id, tour_id, name, start_date")
-       .eq("start_date", tomorrowStr);
- 
-     if (tError) throw tError;
-     const tournaments = (tournamentsData || []) as Tournament[];
- 
-     if (tournaments.length === 0) {
-       return new Response(JSON.stringify({ success: true, message: "No tournaments starting tomorrow", registered: 0 }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-     }
+  try {
+    // Get today's date in Brisbane timezone (AEST/AEDT)
+    const now = new Date();
+    const brisbaneTime = new Date(now.getTime() + 10 * 60 * 60 * 1000);
+    const todayStr = brisbaneTime.toISOString().split('T')[0];
+
+    console.log(`[SGT-DAILY-REG] Looking for tournaments starting today: ${todayStr}`);
+
+    // Find tournaments starting TODAY - this runs on the morning of the tournament start date
+    const { data: tournamentsData, error: tError } = await supabaseClient
+      .from("sgt_tournaments")
+      .select("tournament_id, tour_id, name, start_date")
+      .eq("start_date", todayStr);
+
+    if (tError) throw tError;
+    const tournaments = (tournamentsData || []) as Tournament[];
+
+    if (tournaments.length === 0) {
+      return new Response(JSON.stringify({ success: true, message: "No tournaments starting today", registered: 0 }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
  
      let totalRegistrations = 0;
      const errors: string[] = [];

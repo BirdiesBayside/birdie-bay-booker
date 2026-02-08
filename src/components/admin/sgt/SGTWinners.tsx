@@ -273,12 +273,12 @@ export function SGTWinners() {
             Monthly Leaderboard
           </CardTitle>
           <div className="flex items-center gap-2">
-            <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+            <Select value={selectedMonth || "all"} onValueChange={(v) => setSelectedMonth(v === "all" ? "" : v)}>
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="All months" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All months</SelectItem>
+                <SelectItem value="all">All months</SelectItem>
                 {(availableMonths || monthOptions).map(month => (
                   <SelectItem key={month} value={month}>{month}</SelectItem>
                 ))}
