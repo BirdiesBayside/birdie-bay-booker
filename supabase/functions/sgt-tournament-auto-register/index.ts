@@ -67,7 +67,7 @@ async function sgtPostRequestWithRegistrationList(
   endpoint: string, 
   tournamentId: number,
   tourId: number,
-  registrationList: { user_id: number; useComboCap: string; useCustomCap: string }[]
+  registrationList: { user_id: number; useComboCap: string; useCustomCap: string; customCap?: number }[]
 ): Promise<unknown> {
   const apiKey = await getApiKey();
   
@@ -81,6 +81,10 @@ async function sgtPostRequestWithRegistrationList(
     formData.append(`registrationList[${index}][user_id]`, reg.user_id.toString());
     formData.append(`registrationList[${index}][useComboCap]`, reg.useComboCap);
     formData.append(`registrationList[${index}][useCustomCap]`, reg.useCustomCap);
+    // Include customCap when using custom handicap
+    if (reg.useCustomCap === "true" && reg.customCap !== undefined) {
+      formData.append(`registrationList[${index}][customCap]`, reg.customCap.toString());
+    }
   });
 
   console.log(`[SGT-TOURN-REG] POST: ${endpoint} with ${registrationList.length} registrations`);
@@ -310,6 +314,20 @@ async function registerAllMembersForTournament(
 
   console.log(`[SGT-TOURN-REG] Tour has ${allTourMembers.length} total members`);
 
+  // Fetch custom HCPs from local database for this tour
+  const { data: localTourMembers } = await supabaseClient
+    .from("sgt_tour_members")
+    .select("user_id, custom_hcp")
+    .eq("tour_id", tourId);
+  
+  // Build a map of user_id -> custom_hcp
+  const customHcpMap = new Map<number, number | null>();
+  (localTourMembers || []).forEach((m: { user_id: number; custom_hcp: number | null }) => {
+    customHcpMap.set(m.user_id, m.custom_hcp);
+  });
+  
+  console.log(`[SGT-TOURN-REG] Found ${customHcpMap.size} members with local handicap data`);
+
   // CRITICAL: Filter to only eligible members
   // Eligible = has Birdies membership (linked profile with non-visitor tier) OR is exempt_from_cleanup
   if (!supabaseClient) {
@@ -373,11 +391,24 @@ async function registerAllMembersForTournament(
   for (let i = 0; i < membersToRegister.length; i += batchSize) {
     const batch = membersToRegister.slice(i, i + batchSize);
     
-    const registrationList = batch.map(member => ({
-      user_id: member.user_id,
-      useComboCap: "true",
-      useCustomCap: "false",
-    }));
+    const registrationList = batch.map(member => {
+      // Check if this member has a custom HCP override set in the database
+      const customHcp = customHcpMap.get(member.user_id);
+      const useCustomCap = customHcp !== null && customHcp !== undefined;
+      
+      if (useCustomCap) {
+        console.log(`[SGT-TOURN-REG] Member ${member.user_id} (${member.user_name}): Using CUSTOM HCP ${customHcp}`);
+      } else {
+        console.log(`[SGT-TOURN-REG] Member ${member.user_id} (${member.user_name}): Using COMBO HCP`);
+      }
+      
+      return {
+        user_id: member.user_id,
+        useComboCap: useCustomCap ? "false" : "true",
+        useCustomCap: useCustomCap ? "true" : "false",
+        ...(useCustomCap && customHcp !== null ? { customCap: customHcp } : {}),
+      };
+    });
 
     try {
       const result = await sgtPostRequestWithRegistrationList(
