@@ -394,6 +394,32 @@ export function SGTDashboard() {
             </div>
           </div>
 
+          {/* Tournament Auto-Close */}
+          <div className="p-4 rounded-lg border bg-card">
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-lg bg-red-500/10 mt-0.5">
+                <Calendar className="h-4 w-4 text-red-500" />
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <h4 className="font-medium">Tournament Auto-Close</h4>
+                  <Badge variant="secondary" className="text-xs">
+                    <Clock className="h-3 w-3 mr-1" />
+                    Every 4 hours
+                  </Badge>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Automatically closes tournaments when their end date has passed.
+                </p>
+                <ul className="text-xs text-muted-foreground mt-2 space-y-1 ml-4 list-disc">
+                  <li><strong>Always awards tour standings points</strong> when closing</li>
+                  <li>Runs during the regular data sync</li>
+                  <li>Updates player handicaps after closing</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
           {/* Data Sync */}
           <div className="p-4 rounded-lg border bg-card">
             <div className="flex items-start gap-3">
