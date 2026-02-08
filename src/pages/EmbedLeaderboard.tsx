@@ -8,26 +8,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useSGTTourStandings, useSGTTournamentStandings } from "@/hooks/useSGTEmbedData";
+import { useSGTTournamentStandings } from "@/hooks/useSGTEmbedData";
 import { useActiveTourData } from "@/hooks/useActiveTourData";
 import birdiesB from "@/assets/birdies-b-icon.png";
 
 export default function EmbedLeaderboard() {
-  const { activeTour, currentTournament, tours, tournaments, isLoading: dataLoading } = useActiveTourData();
+  const { activeTour, currentTournament, tournaments, isLoading: dataLoading } = useActiveTourData();
   
-  const [selectedTour, setSelectedTour] = useState<number | null>(null);
   const [selectedTournament, setSelectedTournament] = useState<number | null>(null);
   const [scoreType, setScoreType] = useState<"gross" | "net">("net");
-  const [viewMode, setViewMode] = useState<"overall" | "weekly">("weekly");
 
-  // Initialize selections when data loads
-  useEffect(() => {
-    if (activeTour && !selectedTour) {
-      setSelectedTour(activeTour.tour_id);
-    }
-  }, [activeTour, selectedTour]);
-
+  // Initialize selection when data loads
   useEffect(() => {
     if (currentTournament && !selectedTournament) {
       setSelectedTournament(currentTournament.tournament_id);
@@ -37,43 +28,30 @@ export default function EmbedLeaderboard() {
   // Parse URL params for defaults
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const view = params.get("view");
-    const tour = params.get("tour");
     const type = params.get("scoreType");
+    const tournament = params.get("tournament");
     
-    if (view === "overall") setViewMode("overall");
     if (type === "gross") setScoreType("gross");
-    if (tour) setSelectedTour(parseInt(tour));
+    if (tournament) setSelectedTournament(parseInt(tournament));
   }, []);
-
-  // Fetch data based on view mode
-  const { 
-    standings: tourStandings, 
-    isLoading: tourLoading,
-    lastUpdated: tourLastUpdated 
-  } = useSGTTourStandings({
-    id: selectedTour,
-    scoreType,
-    enabled: viewMode === "overall" && !!selectedTour,
-    refreshInterval: 30000,
-  });
 
   const { 
     standings: tournamentStandings, 
     isLoading: tournamentLoading,
-    lastUpdated: tournamentLastUpdated 
+    lastUpdated 
   } = useSGTTournamentStandings({
     id: selectedTournament,
     scoreType,
-    enabled: viewMode === "weekly" && !!selectedTournament,
+    enabled: !!selectedTournament,
     refreshInterval: 30000,
   });
 
-  const isLoading = dataLoading || (viewMode === "overall" ? tourLoading : tournamentLoading);
-  const lastUpdated = viewMode === "overall" ? tourLastUpdated : tournamentLastUpdated;
+  const isLoading = dataLoading || tournamentLoading;
 
-  // Filter tournaments for selected tour
-  const filteredTournaments = tournaments.filter(t => t.tour_id === selectedTour);
+  // Filter tournaments for the active tour
+  const filteredTournaments = activeTour 
+    ? tournaments.filter(t => t.tour_id === activeTour.tour_id)
+    : tournaments;
 
   const getPositionIcon = (position: number) => {
     switch (position) {
@@ -98,8 +76,8 @@ export default function EmbedLeaderboard() {
         <div className="flex items-center gap-3">
           <img src={birdiesB} alt="Birdies" className="h-10" />
           <div>
-            <h1 className="font-bold text-xl text-[hsl(128,42%,21%)]">LEADERBOARD</h1>
-            <p className="text-sm text-[hsl(128,20%,40%)]">Birdies League Hub</p>
+            <h1 className="font-bold text-xl text-[hsl(128,42%,21%)]">WEEKLY RESULTS</h1>
+            <p className="text-sm text-[hsl(128,20%,40%)]">{activeTour?.name || "Birdies Tour"}</p>
           </div>
         </div>
         {lastUpdated && (
@@ -109,57 +87,9 @@ export default function EmbedLeaderboard() {
         )}
       </div>
 
-      {/* View Mode Tabs */}
-      <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "overall" | "weekly")} className="mb-4">
-        <TabsList className="grid w-full max-w-md grid-cols-2 bg-[hsl(128,42%,21%)]">
-          <TabsTrigger 
-            value="overall" 
-            className="data-[state=active]:bg-[hsl(18,84%,55%)] data-[state=active]:text-white text-[hsl(37,100%,95%)]"
-          >
-            Overall Standings
-          </TabsTrigger>
-          <TabsTrigger 
-            value="weekly"
-            className="data-[state=active]:bg-[hsl(18,84%,55%)] data-[state=active]:text-white text-[hsl(37,100%,95%)]"
-          >
-            Weekly Results
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
-
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
-        <Select
-          value={selectedTour?.toString() || ""}
-          onValueChange={(val) => {
-            setSelectedTour(parseInt(val));
-            // Reset tournament selection when tour changes
-            const tourTournaments = tournaments.filter(t => t.tour_id === parseInt(val));
-            if (tourTournaments.length > 0) {
-              setSelectedTournament(tourTournaments[0].tournament_id);
-            }
-          }}
-        >
-          <SelectTrigger className="w-full sm:w-[250px] bg-white border-[hsl(128,20%,85%)]">
-            <SelectValue placeholder="Select tour" />
-          </SelectTrigger>
-          <SelectContent>
-            {tours.map((tour) => (
-              <SelectItem key={tour.tour_id} value={tour.tour_id.toString()}>
-                <div className="flex items-center gap-2">
-                  <span>{tour.name}</span>
-                  {tour.active === 1 && (
-                    <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-green-500/20 text-green-600 rounded">
-                      ACTIVE
-                    </span>
-                  )}
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {viewMode === "weekly" && filteredTournaments.length > 0 && (
+        {filteredTournaments.length > 0 && (
           <Select
             value={selectedTournament?.toString() || ""}
             onValueChange={(val) => setSelectedTournament(parseInt(val))}
@@ -217,168 +147,97 @@ export default function EmbedLeaderboard() {
         <div className="flex items-center justify-center py-16">
           <Loader2 className="h-8 w-8 text-[hsl(18,84%,55%)] animate-spin" />
         </div>
-      ) : viewMode === "overall" ? (
-        tourStandings.length === 0 ? (
-          <div className="bg-white rounded-xl border border-[hsl(128,20%,85%)] p-12 text-center">
-            <h3 className="font-bold text-lg text-[hsl(128,42%,21%)] mb-2">NO STANDINGS YET</h3>
-            <p className="text-[hsl(128,20%,40%)]">Standings will appear once players have completed rounds</p>
-          </div>
-        ) : (
-          <div className="bg-white rounded-xl border border-[hsl(128,20%,85%)] overflow-hidden shadow-sm">
-            {/* Table Header */}
-            <div className="hidden md:grid grid-cols-12 gap-4 px-4 py-3 bg-[hsl(128,42%,21%)] text-sm font-medium text-white">
-              <div className="col-span-1 text-center">#</div>
-              <div className="col-span-4">Player</div>
-              <div className="col-span-1 text-center">HCP</div>
-              <div className="col-span-1 text-center">Events</div>
-              <div className="col-span-1 text-center">Wins</div>
-              <div className="col-span-1 text-center">Top 5</div>
-              <div className="col-span-1 text-center">Top 10</div>
-              <div className="col-span-2 text-center">Points</div>
-            </div>
-
-            <div className="divide-y divide-[hsl(128,20%,85%)]">
-              {tourStandings.map((standing) => (
-                <div
-                  key={standing.playerName}
-                  className="grid grid-cols-12 gap-4 px-4 py-3 items-center hover:bg-[hsl(37,100%,97%)] transition-colors"
-                >
-                  <div className="col-span-2 md:col-span-1 flex items-center justify-center gap-1">
-                    {getPositionIcon(standing.position)}
-                    <span className={cn(
-                      "font-bold",
-                      standing.position <= 3 ? "text-[hsl(128,42%,21%)]" : "text-[hsl(128,20%,40%)]"
-                    )}>
-                      {standing.position}
-                    </span>
-                  </div>
-
-                  <div className="col-span-7 md:col-span-4">
-                    <p className="font-semibold text-[hsl(128,42%,21%)]">{standing.playerName}</p>
-                    <p className="text-xs text-[hsl(128,20%,40%)] md:hidden">
-                      {standing.events} events • {standing.points} pts
-                    </p>
-                  </div>
-
-                  <div className="hidden md:block col-span-1 text-center text-[hsl(128,20%,40%)]">
-                    {standing.hcp ?? "-"}
-                  </div>
-                  <div className="hidden md:block col-span-1 text-center text-[hsl(128,20%,40%)]">
-                    {standing.events ?? 0}
-                  </div>
-                  <div className="hidden md:block col-span-1 text-center font-medium text-[hsl(128,42%,21%)]">
-                    {standing.wins || "-"}
-                  </div>
-                  <div className="hidden md:block col-span-1 text-center text-[hsl(128,20%,40%)]">
-                    {standing.top5 || "-"}
-                  </div>
-                  <div className="hidden md:block col-span-1 text-center text-[hsl(128,20%,40%)]">
-                    {standing.top10 || "-"}
-                  </div>
-
-                  <div className="col-span-3 md:col-span-2 text-center">
-                    <span className="font-bold text-lg text-[hsl(128,42%,21%)]">{standing.points ?? 0}</span>
-                    <span className="text-xs text-[hsl(128,20%,40%)] ml-1">pts</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )
+      ) : tournamentStandings.length === 0 ? (
+        <div className="bg-white rounded-xl border border-[hsl(128,20%,85%)] p-12 text-center">
+          <h3 className="font-bold text-lg text-[hsl(128,42%,21%)] mb-2">NO RESULTS YET</h3>
+          <p className="text-[hsl(128,20%,40%)]">No results available for this tournament</p>
+        </div>
       ) : (
-        // Weekly Results View
-        tournamentStandings.length === 0 ? (
-          <div className="bg-white rounded-xl border border-[hsl(128,20%,85%)] p-12 text-center">
-            <h3 className="font-bold text-lg text-[hsl(128,42%,21%)] mb-2">NO RESULTS YET</h3>
-            <p className="text-[hsl(128,20%,40%)]">No results available for this tournament</p>
+        <div className="bg-white rounded-xl border border-[hsl(128,20%,85%)] overflow-hidden shadow-sm">
+          {/* Table Header */}
+          <div className="hidden sm:grid grid-cols-12 gap-2 px-4 py-3 bg-[hsl(128,42%,21%)] text-sm font-medium text-white">
+            <div className="col-span-1 text-center">#</div>
+            <div className="col-span-3">Player</div>
+            <div className="col-span-1 text-center">HCP</div>
+            <div className="col-span-2 text-center">Rd 1</div>
+            <div className="col-span-2 text-center">Rd 2</div>
+            <div className="col-span-1 text-center">Total</div>
+            <div className="col-span-2 text-center">To Par</div>
           </div>
-        ) : (
-          <div className="bg-white rounded-xl border border-[hsl(128,20%,85%)] overflow-hidden shadow-sm">
-            {/* Table Header */}
-            <div className="hidden sm:grid grid-cols-12 gap-2 px-4 py-3 bg-[hsl(128,42%,21%)] text-sm font-medium text-white">
-              <div className="col-span-1 text-center">#</div>
-              <div className="col-span-3">Player</div>
-              <div className="col-span-1 text-center">HCP</div>
-              <div className="col-span-2 text-center">Rd 1</div>
-              <div className="col-span-2 text-center">Rd 2</div>
-              <div className="col-span-1 text-center">Total</div>
-              <div className="col-span-2 text-center">To Par</div>
-            </div>
 
-            {/* Mobile Header */}
-            <div className="grid sm:hidden grid-cols-12 gap-1 px-3 py-2 bg-[hsl(128,42%,21%)] text-xs font-medium text-white">
-              <div className="col-span-1 text-center">#</div>
-              <div className="col-span-3">Player</div>
-              <div className="col-span-2 text-center">Rd1</div>
-              <div className="col-span-2 text-center">Rd2</div>
-              <div className="col-span-2 text-center">Tot</div>
-              <div className="col-span-2 text-center">+/-</div>
-            </div>
+          {/* Mobile Header */}
+          <div className="grid sm:hidden grid-cols-12 gap-1 px-3 py-2 bg-[hsl(128,42%,21%)] text-xs font-medium text-white">
+            <div className="col-span-1 text-center">#</div>
+            <div className="col-span-3">Player</div>
+            <div className="col-span-2 text-center">Rd1</div>
+            <div className="col-span-2 text-center">Rd2</div>
+            <div className="col-span-2 text-center">Tot</div>
+            <div className="col-span-2 text-center">+/-</div>
+          </div>
 
-            <div className="divide-y divide-[hsl(128,20%,85%)]">
-              {tournamentStandings.map((result) => (
-                <div
-                  key={result.playerName}
-                  className="grid grid-cols-12 gap-1 sm:gap-2 px-3 sm:px-4 py-2 sm:py-3 items-center hover:bg-[hsl(37,100%,97%)] transition-colors"
-                >
-                  <div className="col-span-1 flex items-center justify-center gap-0.5 sm:gap-1">
-                    <span className="hidden sm:inline">{getPositionIcon(result.position)}</span>
-                    <span className={cn(
-                      "font-bold text-xs sm:text-base",
-                      result.position <= 3 ? "text-[hsl(128,42%,21%)]" : "text-[hsl(128,20%,40%)]"
-                    )}>
-                      {result.position}
-                    </span>
-                  </div>
-
-                  <div className="col-span-3">
-                    <p className="font-semibold text-[hsl(128,42%,21%)] text-xs sm:text-base truncate">
-                      {result.playerName}
-                    </p>
-                    <p className="hidden sm:block text-xs text-[hsl(128,20%,40%)]">
-                      HCP: {result.hcp ?? "-"}
-                    </p>
-                  </div>
-
-                  <div className="hidden sm:block col-span-1 text-center text-[hsl(128,20%,40%)]">
-                    {result.hcp ?? "-"}
-                  </div>
-
-                  <div className="col-span-2 text-center text-xs sm:text-sm text-[hsl(128,20%,40%)]">
-                    {result.r1}
-                    {result.r1Thru && (
-                      <span className="text-[10px] ml-0.5">
-                        {result.r1Thru === "F" ? "F" : `(${result.r1Thru})`}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="col-span-2 text-center text-xs sm:text-sm text-[hsl(128,20%,40%)]">
-                    {result.r2}
-                    {result.r2Thru && (
-                      <span className="text-[10px] ml-0.5">
-                        {result.r2Thru === "F" ? "F" : `(${result.r2Thru})`}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="col-span-2 sm:col-span-1 text-center font-bold text-xs sm:text-base text-[hsl(128,42%,21%)]">
-                    {result.total}
-                  </div>
-
-                  <div className="col-span-2 text-center">
-                    <span className={cn(
-                      "px-1 sm:px-2 py-0.5 sm:py-1 rounded font-bold text-xs sm:text-sm",
-                      getScoreColor(result.toPar)
-                    )}>
-                      {result.toPar}
-                    </span>
-                  </div>
+          <div className="divide-y divide-[hsl(128,20%,85%)]">
+            {tournamentStandings.map((result) => (
+              <div
+                key={result.playerName}
+                className="grid grid-cols-12 gap-1 sm:gap-2 px-3 sm:px-4 py-2 sm:py-3 items-center hover:bg-[hsl(37,100%,97%)] transition-colors"
+              >
+                <div className="col-span-1 flex items-center justify-center gap-0.5 sm:gap-1">
+                  <span className="hidden sm:inline">{getPositionIcon(result.position)}</span>
+                  <span className={cn(
+                    "font-bold text-xs sm:text-base",
+                    result.position <= 3 ? "text-[hsl(128,42%,21%)]" : "text-[hsl(128,20%,40%)]"
+                  )}>
+                    {result.position}
+                  </span>
                 </div>
-              ))}
-            </div>
+
+                <div className="col-span-3">
+                  <p className="font-semibold text-[hsl(128,42%,21%)] text-xs sm:text-base truncate">
+                    {result.playerName}
+                  </p>
+                  <p className="hidden sm:block text-xs text-[hsl(128,20%,40%)]">
+                    HCP: {result.hcp ?? "-"}
+                  </p>
+                </div>
+
+                <div className="hidden sm:block col-span-1 text-center text-[hsl(128,20%,40%)]">
+                  {result.hcp ?? "-"}
+                </div>
+
+                <div className="col-span-2 text-center text-xs sm:text-sm text-[hsl(128,20%,40%)]">
+                  {result.r1}
+                  {result.r1Thru && (
+                    <span className="text-[10px] ml-0.5">
+                      {result.r1Thru === "F" ? "F" : `(${result.r1Thru})`}
+                    </span>
+                  )}
+                </div>
+
+                <div className="col-span-2 text-center text-xs sm:text-sm text-[hsl(128,20%,40%)]">
+                  {result.r2}
+                  {result.r2Thru && (
+                    <span className="text-[10px] ml-0.5">
+                      {result.r2Thru === "F" ? "F" : `(${result.r2Thru})`}
+                    </span>
+                  )}
+                </div>
+
+                <div className="col-span-2 sm:col-span-1 text-center font-bold text-xs sm:text-base text-[hsl(128,42%,21%)]">
+                  {result.total}
+                </div>
+
+                <div className="col-span-2 text-center">
+                  <span className={cn(
+                    "px-1 sm:px-2 py-0.5 sm:py-1 rounded font-bold text-xs sm:text-sm",
+                    getScoreColor(result.toPar)
+                  )}>
+                    {result.toPar}
+                  </span>
+                </div>
+              </div>
+            ))}
           </div>
-        )
+        </div>
       )}
 
       {/* Footer */}
