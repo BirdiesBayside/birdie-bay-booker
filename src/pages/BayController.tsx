@@ -249,6 +249,9 @@ export default function BayController() {
   // Track shown changeover welcomes to prevent duplicates
   const [shownChangeoverWelcomes, setShownChangeoverWelcomes] = useState<Set<string>>(new Set());
   
+  // Flag to suppress "unexpected close" events during intentional app closures (changeover, end-of-session)
+  const intentionalCloseInProgressRef = useRef(false);
+  
   // SGT Player overlay state
   const [showSGTOverlay, setShowSGTOverlay] = useState(false);
   const [sgtIconHidden, setSgtIconHidden] = useState(false);
@@ -338,9 +341,9 @@ export default function BayController() {
     
     // Listen for unexpected GSPro closure (closed externally, not by our automation)
     const cleanupGsproClosed = window.electronAPI.onGsproClosed?.(() => {
-      console.log('[BayController] GSPro closed unexpectedly');
-      // Only log as unexpected if we thought apps were running
-      if (appsRunning) {
+      console.log('[BayController] GSPro closed detected, intentionalClose:', intentionalCloseInProgressRef.current);
+      // Only log as unexpected if we thought apps were running AND this wasn't an intentional close (changeover/end-of-session)
+      if (appsRunning && !intentionalCloseInProgressRef.current) {
         bayLogger.logAppClose('GSPro', 'unexpected', activeBooking?.id);
         addLog('GSPro closed unexpectedly (not by automation)', 'error');
       }
@@ -1578,9 +1581,13 @@ export default function BayController() {
             if (appsRunning) {
               console.log(`[Changeover] Step 2: Closing apps to trigger baseline reset`);
               bayLogger.sendLog('automation_decision', '[Changeover Step 2] Closing apps for baseline reset', { bookingId: activeBooking.id });
+              // Set flag to prevent "unexpected close" log from onGsproClosed listener
+              intentionalCloseInProgressRef.current = true;
               await window.electronAPI.closeApps(["GSPro.exe", "ProteeLabs.exe"]);
               setAppsRunning(false);
               setAppLaunchStatus(null);
+              // Clear flag after a short delay to allow GSPro close event to be processed
+              setTimeout(() => { intentionalCloseInProgressRef.current = false; }, 2000);
             } else {
               console.log(`[Changeover] Step 2: Apps not running, skipping close`);
             }
@@ -2362,6 +2369,8 @@ export default function BayController() {
     const closeReason = reason || 'manual';
 
     try {
+      // Set flag to prevent "unexpected close" log from onGsproClosed listener
+      intentionalCloseInProgressRef.current = true;
       const result = await window.electronAPI.closeApps(["GSPro.exe", "ProteeLabs.exe"]);
       if (result.success) {
         setAppsRunning(false);
@@ -2370,7 +2379,10 @@ export default function BayController() {
         bayLogger.logAppClose('Protee Labs', closeReason, activeBooking?.id);
         toast.info("Apps closed");
       }
+      // Clear flag after a short delay to allow GSPro close event to be processed
+      setTimeout(() => { intentionalCloseInProgressRef.current = false; }, 2000);
     } catch (error) {
+      intentionalCloseInProgressRef.current = false;
       bayLogger.logError('Failed to close apps', error, activeBooking?.id);
       toast.error("Failed to close apps");
     }
