@@ -198,8 +198,8 @@ serve(async (req) => {
         const { userId, clearProfileLink } = params;
         if (!userId) throw new Error("userId is required");
 
-        // Try the members/delete endpoint
-        const response = await sgtRequest(clubUrl, "/members/delete", "POST", {
+        // Use /members/remove endpoint (NOT /members/delete which doesn't exist)
+        const response = await sgtRequest(clubUrl, "/members/remove", "POST", {
           user_id: userId.toString(),
         });
 
