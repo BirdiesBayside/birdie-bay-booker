@@ -134,7 +134,7 @@ export default function EmbedTVLastWeek() {
         </div>
         <div className="text-right">
           <div className="px-6 py-3 bg-[hsl(18,84%,55%)] text-white rounded-lg text-xl font-bold">
-            THIS WEEK
+            PREVIOUS WEEK
           </div>
           <p className="text-sm text-[hsl(128,20%,40%)] mt-2">
             Updated: {lastUpdated.toLocaleTimeString()}
