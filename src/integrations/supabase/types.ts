@@ -1421,6 +1421,7 @@ export type Database = {
           player_name: string
           prize_amount: number
           profile_user_id: string | null
+          status: string
           tournament_id: number
         }
         Insert: {
@@ -1432,6 +1433,7 @@ export type Database = {
           player_name: string
           prize_amount?: number
           profile_user_id?: string | null
+          status?: string
           tournament_id: number
         }
         Update: {
@@ -1443,6 +1445,7 @@ export type Database = {
           player_name?: string
           prize_amount?: number
           profile_user_id?: string | null
+          status?: string
           tournament_id?: number
         }
         Relationships: []

@@ -1,0 +1,226 @@
+import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from "npm:@supabase/supabase-js@2.57.2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Verify admin user
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const token = authHeader.replace("Bearer ", "");
+    const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
+      global: { headers: { Authorization: `Bearer ${token}` } }
+    });
+    
+    const { data: { user } } = await userClient.auth.getUser(token);
+    if (!user) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const { data: roles } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .eq("role", "admin");
+    
+    if (!roles || roles.length === 0) {
+      return new Response(
+        JSON.stringify({ error: "Admin access required" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const { tournamentId, playerId, playerName, prizeAmount = 40 } = await req.json();
+
+    if (!tournamentId || !playerId || !playerName) {
+      return new Response(
+        JSON.stringify({ error: "Missing required fields: tournamentId, playerId, playerName" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    console.log(`[APPROVE-PRIZE] Approving prize for tournament ${tournamentId}, player ${playerId} (${playerName})`);
+
+    // Get tournament name for email
+    const { data: tournament } = await supabase
+      .from("sgt_tournaments")
+      .select("name")
+      .eq("tournament_id", tournamentId)
+      .maybeSingle();
+
+    const tournamentName = tournament?.name || `Tournament #${tournamentId}`;
+
+    // Check if profile is linked (has sgt_user_id matching playerId)
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("user_id, email, first_name, deposit_balance")
+      .eq("sgt_user_id", playerId)
+      .maybeSingle();
+
+    let profileUserId: string | null = null;
+    let emailSent = false;
+
+    if (profile) {
+      profileUserId = profile.user_id;
+      
+      // Credit the deposit balance
+      const newBalance = (profile.deposit_balance || 0) + prizeAmount;
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({ deposit_balance: newBalance })
+        .eq("user_id", profile.user_id);
+
+      if (updateError) {
+        console.error("[APPROVE-PRIZE] Failed to credit balance:", updateError);
+        return new Response(
+          JSON.stringify({ error: "Failed to credit balance" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      console.log(`[APPROVE-PRIZE] Credited $${prizeAmount} to ${profile.email}, new balance: $${newBalance}`);
+
+      // Send winner email
+      if (RESEND_API_KEY) {
+        try {
+          // Get email template
+          const { data: template } = await supabase
+            .from("email_templates")
+            .select("subject, html_content")
+            .eq("template_key", "league_weekly_winner")
+            .eq("is_active", true)
+            .maybeSingle();
+
+          if (template?.html_content) {
+            let htmlContent = template.html_content;
+            htmlContent = htmlContent.replace(/\{\{first_name\}\}/g, profile.first_name || playerName);
+            htmlContent = htmlContent.replace(/\{\{tournament_name\}\}/g, tournamentName);
+            htmlContent = htmlContent.replace(/\{\{prize_amount\}\}/g, prizeAmount.toString());
+
+            let subject = template.subject || "Congratulations! You Won This Week's League Prize!";
+            subject = subject.replace(/\{\{tournament_name\}\}/g, tournamentName);
+
+            const emailResponse = await fetch("https://api.resend.com/emails", {
+              method: "POST",
+              headers: {
+                "Authorization": `Bearer ${RESEND_API_KEY}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                from: "Birdies <noreply@birdiesbayside.com.au>",
+                to: [profile.email],
+                subject: subject,
+                html: htmlContent,
+              }),
+            });
+
+            if (emailResponse.ok) {
+              emailSent = true;
+              console.log(`[APPROVE-PRIZE] Winner email sent to ${profile.email}`);
+            } else {
+              console.error("[APPROVE-PRIZE] Email send failed:", await emailResponse.text());
+            }
+          }
+        } catch (emailError) {
+          console.error("[APPROVE-PRIZE] Email error:", emailError);
+        }
+      }
+    } else {
+      console.log(`[APPROVE-PRIZE] Player ${playerId} not linked to a Birdies profile - no credit/email`);
+    }
+
+    // Check if prize record already exists
+    const { data: existingPrize } = await supabase
+      .from("sgt_weekly_prizes")
+      .select("id")
+      .eq("tournament_id", tournamentId)
+      .maybeSingle();
+
+    if (existingPrize) {
+      // Update existing prize
+      const { error: prizeError } = await supabase
+        .from("sgt_weekly_prizes")
+        .update({
+          player_id: playerId,
+          player_name: playerName,
+          profile_user_id: profileUserId,
+          prize_amount: prizeAmount,
+          status: "approved",
+          email_sent: emailSent,
+          awarded_at: new Date().toISOString(),
+        })
+        .eq("id", existingPrize.id);
+
+      if (prizeError) {
+        console.error("[APPROVE-PRIZE] Failed to update prize record:", prizeError);
+        return new Response(
+          JSON.stringify({ error: "Failed to update prize record" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    } else {
+      // Create new prize record
+      const { error: prizeError } = await supabase
+        .from("sgt_weekly_prizes")
+        .insert({
+          tournament_id: tournamentId,
+          player_id: playerId,
+          player_name: playerName,
+          profile_user_id: profileUserId,
+          prize_amount: prizeAmount,
+          status: "approved",
+          email_sent: emailSent,
+        });
+
+      if (prizeError) {
+        console.error("[APPROVE-PRIZE] Failed to create prize record:", prizeError);
+        return new Response(
+          JSON.stringify({ error: "Failed to create prize record" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
+    console.log(`[APPROVE-PRIZE] Prize approved successfully for ${playerName}`);
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        credited: !!profile,
+        emailSent,
+        playerName,
+        prizeAmount,
+      }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  } catch (error) {
+    console.error("[APPROVE-PRIZE] Error:", error);
+    return new Response(
+      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+});
