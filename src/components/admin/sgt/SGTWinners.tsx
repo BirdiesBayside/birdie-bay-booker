@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { Trophy, Award, Calendar, DollarSign, Mail, CheckCircle2, Plus, TrendingUp, RefreshCw } from "lucide-react";
+import { Trophy, Award, Calendar, DollarSign, Mail, CheckCircle2, Plus } from "lucide-react";
 import { format } from "date-fns";
 import {
   Dialog,
@@ -25,15 +25,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface WeeklyPrize {
   id: string;
@@ -57,21 +48,6 @@ interface MonthlyAward {
   notes: string | null;
 }
 
-interface MonthlyStanding {
-  id: string;
-  tour_id: number;
-  month: string;
-  player_id: number;
-  player_name: string;
-  total_net_score: number | null;
-  total_gross_score: number | null;
-  tournaments_played: number;
-  best_net: number | null;
-  best_gross: number | null;
-  net_position: number | null;
-  gross_position: number | null;
-}
-
 interface Tournament {
   tournament_id: number;
   name: string;
@@ -82,9 +58,6 @@ interface Tournament {
 export function SGTWinners() {
   const queryClient = useQueryClient();
   const [showAddMonthlyDialog, setShowAddMonthlyDialog] = useState(false);
-  const [selectedMonth, setSelectedMonth] = useState<string>("");
-  const [standingsType, setStandingsType] = useState<"net" | "gross">("net");
-  const [isRecalculating, setIsRecalculating] = useState(false);
   const [newMonthlyAward, setNewMonthlyAward] = useState({
     month: "",
     winner_player_name: "",
@@ -119,43 +92,6 @@ export function SGTWinners() {
       
       if (error) throw error;
       return data as MonthlyAward[];
-    },
-  });
-
-  // Fetch monthly standings
-  const { data: monthlyStandings, isLoading: loadingStandings } = useQuery({
-    queryKey: ["sgt-monthly-standings", selectedMonth],
-    queryFn: async () => {
-      let query = supabase
-        .from("sgt_monthly_standings")
-        .select("*")
-        .order("net_position", { ascending: true });
-      
-      if (selectedMonth) {
-        query = query.eq("month", selectedMonth);
-      }
-      
-      const { data, error } = await query.limit(100);
-      
-      if (error) throw error;
-      return data as MonthlyStanding[];
-    },
-  });
-
-  // Get unique months from standings for the filter
-  const { data: availableMonths } = useQuery({
-    queryKey: ["sgt-monthly-standings-months"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("sgt_monthly_standings")
-        .select("month")
-        .order("month", { ascending: false });
-      
-      if (error) throw error;
-      
-      // Get unique months
-      const uniqueMonths = [...new Set(data?.map(d => d.month) || [])];
-      return uniqueMonths;
     },
   });
 
@@ -216,26 +152,6 @@ export function SGTWinners() {
     },
   });
 
-  // Recalculate monthly standings
-  const recalculateStandings = async () => {
-    setIsRecalculating(true);
-    try {
-      const { error } = await supabase.functions.invoke("sgt-calculate-monthly-standings", {
-        body: selectedMonth ? { month: selectedMonth } : {},
-      });
-      
-      if (error) throw error;
-      
-      queryClient.invalidateQueries({ queryKey: ["sgt-monthly-standings"] });
-      queryClient.invalidateQueries({ queryKey: ["sgt-monthly-standings-months"] });
-      toast.success("Monthly standings recalculated");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to recalculate");
-    } finally {
-      setIsRecalculating(false);
-    }
-  };
-
   const getTournamentName = (tournamentId: number) => {
     const tournament = tournaments?.find(t => t.tournament_id === tournamentId);
     return tournament?.name || `Tournament #${tournamentId}`;
@@ -248,185 +164,8 @@ export function SGTWinners() {
     return format(date, "MMMM yyyy");
   });
 
-  // Sort standings by selected type
-  const sortedStandings = monthlyStandings?.slice().sort((a, b) => {
-    if (standingsType === "net") {
-      return (a.net_position ?? 999) - (b.net_position ?? 999);
-    }
-    return (a.gross_position ?? 999) - (b.gross_position ?? 999);
-  });
-
-  // Format score with +/- sign
-  const formatScore = (score: number | null) => {
-    if (score === null) return "-";
-    if (score === 0) return "E";
-    return score > 0 ? `+${score}` : `${score}`;
-  };
-
   return (
     <div className="space-y-6">
-      {/* Monthly Leaderboard Section - NEW */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-blue-500" />
-            Monthly Leaderboard
-          </CardTitle>
-          <div className="flex items-center gap-2">
-            <Select value={selectedMonth || "all"} onValueChange={(v) => setSelectedMonth(v === "all" ? "" : v)}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="All months" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All months</SelectItem>
-                {(availableMonths || monthOptions).map(month => (
-                  <SelectItem key={month} value={month}>{month}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={recalculateStandings}
-              disabled={isRecalculating}
-            >
-              <RefreshCw className={`h-4 w-4 ${isRecalculating ? 'animate-spin' : ''}`} />
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <Tabs value={standingsType} onValueChange={(v) => setStandingsType(v as "net" | "gross")}>
-            <TabsList className="mb-4">
-              <TabsTrigger value="net">Net Standings</TabsTrigger>
-              <TabsTrigger value="gross">Gross Standings</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="net" className="mt-0">
-              {loadingStandings ? (
-                <div className="space-y-2">
-                  {[1, 2, 3, 4, 5].map(i => (
-                    <Skeleton key={i} className="h-12 w-full" />
-                  ))}
-                </div>
-              ) : !sortedStandings?.length ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <TrendingUp className="h-12 w-12 mx-auto mb-3 opacity-30" />
-                  <p>No monthly standings yet</p>
-                  <p className="text-sm mt-1">Standings are calculated automatically when tournaments complete</p>
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[60px]">Pos</TableHead>
-                      <TableHead>Player</TableHead>
-                      <TableHead className="text-center">Rounds</TableHead>
-                      <TableHead className="text-center">Total</TableHead>
-                      <TableHead className="text-center">Best</TableHead>
-                      {!selectedMonth && <TableHead>Month</TableHead>}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {sortedStandings.map((standing, idx) => (
-                      <TableRow key={standing.id}>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            {standing.net_position === 1 && (
-                              <Trophy className="h-4 w-4 text-yellow-500" />
-                            )}
-                            {standing.net_position === 2 && (
-                              <Trophy className="h-4 w-4 text-gray-400" />
-                            )}
-                            {standing.net_position === 3 && (
-                              <Trophy className="h-4 w-4 text-amber-600" />
-                            )}
-                            <span className="font-medium">{standing.net_position}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="font-medium">{standing.player_name}</TableCell>
-                        <TableCell className="text-center">{standing.tournaments_played}</TableCell>
-                        <TableCell className="text-center font-mono">
-                          {formatScore(standing.total_net_score)}
-                        </TableCell>
-                        <TableCell className="text-center font-mono text-muted-foreground">
-                          {formatScore(standing.best_net)}
-                        </TableCell>
-                        {!selectedMonth && (
-                          <TableCell>
-                            <Badge variant="outline">{standing.month}</Badge>
-                          </TableCell>
-                        )}
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </TabsContent>
-            
-            <TabsContent value="gross" className="mt-0">
-              {loadingStandings ? (
-                <div className="space-y-2">
-                  {[1, 2, 3, 4, 5].map(i => (
-                    <Skeleton key={i} className="h-12 w-full" />
-                  ))}
-                </div>
-              ) : !sortedStandings?.length ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <TrendingUp className="h-12 w-12 mx-auto mb-3 opacity-30" />
-                  <p>No monthly standings yet</p>
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[60px]">Pos</TableHead>
-                      <TableHead>Player</TableHead>
-                      <TableHead className="text-center">Rounds</TableHead>
-                      <TableHead className="text-center">Total</TableHead>
-                      <TableHead className="text-center">Best</TableHead>
-                      {!selectedMonth && <TableHead>Month</TableHead>}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {sortedStandings.map((standing) => (
-                      <TableRow key={standing.id}>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            {standing.gross_position === 1 && (
-                              <Trophy className="h-4 w-4 text-yellow-500" />
-                            )}
-                            {standing.gross_position === 2 && (
-                              <Trophy className="h-4 w-4 text-gray-400" />
-                            )}
-                            {standing.gross_position === 3 && (
-                              <Trophy className="h-4 w-4 text-amber-600" />
-                            )}
-                            <span className="font-medium">{standing.gross_position}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="font-medium">{standing.player_name}</TableCell>
-                        <TableCell className="text-center">{standing.tournaments_played}</TableCell>
-                        <TableCell className="text-center font-mono">
-                          {formatScore(standing.total_gross_score)}
-                        </TableCell>
-                        <TableCell className="text-center font-mono text-muted-foreground">
-                          {formatScore(standing.best_gross)}
-                        </TableCell>
-                        {!selectedMonth && (
-                          <TableCell>
-                            <Badge variant="outline">{standing.month}</Badge>
-                          </TableCell>
-                        )}
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
-
       {/* Weekly Prizes Section */}
       <Card>
         <CardHeader>
