@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { LeagueLayout } from "@/components/league/LeagueLayout";
 import { useSGTTournamentStandings } from "@/hooks/useSGTEmbedData";
 import { useActiveTourData } from "@/hooks/useActiveTourData";
-import { Loader2, Trophy, Medal, Award } from "lucide-react";
+import { Loader2, Trophy, Medal, Award, Calendar } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   Select,
@@ -13,7 +13,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
+
+interface MonthlyStanding {
+  id: string;
+  player_name: string;
+  player_id: number;
+  net_position: number | null;
+  gross_position: number | null;
+  total_net_score: number | null;
+  total_gross_score: number | null;
+  best_net: number | null;
+  best_gross: number | null;
+  tournaments_played: number;
+}
 
 export default function LeagueLeaderboard() {
   const { user, isLoading: authLoading } = useAuth();
@@ -21,6 +35,9 @@ export default function LeagueLeaderboard() {
   const [displayName, setDisplayName] = useState<string>("");
   const [scoreType, setScoreType] = useState<"gross" | "net">("net");
   const [showAllWeeks, setShowAllWeeks] = useState(false);
+  const [activeTab, setActiveTab] = useState<"monthly" | "weekly">("weekly");
+  const [monthlyStandings, setMonthlyStandings] = useState<MonthlyStanding[]>([]);
+  const [monthlyLoading, setMonthlyLoading] = useState(false);
 
   const INITIAL_WEEKS_TO_SHOW = 5;
 
@@ -36,17 +53,42 @@ export default function LeagueLeaderboard() {
     }
   }, [tournaments, selectedTournament]);
 
+  // Fetch monthly standings
+  useEffect(() => {
+    if (!activeTour || activeTab !== "monthly") return;
+    
+    async function fetchMonthlyStandings() {
+      setMonthlyLoading(true);
+      const now = new Date();
+      const monthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+      
+      const { data, error } = await supabase
+        .from("sgt_monthly_standings")
+        .select("*")
+        .eq("tour_id", activeTour.tour_id)
+        .eq("month", monthStr)
+        .order(scoreType === "net" ? "net_position" : "gross_position", { ascending: true });
+      
+      if (!error && data) {
+        setMonthlyStandings(data);
+      }
+      setMonthlyLoading(false);
+    }
+    
+    fetchMonthlyStandings();
+  }, [activeTour, activeTab, scoreType]);
+
   const { 
     standings: tournamentStandings, 
     isLoading: tournamentStandingsLoading,
   } = useSGTTournamentStandings({
     id: selectedTournament,
     scoreType,
-    enabled: !!selectedTournament,
+    enabled: !!selectedTournament && activeTab === "weekly",
     refreshInterval: 30000,
   });
 
-  const isLoading = tourLoading || tournamentStandingsLoading;
+  const isLoading = tourLoading || (activeTab === "weekly" ? tournamentStandingsLoading : monthlyLoading);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -98,277 +140,420 @@ export default function LeagueLeaderboard() {
     ? tournaments.filter(t => t.tour_id === activeTour.tour_id)
     : tournaments;
 
+  const currentMonth = new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" });
+
   return (
     <LeagueLayout>
-      <div className="mb-8 animate-fade-in">
+      <div className="mb-6 animate-fade-in">
         <h1 className="font-anton text-3xl md:text-4xl text-foreground mb-2">
-          WEEKLY RESULTS
+          LEADERBOARD
         </h1>
         <p className="font-inter text-muted-foreground">
-          {activeTour?.name || "Birdies Tour"} • See how you compare each week
+          See how you compare to other League Hub players
         </p>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4 mb-6 animate-slide-up">
-        {filteredTournaments.length > 0 && (
-          <Select
-            value={selectedTournament?.toString()}
-            onValueChange={(val) => setSelectedTournament(parseInt(val))}
-          >
-            <SelectTrigger className="w-full sm:w-[350px] font-inter">
-              <SelectValue placeholder="Select week" />
-            </SelectTrigger>
-            <SelectContent>
-              {(showAllWeeks ? filteredTournaments : filteredTournaments.slice(0, INITIAL_WEEKS_TO_SHOW)).map((tournament, index) => (
-                <SelectItem key={tournament.tournament_id} value={tournament.tournament_id.toString()}>
-                  <div className="flex items-center gap-2">
-                    <span>{tournament.name}</span>
-                    {index === 0 && (
-                      <span className="ml-1 px-1.5 py-0.5 text-[10px] font-semibold bg-secondary text-secondary-foreground rounded">
-                        CURRENT
-                      </span>
-                    )}
-                  </div>
-                </SelectItem>
-              ))}
-              {filteredTournaments.length > INITIAL_WEEKS_TO_SHOW && (
-                <div
-                  className="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground font-inter text-muted-foreground"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowAllWeeks(!showAllWeeks);
-                  }}
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "monthly" | "weekly")} className="mb-6">
+        <TabsList className="grid w-full max-w-md grid-cols-2 bg-muted">
+          <TabsTrigger value="monthly" className="font-inter">Monthly Winner</TabsTrigger>
+          <TabsTrigger value="weekly" className="font-inter">Weekly Results</TabsTrigger>
+        </TabsList>
+
+        {/* Monthly Winner Tab */}
+        <TabsContent value="monthly" className="mt-6">
+          <div className="flex flex-col sm:flex-row gap-4 mb-6 animate-slide-up">
+            <div className="flex items-center gap-2 px-4 py-2 bg-card border border-border rounded-lg">
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+              <span className="font-inter text-foreground">{currentMonth}</span>
+            </div>
+
+            <div className="flex-1 flex justify-center sm:justify-end">
+              <div className="flex rounded-full bg-muted overflow-hidden">
+                <button
+                  onClick={() => setScoreType("gross")}
+                  className={cn(
+                    "px-4 py-2 font-inter text-sm font-medium transition-colors rounded-full",
+                    scoreType === "gross"
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
                 >
-                  {showAllWeeks ? "Show less" : `Show ${filteredTournaments.length - INITIAL_WEEKS_TO_SHOW} more weeks...`}
-                </div>
-              )}
-            </SelectContent>
-          </Select>
-        )}
-
-        <div className="flex-1 flex justify-center sm:justify-end">
-          <div className="flex rounded-full bg-muted overflow-hidden">
-            <button
-              onClick={() => setScoreType("gross")}
-              className={cn(
-                "px-4 py-2 font-inter text-sm font-medium transition-colors rounded-full",
-                scoreType === "gross"
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              Gross
-            </button>
-            <button
-              onClick={() => setScoreType("net")}
-              className={cn(
-                "px-4 py-2 font-inter text-sm font-medium transition-colors rounded-full",
-                scoreType === "net"
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              Net
-            </button>
+                  Gross
+                </button>
+                <button
+                  onClick={() => setScoreType("net")}
+                  className={cn(
+                    "px-4 py-2 font-inter text-sm font-medium transition-colors rounded-full",
+                    scoreType === "net"
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  Net
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
 
-      {isLoading ? (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="h-8 w-8 text-secondary animate-spin" />
-        </div>
-      ) : tournamentStandings.length === 0 ? (
-        <div className="bg-card rounded-xl border border-border p-12 text-center animate-fade-in">
-          <h3 className="font-anton text-xl text-foreground mb-2">NO RESULTS YET</h3>
-          <p className="text-muted-foreground font-inter">
-            {filteredTournaments.length === 0
-              ? "No tournaments available yet"
-              : "No results available for this tournament"
-            }
-          </p>
-        </div>
-      ) : (
-        <div className="bg-card rounded-xl border border-border overflow-hidden animate-slide-up">
-          {/* Tournament Info Header */}
-          {selectedTournament && filteredTournaments.find(t => t.tournament_id === selectedTournament) && (
-            <div className="px-4 py-3 bg-primary/10 border-b border-border">
-              <h3 className="font-anton text-lg text-foreground">
-                {filteredTournaments.find(t => t.tournament_id === selectedTournament)?.name}
-              </h3>
-              <p className="font-inter text-sm text-muted-foreground">
-                {filteredTournaments.find(t => t.tournament_id === selectedTournament)?.course_name}
+          {monthlyLoading ? (
+            <div className="flex items-center justify-center py-20">
+              <Loader2 className="h-8 w-8 text-secondary animate-spin" />
+            </div>
+          ) : monthlyStandings.length === 0 ? (
+            <div className="bg-card rounded-xl border border-border p-12 text-center animate-fade-in">
+              <h3 className="font-anton text-xl text-foreground mb-2">NO RESULTS YET</h3>
+              <p className="text-muted-foreground font-inter">
+                Monthly standings will appear once tournaments are completed this month
               </p>
             </div>
-          )}
+          ) : (
+            <div className="bg-card rounded-xl border border-border overflow-hidden animate-slide-up">
+              <div className="px-4 py-3 bg-primary/10 border-b border-border">
+                <h3 className="font-anton text-lg text-foreground">
+                  {currentMonth} - Monthly Medal
+                </h3>
+              </div>
 
-          {/* Table Header - Mobile */}
-          <div className="grid md:hidden grid-cols-12 gap-4 px-4 py-2 bg-muted/50 border-b border-border font-inter text-xs font-medium text-muted-foreground">
-            <div className="col-span-2 text-center">#</div>
-            <div className="col-span-4">Player</div>
-            <div className="col-span-2 text-center">R1</div>
-            <div className="col-span-2 text-center">R2</div>
-            <div className="col-span-2 text-center">+/-</div>
-          </div>
+              {/* Table Header */}
+              <div className="grid grid-cols-12 gap-4 px-4 py-3 bg-muted/50 border-b border-border font-inter text-sm font-medium text-muted-foreground">
+                <div className="col-span-1 text-center">#</div>
+                <div className="col-span-5">Player</div>
+                <div className="col-span-2 text-center">Rounds</div>
+                <div className="col-span-2 text-center">Best</div>
+                <div className="col-span-2 text-center">Total</div>
+              </div>
 
-          {/* Table Header - Desktop */}
-          <div className="hidden md:grid grid-cols-12 gap-4 px-4 py-3 bg-muted/50 border-b border-border font-inter text-sm font-medium text-muted-foreground">
-            <div className="col-span-1 text-center">#</div>
-            <div className="col-span-4">Player</div>
-            <div className="col-span-2 text-center">R1</div>
-            <div className="col-span-2 text-center">R2</div>
-            <div className="col-span-1 text-center">Total</div>
-            <div className="col-span-2 text-center">To Par</div>
-          </div>
+              <div className="divide-y divide-border">
+                {monthlyStandings.map((standing, index) => {
+                  const position = scoreType === "net" ? standing.net_position : standing.gross_position;
+                  const total = scoreType === "net" ? standing.total_net_score : standing.total_gross_score;
+                  const best = scoreType === "net" ? standing.best_net : standing.best_gross;
+                  const isCurrentPlayer = displayName && standing.player_name.toLowerCase() === displayName.toLowerCase();
 
-          <div className="divide-y divide-border">
-            {tournamentStandings.map((result, index) => {
-              const isCurrentPlayer = displayName && result.playerName.toLowerCase() === displayName.toLowerCase();
-
-              return (
-                <div
-                  key={result.playerName}
-                  className={cn(
-                    "grid grid-cols-12 gap-4 px-4 py-4 items-center transition-colors",
-                    isCurrentPlayer && "bg-secondary/10 border-l-4 border-secondary",
-                    !isCurrentPlayer && "hover:bg-muted/30"
-                  )}
-                  style={{ animationDelay: `${index * 30}ms` }}
-                >
-                  {/* Mobile Layout */}
-                  <div className="col-span-2 md:hidden flex items-center justify-center gap-1">
-                    {getPositionIcon(result.position)}
-                    <span className={cn(
-                      "font-display text-lg",
-                      result.position <= 3 ? "text-foreground" : "text-muted-foreground"
-                    )}>
-                      {result.position}
-                    </span>
-                  </div>
-
-                  <div className="col-span-4 md:hidden flex items-center gap-2">
-                    <div className={cn(
-                      "w-8 h-8 rounded-full flex items-center justify-center font-display text-sm",
-                      isCurrentPlayer
-                        ? "bg-secondary text-secondary-foreground"
-                        : "bg-primary text-primary-foreground"
-                    )}>
-                      {result.playerName.charAt(0).toUpperCase()}
-                    </div>
-                    <div className="truncate">
-                      <p className={cn(
-                        "font-inter text-sm font-semibold truncate",
-                        isCurrentPlayer ? "text-secondary" : "text-foreground"
-                      )}>
-                        {result.playerName}
-                        {isCurrentPlayer && <span className="text-xs ml-1">(You)</span>}
-                      </p>
-                      <p className="font-inter text-xs text-muted-foreground">
-                        HCP: {result.hcp ?? "-"}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="col-span-2 md:hidden text-center">
-                    <span className={cn("font-inter text-sm", getScoreColor(result.r1))}>
-                      {result.r1}
-                    </span>
-                  </div>
-
-                  <div className="col-span-2 md:hidden text-center">
-                    <span className={cn("font-inter text-sm", getScoreColor(result.r2))}>
-                      {result.r2}
-                    </span>
-                  </div>
-
-                  <div className="col-span-2 md:hidden text-center">
-                    <span className={cn(
-                      "px-2 py-1 rounded font-medium text-sm",
-                      result.toPar.startsWith("-") && "bg-green-100 text-green-700",
-                      result.toPar === "E" && "bg-muted text-foreground",
-                      result.toPar.startsWith("+") && "bg-red-100 text-red-700",
-                    )}>
-                      {result.toPar}
-                    </span>
-                  </div>
-
-                  {/* Desktop Layout */}
-                  <div className="hidden md:flex col-span-1 items-center justify-center gap-2">
-                    {getPositionIcon(result.position)}
-                    <span className={cn(
-                      "font-display text-lg",
-                      result.position <= 3 ? "text-foreground" : "text-muted-foreground"
-                    )}>
-                      {result.position}
-                    </span>
-                  </div>
-
-                  <div className="hidden md:flex col-span-4 items-center gap-3">
-                    <div className={cn(
-                      "w-10 h-10 rounded-full flex items-center justify-center font-display text-lg",
-                      isCurrentPlayer
-                        ? "bg-secondary text-secondary-foreground"
-                        : "bg-primary text-primary-foreground"
-                    )}>
-                      {result.playerName.charAt(0).toUpperCase()}
-                    </div>
-                    <div>
-                      <p className={cn(
-                        "font-inter font-semibold",
-                        isCurrentPlayer ? "text-secondary" : "text-foreground"
-                      )}>
-                        {result.playerName}
-                        <span className="text-muted-foreground font-normal ml-1">
-                          ({result.hcp ?? "-"})
+                  return (
+                    <div
+                      key={standing.id}
+                      className={cn(
+                        "grid grid-cols-12 gap-4 px-4 py-4 items-center transition-colors",
+                        isCurrentPlayer && "bg-secondary/10 border-l-4 border-secondary",
+                        !isCurrentPlayer && "hover:bg-muted/30"
+                      )}
+                    >
+                      <div className="col-span-1 flex items-center justify-center gap-2">
+                        {getPositionIcon(position || index + 1)}
+                        <span className={cn(
+                          "font-display text-lg",
+                          (position || 0) <= 3 ? "text-foreground" : "text-muted-foreground"
+                        )}>
+                          {position || index + 1}
                         </span>
-                        {isCurrentPlayer && <span className="text-xs ml-2">(You)</span>}
-                      </p>
+                      </div>
+
+                      <div className="col-span-5 flex items-center gap-3">
+                        <div className={cn(
+                          "w-10 h-10 rounded-full flex items-center justify-center font-display text-lg",
+                          isCurrentPlayer
+                            ? "bg-secondary text-secondary-foreground"
+                            : "bg-primary text-primary-foreground"
+                        )}>
+                          {standing.player_name.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <p className={cn(
+                            "font-inter font-semibold",
+                            isCurrentPlayer ? "text-secondary" : "text-foreground"
+                          )}>
+                            {standing.player_name}
+                            {isCurrentPlayer && <span className="text-xs ml-2">(You)</span>}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="col-span-2 text-center font-inter">
+                        {standing.tournaments_played}
+                      </div>
+
+                      <div className="col-span-2 text-center font-inter">
+                        {best ?? "-"}
+                      </div>
+
+                      <div className="col-span-2 text-center">
+                        <span className="font-display text-lg">
+                          {total ?? "-"}
+                        </span>
+                      </div>
                     </div>
-                  </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </TabsContent>
 
-                  <div className="hidden md:block col-span-2 text-center">
-                    <span className={cn("font-inter", getScoreColor(result.r1))}>
-                      {result.r1}
-                    </span>
-                    {result.r1Thru && (
-                      <span className="text-xs text-muted-foreground ml-1">
-                        {result.r1Thru === "F" ? "F" : `(${result.r1Thru})`}
-                      </span>
-                    )}
-                  </div>
+        {/* Weekly Results Tab */}
+        <TabsContent value="weekly" className="mt-6">
+          <div className="flex flex-col sm:flex-row gap-4 mb-6 animate-slide-up">
+            {filteredTournaments.length > 0 && (
+              <Select
+                value={selectedTournament?.toString()}
+                onValueChange={(val) => setSelectedTournament(parseInt(val))}
+              >
+                <SelectTrigger className="w-full sm:w-[350px] font-inter">
+                  <SelectValue placeholder="Select week" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(showAllWeeks ? filteredTournaments : filteredTournaments.slice(0, INITIAL_WEEKS_TO_SHOW)).map((tournament, index) => (
+                    <SelectItem key={tournament.tournament_id} value={tournament.tournament_id.toString()}>
+                      <div className="flex items-center gap-2">
+                        <span>{tournament.name}</span>
+                        {index === 0 && (
+                          <span className="ml-1 px-1.5 py-0.5 text-[10px] font-semibold bg-secondary text-secondary-foreground rounded">
+                            CURRENT
+                          </span>
+                        )}
+                      </div>
+                    </SelectItem>
+                  ))}
+                  {filteredTournaments.length > INITIAL_WEEKS_TO_SHOW && (
+                    <div
+                      className="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground font-inter text-muted-foreground"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowAllWeeks(!showAllWeeks);
+                      }}
+                    >
+                      {showAllWeeks ? "Show less" : `Show ${filteredTournaments.length - INITIAL_WEEKS_TO_SHOW} more weeks...`}
+                    </div>
+                  )}
+                </SelectContent>
+              </Select>
+            )}
 
-                  <div className="hidden md:block col-span-2 text-center">
-                    <span className={cn("font-inter", getScoreColor(result.r2))}>
-                      {result.r2}
-                    </span>
-                    {result.r2Thru && (
-                      <span className="text-xs text-muted-foreground ml-1">
-                        {result.r2Thru === "F" ? "F" : `(${result.r2Thru})`}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="hidden md:block col-span-1 text-center font-display text-lg">
-                    {result.total}
-                  </div>
-
-                  <div className="hidden md:block col-span-2 text-center">
-                    <span className={cn(
-                      "px-3 py-1 rounded-lg font-display text-lg",
-                      result.toPar.startsWith("-") && "bg-green-100 text-green-700",
-                      result.toPar === "E" && "bg-muted text-foreground",
-                      result.toPar.startsWith("+") && "bg-red-100 text-red-700",
-                    )}>
-                      {result.toPar}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
+            <div className="flex-1 flex justify-center sm:justify-end">
+              <div className="flex rounded-full bg-muted overflow-hidden">
+                <button
+                  onClick={() => setScoreType("gross")}
+                  className={cn(
+                    "px-4 py-2 font-inter text-sm font-medium transition-colors rounded-full",
+                    scoreType === "gross"
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  Gross
+                </button>
+                <button
+                  onClick={() => setScoreType("net")}
+                  className={cn(
+                    "px-4 py-2 font-inter text-sm font-medium transition-colors rounded-full",
+                    scoreType === "net"
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  Net
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
-      )}
+
+          {tournamentStandingsLoading ? (
+            <div className="flex items-center justify-center py-20">
+              <Loader2 className="h-8 w-8 text-secondary animate-spin" />
+            </div>
+          ) : tournamentStandings.length === 0 ? (
+            <div className="bg-card rounded-xl border border-border p-12 text-center animate-fade-in">
+              <h3 className="font-anton text-xl text-foreground mb-2">NO RESULTS YET</h3>
+              <p className="text-muted-foreground font-inter">
+                {filteredTournaments.length === 0
+                  ? "No tournaments available yet"
+                  : "No results available for this tournament"
+                }
+              </p>
+            </div>
+          ) : (
+            <div className="bg-card rounded-xl border border-border overflow-hidden animate-slide-up">
+              {/* Tournament Info Header */}
+              {selectedTournament && filteredTournaments.find(t => t.tournament_id === selectedTournament) && (
+                <div className="px-4 py-3 bg-primary/10 border-b border-border">
+                  <h3 className="font-anton text-lg text-foreground">
+                    {filteredTournaments.find(t => t.tournament_id === selectedTournament)?.name}
+                  </h3>
+                  <p className="font-inter text-sm text-muted-foreground">
+                    {filteredTournaments.find(t => t.tournament_id === selectedTournament)?.course_name}
+                  </p>
+                </div>
+              )}
+
+              {/* Table Header - Mobile */}
+              <div className="grid md:hidden grid-cols-12 gap-4 px-4 py-2 bg-muted/50 border-b border-border font-inter text-xs font-medium text-muted-foreground">
+                <div className="col-span-2 text-center">#</div>
+                <div className="col-span-4">Player</div>
+                <div className="col-span-2 text-center">R1</div>
+                <div className="col-span-2 text-center">R2</div>
+                <div className="col-span-2 text-center">+/-</div>
+              </div>
+
+              {/* Table Header - Desktop */}
+              <div className="hidden md:grid grid-cols-12 gap-4 px-4 py-3 bg-muted/50 border-b border-border font-inter text-sm font-medium text-muted-foreground">
+                <div className="col-span-1 text-center">#</div>
+                <div className="col-span-4">Player</div>
+                <div className="col-span-2 text-center">R1</div>
+                <div className="col-span-2 text-center">R2</div>
+                <div className="col-span-1 text-center">Total</div>
+                <div className="col-span-2 text-center">To Par</div>
+              </div>
+
+              <div className="divide-y divide-border">
+                {tournamentStandings.map((result, index) => {
+                  const isCurrentPlayer = displayName && result.playerName.toLowerCase() === displayName.toLowerCase();
+
+                  return (
+                    <div
+                      key={result.playerName}
+                      className={cn(
+                        "grid grid-cols-12 gap-4 px-4 py-4 items-center transition-colors",
+                        isCurrentPlayer && "bg-secondary/10 border-l-4 border-secondary",
+                        !isCurrentPlayer && "hover:bg-muted/30"
+                      )}
+                      style={{ animationDelay: `${index * 30}ms` }}
+                    >
+                      {/* Mobile Layout */}
+                      <div className="col-span-2 md:hidden flex items-center justify-center gap-1">
+                        {getPositionIcon(result.position)}
+                        <span className={cn(
+                          "font-display text-lg",
+                          result.position <= 3 ? "text-foreground" : "text-muted-foreground"
+                        )}>
+                          {result.position}
+                        </span>
+                      </div>
+
+                      <div className="col-span-4 md:hidden flex items-center gap-2">
+                        <div className={cn(
+                          "w-8 h-8 rounded-full flex items-center justify-center font-display text-sm",
+                          isCurrentPlayer
+                            ? "bg-secondary text-secondary-foreground"
+                            : "bg-primary text-primary-foreground"
+                        )}>
+                          {result.playerName.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="truncate">
+                          <p className={cn(
+                            "font-inter text-sm font-semibold truncate",
+                            isCurrentPlayer ? "text-secondary" : "text-foreground"
+                          )}>
+                            {result.playerName}
+                            {isCurrentPlayer && <span className="text-xs ml-1">(You)</span>}
+                          </p>
+                          <p className="font-inter text-xs text-muted-foreground">
+                            HCP: {result.hcp ?? "-"}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="col-span-2 md:hidden text-center">
+                        <span className={cn("font-inter text-sm", getScoreColor(result.r1))}>
+                          {result.r1}
+                        </span>
+                      </div>
+
+                      <div className="col-span-2 md:hidden text-center">
+                        <span className={cn("font-inter text-sm", getScoreColor(result.r2))}>
+                          {result.r2}
+                        </span>
+                      </div>
+
+                      <div className="col-span-2 md:hidden text-center">
+                        <span className={cn(
+                          "px-2 py-1 rounded font-medium text-sm",
+                          result.toPar.startsWith("-") && "bg-green-100 text-green-700",
+                          result.toPar === "E" && "bg-muted text-foreground",
+                          result.toPar.startsWith("+") && "bg-red-100 text-red-700",
+                        )}>
+                          {result.toPar}
+                        </span>
+                      </div>
+
+                      {/* Desktop Layout */}
+                      <div className="hidden md:flex col-span-1 items-center justify-center gap-2">
+                        {getPositionIcon(result.position)}
+                        <span className={cn(
+                          "font-display text-lg",
+                          result.position <= 3 ? "text-foreground" : "text-muted-foreground"
+                        )}>
+                          {result.position}
+                        </span>
+                      </div>
+
+                      <div className="hidden md:flex col-span-4 items-center gap-3">
+                        <div className={cn(
+                          "w-10 h-10 rounded-full flex items-center justify-center font-display text-lg",
+                          isCurrentPlayer
+                            ? "bg-secondary text-secondary-foreground"
+                            : "bg-primary text-primary-foreground"
+                        )}>
+                          {result.playerName.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <p className={cn(
+                            "font-inter font-semibold",
+                            isCurrentPlayer ? "text-secondary" : "text-foreground"
+                          )}>
+                            {result.playerName}
+                            <span className="text-muted-foreground font-normal ml-1">
+                              ({result.hcp ?? "-"})
+                            </span>
+                            {isCurrentPlayer && <span className="text-xs ml-2">(You)</span>}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="hidden md:block col-span-2 text-center">
+                        <span className={cn("font-inter", getScoreColor(result.r1))}>
+                          {result.r1}
+                        </span>
+                        {result.r1Thru && (
+                          <span className="text-xs text-muted-foreground ml-1">
+                            {result.r1Thru === "F" ? "F" : `(${result.r1Thru})`}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="hidden md:block col-span-2 text-center">
+                        <span className={cn("font-inter", getScoreColor(result.r2))}>
+                          {result.r2}
+                        </span>
+                        {result.r2Thru && (
+                          <span className="text-xs text-muted-foreground ml-1">
+                            {result.r2Thru === "F" ? "F" : `(${result.r2Thru})`}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="hidden md:block col-span-1 text-center font-display text-lg">
+                        {result.total}
+                      </div>
+
+                      <div className="hidden md:block col-span-2 text-center">
+                        <span className={cn(
+                          "px-3 py-1 rounded-lg font-display text-lg",
+                          result.toPar.startsWith("-") && "bg-green-100 text-green-700",
+                          result.toPar === "E" && "bg-muted text-foreground",
+                          result.toPar.startsWith("+") && "bg-red-100 text-red-700",
+                        )}>
+                          {result.toPar}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
     </LeagueLayout>
   );
 }
