@@ -4,64 +4,80 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import birdiesLogo from "@/assets/birdies-b-orange.png";
 
+interface TournamentStanding {
+  position: number;
+  playerName: string;
+  hcp: number | null;
+  r1: string;
+  r1Thru: string;
+  r2: string;
+  r2Thru: string;
+  total: string;
+  toPar: string;
+}
+
 interface Tournament {
   tournament_id: number;
   name: string;
   course_name: string | null;
-  start_date: string | null;
-  end_date: string | null;
-  status: string | null;
-  tour_id: number;
-}
-
-interface TournamentResult {
-  position: number;
-  playerName: string;
-  hcp: number | null;
-  rd1: number | null;
-  rd1Thru: number | null;
-  rd2: number | null;
-  rd2Thru: number | null;
-  total: number | null;
-  toPar: number | null;
-  dnf: boolean;
-  thru: number | null;
-}
-
-async function fetchPublicLeaderboard(action: string, params: Record<string, string> = {}) {
-  const { data, error } = await supabase.functions.invoke("public-leaderboard", {
-    method: "POST",
-    body: { action, ...params },
-  });
-  if (error) throw error;
-  return data;
 }
 
 export default function EmbedTVLastWeek() {
-  const [lastTournament, setLastTournament] = useState<Tournament | null>(null);
-  const [results, setResults] = useState<TournamentResult[]>([]);
+  const [tournament, setTournament] = useState<Tournament | null>(null);
+  const [standings, setStandings] = useState<TournamentStanding[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
 
   const loadData = async () => {
     try {
-      // Get the last completed tournament from the Birdies Tour
-      const lastCompletedData = await fetchPublicLeaderboard("last-completed-tournament");
-      const tournament = lastCompletedData.tournament;
-      
-      if (!tournament) {
+      // Get the active tour
+      const { data: activeTour } = await supabase
+        .from("sgt_tours")
+        .select("tour_id, name")
+        .eq("active", 1)
+        .maybeSingle();
+
+      if (!activeTour) {
         setIsLoading(false);
         return;
       }
-      
-      setLastTournament(tournament);
 
-      // Get results for this tournament
-      const resultsData = await fetchPublicLeaderboard("tournament-results", {
-        tournamentId: tournament.tournament_id.toString(),
-        grossOrNet: "net",
-      });
-      setResults(resultsData.results || []);
+      // Get the current tournament (most recent that has started)
+      const today = new Date().toISOString().split("T")[0];
+      const { data: tournaments } = await supabase
+        .from("sgt_tournaments")
+        .select("tournament_id, name, course_name, start_date")
+        .eq("tour_id", activeTour.tour_id)
+        .lte("start_date", today)
+        .order("start_date", { ascending: false })
+        .limit(1);
+
+      if (!tournaments || tournaments.length === 0) {
+        setIsLoading(false);
+        return;
+      }
+
+      const currentTournament = tournaments[0];
+      setTournament(currentTournament);
+
+      // Use the embed scrape to get live standings
+      const { data: scrapeData, error: scrapeError } = await supabase.functions.invoke(
+        "sgt-embed-scrape",
+        {
+          body: {
+            type: "tournament",
+            id: currentTournament.tournament_id.toString(),
+            scoreType: "net",
+          },
+        }
+      );
+
+      if (scrapeError) {
+        console.error("Scrape error:", scrapeError);
+      } else if (scrapeData?.standings) {
+        setStandings(scrapeData.standings);
+      }
+
       setLastUpdated(new Date());
     } catch (error) {
       console.error("Failed to load TV data:", error);
@@ -72,8 +88,8 @@ export default function EmbedTVLastWeek() {
 
   useEffect(() => {
     loadData();
-    // Auto-refresh every 60 seconds
-    const interval = setInterval(loadData, 60 * 1000);
+    // Auto-refresh every 30 seconds
+    const interval = setInterval(loadData, 30 * 1000);
     return () => clearInterval(interval);
   }, []);
 
@@ -86,11 +102,11 @@ export default function EmbedTVLastWeek() {
     }
   };
 
-  const formatScore = (score: number | null) => {
-    if (score === null || score === undefined) return "-";
-    if (score === 0) return "E";
-    if (score > 0) return `+${score}`;
-    return score.toString();
+  const getScoreColor = (toPar: string) => {
+    if (toPar === "-" || toPar === "") return "";
+    if (toPar === "E") return "bg-green-100 text-green-700";
+    if (toPar.startsWith("-")) return "bg-red-100 text-red-700";
+    return "bg-blue-100 text-blue-700";
   };
 
   if (isLoading) {
@@ -109,16 +125,16 @@ export default function EmbedTVLastWeek() {
           <img src={birdiesLogo} alt="Birdies" className="h-16" />
           <div>
             <h1 className="font-bold text-4xl text-[hsl(128,42%,21%)] tracking-tight">
-              {lastTournament?.name || "Last Week"}
+              {tournament?.name || "This Week"}
             </h1>
             <p className="text-xl text-[hsl(128,20%,40%)]">
-              {lastTournament?.course_name} • NET Scores
+              {tournament?.course_name} • NET Scores
             </p>
           </div>
         </div>
         <div className="text-right">
-          <div className="px-6 py-3 bg-[hsl(128,42%,21%)] text-white rounded-lg text-xl font-bold">
-            LAST WEEK
+          <div className="px-6 py-3 bg-[hsl(18,84%,55%)] text-white rounded-lg text-xl font-bold">
+            THIS WEEK
           </div>
           <p className="text-sm text-[hsl(128,20%,40%)] mt-2">
             Updated: {lastUpdated.toLocaleTimeString()}
@@ -141,14 +157,17 @@ export default function EmbedTVLastWeek() {
 
         {/* Table Body */}
         <div className="divide-y divide-[hsl(128,20%,85%)]">
-          {results.length === 0 ? (
+          {standings.length === 0 ? (
             <div className="px-6 py-12 text-center">
               <p className="text-2xl text-[hsl(128,20%,40%)]">
-                No results available
+                No results available yet
+              </p>
+              <p className="text-lg text-[hsl(128,20%,60%)] mt-2">
+                Play a round to appear on the leaderboard!
               </p>
             </div>
           ) : (
-            results.slice(0, 12).map((result) => (
+            standings.slice(0, 12).map((result) => (
               <div
                 key={result.playerName}
                 className={cn(
@@ -174,35 +193,26 @@ export default function EmbedTVLastWeek() {
                   {result.hcp ?? "-"}
                 </div>
                 <div className="col-span-2 text-center text-xl text-[hsl(128,20%,40%)]">
-                  {result.dnf && result.rd1 === null ? "DNF" : (
-                    <>
-                      {result.rd1 ?? "-"}
-                      {result.rd1Thru && <span className="text-sm ml-1">({result.rd1Thru})</span>}
-                    </>
+                  {result.r1}
+                  {result.r1Thru && result.r1Thru !== "F" && (
+                    <span className="text-sm ml-1">({result.r1Thru})</span>
                   )}
                 </div>
                 <div className="col-span-2 text-center text-xl text-[hsl(128,20%,40%)]">
-                  {result.dnf && result.rd2 === null ? "DNF" : (
-                    <>
-                      {result.rd2 ?? "-"}
-                      {result.rd2Thru && <span className="text-sm ml-1">({result.rd2Thru})</span>}
-                    </>
+                  {result.r2}
+                  {result.r2Thru && result.r2Thru !== "F" && (
+                    <span className="text-sm ml-1">({result.r2Thru})</span>
                   )}
                 </div>
                 <div className="col-span-1 text-center font-bold text-2xl text-[hsl(128,42%,21%)]">
-                  {result.dnf ? "DNF" : result.total ?? "-"}
+                  {result.total}
                 </div>
                 <div className="col-span-1 text-center">
-                  <span
-                    className={cn(
-                      "px-3 py-1 rounded-lg font-bold text-xl",
-                      result.dnf && "bg-muted text-muted-foreground",
-                      !result.dnf && result.toPar !== null && result.toPar < 0 && "bg-red-100 text-red-700",
-                      !result.dnf && result.toPar === 0 && "bg-green-100 text-green-700",
-                      !result.dnf && result.toPar !== null && result.toPar > 0 && "bg-blue-100 text-blue-700",
-                    )}
-                  >
-                    {result.dnf ? "DNF" : formatScore(result.toPar)}
+                  <span className={cn(
+                    "px-3 py-1 rounded-lg font-bold text-xl",
+                    getScoreColor(result.toPar)
+                  )}>
+                    {result.toPar}
                   </span>
                 </div>
               </div>
@@ -213,7 +223,7 @@ export default function EmbedTVLastWeek() {
 
       {/* Footer */}
       <div className="mt-4 text-center text-lg text-[hsl(128,20%,40%)]">
-        Last Week's Results • Powered by Birdies League Hub
+        Live Results • Updates every 30 seconds • Powered by Birdies League Hub
       </div>
     </div>
   );
