@@ -119,3 +119,6 @@ verify_jwt = false
 
 [functions.approve-weekly-prize]
 verify_jwt = false
+
+[functions.approve-monthly-prize]
+verify_jwt = false
