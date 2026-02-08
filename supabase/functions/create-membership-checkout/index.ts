@@ -12,8 +12,6 @@ const logStep = (step: string, details?: any) => {
   console.log(`[CREATE-MEMBERSHIP-CHECKOUT] ${step}${detailsStr}`);
 };
 
-const FREE_WEEK_COUPON = 'ScFMsNsB';
-
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -52,15 +50,7 @@ serve(async (req) => {
     if (!priceId || !tierKey) throw new Error("Missing priceId or tierKey");
     logStep("Request body parsed", { priceId, tierKey });
 
-    // Check if user has previously had a membership (check membership_payments table)
-    const { data: previousPayments, error: paymentsError } = await supabaseAdmin
-      .from("membership_payments")
-      .select("id")
-      .eq("user_id", user.id)
-      .limit(1);
-
-    const hasPreviousMembership = previousPayments && previousPayments.length > 0;
-    logStep("Previous membership check", { hasPreviousMembership, userId: user.id });
+    logStep("Processing membership checkout", { userId: user.id });
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
 
@@ -119,8 +109,8 @@ serve(async (req) => {
           }
         }
 
-        // Create subscription - only apply free week coupon for first-time members
-        const subscriptionParams: Stripe.SubscriptionCreateParams = {
+        // Create subscription - charges immediately
+        const subscription = await stripe.subscriptions.create({
           customer: customerId,
           items: [{ price: priceId }],
           default_payment_method: defaultPaymentMethod,
@@ -128,17 +118,7 @@ serve(async (req) => {
             user_id: user.id,
             tier_key: tierKey,
           },
-        };
-
-        // Only apply coupon if user has never had a membership before
-        if (!hasPreviousMembership) {
-          subscriptionParams.discounts = [{ coupon: FREE_WEEK_COUPON }];
-          logStep("Applying first week free coupon (new member)");
-        } else {
-          logStep("Skipping coupon (returning member)");
-        }
-
-        const subscription = await stripe.subscriptions.create(subscriptionParams, {
+        }, {
           idempotencyKey: idempotencyKey,
         });
 
@@ -184,14 +164,6 @@ serve(async (req) => {
         },
       },
     };
-
-    // Only apply coupon if user has never had a membership before
-    if (!hasPreviousMembership) {
-      checkoutParams.discounts = [{ coupon: FREE_WEEK_COUPON }];
-      logStep("Applying first week free coupon for checkout (new member)");
-    } else {
-      logStep("Skipping coupon for checkout (returning member)");
-    }
 
     const session = await stripe.checkout.sessions.create(checkoutParams, {
       idempotencyKey: `checkout_${idempotencyKey}`,
