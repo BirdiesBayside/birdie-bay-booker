@@ -207,23 +207,6 @@ serve(async (req) => {
     let totalTournamentRegistrations = 0;
     const allErrors: string[] = [];
 
-    // Check if the player has at least 2 completed rounds (SGT needs 2+ rounds for Combo HCP)
-    // Note: player_id is the correct column, NOT user_id
-    const { data: existingScorecards, error: scError } = await supabaseClient
-      .from("sgt_scorecards")
-      .select("id, tournament_id")
-      .eq("player_id", sgt_user_id);
-
-    const roundCount = !scError && existingScorecards ? existingScorecards.length : 0;
-    // Require at least 4 completed rounds (2 full tournaments) before switching to Combo HCP
-    const hasEnoughRoundsForCombo = roundCount >= 4;
-    
-    if (hasEnoughRoundsForCombo) {
-      console.log(`[SGT-AUTO-REG] Player has ${roundCount} rounds - will use Combo HCP for future tournaments`);
-    } else {
-      console.log(`[SGT-AUTO-REG] Player has ${roundCount} rounds (need 2+) - will continue using custom HCP if set`);
-    }
-
     // Process each tour the member is in
     for (const tourId of memberTourIds) {
       console.log(`[SGT-AUTO-REG] Processing tour ID: ${tourId}`);
@@ -231,15 +214,14 @@ serve(async (req) => {
       // Get the custom handicap for this tour
       const customHcp = tourHcpMap.get(tourId);
       
-      // Use custom HCP only if:
-      // 1. A custom HCP is set AND
-      // 2. The player has NOT completed 4+ rounds yet (needs 4 rounds/2 tournaments before Combo HCP)
-      const useCustomCap = !hasEnoughRoundsForCombo && customHcp !== null && customHcp !== undefined;
+      // Custom HCP ALWAYS overrides Combo HCP when set
+      // This allows admins to manually adjust handicaps for players who are struggling
+      const useCustomCap = customHcp !== null && customHcp !== undefined;
 
       if (useCustomCap) {
-        console.log(`[SGT-AUTO-REG] Using custom handicap ${customHcp} for user ${sgt_user_id} in tour ${tourId} (${roundCount}/2 rounds completed)`);
-      } else if (hasEnoughRoundsForCombo) {
-        console.log(`[SGT-AUTO-REG] Player has ${roundCount} rounds - using Combo HCP for user ${sgt_user_id} in tour ${tourId}`);
+        console.log(`[SGT-AUTO-REG] Using custom handicap ${customHcp} for user ${sgt_user_id} in tour ${tourId}`);
+      } else {
+        console.log(`[SGT-AUTO-REG] Using Combo HCP for user ${sgt_user_id} in tour ${tourId}`);
       }
 
       // Get all tournaments for this tour

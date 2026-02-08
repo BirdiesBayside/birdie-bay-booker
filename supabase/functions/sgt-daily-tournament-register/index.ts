@@ -158,18 +158,11 @@
           for (const member of tourMembers) {
             if (registeredUserIds.has(member.user_id)) continue;
             
-             // Check how many rounds the player has completed
-             // Require 4+ rounds (2 full tournaments) before switching to Combo HCP
-             const { data: scorecards } = await supabaseClient
-               .from("sgt_scorecards")
-               .select("id")
-               .eq("player_id", member.user_id);
-             
-             const roundCount = scorecards ? scorecards.length : 0;
-             const hasEnoughRoundsForCombo = roundCount >= 4;
-            const useCustomCap = !hasEnoughRoundsForCombo && member.custom_hcp !== null;
+            // Custom HCP ALWAYS overrides Combo HCP when set
+            // This allows admins to manually adjust handicaps for players who are struggling
+            const useCustomCap = member.custom_hcp !== null;
             
-            console.log(`[SGT-DAILY-REG] Member ${member.user_id}: ${roundCount} rounds, useCustomCap: ${useCustomCap}`);
+            console.log(`[SGT-DAILY-REG] Member ${member.user_id}: useCustomCap: ${useCustomCap}, custom_hcp: ${member.custom_hcp}`);
             
             const regItem: RegistrationItem = { 
               user_id: member.user_id, 

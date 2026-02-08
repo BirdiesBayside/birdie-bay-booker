@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Trophy, Calendar, Users, FileText, RefreshCw, MapPin, Mail, Bell, Zap, Clock, UserPlus, CalendarPlus, Settings2 } from "lucide-react";
+import { Trophy, Calendar, Users, FileText, RefreshCw, MapPin, Mail, Bell, Zap, Clock, UserPlus, CalendarPlus, Settings2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
@@ -9,11 +9,15 @@ import { format } from "date-fns";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { TourFormDialog } from "./TourFormDialog";
+import { TournamentFormDialog } from "./TournamentFormDialog";
 
 export function SGTDashboard() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [syncing, setSyncing] = useState(false);
+  const [showTourDialog, setShowTourDialog] = useState(false);
+  const [showTournamentDialog, setShowTournamentDialog] = useState(false);
 
   // Fetch tour count
   const { data: toursData } = useQuery({
@@ -99,6 +103,20 @@ export function SGTDashboard() {
         .limit(5);
       if (error) throw error;
       return data;
+    },
+  });
+
+  // Fetch tours for creation dialogs
+  const { data: toursForDialog } = useQuery({
+    queryKey: ["sgt-tours-list"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("sgt_tours")
+        .select("tour_id, name")
+        .eq("active", 1)
+        .order("name");
+      if (error) throw error;
+      return data || [];
     },
   });
 
@@ -223,9 +241,18 @@ export function SGTDashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Header with Sync Button */}
-      <div className="flex justify-between items-center">
-        <div className="flex-1" />
+      {/* Header with Action Buttons */}
+      <div className="flex flex-wrap justify-between items-center gap-2">
+        <div className="flex gap-2">
+          <Button onClick={() => setShowTourDialog(true)} variant="outline" className="gap-2">
+            <Plus className="h-4 w-4" />
+            New Tour
+          </Button>
+          <Button onClick={() => setShowTournamentDialog(true)} variant="outline" className="gap-2">
+            <Plus className="h-4 w-4" />
+            New Tournament
+          </Button>
+        </div>
         <Button onClick={handleSync} disabled={syncing} variant="outline" className="gap-2">
           <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
           {syncing ? "Syncing..." : "Sync Data"}
@@ -392,7 +419,7 @@ export function SGTDashboard() {
             </div>
           </div>
 
-          {/* Handicap Transition Rule */}
+          {/* Handicap Override Rule */}
           <div className="p-4 rounded-lg border bg-muted/50">
             <div className="flex items-start gap-3">
               <div className="p-2 rounded-lg bg-amber-500/10 mt-0.5">
@@ -400,11 +427,14 @@ export function SGTDashboard() {
               </div>
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
-                  <h4 className="font-medium">Handicap Transition Rule</h4>
+                  <h4 className="font-medium">Handicap Override Rule</h4>
                   <Badge variant="outline" className="text-xs">Logic</Badge>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  New players start with the <strong>Custom HCP</strong> you set during onboarding. After completing <strong>4 rounds</strong> (2 full tournaments), they automatically switch to SGT's calculated <strong>Combo HCP</strong>.
+                  <strong>Custom HCP always overrides Combo HCP</strong> when set. This allows you to manually adjust handicaps for players who are struggling or whose SGT handicap isn't quite right.
+                </p>
+                <p className="text-xs text-muted-foreground mt-2">
+                  To use SGT's Combo HCP for a player, simply clear their Custom HCP in the Members tab.
                 </p>
               </div>
             </div>
@@ -447,6 +477,17 @@ export function SGTDashboard() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Creation Dialogs */}
+      <TourFormDialog 
+        open={showTourDialog} 
+        onOpenChange={setShowTourDialog} 
+      />
+      <TournamentFormDialog
+        open={showTournamentDialog}
+        onOpenChange={setShowTournamentDialog}
+        tours={toursForDialog || []}
+      />
     </div>
   );
 }
