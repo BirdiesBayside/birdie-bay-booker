@@ -4,13 +4,10 @@ import { AdminLayout } from "@/components/admin/AdminLayout";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SGTDashboard } from "@/components/admin/sgt/SGTDashboard";
-import { SGTTours } from "@/components/admin/sgt/SGTTours";
-import { SGTTournaments } from "@/components/admin/sgt/SGTTournaments";
-import { SGTMembers } from "@/components/admin/sgt/SGTMembers";
-import { SGTScorecards } from "@/components/admin/sgt/SGTScorecards";
-import { SGTRegistrations } from "@/components/admin/sgt/SGTRegistrations";
+import { SGTPendingOnboarding } from "@/components/admin/sgt/SGTPendingOnboarding";
+import { SGTLeagueMembers } from "@/components/admin/sgt/SGTLeagueMembers";
 import { SGTWinners } from "@/components/admin/sgt/SGTWinners";
-import { LayoutDashboard, Trophy, Calendar, Users, FileText, ClipboardList, Award } from "lucide-react";
+import { LayoutDashboard, UserPlus, Users, Award } from "lucide-react";
 
 export default function AdminSGTManager() {
   const { isLoading } = useAdminAuth();
@@ -20,7 +17,7 @@ export default function AdminSGTManager() {
   // Handle URL tab parameter (for email links)
   useEffect(() => {
     const tabParam = searchParams.get("tab");
-    if (tabParam && ["dashboard", "registrations", "tours", "tournaments", "members", "scorecards", "winners"].includes(tabParam)) {
+    if (tabParam && ["dashboard", "onboarding", "members", "winners"].includes(tabParam)) {
       setActiveTab(tabParam);
       // Clean up URL after reading
       searchParams.delete("tab");
@@ -46,7 +43,7 @@ export default function AdminSGTManager() {
             SGT Manager
           </h1>
           <p className="text-muted-foreground mt-1">
-            Manage tours, tournaments, members, and scorecards
+            Manage league members and track winners
           </p>
         </div>
 
@@ -56,25 +53,13 @@ export default function AdminSGTManager() {
               <LayoutDashboard className="h-4 w-4" />
               <span className="hidden sm:inline">Dashboard</span>
             </TabsTrigger>
-            <TabsTrigger value="registrations" className="gap-2">
-              <ClipboardList className="h-4 w-4" />
-              <span className="hidden sm:inline">Registrations</span>
-            </TabsTrigger>
-            <TabsTrigger value="tours" className="gap-2">
-              <Trophy className="h-4 w-4" />
-              <span className="hidden sm:inline">Tours</span>
-            </TabsTrigger>
-            <TabsTrigger value="tournaments" className="gap-2">
-              <Calendar className="h-4 w-4" />
-              <span className="hidden sm:inline">Tournaments</span>
+            <TabsTrigger value="onboarding" className="gap-2">
+              <UserPlus className="h-4 w-4" />
+              <span className="hidden sm:inline">Pending Onboarding</span>
             </TabsTrigger>
             <TabsTrigger value="members" className="gap-2">
               <Users className="h-4 w-4" />
               <span className="hidden sm:inline">Members</span>
-            </TabsTrigger>
-            <TabsTrigger value="scorecards" className="gap-2">
-              <FileText className="h-4 w-4" />
-              <span className="hidden sm:inline">Scorecards</span>
             </TabsTrigger>
             <TabsTrigger value="winners" className="gap-2">
               <Award className="h-4 w-4" />
@@ -86,24 +71,12 @@ export default function AdminSGTManager() {
             <SGTDashboard />
           </TabsContent>
 
-          <TabsContent value="registrations" className="mt-6">
-            <SGTRegistrations />
-          </TabsContent>
-
-          <TabsContent value="tours" className="mt-6">
-            <SGTTours />
-          </TabsContent>
-
-          <TabsContent value="tournaments" className="mt-6">
-            <SGTTournaments />
+          <TabsContent value="onboarding" className="mt-6">
+            <SGTPendingOnboarding />
           </TabsContent>
 
           <TabsContent value="members" className="mt-6">
-            <SGTMembers />
-          </TabsContent>
-
-          <TabsContent value="scorecards" className="mt-6">
-            <SGTScorecards />
+            <SGTLeagueMembers />
           </TabsContent>
 
           <TabsContent value="winners" className="mt-6">
