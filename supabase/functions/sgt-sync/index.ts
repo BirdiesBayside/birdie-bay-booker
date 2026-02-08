@@ -307,92 +307,90 @@ serve(async (req) => {
           }, { onConflict: 'tournament_id' });
           totalRecords++;
 
-          // Sync Scorecards - ONLY for completed tournaments to minimize API calls
-          // In-progress scorecards are fetched on-demand when users view their Round History
-          if (status === 'Completed') {
-            try {
-              const scorecardsResponse = await sgtRequest("/tournaments/scorecards", apiKey, { tournamentId: tourn.tournamentId.toString() });
-              const scorecards = extractArray(scorecardsResponse, ['scorecards', 'results']);
+          // Sync Scorecards - for ALL tournaments (completed and in-progress)
+          // This ensures customers can see their rounds in the Hub immediately
+          try {
+            const scorecardsResponse = await sgtRequest("/tournaments/scorecards", apiKey, { tournamentId: tourn.tournamentId.toString() });
+            const scorecards = extractArray(scorecardsResponse, ['scorecards', 'results']);
+            
+            // Track player IDs from this tournament for handicap refresh (only for completed)
+            const playerIdsInTournament = new Set<number>();
+            
+            for (const scorecard of scorecards) {
+              const sc = scorecard as Record<string, unknown>;
+              const playerId = sc.playerId as number;
+              const round = (sc.round as number) ?? 1;
               
-              // Track player IDs from this completed tournament for handicap refresh
-              const playerIdsInTournament = new Set<number>();
-              
-              for (const scorecard of scorecards) {
-                const sc = scorecard as Record<string, unknown>;
-                const playerId = sc.playerId as number;
-                const round = (sc.round as number) ?? 1;
-                
+              if (status === 'Completed') {
                 playerIdsInTournament.add(playerId);
-                
-                const holeData: Record<string, unknown> = {};
-                for (const [key, value] of Object.entries(sc)) {
-                  if (/^h\d+/.test(key) || /^hole\d+/.test(key)) {
-                    holeData[key] = value;
-                  }
-                }
-
-                await supabase.from("sgt_scorecards").upsert({
-                  tournament_id: tourn.tournamentId,
-                  player_id: playerId,
-                  player_name: sc.player_name as string,
-                  hcp_index: sc.hcp_index as number,
-                  round: round,
-                  course_name: sc.courseName as string,
-                  teetype: sc.teetype as string,
-                  rating: sc.rating as number,
-                  slope: sc.slope as number,
-                  total_gross: sc.total_gross as number,
-                  total_net: sc.total_net as number,
-                  to_par_gross: sc.toPar_gross as number,
-                  to_par_net: sc.toPar_net as number,
-                  in_gross: sc.in_gross as number,
-                  out_gross: sc.out_gross as number,
-                  in_net: sc.in_net as number,
-                  out_net: sc.out_net as number,
-                  hole_data: holeData,
-                  updated_at: new Date().toISOString(),
-                }, { onConflict: 'tournament_id,player_id,round' });
-                totalRecords++;
               }
-              console.log(`[SGT-SYNC] Synced ${scorecards.length} scorecards for completed tournament`);
               
-              // After syncing completed tournament scorecards, refresh handicaps for participating players
-              // This ensures handicaps update immediately when a round completes
-              if (playerIdsInTournament.size > 0) {
-                try {
-                  const tourMembersResponse = await sgtRequest("/tours/members", apiKey, { tourId: t.tourId.toString() });
-                  const allTourMembers = extractArray(tourMembersResponse, ['members', 'results']);
+              const holeData: Record<string, unknown> = {};
+              for (const [key, value] of Object.entries(sc)) {
+                if (/^h\d+/.test(key) || /^hole\d+/.test(key)) {
+                  holeData[key] = value;
+                }
+              }
+
+              await supabase.from("sgt_scorecards").upsert({
+                tournament_id: tourn.tournamentId,
+                player_id: playerId,
+                player_name: sc.player_name as string,
+                hcp_index: sc.hcp_index as number,
+                round: round,
+                course_name: sc.courseName as string,
+                teetype: sc.teetype as string,
+                rating: sc.rating as number,
+                slope: sc.slope as number,
+                total_gross: sc.total_gross as number,
+                total_net: sc.total_net as number,
+                to_par_gross: sc.toPar_gross as number,
+                to_par_net: sc.toPar_net as number,
+                in_gross: sc.in_gross as number,
+                out_gross: sc.out_gross as number,
+                in_net: sc.in_net as number,
+                out_net: sc.out_net as number,
+                hole_data: holeData,
+                updated_at: new Date().toISOString(),
+              }, { onConflict: 'tournament_id,player_id,round' });
+              totalRecords++;
+            }
+            console.log(`[SGT-SYNC] Synced ${scorecards.length} scorecards for ${status} tournament`);
+            
+            // After syncing completed tournament scorecards, refresh handicaps for participating players
+            // This ensures handicaps update immediately when a round completes
+            if (status === 'Completed' && playerIdsInTournament.size > 0) {
+              try {
+                const tourMembersResponse = await sgtRequest("/tours/members", apiKey, { tourId: t.tourId.toString() });
+                const allTourMembers = extractArray(tourMembersResponse, ['members', 'results']);
+                
+                let handicapsUpdated = 0;
+                for (const member of allTourMembers) {
+                  const m = member as { user_id: number; user_name: string; hcp_index?: number };
                   
-                  let handicapsUpdated = 0;
-                  for (const member of allTourMembers) {
-                    const m = member as { user_id: number; user_name: string; hcp_index?: number };
+                  // Only update handicaps for players who participated in this tournament
+                  if (playerIdsInTournament.has(m.user_id)) {
+                    const { error: updateError } = await supabase
+                      .from("sgt_tour_members")
+                      .update({ 
+                        hcp_index: m.hcp_index,
+                        updated_at: new Date().toISOString()
+                      })
+                      .eq("tour_id", t.tourId)
+                      .eq("user_id", m.user_id);
                     
-                    // Only update handicaps for players who participated in this tournament
-                    if (playerIdsInTournament.has(m.user_id)) {
-                      const { error: updateError } = await supabase
-                        .from("sgt_tour_members")
-                        .update({ 
-                          hcp_index: m.hcp_index,
-                          updated_at: new Date().toISOString()
-                        })
-                        .eq("tour_id", t.tourId)
-                        .eq("user_id", m.user_id);
-                      
-                      if (!updateError) {
-                        handicapsUpdated++;
-                      }
+                    if (!updateError) {
+                      handicapsUpdated++;
                     }
                   }
-                  console.log(`[SGT-SYNC] Refreshed handicaps for ${handicapsUpdated} players in completed tournament`);
-                } catch (e) {
-                  console.error(`[SGT-SYNC] Error refreshing handicaps post-scorecard sync:`, e);
                 }
+                console.log(`[SGT-SYNC] Refreshed handicaps for ${handicapsUpdated} players in completed tournament`);
+              } catch (e) {
+                console.error(`[SGT-SYNC] Error refreshing handicaps post-scorecard sync:`, e);
               }
-            } catch (e) {
-              console.error(`[SGT-SYNC] Error syncing scorecards for tournament ${tourn.tournamentId}:`, e);
             }
-          } else {
-            console.log(`[SGT-SYNC] Skipping scorecards for ${tourn.status} tournament ${tourn.tournamentId} (on-demand only)`);
+          } catch (e) {
+            console.error(`[SGT-SYNC] Error syncing scorecards for tournament ${tourn.tournamentId}:`, e);
           }
         }
       console.log(`[SGT-SYNC] Synced ${Math.min(tournaments.length, 20)} tournaments`);

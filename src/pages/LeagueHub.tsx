@@ -3,7 +3,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { LeagueLayout } from "@/components/league/LeagueLayout";
 import { LeagueRegistrationPrompt } from "@/components/league/LeagueRegistrationPrompt";
 import { StatCard } from "@/components/league/StatCard";
-import { sgtClient, MemberStats, PlayerRound } from "@/lib/sgt-api";
+import { usePlayerScorecards, PlayerRoundWithScorecard } from "@/hooks/usePlayerScorecards";
 import {
   Target,
   TrendingUp,
@@ -18,15 +18,26 @@ import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { ScorecardDisplay } from "@/components/league/ScorecardDisplay";
 
+interface UserStanding {
+  position: number;
+  points: number;
+  first: number;
+  top5: number;
+  top10: number;
+}
+
 export default function LeagueHub() {
   const { user, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [displayName, setDisplayName] = useState<string>("");
   const [sgtUserId, setSgtUserId] = useState<number | null>(null);
-  const [stats, setStats] = useState<MemberStats | null>(null);
-  const [recentRounds, setRecentRounds] = useState<PlayerRound[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [handicap, setHandicap] = useState<number | null>(null);
+  const [standing, setStanding] = useState<UserStanding | null>(null);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [expandedRound, setExpandedRound] = useState<string | null>(null);
+  
+  // Use cached scorecards from database - minimizes API calls
+  const { data: rounds = [], isLoading: roundsLoading } = usePlayerScorecards();
 
   const toggleExpand = (roundKey: string) => {
     setExpandedRound(expandedRound === roundKey ? null : roundKey);
@@ -42,8 +53,9 @@ export default function LeagueHub() {
     if (authLoading || !user) return;
 
     async function loadDashboard() {
-      setIsLoading(true);
+      setIsLoadingProfile(true);
       try {
+        // Get user profile and sgt_user_id
         const { data: profile } = await supabase
           .from("profiles")
           .select("display_name, first_name, email, sgt_user_id")
@@ -53,25 +65,58 @@ export default function LeagueHub() {
         setDisplayName(profile?.display_name || profile?.first_name || user.email?.split("@")[0] || "Golfer");
         setSgtUserId(profile?.sgt_user_id || null);
 
-        // Only fetch SGT data if user has linked account
+        // If user has SGT account, get their handicap and standing from database
         if (profile?.sgt_user_id) {
-          const [statsData, roundsData] = await Promise.all([
-            sgtClient.getMemberStats().catch(() => null),
-            sgtClient.getPlayerRounds().catch(() => []),
-          ]);
+          // Get handicap from tour member record
+          const { data: tourMember } = await supabase
+            .from("sgt_tour_members")
+            .select("hcp_index, custom_hcp")
+            .eq("user_id", profile.sgt_user_id)
+            .order("updated_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          
+          setHandicap(tourMember?.custom_hcp ?? tourMember?.hcp_index ?? null);
 
-          setStats(statsData);
-          setRecentRounds(roundsData.slice(0, 5));
+          // Get user's standing from tour standings (look up by user_name)
+          const { data: member } = await supabase
+            .from("sgt_members")
+            .select("user_name")
+            .eq("user_id", profile.sgt_user_id)
+            .maybeSingle();
+
+          if (member?.user_name) {
+            const { data: standingData } = await supabase
+              .from("sgt_tour_standings")
+              .select("position, points, first, top5, top10")
+              .eq("user_name", member.user_name)
+              .eq("gross_or_net", "net")
+              .order("updated_at", { ascending: false })
+              .limit(1)
+              .maybeSingle();
+
+            if (standingData) {
+              setStanding({
+                position: standingData.position,
+                points: standingData.points ?? 0,
+                first: standingData.first ?? 0,
+                top5: standingData.top5 ?? 0,
+                top10: standingData.top10 ?? 0,
+              });
+            }
+          }
         }
       } catch (error) {
         console.error("Failed to load dashboard:", error);
       } finally {
-        setIsLoading(false);
+        setIsLoadingProfile(false);
       }
     }
 
     loadDashboard();
   }, [user, authLoading]);
+
+  const isLoading = authLoading || isLoadingProfile || roundsLoading;
 
   if (authLoading || !user) {
     return (
@@ -80,6 +125,31 @@ export default function LeagueHub() {
       </div>
     );
   }
+
+  // Convert cached scorecard format for ScorecardDisplay
+  const formatScorecardForDisplay = (round: PlayerRoundWithScorecard) => {
+    if (!round.scorecard) return undefined;
+    return {
+      tournamentId: round.scorecard.tournament_id,
+      playerId: round.scorecard.player_id,
+      player_name: round.scorecard.player_name,
+      hcp_index: round.scorecard.hcp_index ?? 0,
+      round: round.scorecard.round ?? 1,
+      courseName: round.scorecard.course_name ?? "",
+      teetype: round.scorecard.teetype ?? "",
+      rating: round.scorecard.rating ?? 0,
+      slope: round.scorecard.slope ?? 0,
+      total_gross: round.scorecard.total_gross ?? 0,
+      total_net: round.scorecard.total_net ?? 0,
+      toPar_gross: round.scorecard.to_par_gross ?? 0,
+      toPar_net: round.scorecard.to_par_net ?? 0,
+      in_gross: round.scorecard.in_gross ?? 0,
+      out_gross: round.scorecard.out_gross ?? 0,
+      in_net: round.scorecard.in_net ?? 0,
+      out_net: round.scorecard.out_net ?? 0,
+      holeData: round.scorecard.hole_data as Record<string, number | string> | undefined,
+    };
+  };
 
   return (
     <LeagueLayout>
@@ -106,27 +176,27 @@ export default function LeagueHub() {
           <div className="grid grid-cols-2 gap-4 mb-8">
             <StatCard
               label="Handicap"
-              value={stats?.handicap ?? "N/A"}
+              value={handicap ?? "N/A"}
               icon={<Target className="h-5 w-5" />}
               delay={0}
             />
             <StatCard
               label="Rounds Played"
-              value={recentRounds.length}
+              value={rounds.length}
               subValue="This season"
               icon={<Calendar className="h-5 w-5" />}
               delay={100}
             />
             <StatCard
               label="Tour Position"
-              value={stats?.standing?.position ? `#${stats.standing.position}` : "N/A"}
-              subValue={stats?.standing ? `${stats.standing.points} pts` : undefined}
+              value={standing?.position ? `#${standing.position}` : "N/A"}
+              subValue={standing ? `${standing.points} pts` : undefined}
               icon={<Trophy className="h-5 w-5" />}
               delay={200}
             />
             <StatCard
               label="Best Finish"
-              value={stats?.standing?.first ? `${stats.standing.first} Win${stats.standing.first > 1 ? "s" : ""}` : stats?.standing?.top5 ? `${stats.standing.top5} Top 5` : "N/A"}
+              value={standing?.first ? `${standing.first} Win${standing.first > 1 ? "s" : ""}` : standing?.top5 ? `${standing.top5} Top 5` : "N/A"}
               icon={<TrendingUp className="h-5 w-5" />}
               delay={300}
             />
@@ -144,7 +214,7 @@ export default function LeagueHub() {
               </Link>
             </div>
 
-            {recentRounds.length === 0 ? (
+            {rounds.length === 0 ? (
               <div className="bg-white rounded-2xl border border-border/50 p-8 text-center shadow-sm">
                 <p className="text-muted-foreground font-inter">
                   No rounds recorded yet. Get out there and play!
@@ -152,9 +222,11 @@ export default function LeagueHub() {
               </div>
             ) : (
               <div className="space-y-3">
-                {recentRounds.slice(0, 3).map((round, index) => {
+                {rounds.slice(0, 3).map((round, index) => {
                   const roundKey = `${round.tournamentId}-${round.scorecard?.round || index}`;
                   const isExpanded = expandedRound === roundKey;
+                  const displayScorecard = formatScorecardForDisplay(round);
+                  
                   return (
                     <div
                       key={roundKey}
@@ -195,9 +267,9 @@ export default function LeagueHub() {
                         </div>
                       </button>
 
-                      {isExpanded && (
+                      {isExpanded && displayScorecard && (
                         <div className="px-4 pb-4 pt-2 border-t border-border/50 animate-fade-in">
-                          <ScorecardDisplay scorecard={round.scorecard} showDetails />
+                          <ScorecardDisplay scorecard={displayScorecard} showDetails />
                         </div>
                       )}
                     </div>
