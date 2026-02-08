@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { Trophy, Award, Calendar, DollarSign, Mail, CheckCircle2, Plus } from "lucide-react";
+import { Trophy, Award, Calendar, DollarSign, Mail, CheckCircle2, Plus, Clock, User } from "lucide-react";
 import { format } from "date-fns";
 import {
   Dialog,
@@ -35,6 +35,7 @@ interface WeeklyPrize {
   prize_amount: number;
   awarded_at: string;
   email_sent: boolean;
+  status: string;
 }
 
 interface MonthlyAward {
@@ -53,11 +54,21 @@ interface Tournament {
   name: string;
   status: string | null;
   start_date: string | null;
+  end_date: string | null;
+}
+
+interface Scorecard {
+  player_id: number;
+  player_name: string;
+  to_par_net: number | null;
+  total_net: number;
 }
 
 export function SGTWinners() {
   const queryClient = useQueryClient();
   const [showAddMonthlyDialog, setShowAddMonthlyDialog] = useState(false);
+  const [selectedTournamentForApproval, setSelectedTournamentForApproval] = useState<number | null>(null);
+  const [selectedWinner, setSelectedWinner] = useState<{ playerId: number; playerName: string } | null>(null);
   const [newMonthlyAward, setNewMonthlyAward] = useState({
     month: "",
     winner_player_name: "",
@@ -65,19 +76,67 @@ export function SGTWinners() {
     notes: "",
   });
 
-  // Fetch weekly prizes
+  // Fetch weekly prizes (approved only for the history section)
   const { data: weeklyPrizes, isLoading: loadingWeekly } = useQuery({
     queryKey: ["sgt-weekly-prizes"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("sgt_weekly_prizes")
         .select("*")
+        .eq("status", "approved")
         .order("awarded_at", { ascending: false })
         .limit(50);
       
       if (error) throw error;
       return data as WeeklyPrize[];
     },
+  });
+
+  // Fetch completed tournaments that need prize approval
+  const { data: completedTournaments, isLoading: loadingCompleted } = useQuery({
+    queryKey: ["sgt-completed-tournaments-pending"],
+    queryFn: async () => {
+      // Get all completed tournaments
+      const { data: tournaments, error: tournError } = await supabase
+        .from("sgt_tournaments")
+        .select("tournament_id, name, status, start_date, end_date")
+        .eq("status", "Completed")
+        .order("end_date", { ascending: false })
+        .limit(20);
+      
+      if (tournError) throw tournError;
+
+      // Get all approved prizes
+      const { data: prizes, error: prizeError } = await supabase
+        .from("sgt_weekly_prizes")
+        .select("tournament_id")
+        .eq("status", "approved");
+      
+      if (prizeError) throw prizeError;
+
+      const awardedTournamentIds = new Set(prizes?.map(p => p.tournament_id) || []);
+
+      // Filter to only tournaments without approved prizes
+      return (tournaments || []).filter(t => !awardedTournamentIds.has(t.tournament_id)) as Tournament[];
+    },
+  });
+
+  // Fetch leaderboard for selected tournament
+  const { data: tournamentLeaderboard, isLoading: loadingLeaderboard } = useQuery({
+    queryKey: ["sgt-tournament-leaderboard", selectedTournamentForApproval],
+    queryFn: async () => {
+      if (!selectedTournamentForApproval) return [];
+
+      const { data, error } = await supabase
+        .from("sgt_scorecards")
+        .select("player_id, player_name, to_par_net, total_net")
+        .eq("tournament_id", selectedTournamentForApproval)
+        .order("to_par_net", { ascending: true });
+      
+      if (error) throw error;
+      return data as Scorecard[];
+    },
+    enabled: !!selectedTournamentForApproval,
   });
 
   // Fetch monthly awards
@@ -126,6 +185,33 @@ export function SGTWinners() {
     },
   });
 
+  // Approve weekly prize mutation
+  const approvePrize = useMutation({
+    mutationFn: async ({ tournamentId, playerId, playerName }: { tournamentId: number; playerId: number; playerName: string }) => {
+      const { data, error } = await supabase.functions.invoke("approve-weekly-prize", {
+        body: { tournamentId, playerId, playerName, prizeAmount: 40 },
+      });
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["sgt-weekly-prizes"] });
+      queryClient.invalidateQueries({ queryKey: ["sgt-completed-tournaments-pending"] });
+      setSelectedTournamentForApproval(null);
+      setSelectedWinner(null);
+      
+      if (data.credited) {
+        toast.success(`$40 credited to ${data.playerName}${data.emailSent ? " and email sent" : ""}`);
+      } else {
+        toast.success(`Prize recorded for ${data.playerName} (external player - no credit applied)`);
+      }
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to approve prize");
+    },
+  });
+
   // Add monthly award mutation
   const addMonthlyAward = useMutation({
     mutationFn: async (award: typeof newMonthlyAward) => {
@@ -164,9 +250,134 @@ export function SGTWinners() {
     return format(date, "MMMM yyyy");
   });
 
+  const formatScore = (score: number | null) => {
+    if (score === null) return "-";
+    if (score === 0) return "E";
+    return score > 0 ? `+${score}` : `${score}`;
+  };
+
   return (
     <div className="space-y-6">
-      {/* Weekly Prizes Section */}
+      {/* Pending Approvals Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="h-5 w-5 text-orange-500" />
+            Pending Weekly Prize Approvals
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loadingCompleted ? (
+            <div className="space-y-3">
+              {[1, 2].map(i => (
+                <Skeleton key={i} className="h-20 w-full" />
+              ))}
+            </div>
+          ) : !completedTournaments?.length ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <CheckCircle2 className="h-12 w-12 mx-auto mb-3 opacity-30" />
+              <p>All completed tournaments have been awarded</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {completedTournaments.map(tournament => (
+                <div
+                  key={tournament.tournament_id}
+                  className="p-4 border rounded-lg bg-muted/30"
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <p className="font-medium">{tournament.name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        Ended: {tournament.end_date ? format(new Date(tournament.end_date), "dd MMM yyyy") : "Unknown"}
+                      </p>
+                    </div>
+                    <Badge variant="outline" className="text-orange-600">
+                      Needs Approval
+                    </Badge>
+                  </div>
+
+                  {selectedTournamentForApproval === tournament.tournament_id ? (
+                    <div className="space-y-3 pt-2 border-t">
+                      <Label>Select Winner</Label>
+                      {loadingLeaderboard ? (
+                        <Skeleton className="h-10 w-full" />
+                      ) : !tournamentLeaderboard?.length ? (
+                        <p className="text-sm text-muted-foreground">No scorecards found for this tournament</p>
+                      ) : (
+                        <>
+                          <Select
+                            value={selectedWinner ? `${selectedWinner.playerId}` : undefined}
+                            onValueChange={(value) => {
+                              const player = tournamentLeaderboard.find(p => p.player_id === parseInt(value));
+                              if (player) {
+                                setSelectedWinner({ playerId: player.player_id, playerName: player.player_name });
+                              }
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Choose the winner..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {tournamentLeaderboard.map((player, idx) => (
+                                <SelectItem key={player.player_id} value={`${player.player_id}`}>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-mono text-muted-foreground w-6">#{idx + 1}</span>
+                                    <span>{player.player_name}</span>
+                                    <span className="text-muted-foreground">({formatScore(player.to_par_net)})</span>
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedTournamentForApproval(null);
+                                setSelectedWinner(null);
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              size="sm"
+                              disabled={!selectedWinner || approvePrize.isPending}
+                              onClick={() => {
+                                if (selectedWinner) {
+                                  approvePrize.mutate({
+                                    tournamentId: tournament.tournament_id,
+                                    playerId: selectedWinner.playerId,
+                                    playerName: selectedWinner.playerName,
+                                  });
+                                }
+                              }}
+                            >
+                              {approvePrize.isPending ? "Approving..." : "Approve $40 Credit"}
+                            </Button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSelectedTournamentForApproval(tournament.tournament_id)}
+                    >
+                      <User className="h-4 w-4 mr-2" />
+                      Select Winner
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Weekly Prizes History Section */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -185,7 +396,7 @@ export function SGTWinners() {
             <div className="text-center py-8 text-muted-foreground">
               <Trophy className="h-12 w-12 mx-auto mb-3 opacity-30" />
               <p>No weekly prizes awarded yet</p>
-              <p className="text-sm mt-1">Prizes are automatically awarded when tournaments complete</p>
+              <p className="text-sm mt-1">Approve prizes from the pending section above</p>
             </div>
           ) : (
             <div className="space-y-3">
