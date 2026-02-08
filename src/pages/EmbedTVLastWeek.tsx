@@ -30,11 +30,11 @@ export default function EmbedTVLastWeek() {
 
   const loadData = async () => {
     try {
-      // Get the active tour
+      // Get the Loco Wrapz Championship tour (tour_id 2458) which has the weekly tournaments
       const { data: activeTour } = await supabase
         .from("sgt_tours")
         .select("tour_id, name")
-        .eq("active", 1)
+        .eq("tour_id", 2458)
         .maybeSingle();
 
       if (!activeTour) {
