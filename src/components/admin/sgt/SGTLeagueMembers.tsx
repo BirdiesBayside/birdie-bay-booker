@@ -301,7 +301,7 @@ export function SGTLeagueMembers() {
                               }}
                             />
                           ) : (
-                            <span className={usingCustom ? "font-semibold text-accent-foreground" : "text-muted-foreground"}>
+                            <span className={usingCustom ? "font-semibold text-green-600 dark:text-green-400" : "text-muted-foreground"}>
                               {formatHcp(member.custom_hcp)}
                             </span>
                           )}
