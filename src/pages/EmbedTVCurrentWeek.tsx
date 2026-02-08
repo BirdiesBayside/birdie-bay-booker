@@ -56,7 +56,7 @@ export default function EmbedTVWeekly() {
           </div>
         </div>
         <div className="text-right">
-          <div className="px-6 py-3 bg-[hsl(128,42%,21%)] text-white rounded-lg text-xl font-bold">
+          <div className="px-6 py-3 bg-[hsl(18,84%,55%)] text-white rounded-lg text-xl font-bold">
             CURRENT WEEK
           </div>
           {lastUpdated && (
