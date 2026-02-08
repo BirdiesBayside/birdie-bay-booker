@@ -9,15 +9,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { Trophy, Award, Calendar, DollarSign, Mail, CheckCircle2, Plus, Clock, User } from "lucide-react";
-import { format } from "date-fns";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { Trophy, Award, Calendar, DollarSign, Mail, CheckCircle2, Clock, User, ChevronDown, ChevronUp, Send } from "lucide-react";
+import { format, subMonths } from "date-fns";
 import {
   Select,
   SelectContent,
@@ -25,6 +18,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 interface WeeklyPrize {
   id: string;
@@ -64,17 +62,80 @@ interface Scorecard {
   total_net: number;
 }
 
+interface MonthlyStanding {
+  player_id: number;
+  player_name: string;
+  total_net_score: number | null;
+  tournaments_played: number;
+  net_position: number | null;
+}
+
+// Default email template for monthly winners
+const DEFAULT_MONTHLY_EMAIL_TEMPLATE = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #FFF5E4;">
+  <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff;">
+    <!-- Header -->
+    <div style="background-color: #1F4C25; padding: 30px 20px; text-align: center;">
+      <h1 style="color: #ffffff; margin: 0; font-size: 28px;">🏆 Monthly Winner!</h1>
+    </div>
+    
+    <!-- Body -->
+    <div style="padding: 30px 20px;">
+      <p style="font-size: 18px; color: #333; margin-bottom: 20px;">
+        Congratulations <strong>{{first_name}}</strong>!
+      </p>
+      
+      <p style="font-size: 16px; color: #555; line-height: 1.6;">
+        You've been crowned the <strong>{{month}}</strong> Birdies Tour Champion! 
+        Your consistent play throughout the month has earned you this well-deserved recognition.
+      </p>
+      
+      <div style="background-color: #FFF5E4; border-radius: 12px; padding: 20px; margin: 25px 0; text-align: center;">
+        <p style="font-size: 14px; color: #666; margin: 0 0 8px 0;">Your Prize</p>
+        <p style="font-size: 24px; color: #1F4C25; font-weight: bold; margin: 0;">{{prize_description}}</p>
+      </div>
+      
+      <p style="font-size: 16px; color: #555; line-height: 1.6;">
+        Pop in next time you're at Birdies to collect your prize. Keep up the great golf!
+      </p>
+      
+      <p style="font-size: 16px; color: #555; margin-top: 30px;">
+        See you on the virtual fairways,<br>
+        <strong>The Birdies Team</strong>
+      </p>
+    </div>
+    
+    <!-- Footer -->
+    <div style="background-color: #f5f5f5; padding: 20px; text-align: center; border-top: 1px solid #eee;">
+      <p style="font-size: 12px; color: #888; margin: 0;">
+        Birdies Bayside | 1/161 Tingal Rd, Wynnum QLD 4178<br>
+        <a href="tel:0721468442" style="color: #1F4C25;">(07) 2146 8442</a> | 
+        <a href="mailto:info@birdiesbayside.com.au" style="color: #1F4C25;">info@birdiesbayside.com.au</a>
+      </p>
+    </div>
+  </div>
+</body>
+</html>`;
+
 export function SGTWinners() {
   const queryClient = useQueryClient();
-  const [showAddMonthlyDialog, setShowAddMonthlyDialog] = useState(false);
+  
+  // Weekly prize approval state
   const [selectedTournamentForApproval, setSelectedTournamentForApproval] = useState<number | null>(null);
   const [selectedWinner, setSelectedWinner] = useState<{ playerId: number; playerName: string } | null>(null);
-  const [newMonthlyAward, setNewMonthlyAward] = useState({
-    month: "",
-    winner_player_name: "",
-    prize_description: "",
-    notes: "",
-  });
+  
+  // Monthly prize approval state
+  const [monthlyApprovalOpen, setMonthlyApprovalOpen] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState<string>("");
+  const [selectedMonthlyWinner, setSelectedMonthlyWinner] = useState<{ playerId: number; playerName: string } | null>(null);
+  const [monthlyPrizeDescription, setMonthlyPrizeDescription] = useState("");
+  const [monthlyEmailSubject, setMonthlyEmailSubject] = useState("");
+  const [monthlyEmailHtml, setMonthlyEmailHtml] = useState(DEFAULT_MONTHLY_EMAIL_TEMPLATE);
 
   // Fetch weekly prizes (approved only for the history section)
   const { data: weeklyPrizes, isLoading: loadingWeekly } = useQuery({
@@ -96,7 +157,6 @@ export function SGTWinners() {
   const { data: completedTournaments, isLoading: loadingCompleted } = useQuery({
     queryKey: ["sgt-completed-tournaments-pending"],
     queryFn: async () => {
-      // Get all completed tournaments
       const { data: tournaments, error: tournError } = await supabase
         .from("sgt_tournaments")
         .select("tournament_id, name, status, start_date, end_date")
@@ -106,7 +166,6 @@ export function SGTWinners() {
       
       if (tournError) throw tournError;
 
-      // Get all approved prizes
       const { data: prizes, error: prizeError } = await supabase
         .from("sgt_weekly_prizes")
         .select("tournament_id")
@@ -115,8 +174,6 @@ export function SGTWinners() {
       if (prizeError) throw prizeError;
 
       const awardedTournamentIds = new Set(prizes?.map(p => p.tournament_id) || []);
-
-      // Filter to only tournaments without approved prizes
       return (tournaments || []).filter(t => !awardedTournamentIds.has(t.tournament_id)) as Tournament[];
     },
   });
@@ -139,6 +196,24 @@ export function SGTWinners() {
     enabled: !!selectedTournamentForApproval,
   });
 
+  // Fetch monthly standings for the selected month
+  const { data: monthlyStandings, isLoading: loadingMonthlyStandings } = useQuery({
+    queryKey: ["sgt-monthly-standings-for-approval", selectedMonth],
+    queryFn: async () => {
+      if (!selectedMonth) return [];
+
+      const { data, error } = await supabase
+        .from("sgt_monthly_standings")
+        .select("player_id, player_name, total_net_score, tournaments_played, net_position")
+        .eq("month", selectedMonth)
+        .order("net_position", { ascending: true });
+      
+      if (error) throw error;
+      return data as MonthlyStanding[];
+    },
+    enabled: !!selectedMonth,
+  });
+
   // Fetch monthly awards
   const { data: monthlyAwards, isLoading: loadingMonthly } = useQuery({
     queryKey: ["sgt-monthly-awards"],
@@ -151,6 +226,32 @@ export function SGTWinners() {
       
       if (error) throw error;
       return data as MonthlyAward[];
+    },
+  });
+
+  // Get months that have standings but no award yet
+  const { data: pendingMonths } = useQuery({
+    queryKey: ["sgt-pending-months"],
+    queryFn: async () => {
+      // Get all months with standings
+      const { data: standingsMonths, error: standingsError } = await supabase
+        .from("sgt_monthly_standings")
+        .select("month")
+        .order("month", { ascending: false });
+      
+      if (standingsError) throw standingsError;
+
+      // Get all months with awards
+      const { data: awardedMonths, error: awardsError } = await supabase
+        .from("sgt_monthly_awards")
+        .select("month");
+      
+      if (awardsError) throw awardsError;
+
+      const awardedSet = new Set(awardedMonths?.map(a => a.month) || []);
+      const uniqueMonths = [...new Set(standingsMonths?.map(s => s.month) || [])];
+      
+      return uniqueMonths.filter(m => !awardedSet.has(m));
     },
   });
 
@@ -212,29 +313,48 @@ export function SGTWinners() {
     },
   });
 
-  // Add monthly award mutation
-  const addMonthlyAward = useMutation({
-    mutationFn: async (award: typeof newMonthlyAward) => {
-      if (!activeTour) throw new Error("No active tour found");
-      
-      const { error } = await supabase.from("sgt_monthly_awards").insert({
-        tour_id: activeTour.tour_id,
-        month: award.month,
-        winner_player_name: award.winner_player_name,
-        prize_description: award.prize_description || null,
-        notes: award.notes || null,
+  // Approve monthly prize mutation
+  const approveMonthlyPrize = useMutation({
+    mutationFn: async () => {
+      if (!activeTour || !selectedMonth || !selectedMonthlyWinner) {
+        throw new Error("Missing required fields");
+      }
+
+      const { data, error } = await supabase.functions.invoke("approve-monthly-prize", {
+        body: {
+          tourId: activeTour.tour_id,
+          month: selectedMonth,
+          playerId: selectedMonthlyWinner.playerId,
+          playerName: selectedMonthlyWinner.playerName,
+          prizeDescription: monthlyPrizeDescription,
+          emailSubject: monthlyEmailSubject || `Congratulations! You're the ${selectedMonth} Monthly Winner!`,
+          emailHtml: monthlyEmailHtml,
+        },
       });
-      
+
       if (error) throw error;
+      return data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["sgt-monthly-awards"] });
-      setShowAddMonthlyDialog(false);
-      setNewMonthlyAward({ month: "", winner_player_name: "", prize_description: "", notes: "" });
-      toast.success("Monthly award recorded");
+      queryClient.invalidateQueries({ queryKey: ["sgt-pending-months"] });
+      
+      // Reset form
+      setMonthlyApprovalOpen(false);
+      setSelectedMonth("");
+      setSelectedMonthlyWinner(null);
+      setMonthlyPrizeDescription("");
+      setMonthlyEmailSubject("");
+      setMonthlyEmailHtml(DEFAULT_MONTHLY_EMAIL_TEMPLATE);
+      
+      if (data.emailSent) {
+        toast.success(`Monthly award sent to ${data.recipientEmail}`);
+      } else {
+        toast.success(`Monthly award recorded for ${data.playerName} (no email sent - player not linked)`);
+      }
     },
     onError: (error: Error) => {
-      toast.error(error.message || "Failed to add award");
+      toast.error(error.message || "Failed to approve monthly prize");
     },
   });
 
@@ -243,22 +363,21 @@ export function SGTWinners() {
     return tournament?.name || `Tournament #${tournamentId}`;
   };
 
-  // Generate month options for the last 12 months
-  const monthOptions = Array.from({ length: 12 }, (_, i) => {
-    const date = new Date();
-    date.setMonth(date.getMonth() - i);
-    return format(date, "MMMM yyyy");
-  });
-
   const formatScore = (score: number | null) => {
     if (score === null) return "-";
     if (score === 0) return "E";
     return score > 0 ? `+${score}` : `${score}`;
   };
 
+  // Generate month options for the last 6 months
+  const monthOptions = Array.from({ length: 6 }, (_, i) => {
+    const date = subMonths(new Date(), i);
+    return format(date, "MMMM yyyy");
+  });
+
   return (
     <div className="space-y-6">
-      {/* Pending Approvals Section */}
+      {/* Pending Weekly Approvals Section */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -274,8 +393,8 @@ export function SGTWinners() {
               ))}
             </div>
           ) : !completedTournaments?.length ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <CheckCircle2 className="h-12 w-12 mx-auto mb-3 opacity-30" />
+            <div className="text-center py-6 text-muted-foreground">
+              <CheckCircle2 className="h-10 w-10 mx-auto mb-2 opacity-30" />
               <p>All completed tournaments have been awarded</p>
             </div>
           ) : (
@@ -377,6 +496,156 @@ export function SGTWinners() {
         </CardContent>
       </Card>
 
+      {/* Monthly Prize Approval Section */}
+      <Card>
+        <Collapsible open={monthlyApprovalOpen} onOpenChange={setMonthlyApprovalOpen}>
+          <CardHeader className="cursor-pointer">
+            <CollapsibleTrigger asChild>
+              <div className="flex items-center justify-between w-full">
+                <CardTitle className="flex items-center gap-2">
+                  <Award className="h-5 w-5 text-purple-500" />
+                  Award Monthly Prize
+                  {pendingMonths && pendingMonths.length > 0 && (
+                    <Badge variant="secondary" className="ml-2">
+                      {pendingMonths.length} pending
+                    </Badge>
+                  )}
+                </CardTitle>
+                {monthlyApprovalOpen ? (
+                  <ChevronUp className="h-5 w-5 text-muted-foreground" />
+                ) : (
+                  <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                )}
+              </div>
+            </CollapsibleTrigger>
+          </CardHeader>
+          <CollapsibleContent>
+            <CardContent className="space-y-4">
+              {/* Month Selection */}
+              <div className="space-y-2">
+                <Label>Select Month</Label>
+                <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose a month..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(pendingMonths && pendingMonths.length > 0 ? pendingMonths : monthOptions).map(month => (
+                      <SelectItem key={month} value={month}>
+                        {month}
+                        {pendingMonths?.includes(month) && (
+                          <span className="ml-2 text-orange-600">(pending)</span>
+                        )}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Winner Selection */}
+              {selectedMonth && (
+                <div className="space-y-2">
+                  <Label>Select Winner from Leaderboard</Label>
+                  {loadingMonthlyStandings ? (
+                    <Skeleton className="h-10 w-full" />
+                  ) : !monthlyStandings?.length ? (
+                    <p className="text-sm text-muted-foreground">No standings found for {selectedMonth}</p>
+                  ) : (
+                    <Select
+                      value={selectedMonthlyWinner ? `${selectedMonthlyWinner.playerId}` : undefined}
+                      onValueChange={(value) => {
+                        const player = monthlyStandings.find(p => p.player_id === parseInt(value));
+                        if (player) {
+                          setSelectedMonthlyWinner({ playerId: player.player_id, playerName: player.player_name });
+                        }
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Choose the monthly winner..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {monthlyStandings.map((player) => (
+                          <SelectItem key={player.player_id} value={`${player.player_id}`}>
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-muted-foreground w-6">#{player.net_position}</span>
+                              <span>{player.player_name}</span>
+                              <span className="text-muted-foreground">
+                                ({formatScore(player.total_net_score)} / {player.tournaments_played} rounds)
+                              </span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              )}
+
+              {/* Prize Description */}
+              {selectedMonthlyWinner && (
+                <>
+                  <div className="space-y-2">
+                    <Label>Prize Description</Label>
+                    <Input
+                      value={monthlyPrizeDescription}
+                      onChange={(e) => setMonthlyPrizeDescription(e.target.value)}
+                      placeholder="e.g., $50 Bar Tab, Golf Glove, Sleeve of ProV1s..."
+                    />
+                    <p className="text-xs text-muted-foreground">This will appear in the email</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Email Subject</Label>
+                    <Input
+                      value={monthlyEmailSubject}
+                      onChange={(e) => setMonthlyEmailSubject(e.target.value)}
+                      placeholder={`Congratulations! You're the ${selectedMonth} Monthly Winner!`}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Email Content (HTML)</Label>
+                    <Textarea
+                      value={monthlyEmailHtml}
+                      onChange={(e) => setMonthlyEmailHtml(e.target.value)}
+                      rows={12}
+                      className="font-mono text-xs"
+                      placeholder="Paste your HTML email template here..."
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Available variables: {"{{first_name}}"}, {"{{player_name}}"}, {"{{month}}"}, {"{{prize_description}}"}
+                    </p>
+                  </div>
+
+                  <div className="flex gap-2 pt-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setMonthlyApprovalOpen(false);
+                        setSelectedMonth("");
+                        setSelectedMonthlyWinner(null);
+                        setMonthlyPrizeDescription("");
+                        setMonthlyEmailSubject("");
+                        setMonthlyEmailHtml(DEFAULT_MONTHLY_EMAIL_TEMPLATE);
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      disabled={!selectedMonthlyWinner || !monthlyPrizeDescription || approveMonthlyPrize.isPending}
+                      onClick={() => approveMonthlyPrize.mutate()}
+                      className="gap-2"
+                    >
+                      <Send className="h-4 w-4" />
+                      {approveMonthlyPrize.isPending ? "Sending..." : "Approve & Send Email"}
+                    </Button>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </CollapsibleContent>
+        </Collapsible>
+      </Card>
+
       {/* Weekly Prizes History Section */}
       <Card>
         <CardHeader>
@@ -393,10 +662,9 @@ export function SGTWinners() {
               ))}
             </div>
           ) : !weeklyPrizes?.length ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Trophy className="h-12 w-12 mx-auto mb-3 opacity-30" />
+            <div className="text-center py-6 text-muted-foreground">
+              <Trophy className="h-10 w-10 mx-auto mb-2 opacity-30" />
               <p>No weekly prizes awarded yet</p>
-              <p className="text-sm mt-1">Approve prizes from the pending section above</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -448,85 +716,13 @@ export function SGTWinners() {
         </CardContent>
       </Card>
 
-      {/* Monthly Awards Section */}
+      {/* Monthly Awards History Section */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Award className="h-5 w-5 text-purple-500" />
-            Monthly Awards
+            Monthly Awards History
           </CardTitle>
-          <Dialog open={showAddMonthlyDialog} onOpenChange={setShowAddMonthlyDialog}>
-            <DialogTrigger asChild>
-              <Button size="sm" className="gap-2">
-                <Plus className="h-4 w-4" />
-                Record Award
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Record Monthly Award</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 pt-4">
-                <div className="space-y-2">
-                  <Label>Month</Label>
-                  <Select
-                    value={newMonthlyAward.month}
-                    onValueChange={(value) => setNewMonthlyAward(prev => ({ ...prev, month: value }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select month" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {monthOptions.map(month => (
-                        <SelectItem key={month} value={month}>{month}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Winner Name</Label>
-                  <Input
-                    value={newMonthlyAward.winner_player_name}
-                    onChange={(e) => setNewMonthlyAward(prev => ({ ...prev, winner_player_name: e.target.value }))}
-                    placeholder="Enter winner's name"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Prize Description</Label>
-                  <Input
-                    value={newMonthlyAward.prize_description}
-                    onChange={(e) => setNewMonthlyAward(prev => ({ ...prev, prize_description: e.target.value }))}
-                    placeholder="e.g., $100 voucher, Golf bag, etc."
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Notes (Optional)</Label>
-                  <Textarea
-                    value={newMonthlyAward.notes}
-                    onChange={(e) => setNewMonthlyAward(prev => ({ ...prev, notes: e.target.value }))}
-                    placeholder="Any additional notes..."
-                    rows={2}
-                  />
-                </div>
-                <div className="flex gap-3 pt-2">
-                  <Button
-                    variant="outline"
-                    className="flex-1"
-                    onClick={() => setShowAddMonthlyDialog(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    className="flex-1"
-                    onClick={() => addMonthlyAward.mutate(newMonthlyAward)}
-                    disabled={!newMonthlyAward.month || !newMonthlyAward.winner_player_name || addMonthlyAward.isPending}
-                  >
-                    {addMonthlyAward.isPending ? "Saving..." : "Save Award"}
-                  </Button>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
         </CardHeader>
         <CardContent>
           {loadingMonthly ? (
@@ -536,10 +732,9 @@ export function SGTWinners() {
               ))}
             </div>
           ) : !monthlyAwards?.length ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Award className="h-12 w-12 mx-auto mb-3 opacity-30" />
+            <div className="text-center py-6 text-muted-foreground">
+              <Award className="h-10 w-10 mx-auto mb-2 opacity-30" />
               <p>No monthly awards recorded yet</p>
-              <p className="text-sm mt-1">Click "Record Award" to add a monthly winner</p>
             </div>
           ) : (
             <div className="space-y-3">
