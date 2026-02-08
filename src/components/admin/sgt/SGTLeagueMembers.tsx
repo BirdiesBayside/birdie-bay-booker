@@ -171,9 +171,10 @@ export function SGTLeagueMembers() {
   });
 
   // Determine which HCP is active for a member
+  // Custom HCP ALWAYS overrides Combo HCP when set (allows manual adjustments for struggling players)
   const getActiveHcp = (member: LeagueMember): { value: number | null; isCustom: boolean } => {
-    // Use custom HCP if set AND player has < 4 rounds
-    if (member.custom_hcp !== null && member.rounds_played < 4) {
+    // If custom HCP is set, it ALWAYS takes precedence
+    if (member.custom_hcp !== null) {
       return { value: member.custom_hcp, isCustom: true };
     }
     // Otherwise use Combo HCP
@@ -199,7 +200,7 @@ export function SGTLeagueMembers() {
             </Badge>
           </div>
           <CardDescription>
-            Manage member handicaps. Custom HCP is used for the first 4 rounds, then Combo HCP takes over.
+            Manage member handicaps. <strong>Custom HCP always overrides Combo HCP</strong> when set — use this to help players whose handicap isn't quite right.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -247,8 +248,9 @@ export function SGTLeagueMembers() {
                             Custom HCP
                             <Info className="h-3 w-3 text-muted-foreground" />
                           </TooltipTrigger>
-                          <TooltipContent>
-                            Manual override used for first 4 rounds
+                          <TooltipContent className="max-w-xs">
+                            <p><strong>Always overrides Combo HCP when set.</strong></p>
+                            <p className="text-xs mt-1">Clear to use SGT's Combo HCP instead.</p>
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
@@ -258,10 +260,10 @@ export function SGTLeagueMembers() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredMembers.map((member) => {
+                {filteredMembers.map((member) => {
                     const activeHcp = getActiveHcp(member);
                     const isEditing = editingMemberId === member.user_id;
-                    const usingCustom = member.custom_hcp !== null && member.rounds_played < 4;
+                    const usingCustom = member.custom_hcp !== null;
 
                     return (
                       <TableRow key={member.user_id}>
