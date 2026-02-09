@@ -69,7 +69,7 @@ serve(async (req) => {
       throw new Error("Missing Stripe configuration");
     }
 
-    const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
+    const stripe = new Stripe(stripeKey, { apiVersion: "2025-07-30.basil" });
     const resend = resendApiKey ? new Resend(resendApiKey) : null;
     
     const signature = req.headers.get("stripe-signature");
