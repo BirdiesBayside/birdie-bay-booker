@@ -312,8 +312,8 @@ serve(async (req) => {
           
           let status = tourn.status;
           
-          // AUTO-CLOSE: If tournament is "In Progress" and end_date has passed, close it via API
-          if ((status === 'In Progress' || status === 'Active') && tourn.end_date && tourn.end_date < todayStr) {
+          // AUTO-CLOSE: If tournament is "In Progress" and end_date has passed (inclusive), close it via API
+          if ((status === 'In Progress' || status === 'Active') && tourn.end_date && tourn.end_date <= todayStr) {
             console.log(`[SGT-SYNC] Auto-closing tournament ${tourn.tournamentId} (${tourn.name}): end_date ${tourn.end_date} has passed`);
             try {
               const closeResult = await sgtPostRequest("/tournaments/close", apiKey, {
