@@ -44,6 +44,7 @@ export function useBayControllerLogger({
 }: UseBayControllerLoggerOptions) {
   const logQueueRef = useRef<LogEntry[]>([]);
   const isFlushingRef = useRef(false);
+  const lastConnectionLogRef = useRef<{ connected: boolean; timestamp: number } | null>(null);
   
   // Flush queued logs to the server with explicit action
   const flushLogs = useCallback(async () => {
@@ -185,6 +186,17 @@ export function useBayControllerLogger({
   }, [sendLog, appVersion]);
   
   const logConnectionStatus = useCallback((connected: boolean) => {
+    const now = Date.now();
+    const last = lastConnectionLogRef.current;
+    
+    // Dedupe: Skip logging if same state was logged within the last 60 seconds
+    // This prevents spam from normal polling/heartbeat cycles
+    if (last && last.connected === connected && (now - last.timestamp) < 60000) {
+      return;
+    }
+    
+    lastConnectionLogRef.current = { connected, timestamp: now };
+    
     const eventType: LogEventType = connected ? 'connection_restored' : 'connection_lost';
     const level: LogEventLevel = connected ? 'info' : 'warning';
     sendLog(eventType, connected ? 'Connection restored' : 'Connection lost', { level, immediate: true });
