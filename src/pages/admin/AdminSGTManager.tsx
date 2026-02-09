@@ -6,8 +6,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SGTDashboard } from "@/components/admin/sgt/SGTDashboard";
 import { SGTPendingOnboarding } from "@/components/admin/sgt/SGTPendingOnboarding";
 import { SGTLeagueMembers } from "@/components/admin/sgt/SGTLeagueMembers";
+import { SGTTournaments } from "@/components/admin/sgt/SGTTournaments";
 import { SGTWinners } from "@/components/admin/sgt/SGTWinners";
-import { LayoutDashboard, UserPlus, Users, Award } from "lucide-react";
+import { LayoutDashboard, UserPlus, Users, Calendar, Award } from "lucide-react";
 
 export default function AdminSGTManager() {
   const { isLoading } = useAdminAuth();
@@ -17,7 +18,7 @@ export default function AdminSGTManager() {
   // Handle URL tab parameter (for email links)
   useEffect(() => {
     const tabParam = searchParams.get("tab");
-    if (tabParam && ["dashboard", "onboarding", "members", "winners"].includes(tabParam)) {
+    if (tabParam && ["dashboard", "onboarding", "members", "tournaments", "winners"].includes(tabParam)) {
       setActiveTab(tabParam);
       // Clean up URL after reading
       searchParams.delete("tab");
@@ -43,7 +44,7 @@ export default function AdminSGTManager() {
             SGT Manager
           </h1>
           <p className="text-muted-foreground mt-1">
-            Manage league members and track winners
+            Manage league members, tournaments, and track winners
           </p>
         </div>
 
@@ -61,6 +62,10 @@ export default function AdminSGTManager() {
               <Users className="h-4 w-4" />
               <span className="hidden sm:inline">Members</span>
             </TabsTrigger>
+            <TabsTrigger value="tournaments" className="gap-2">
+              <Calendar className="h-4 w-4" />
+              <span className="hidden sm:inline">Tournaments</span>
+            </TabsTrigger>
             <TabsTrigger value="winners" className="gap-2">
               <Award className="h-4 w-4" />
               <span className="hidden sm:inline">Winners</span>
@@ -77,6 +82,10 @@ export default function AdminSGTManager() {
 
           <TabsContent value="members" className="mt-6">
             <SGTLeagueMembers />
+          </TabsContent>
+
+          <TabsContent value="tournaments" className="mt-6">
+            <SGTTournaments />
           </TabsContent>
 
           <TabsContent value="winners" className="mt-6">
