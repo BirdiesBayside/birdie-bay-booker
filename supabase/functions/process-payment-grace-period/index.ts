@@ -28,6 +28,66 @@ const replaceTemplateTags = (template: string, tags: Record<string, string>): st
   return result;
 };
 
+// Remove user from SGT tour and tournament when downgraded
+const removeFromSGT = async (supabaseAdmin: any, profile: any) => {
+  try {
+    // Get the user's sgt_user_id from their profile
+    const { data: fullProfile } = await supabaseAdmin
+      .from("profiles")
+      .select("sgt_user_id")
+      .eq("id", profile.id)
+      .single();
+
+    if (!fullProfile?.sgt_user_id) {
+      logStep("No SGT user ID found for profile, skipping SGT removal", { email: profile.email });
+      return;
+    }
+
+    const sgtUserId = fullProfile.sgt_user_id;
+    logStep("Removing user from SGT", { email: profile.email, sgtUserId });
+
+    // Find the active tour
+    const { data: activeTour } = await supabaseAdmin
+      .from("sgt_tours")
+      .select("tour_id")
+      .eq("active", 1)
+      .single();
+
+    if (!activeTour) {
+      logStep("No active tour found, skipping SGT removal");
+      return;
+    }
+
+    const tourId = activeTour.tour_id;
+
+    // Remove from tour members (this removes them from the tour leaderboard)
+    const { error: tourMemberError } = await supabaseAdmin
+      .from("sgt_tour_members")
+      .delete()
+      .eq("tour_id", tourId)
+      .eq("user_id", sgtUserId);
+
+    if (tourMemberError) {
+      logStep("Error removing from tour members", { error: tourMemberError.message });
+    } else {
+      logStep("Removed from tour members", { tourId, sgtUserId });
+    }
+
+    // Clear the sgt_user_id from profiles so they're no longer linked
+    // Note: We preserve it to allow easier re-registration later
+    // const { error: profileError } = await supabaseAdmin
+    //   .from("profiles")
+    //   .update({ sgt_user_id: null })
+    //   .eq("id", profile.id);
+
+    logStep("SGT removal complete for downgraded user", { email: profile.email, sgtUserId });
+
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logStep("Error during SGT removal", { email: profile.email, error: errorMessage });
+  }
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -43,7 +103,7 @@ serve(async (req) => {
       throw new Error("Missing STRIPE_SECRET_KEY");
     }
 
-    const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
+    const stripe = new Stripe(stripeKey, { apiVersion: "2025-07-30.basil" });
     const resend = resendApiKey ? new Resend(resendApiKey) : null;
 
     const supabaseAdmin = createClient(
@@ -73,6 +133,7 @@ serve(async (req) => {
       downgraded: 0,
       recovered: 0,
       skipped: 0,
+      sgtRemoved: 0,
       errors: [] as string[],
     };
 
@@ -180,6 +241,10 @@ serve(async (req) => {
         }
 
         logStep("Profile downgraded to visitor", { email: profile.email });
+
+        // Remove user from SGT tour/tournament
+        await removeFromSGT(supabaseAdmin, profile);
+        results.sgtRemoved++;
 
         // Send membership cancelled email
         if (resend) {
