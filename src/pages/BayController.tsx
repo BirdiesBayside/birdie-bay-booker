@@ -716,12 +716,8 @@ export default function BayController() {
       }
 
       setBookings(data.bookings || []);
-      setConnectionStatus(prev => {
-        if (prev !== "connected") {
-          bayLogger.logConnectionStatus(true);
-        }
-        return "connected";
-      });
+      setConnectionStatus("connected");
+      
       
       // Cache successful response for offline fallback
       cacheBookings(selectedBay, data.bookings || [], data.server_time);
@@ -748,13 +744,9 @@ export default function BayController() {
       };
       console.error("Connection error details:", errorInfo);
       
-      setConnectionStatus(prev => {
-        if (prev !== "disconnected") {
-          bayLogger.logConnectionStatus(false);
-        }
-        return "disconnected";
-      });
+      setConnectionStatus("disconnected");
       bayLogger.logError("Failed to connect to server", error);
+      
       
       // Try to use cached bookings for offline fallback
       const cached = loadCachedBookings(selectedBay);
@@ -805,19 +797,13 @@ export default function BayController() {
       // Restore connected status if we were disconnected
       setConnectionStatus(prev => {
         if (prev === "disconnected") {
-          bayLogger.logConnectionStatus(true);
           return "connected";
         }
         return prev;
       });
     } catch (error) {
       console.error("Heartbeat failed:", error);
-      setConnectionStatus(prev => {
-        if (prev !== "disconnected") {
-          bayLogger.logConnectionStatus(false);
-        }
-        return "disconnected";
-      });
+      setConnectionStatus("disconnected");
     }
   }, [selectedBay, manualOverride, bayLogger]);
 
