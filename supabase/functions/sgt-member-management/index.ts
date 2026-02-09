@@ -942,14 +942,21 @@ serve(async (req) => {
       }
 
       case "close-tournament": {
-        // Close/complete a tournament
+        // Close/complete a tournament and assess tour standings points
         const { tournamentId, assessPoints } = params;
         if (!tournamentId) throw new Error("tournamentId is required");
 
+        // IMPORTANT: assess_points MUST be "1" (string) to award tour standings points
+        // The SGT API requires this parameter to update the overall tour leaderboard
+        const shouldAssessPoints = assessPoints === false ? "0" : "1";
+        console.log(`[SGT-MEMBER-MGMT] Closing tournament ${tournamentId} with assess_points=${shouldAssessPoints}`);
+
         const response = await sgtRequest(clubUrl, "/tournaments/close", "POST", {
           tournamentId: tournamentId.toString(),
-          assess_points: (assessPoints ?? "1"),
+          assess_points: shouldAssessPoints,
         }) as { success?: boolean; feedback?: string };
+        
+        console.log(`[SGT-MEMBER-MGMT] Close tournament response:`, JSON.stringify(response));
 
         if (response.success) {
           // Update our local database
