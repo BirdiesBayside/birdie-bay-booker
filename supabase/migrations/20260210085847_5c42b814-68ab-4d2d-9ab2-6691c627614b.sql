@@ -1,0 +1,1 @@
+ALTER TABLE public.bay_orders REPLICA IDENTITY FULL;
