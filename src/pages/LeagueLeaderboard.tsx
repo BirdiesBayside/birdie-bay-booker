@@ -131,8 +131,8 @@ export default function LeagueLeaderboard() {
   const getScoreColor = (score: string) => {
     if (score === "-" || score === "") return "";
     if (score === "E") return "text-foreground";
-    if (score.startsWith("-")) return "text-green-500";
-    return "text-red-500";
+    if (score.startsWith("-")) return "text-green-600";
+    return "text-blue-600";
   };
 
   // Filter tournaments for the active tour only
@@ -457,12 +457,22 @@ export default function LeagueLeaderboard() {
                         <span className={cn("font-inter text-sm", getScoreColor(result.r1))}>
                           {result.r1}
                         </span>
+                        {result.r1Thru && (
+                          <div className="text-[10px] text-muted-foreground">
+                            {result.r1Thru === "F" ? "F" : `Thru ${result.r1Thru}`}
+                          </div>
+                        )}
                       </div>
 
                       <div className="col-span-2 md:hidden text-center">
                         <span className={cn("font-inter text-sm", getScoreColor(result.r2))}>
                           {result.r2}
                         </span>
+                        {result.r2Thru && (
+                          <div className="text-[10px] text-muted-foreground">
+                            {result.r2Thru === "F" ? "F" : `Thru ${result.r2Thru}`}
+                          </div>
+                        )}
                       </div>
 
                       <div className="col-span-2 md:hidden text-center">
@@ -470,7 +480,7 @@ export default function LeagueLeaderboard() {
                           "px-2 py-1 rounded font-medium text-sm",
                           result.toPar.startsWith("-") && "bg-green-100 text-green-700",
                           result.toPar === "E" && "bg-muted text-foreground",
-                          result.toPar.startsWith("+") && "bg-red-100 text-red-700",
+                          result.toPar.startsWith("+") && "bg-blue-100 text-blue-700",
                         )}>
                           {result.toPar}
                         </span>
@@ -541,7 +551,7 @@ export default function LeagueLeaderboard() {
                           "px-3 py-1 rounded-lg font-display text-lg",
                           result.toPar.startsWith("-") && "bg-green-100 text-green-700",
                           result.toPar === "E" && "bg-muted text-foreground",
-                          result.toPar.startsWith("+") && "bg-red-100 text-red-700",
+                          result.toPar.startsWith("+") && "bg-blue-100 text-blue-700",
                         )}>
                           {result.toPar}
                         </span>
