@@ -22,7 +22,7 @@ const navItems = [
   { path: "/league", label: "Dashboard", icon: LayoutDashboard },
   { path: "/league/rounds", label: "Rounds", icon: History },
   { path: "/league/leaderboard", label: "Leaderboard", icon: Trophy },
-  { path: "/league/profile", label: "Profile", icon: User },
+  { path: "/league/profile", label: "Profile & Stats", icon: User },
 ];
 
 export function LeagueLayout({ children }: LeagueLayoutProps) {
