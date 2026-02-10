@@ -302,29 +302,33 @@ serve(async (req) => {
         const tournamentsResponse = await sgtRequest("/tournaments/list", apiKey, { tourId: t.tourId.toString() });
         const tournaments = extractArray(tournamentsResponse, ['results', 'tournaments']);
         
+        // Check if today is Monday in Brisbane timezone for auto-close
+        const nowForDay = new Date();
+        const brisbaneTimeForDay = new Date(nowForDay.getTime() + 10 * 60 * 60 * 1000);
+        const isMonday = brisbaneTimeForDay.getUTCDay() === 1; // Monday = 1
+        
+        if (isMonday) {
+          console.log(`[SGT-SYNC] Monday detected (Brisbane time) - will auto-close active tournaments`);
+        }
+
         for (const tournament of tournaments.slice(0, 20)) {
           const tourn = tournament as { tournamentId: number; name: string; courseName?: string; status?: string; start_date?: string; end_date?: string };
           
-          // Get today's date in Brisbane timezone for accurate comparison
-          const now = new Date();
-          const brisbaneTime = new Date(now.getTime() + 10 * 60 * 60 * 1000);
-          const todayStr = brisbaneTime.toISOString().split('T')[0];
-          
           let status = tourn.status;
           
-          // AUTO-CLOSE: If tournament is "In Progress" and end_date has passed (inclusive), close it via API
-          if ((status === 'In Progress' || status === 'Active') && tourn.end_date && tourn.end_date <= todayStr) {
-            console.log(`[SGT-SYNC] Auto-closing tournament ${tourn.tournamentId} (${tourn.name}): end_date ${tourn.end_date} has passed`);
+          // AUTO-CLOSE: On Mondays (Brisbane time), close any In Progress/Active tournaments
+          // This runs regardless of end_date to avoid issues with incorrect dates
+          if (isMonday && (status === 'In Progress' || status === 'Active')) {
+            console.log(`[SGT-SYNC] Auto-closing tournament ${tourn.tournamentId} (${tourn.name}) - Monday scheduled close`);
             try {
               const closeResult = await sgtPostRequest("/tournaments/close", apiKey, {
                 tournamentId: tourn.tournamentId,
-                assess_points: 1, // ALWAYS award tour standings points
+                assess_points: 1,
               });
               console.log(`[SGT-SYNC] Tournament ${tourn.tournamentId} closed successfully:`, closeResult);
               status = 'Completed';
             } catch (closeError) {
               console.error(`[SGT-SYNC] Failed to close tournament ${tourn.tournamentId}:`, closeError);
-              // Still mark as Completed in local DB even if API fails
               status = 'Completed';
             }
           }
