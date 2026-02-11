@@ -1700,13 +1700,27 @@ export default function BayController() {
 
       const isAfterPreStart = isAfter(now, preStartTime);
       const isBeforeEnd = isBefore(now, endTime);
+      const isAfterStart = isAfter(now, startTime) || now.getTime() === startTime.getTime();
       
-      console.log(`[calculateShouldPlugsBeOn] Checking booking ${booking.start_time}-${booking.end_time}: preStart=${format(preStartTime, "HH:mm:ss")}, isAfterPreStart=${isAfterPreStart}, isBeforeEnd=${isBeforeEnd}`);
+      console.log(`[calculateShouldPlugsBeOn] Checking booking ${booking.start_time}-${booking.end_time}: preStart=${format(preStartTime, "HH:mm:ss")}, isAfterPreStart=${isAfterPreStart}, isBeforeEnd=${isBeforeEnd}, isAfterStart=${isAfterStart}`);
 
       if (isAfterPreStart && isBeforeEnd) {
         shouldBeOn = true;
-        currentBooking = booking;
-        console.log(`[calculateShouldPlugsBeOn] -> ACTIVE booking found!`);
+        // For activeBooking assignment: prefer the booking that has actually STARTED
+        // over one that is only in its pre-start window. This ensures during B2B overlap
+        // (current booking still running, next booking's pre-start has begun),
+        // we keep the CURRENT booking as active so changeover logic can detect the transition.
+        if (isAfterStart) {
+          // This booking has actually started - it takes priority
+          currentBooking = booking;
+          console.log(`[calculateShouldPlugsBeOn] -> ACTIVE booking found (started)!`);
+        } else if (!currentBooking) {
+          // Only in pre-start window, and no other booking has started yet
+          currentBooking = booking;
+          console.log(`[calculateShouldPlugsBeOn] -> PRE-START booking found (no active yet)!`);
+        } else {
+          console.log(`[calculateShouldPlugsBeOn] -> PRE-START booking found but another is still active, keeping current`);
+        }
       }
 
       // Check for back-to-back bookings
