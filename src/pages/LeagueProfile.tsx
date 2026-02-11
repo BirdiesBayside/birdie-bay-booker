@@ -38,7 +38,13 @@ interface ProgressStats {
 }
 
 function calculateProgressStats(rounds: PlayerRound[]): ProgressStats | null {
-  const validRounds = rounds.filter(r => r.scorecard?.holeData);
+  // Only use complete 18-hole rounds with hole data
+  const validRounds = rounds.filter(r => 
+    r.scorecard?.holeData && 
+    r.scorecard.out_gross > 0 && 
+    r.scorecard.in_gross > 0 && 
+    r.scorecard.total_gross > 0
+  );
   if (validRounds.length === 0) return null;
 
   let totalBirdies = 0;
@@ -155,17 +161,23 @@ export default function LeagueProfile() {
     );
   }
 
-  const avgScore = rounds.length > 0
-    ? Math.round(rounds.reduce((sum, r) => sum + r.scorecard.total_gross, 0) / rounds.length)
+  // Filter to only complete 18-hole scorecards (both halves must have scores)
+  const completeRounds = rounds.filter(r => {
+    const sc = r.scorecard;
+    return sc.out_gross > 0 && sc.in_gross > 0 && sc.total_gross > 0;
+  });
+
+  const avgScore = completeRounds.length > 0
+    ? Math.round(completeRounds.reduce((sum, r) => sum + r.scorecard.total_gross, 0) / completeRounds.length)
     : null;
 
-  const bestRound = rounds.length > 0
-    ? rounds.reduce((best, r) =>
+  const bestRound = completeRounds.length > 0
+    ? completeRounds.reduce((best, r) =>
         r.scorecard.total_gross < best.scorecard.total_gross ? r : best
       )
     : null;
 
-  const completedRounds = rounds.filter(r => r.status === "Completed");
+  const completedRounds = completeRounds.filter(r => r.status === "Completed");
 
   return (
     <LeagueLayout>
@@ -232,7 +244,7 @@ export default function LeagueProfile() {
                 <StatCard
                   label="Rounds Played"
                   value={completedRounds.length}
-                  subValue="Completed"
+                  subValue="Completed (18 holes)"
                   icon={<Target className="h-5 w-5" />}
                   delay={300}
                 />
