@@ -190,7 +190,31 @@ serve(async (req) => {
 
         // If subscription is active, they recovered
         if (subscription?.status === "active") {
-          logStep("Subscription is active - customer recovered", { email: profile.email });
+          // Also check if subscription is paused (membership on hold)
+          // Paused subscriptions are still "active" but with pause_collection set
+          if (subscription.pause_collection) {
+            logStep("Subscription is paused (membership on hold), clearing grace period", { 
+              email: profile.email,
+              pauseBehavior: subscription.pause_collection.behavior 
+            });
+          } else {
+            logStep("Subscription is active - customer recovered", { email: profile.email });
+          }
+          await supabaseAdmin
+            .from("profiles")
+            .update({ payment_failed_at: null })
+            .eq("id", profile.id);
+          results.recovered++;
+          continue;
+        }
+
+        // Also check if subscription exists but is paused (in case Stripe reports non-active status)
+        if (subscription?.pause_collection) {
+          logStep("Subscription is paused (membership on hold), skipping downgrade", { 
+            email: profile.email,
+            status: subscription.status,
+            pauseBehavior: subscription.pause_collection.behavior 
+          });
           await supabaseAdmin
             .from("profiles")
             .update({ payment_failed_at: null })
