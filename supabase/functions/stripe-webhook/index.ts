@@ -453,6 +453,24 @@ serve(async (req) => {
 
       // Only process if this is a subscription invoice
       if (subscriptionId) {
+        // Check if the subscription is paused (membership on hold)
+        // When pause_collection is active with behavior "void", Stripe voids invoices
+        // which triggers payment_failed - but this is expected and should NOT start a grace period
+        try {
+          const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+          if (subscription.pause_collection) {
+            logStep("Subscription is paused (membership on hold), skipping payment failure handling", { 
+              subscriptionId, 
+              pauseBehavior: subscription.pause_collection.behavior 
+            });
+            return new Response(JSON.stringify({ received: true }), {
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
+        } catch (subError) {
+          logStep("Could not check subscription pause status, proceeding with failure handling", { error: subError });
+        }
+
         const customer = await stripe.customers.retrieve(customerId);
         if (customer.deleted) {
           logStep("Customer deleted, skipping");
