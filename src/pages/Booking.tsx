@@ -207,9 +207,9 @@ export default function Booking() {
       return;
     }
 
-    // If paying with balance and have enough, proceed directly (no pending needed)
+    // If paying with balance and have enough, skip pending/checkout entirely
     if (selectedPaymentMethod === "balance" && depositBalance >= totalPrice) {
-      handleConfirmBooking("balance");
+      handleConfirmBookingWithBalance();
       return;
     }
 
@@ -341,6 +341,39 @@ export default function Booking() {
         title: "Booking confirmed!",
         description: message,
       });
+      navigate("/dashboard");
+    } catch (error: any) {
+      toast({
+        title: "Booking failed",
+        description: error.message || "Unable to complete booking. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Fast path: Auto-confirm booking with sufficient balance (no pending, no Stripe)
+  const handleConfirmBookingWithBalance = async () => {
+    if (!selectedDate || !selectedTime || !selectedBayId) return;
+
+    setIsSubmitting(true);
+    try {
+      const result = await createBooking(
+        selectedBayId,
+        selectedDate,
+        selectedTime,
+        selectedDuration,
+        selectedPlayers,
+        "balance" // Pay entirely with balance
+      );
+
+      const totalPrice = hourlyRate * selectedDuration;
+      toast({
+        title: "Booking confirmed!",
+        description: `Your bay is booked for ${format(selectedDate, "PPP")} at ${selectedTime}. $${totalPrice.toFixed(2)} deducted from your balance.`,
+      });
+
       navigate("/dashboard");
     } catch (error: any) {
       toast({
@@ -489,30 +522,36 @@ export default function Booking() {
               <CardTitle className="font-display text-xl">Payment Method</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <Wallet className="h-5 w-5 text-accent" />
-                  <span className="font-medium">Credit Balance</span>
-                </div>
-                <span className="font-semibold text-accent">${depositBalance.toFixed(2)}</span>
-              </div>
-
               {(() => {
                 const totalPrice = hourlyRate * selectedDuration;
                 const hasEnoughBalance = depositBalance >= totalPrice;
                 const remainingAfterBalance = totalPrice - depositBalance;
 
                 return (
-                  <RadioGroup
-                    value={selectedPaymentMethod}
-                    onValueChange={(value) => {
-                      setSelectedPaymentMethod(value as "balance" | "card");
-                      if (value === "balance") {
-                        setUsePartialBalance(false);
-                      }
-                    }}
-                    className="space-y-3"
-                  >
+                  <>
+                    <div className={`flex items-center justify-between p-3 rounded-lg ${hasEnoughBalance ? 'bg-green-50 border border-green-200' : 'bg-secondary/50'}`}>
+                      <div className="flex items-center gap-2">
+                        <Wallet className="h-5 w-5 text-accent" />
+                        <div>
+                          <span className="font-medium">Credit Balance</span>
+                          {hasEnoughBalance && (
+                            <p className="text-sm text-green-700 font-semibold">You can pay with this!</p>
+                          )}
+                        </div>
+                      </div>
+                      <span className="font-semibold text-accent">${depositBalance.toFixed(2)}</span>
+                    </div>
+
+                    <RadioGroup
+                      value={selectedPaymentMethod}
+                      onValueChange={(value) => {
+                        setSelectedPaymentMethod(value as "balance" | "card");
+                        if (value === "balance") {
+                          setUsePartialBalance(false);
+                        }
+                      }}
+                      className="space-y-3"
+                    >
                     {/* Full balance payment option - only if enough balance */}
                     {hasEnoughBalance && (
                       <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-secondary/30 transition-colors">
@@ -568,7 +607,8 @@ export default function Booking() {
                         </div>
                       </div>
                     )}
-                  </RadioGroup>
+                    </RadioGroup>
+                  </>
                 );
               })()}
             </CardContent>
