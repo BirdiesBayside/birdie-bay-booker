@@ -1,6 +1,7 @@
+import { useState } from "react";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
-import { useAnalyticsData } from "@/hooks/useAnalyticsData";
+import { useAnalyticsData, AnalyticsTimeframe } from "@/hooks/useAnalyticsData";
 import { GrowthMetricCard } from "@/components/admin/analytics/GrowthMetricCard";
 import { RevenueChart } from "@/components/admin/analytics/RevenueChart";
 import { CustomerEngagementChart } from "@/components/admin/analytics/CustomerEngagementChart";
@@ -10,10 +11,22 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+const TIMEFRAME_OPTIONS: { value: AnalyticsTimeframe; label: string }[] = [
+  { value: "today", label: "Today" },
+  { value: "7d", label: "Last 7 Days" },
+  { value: "30d", label: "Last 30 Days" },
+  { value: "90d", label: "Last 90 Days" },
+  { value: "6m", label: "Last 6 Months" },
+  { value: "12m", label: "Last 12 Months" },
+  { value: "all", label: "All Time" },
+];
 
 export default function AdminAnalytics() {
   const { isAdmin, isLoading: authLoading } = useAdminAuth();
-  const { data, isLoading, refetch, isFetching } = useAnalyticsData();
+  const [timeframe, setTimeframe] = useState<AnalyticsTimeframe>("30d");
+  const { data, isLoading, refetch, isFetching } = useAnalyticsData(timeframe);
 
   if (authLoading) {
     return (
@@ -46,7 +59,7 @@ export default function AdminAnalytics() {
     <AdminLayout>
       <div className="p-4 lg:p-6 space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-display font-bold uppercase tracking-wide">
               Analytics
@@ -55,15 +68,29 @@ export default function AdminAnalytics() {
               Key performance metrics for Birdies Bay Side
             </p>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => refetch()}
-            disabled={isFetching}
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? "animate-spin" : ""}`} />
-            Refresh
-          </Button>
+          <div className="flex items-center gap-2">
+            <Select value={timeframe} onValueChange={(v) => setTimeframe(v as AnalyticsTimeframe)}>
+              <SelectTrigger className="w-[160px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {TIMEFRAME_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => refetch()}
+              disabled={isFetching}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+          </div>
         </div>
 
         {isLoading || !data ? (
