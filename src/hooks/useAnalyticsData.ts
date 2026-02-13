@@ -119,13 +119,18 @@ export function useAnalyticsData(timeframe: AnalyticsTimeframe = "30d") {
         }
       });
 
-      // New customers this week vs last week
+      // New customers within the selected timeframe
       let newCustomersThisWeek = 0;
       let newCustomersLastWeek = 0;
+      
+      // Calculate a "previous period" of the same length for comparison
+      const rangeDurationMs = now.getTime() - rangeStart.getTime();
+      const previousRangeStart = new Date(rangeStart.getTime() - rangeDurationMs);
+      
       allUserFirstBooking.forEach((firstDate) => {
-        if (firstDate >= thisWeekStart) {
+        if (firstDate >= rangeStart) {
           newCustomersThisWeek++;
-        } else if (firstDate >= lastWeekStart && firstDate < thisWeekStart) {
+        } else if (firstDate >= previousRangeStart && firstDate < rangeStart) {
           newCustomersLastWeek++;
         }
       });
