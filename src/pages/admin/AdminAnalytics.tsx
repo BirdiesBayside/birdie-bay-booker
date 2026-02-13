@@ -116,9 +116,9 @@ export default function AdminAnalytics() {
                 <GrowthMetricCard
                   title="New Customers"
                   value={data.newCustomersThisWeek}
-                  subtitle="This week"
+                  subtitle={TIMEFRAME_OPTIONS.find(o => o.value === timeframe)?.label || ""}
                   trend={customerTrendDirection}
-                  trendValue={`${customerTrend > 0 ? "+" : ""}${customerTrend.toFixed(0)}%`}
+                  trendValue={`${customerTrend > 0 ? "+" : ""}${customerTrend.toFixed(0)}% vs prev period`}
                 />
                 <GrowthMetricCard
                   title="Return Rate"
