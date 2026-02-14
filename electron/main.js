@@ -195,13 +195,17 @@ app.whenReady().then(() => {
         };
       });
       
-      const gsproIdx = displayInfos.findIndex(d => d.label === currentAppLaunchConfig.gsproDisplayLabel);
-      const proteeIdx = displayInfos.findIndex(d => d.label === currentAppLaunchConfig.proteeDisplayLabel);
+      const gsproLabel = currentAppLaunchConfig.gsproDisplayLabel;
+      const proteeLabel = currentAppLaunchConfig.proteeDisplayLabel;
       
-      console.log('[GlobalShortcut] GSPRO display index:', gsproIdx, 'label:', currentAppLaunchConfig.gsproDisplayLabel);
-      console.log('[GlobalShortcut] Protee display index:', proteeIdx, 'label:', currentAppLaunchConfig.proteeDisplayLabel);
+      console.log('[GlobalShortcut] GSPRO display label:', gsproLabel);
+      console.log('[GlobalShortcut] Protee display label:', proteeLabel);
       
-      if (gsproIdx < 0 && proteeIdx < 0) {
+      // Check that at least one configured display exists
+      const gsproFound = displayInfos.some(d => d.label === gsproLabel);
+      const proteeFound = displayInfos.some(d => d.label === proteeLabel);
+      
+      if (!gsproFound && !proteeFound) {
         console.log('[GlobalShortcut] Configured displays not found');
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('f10-displays-not-found');
@@ -209,7 +213,8 @@ app.whenReady().then(() => {
         return;
       }
       
-      const result = await checkAndCorrectWindowPositions(gsproIdx, proteeIdx);
+      // Pass labels directly - checkAndCorrectWindowPositions and moveWindowToDisplay now handle labels
+      const result = await checkAndCorrectWindowPositions(gsproLabel, proteeLabel);
       console.log('[GlobalShortcut] Window position fix result:', result);
       
       // Send result to renderer for toast notification
@@ -661,17 +666,38 @@ async function findWindowByTitle(titlePattern) {
   }
 }
 
-// Move window to specific display and position using nircmd (more reliable) or PowerShell fallback
-async function moveWindowToDisplay(hwnd, displayIndex, fullscreen = false) {
-  const displays = screen.getAllDisplays();
-  if (displayIndex >= displays.length) {
-    return { success: false, error: `Display ${displayIndex} not found` };
+// Move window to specific display by label (monitor name) for reliable targeting
+// Falls back to index-based lookup if label is not provided
+async function moveWindowToDisplay(hwndOrLabel, displayIndexOrFullscreen, fullscreenParam) {
+  let hwnd, display, fullscreen;
+  
+  // Support both old signature (hwnd, index, fullscreen) and new (hwnd, label, fullscreen)
+  if (typeof displayIndexOrFullscreen === 'string') {
+    // New signature: moveWindowToDisplay(hwnd, label, fullscreen)
+    hwnd = hwndOrLabel;
+    fullscreen = fullscreenParam || false;
+    const displays = screen.getAllDisplays();
+    display = displays.find(d => (d.label || '').toLowerCase() === displayIndexOrFullscreen.toLowerCase());
+    if (!display) {
+      console.error(`Display with label "${displayIndexOrFullscreen}" not found. Available: ${displays.map(d => d.label).join(', ')}`);
+      return { success: false, error: `Display "${displayIndexOrFullscreen}" not found` };
+    }
+    console.log(`Resolved display label "${displayIndexOrFullscreen}" to bounds: ${JSON.stringify(display.bounds)}`);
+  } else {
+    // Legacy signature: moveWindowToDisplay(hwnd, index, fullscreen)
+    hwnd = hwndOrLabel;
+    fullscreen = displayIndexOrFullscreen === true ? true : (fullscreenParam || false);
+    const displayIndex = typeof displayIndexOrFullscreen === 'number' ? displayIndexOrFullscreen : 0;
+    const displays = screen.getAllDisplays();
+    if (displayIndex >= displays.length) {
+      return { success: false, error: `Display ${displayIndex} not found` };
+    }
+    display = displays[displayIndex];
   }
   
-  const display = displays[displayIndex];
   const { x, y, width, height } = display.bounds;
   
-  console.log(`Moving window ${hwnd} to display ${displayIndex} at ${x},${y} size ${width}x${height}`);
+  console.log(`Moving window ${hwnd} to display at ${x},${y} size ${width}x${height} (label: ${display.label})`);
   
   // Create a temporary .ps1 file for more reliable execution
   const tempScript = path.join(app.getPath('temp'), 'move_window.ps1');
@@ -940,16 +966,22 @@ async function runAppLaunchSequence(config) {
   const {
     gsproPath,
     proteeLabsPath,
-    gsproDisplay,
-    proteeDisplay,
+    gsproDisplay,      // Can be index (number) or label (string)
+    proteeDisplay,     // Can be index (number) or label (string)
+    gsproDisplayLabel,  // New: pass label directly for reliable targeting
+    proteeDisplayLabel, // New: pass label directly for reliable targeting
     firstName
   } = config;
+  
+  // Prefer labels over indices for display targeting
+  const gsproTarget = gsproDisplayLabel || gsproDisplay;
+  const proteeTarget = proteeDisplayLabel || proteeDisplay;
   
   console.log('=== APP LAUNCH SEQUENCE STARTED ===');
   console.log('GSPRO Path:', gsproPath);
   console.log('Protee Labs Path:', proteeLabsPath);
-  console.log('GSPRO Display Index:', gsproDisplay);
-  console.log('Protee Display Index:', proteeDisplay);
+  console.log('GSPRO Display Target:', gsproTarget, `(label: ${gsproDisplayLabel}, index: ${gsproDisplay})`);
+  console.log('Protee Display Target:', proteeTarget, `(label: ${proteeDisplayLabel}, index: ${proteeDisplay})`);
   console.log('Customer First Name:', firstName);
   
   const results = [];
@@ -1057,8 +1089,9 @@ async function runAppLaunchSequence(config) {
     results.push({ step: 'wait_for_protee_labs', success: true, duration: PROTEE_LOAD_TIME });
     
     // Step 5: Position windows (minimize United VX, move GSPRO and Protee Labs)
-    console.log('Step 5: Positioning windows...');
-    await checkAndCorrectWindowPositions(gsproDisplay, proteeDisplay);
+    // Use labels for reliable display targeting (indices can shift between calls)
+    console.log('Step 5: Positioning windows using display targets:', gsproTarget, proteeTarget);
+    await checkAndCorrectWindowPositions(gsproTarget, proteeTarget);
     results.push({ step: 'position_windows', success: true });
     
     // Step 6: Focus GSPRO
@@ -1268,13 +1301,14 @@ async function closeWelcomeWindows() {
 }
 
 // Check window positions and move to correct displays if needed
+// Accepts either display labels (strings) or indices (numbers) for backwards compatibility
 // Also minimizes United VX API window and focuses GSPRO at the end
 async function checkAndCorrectWindowPositions(gsproDisplay, proteeDisplay) {
   const results = [];
   
   console.log('=== CHECKING WINDOW POSITIONS ===');
-  console.log('Expected GSPRO display:', gsproDisplay);
-  console.log('Expected Protee Labs display:', proteeDisplay);
+  console.log('Expected GSPRO display:', gsproDisplay, typeof gsproDisplay);
+  console.log('Expected Protee Labs display:', proteeDisplay, typeof proteeDisplay);
   
   // First, minimize ProTee United VX if found (so it doesn't interfere)
   const windowList = await getAllVisibleWindows();
@@ -1287,7 +1321,7 @@ async function checkAndCorrectWindowPositions(gsproDisplay, proteeDisplay) {
     results.push({ app: 'ProTee United VX', found: true, minimized: true });
   }
   
-  // Move GSPRO to its display
+  // Move GSPRO to its display (pass label or index directly - moveWindowToDisplay handles both)
   const gsproWindow = await findGsproWindow();
   if (gsproWindow.success) {
     console.log(`Moving GSPRO to display ${gsproDisplay}...`);
