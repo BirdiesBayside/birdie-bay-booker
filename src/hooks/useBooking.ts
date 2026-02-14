@@ -618,7 +618,18 @@ export function useBooking() {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      // CRITICAL: Restore balance if it was already deducted before the booking insert failed
+      if (balanceDeduction > 0) {
+        console.log("[useBooking] Booking insert failed, restoring balance deduction of", balanceDeduction);
+        await supabase
+          .from("profiles")
+          .update({ deposit_balance: currentDepositBalance })
+          .eq("user_id", user.id);
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.USER_PROFILE() });
+      }
+      throw error;
+    }
 
     // Only charge card if there's an amount to charge
     if (paymentMethod === "card" && cardAmount > 0) {
