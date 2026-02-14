@@ -95,7 +95,8 @@ export function GiftCardsSection() {
 
       if (existingProfile) {
         // User exists - add credit directly
-        const newBalance = (existingProfile.deposit_balance || 0) + amountNum;
+        const balanceBefore = existingProfile.deposit_balance || 0;
+        const newBalance = balanceBefore + amountNum;
         
         const { error: updateError } = await supabase
           .from("profiles")
@@ -103,6 +104,17 @@ export function GiftCardsSection() {
           .eq("id", existingProfile.id);
 
         if (updateError) throw updateError;
+
+        // Log the transaction
+        await supabase.from("deposit_transactions").insert({
+          user_id: existingProfile.user_id,
+          amount: amountNum,
+          balance_before: balanceBefore,
+          balance_after: newBalance,
+          transaction_type: "gift_card",
+          description: `Gift card credit - auto-redeemed for existing account`,
+          created_by: (await supabase.auth.getUser()).data.user?.id,
+        });
 
         // Create gift card record as redeemed
         const { error: giftCardError } = await supabase

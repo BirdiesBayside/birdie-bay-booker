@@ -579,6 +579,17 @@ export function useBooking() {
         .eq("user_id", user.id);
       
       if (balanceError) throw new Error("Failed to deduct balance");
+
+      // Log the transaction
+      await supabase.from("deposit_transactions").insert({
+        user_id: user.id,
+        amount: -totalPrice,
+        balance_before: currentDepositBalance,
+        balance_after: newBalance,
+        transaction_type: "booking",
+        description: `Booking payment - ${format(date, "PPP")} at ${startTime}`,
+      });
+
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.USER_PROFILE() });
     } else if (partialBalanceAmount && partialBalanceAmount > 0) {
       // Partial balance usage with card payment
@@ -592,6 +603,17 @@ export function useBooking() {
         .eq("user_id", user.id);
       
       if (balanceError) throw new Error("Failed to deduct balance");
+
+      // Log the transaction
+      await supabase.from("deposit_transactions").insert({
+        user_id: user.id,
+        amount: -balanceDeduction,
+        balance_before: currentDepositBalance,
+        balance_after: newBalance,
+        transaction_type: "booking_partial",
+        description: `Partial balance for booking - ${format(date, "PPP")} at ${startTime}`,
+      });
+
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.USER_PROFILE() });
     }
 
