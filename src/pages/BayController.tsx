@@ -527,15 +527,13 @@ export default function BayController() {
                   // Delay to allow displays to fully initialize
                   setTimeout(async () => {
                     try {
-                      const freshDisplays = await window.electronAPI!.getDisplays();
-                      const gsproIdx = freshDisplays.findIndex(d => d.label === config.gsproDisplayLabel);
-                      const proteeIdx = freshDisplays.findIndex(d => d.label === config.proteeDisplayLabel);
-                      
-                      if (gsproIdx >= 0 || proteeIdx >= 0) {
-                        const result = await window.electronAPI!.checkWindowPositions(gsproIdx, proteeIdx);
-                        if (result.success) {
-                          console.log("Auto window position fix completed:", result.results);
-                        }
+                      // Pass labels directly - Electron now resolves by label for reliable targeting
+                      const result = await window.electronAPI!.checkWindowPositions(
+                        config.gsproDisplayLabel, 
+                        config.proteeDisplayLabel
+                      );
+                      if (result.success) {
+                        console.log("Auto window position fix completed:", result.results);
                       }
                     } catch (err) {
                       console.error("Auto window fix failed:", err);
@@ -1615,18 +1613,15 @@ export default function BayController() {
                 setAppLaunchStatus("Relaunching apps for new session...");
                 
                 try {
-                  // Get fresh display info and convert labels to indices
-                  const freshDisplays = await window.electronAPI.getDisplays();
-                  const gsproDisplayIndex = freshDisplays.findIndex(d => d.label === appLaunchConfig.gsproDisplayLabel);
-                  const proteeDisplayIndex = freshDisplays.findIndex(d => d.label === appLaunchConfig.proteeDisplayLabel);
-                  
-                  console.log(`[Changeover] Display resolution: GSPro display index=${gsproDisplayIndex}, Protee display index=${proteeDisplayIndex}`);
+                  console.log(`[Changeover] Launching apps with display labels: GSPro="${appLaunchConfig.gsproDisplayLabel}", Protee="${appLaunchConfig.proteeDisplayLabel}"`);
                   
                   const result = await window.electronAPI.runAppSequence({
                     gsproPath: appLaunchConfig.gsproPath,
                     proteeLabsPath: appLaunchConfig.proteeLabsPath,
-                    gsproDisplay: gsproDisplayIndex >= 0 ? gsproDisplayIndex : 0,
-                    proteeDisplay: proteeDisplayIndex >= 0 ? proteeDisplayIndex : 0,
+                    gsproDisplay: 0, // Legacy fallback
+                    proteeDisplay: 0, // Legacy fallback
+                    gsproDisplayLabel: appLaunchConfig.gsproDisplayLabel,
+                    proteeDisplayLabel: appLaunchConfig.proteeDisplayLabel,
                     postLaunchDelay: 3000,
                     firstName: firstName,
                   });
@@ -2316,26 +2311,21 @@ export default function BayController() {
     addLog("Starting app launch sequence...", 'info');
 
     try {
-      // Re-fetch displays to get fresh indices after state update
-      const freshDisplays = await window.electronAPI.getDisplays();
-      
-      // Find display indices from labels (monitor names)
-      const gsproDisplayIndex = freshDisplays.findIndex(d => d.label === appLaunchConfig.gsproDisplayLabel);
-      const proteeDisplayIndex = freshDisplays.findIndex(d => d.label === appLaunchConfig.proteeDisplayLabel);
-      
       const launchConfig = {
         gsproPath: appLaunchConfig.gsproPath,
         proteeLabsPath: appLaunchConfig.proteeLabsPath,
-        gsproDisplay: gsproDisplayIndex >= 0 ? gsproDisplayIndex : 0,
-        proteeDisplay: proteeDisplayIndex >= 0 ? proteeDisplayIndex : 0,
+        gsproDisplay: 0, // Legacy fallback
+        proteeDisplay: 0, // Legacy fallback
+        gsproDisplayLabel: appLaunchConfig.gsproDisplayLabel,
+        proteeDisplayLabel: appLaunchConfig.proteeDisplayLabel,
         postLaunchDelay: 3000,
         firstName: activeBooking?.customer_name?.split(' ')[0] || 'Guest'
       };
       
       addLog(`GSPRO Path: ${launchConfig.gsproPath}`, 'info');
       addLog(`Protee Path: ${launchConfig.proteeLabsPath || 'NOT SET'}`, launchConfig.proteeLabsPath ? 'info' : 'error');
-      addLog(`GSPRO Display: ${gsproDisplayIndex >= 0 ? appLaunchConfig.gsproDisplayLabel : 'default (0)'}`, 'info');
-      addLog(`Protee Display: ${proteeDisplayIndex >= 0 ? appLaunchConfig.proteeDisplayLabel : 'default (0)'}`, 'info');
+      addLog(`GSPRO Display: ${appLaunchConfig.gsproDisplayLabel || 'default'}`, 'info');
+      addLog(`Protee Display: ${appLaunchConfig.proteeDisplayLabel || 'default'}`, 'info');
       addLog(`Customer: ${launchConfig.firstName}`, 'info');
       
       const result = await window.electronAPI.runAppSequence(launchConfig);
