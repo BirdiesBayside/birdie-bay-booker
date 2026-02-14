@@ -213,6 +213,12 @@ export default function Booking() {
       return;
     }
 
+    // If using partial balance with card, use the createBooking flow which handles both
+    if (selectedPaymentMethod === "card" && usePartialBalance && depositBalance > 0) {
+      handleConfirmBooking("card", true);
+      return;
+    }
+
     // ALWAYS create a pending booking first to lock the slot
     setIsSubmitting(true);
     const newPendingBookingId = await createPendingReservation();
