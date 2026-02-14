@@ -68,6 +68,7 @@ import {
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { GiftCardsSection } from "@/components/admin/GiftCardsSection";
+import { CreditTransactionHistory } from "@/components/admin/CreditTransactionHistory";
 import { format } from "date-fns";
 
 interface Customer {
@@ -404,7 +405,8 @@ export default function AdminCustomers() {
     setIsAddingDeposit(true);
 
     try {
-      const newBalance = (selectedCustomer.deposit_balance || 0) + amount;
+      const balanceBefore = selectedCustomer.deposit_balance || 0;
+      const newBalance = balanceBefore + amount;
       
       const { error } = await supabase
         .from("profiles")
@@ -412,6 +414,17 @@ export default function AdminCustomers() {
         .eq("id", selectedCustomer.id);
 
       if (error) throw error;
+
+      // Log the transaction
+      await supabase.from("deposit_transactions").insert({
+        user_id: selectedCustomer.user_id,
+        amount: amount,
+        balance_before: balanceBefore,
+        balance_after: newBalance,
+        transaction_type: "credit",
+        description: `Manual credit added by admin`,
+        created_by: (await supabase.auth.getUser()).data.user?.id,
+      });
 
       // Send notification
       try {
@@ -477,9 +490,12 @@ export default function AdminCustomers() {
     const selectedCustomersList = customers.filter(c => selectedCustomers.has(c.id));
     let successCount = 0;
 
+    const adminUserId = (await supabase.auth.getUser()).data.user?.id;
+    
     for (const customer of selectedCustomersList) {
       try {
-        const newBalance = (customer.deposit_balance || 0) + amount;
+        const balanceBefore = customer.deposit_balance || 0;
+        const newBalance = balanceBefore + amount;
         
         const { error } = await supabase
           .from("profiles")
@@ -487,6 +503,19 @@ export default function AdminCustomers() {
           .eq("id", customer.id);
 
         if (error) throw error;
+
+        // Log the transaction
+        try {
+          await supabase.from("deposit_transactions").insert({
+            user_id: customer.user_id,
+            amount: amount,
+            balance_before: balanceBefore,
+            balance_after: newBalance,
+            transaction_type: "credit",
+            description: `Bulk credit added by admin`,
+            created_by: adminUserId,
+          });
+        } catch (e) { console.error("Failed to log transaction:", e); }
 
         // Send notification (don't await, let it run in background)
         supabase.functions.invoke("send-deposit-notification", {
@@ -1283,6 +1312,9 @@ export default function AdminCustomers() {
                     Add Credit
                   </Button>
                 </div>
+
+                {/* Credit Transaction History */}
+                <CreditTransactionHistory userId={selectedCustomer.user_id} />
 
                 <hr className="border-border" />
 
