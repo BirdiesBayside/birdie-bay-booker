@@ -107,36 +107,43 @@ serve(async (req) => {
   const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(supabaseUrl, supabaseKey);
 
-  // Check for sync secret OR admin user
+  // Check for sync secret, service role key, OR admin user
   const syncSecret = req.headers.get("x-sync-secret");
   const expectedSecret = Deno.env.get("SYNC_SECRET");
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const authHeader = req.headers.get("Authorization");
+  const token = authHeader ? authHeader.replace("Bearer ", "") : null;
   
   let authorized = false;
   
+  // 1. Check x-sync-secret header
   if (expectedSecret && syncSecret === expectedSecret) {
     authorized = true;
   }
   
-  if (!authorized) {
-    const authHeader = req.headers.get("Authorization");
-    if (authHeader) {
-      const token = authHeader.replace("Bearer ", "");
-      const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
-        global: { headers: { Authorization: `Bearer ${token}` } }
-      });
+  // 2. Check if Bearer token is the service role key (cron jobs)
+  if (!authorized && token && token === serviceRoleKey) {
+    authorized = true;
+    console.log("[SGT-SYNC] Authorized via service role key");
+  }
+  
+  // 3. Check if Bearer token belongs to an admin user
+  if (!authorized && token) {
+    const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
+      global: { headers: { Authorization: `Bearer ${token}` } }
+    });
+    
+    const { data: { user } } = await userClient.auth.getUser(token);
+    if (user) {
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("role", "admin");
       
-      const { data: { user } } = await userClient.auth.getUser(token);
-      if (user) {
-        const { data: roles } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", user.id)
-          .eq("role", "admin");
-        
-        if (roles && roles.length > 0) {
-          authorized = true;
-          console.log(`[SGT-SYNC] Triggered by admin user: ${user.email}`);
-        }
+      if (roles && roles.length > 0) {
+        authorized = true;
+        console.log(`[SGT-SYNC] Triggered by admin user: ${user.email}`);
       }
     }
   }

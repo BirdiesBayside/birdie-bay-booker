@@ -42,9 +42,12 @@ serve(async (req) => {
   const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(supabaseUrl, supabaseKey);
 
-  // Check for sync secret OR admin user
+  // Check for sync secret, service role key, OR admin user
   const syncSecret = req.headers.get("x-sync-secret");
   const expectedSecret = Deno.env.get("SYNC_SECRET");
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const authHeader = req.headers.get("Authorization");
+  const token = authHeader ? authHeader.replace("Bearer ", "") : null;
   
   let authorized = false;
   
@@ -52,26 +55,28 @@ serve(async (req) => {
     authorized = true;
   }
   
-  if (!authorized) {
-    const authHeader = req.headers.get("Authorization");
-    if (authHeader) {
-      const token = authHeader.replace("Bearer ", "");
-      const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
-        global: { headers: { Authorization: `Bearer ${token}` } }
-      });
+  // Allow service role key as Bearer token (internal calls / cron)
+  if (!authorized && token && token === serviceRoleKey) {
+    authorized = true;
+    console.log("[MONTHLY-STANDINGS] Authorized via service role key");
+  }
+  
+  if (!authorized && token) {
+    const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
+      global: { headers: { Authorization: `Bearer ${token}` } }
+    });
+    
+    const { data: { user } } = await userClient.auth.getUser(token);
+    if (user) {
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("role", "admin");
       
-      const { data: { user } } = await userClient.auth.getUser(token);
-      if (user) {
-        const { data: roles } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", user.id)
-          .eq("role", "admin");
-        
-        if (roles && roles.length > 0) {
-          authorized = true;
-          console.log(`[MONTHLY-STANDINGS] Triggered by admin user: ${user.email}`);
-        }
+      if (roles && roles.length > 0) {
+        authorized = true;
+        console.log(`[MONTHLY-STANDINGS] Triggered by admin user: ${user.email}`);
       }
     }
   }
