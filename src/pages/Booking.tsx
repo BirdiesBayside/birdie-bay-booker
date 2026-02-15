@@ -63,6 +63,8 @@ export default function Booking() {
   const [usePartialBalance, setUsePartialBalance] = useState(false);
   const [pendingBookingId, setPendingBookingId] = useState<string | null>(null);
 
+  const PARTIAL_BALANCE_KEY = "bb:partialBalanceAmount";
+
   // Show toast if setup was cancelled
   useEffect(() => {
     if (searchParams.get("setup_cancelled") === "true") {
@@ -74,7 +76,7 @@ export default function Booking() {
     }
   }, [searchParams]);
 
-  // Handle cancelled checkout - delete the pending booking
+  // Handle cancelled checkout - delete the pending booking and restore partial balance
   useEffect(() => {
     const handleCancelledBooking = async () => {
       const bookingId = searchParams.get("booking_id");
@@ -82,6 +84,43 @@ export default function Booking() {
       
       if (wasCancelled && bookingId) {
         try {
+          // Restore partial balance if it was deducted before checkout redirect
+          const storedPartialAmount = localStorage.getItem(PARTIAL_BALANCE_KEY);
+          if (storedPartialAmount) {
+            const partialAmount = parseFloat(storedPartialAmount);
+            if (partialAmount > 0) {
+              const { data: { user } } = await supabase.auth.getUser();
+              if (user) {
+                const { data: profile } = await supabase
+                  .from("profiles")
+                  .select("deposit_balance")
+                  .eq("user_id", user.id)
+                  .maybeSingle();
+                
+                const currentBalance = Number(profile?.deposit_balance) || 0;
+                const newBalance = currentBalance + partialAmount;
+                
+                await supabase
+                  .from("profiles")
+                  .update({ deposit_balance: newBalance })
+                  .eq("user_id", user.id);
+                
+                await supabase.from("deposit_transactions").insert({
+                  user_id: user.id,
+                  amount: partialAmount,
+                  balance_before: currentBalance,
+                  balance_after: newBalance,
+                  transaction_type: "booking_refund",
+                  description: "Restored credit - booking checkout cancelled",
+                  related_booking_id: bookingId,
+                });
+                
+                console.log("[Booking] Restored partial balance:", partialAmount);
+              }
+            }
+            localStorage.removeItem(PARTIAL_BALANCE_KEY);
+          }
+
           // Delete the pending booking that was never paid
           await supabase
             .from("bookings")
@@ -91,11 +130,11 @@ export default function Booking() {
           
           toast({
             title: "Booking cancelled",
-            description: "Your booking was not completed. Please try again.",
+            description: "Your booking was not completed. Any credits have been restored.",
             variant: "destructive",
           });
         } catch (error) {
-          console.error("Failed to delete pending booking:", error);
+          console.error("Failed to handle cancelled booking:", error);
         }
       }
     };
@@ -321,6 +360,7 @@ export default function Booking() {
 
     setIsSubmitting(true);
     try {
+      const partialAmount = applyPartialBalance ? depositBalance : undefined;
       const result = await createBooking(
         selectedBayId, 
         selectedDate, 
@@ -329,9 +369,20 @@ export default function Booking() {
         selectedPlayers, 
         paymentMethod,
         undefined, // No new payment method ID - we use saved card
-        applyPartialBalance ? depositBalance : undefined
+        partialAmount
       );
       
+      // If charge-booking returned a checkout URL (no saved card), redirect there
+      if (result.requiresCheckout && result.checkoutUrl) {
+        // Store partial balance amount so we can restore it if checkout is cancelled
+        if (partialAmount && partialAmount > 0) {
+          localStorage.setItem(PARTIAL_BALANCE_KEY, String(partialAmount));
+        }
+        localStorage.setItem(PENDING_BOOKING_KEY, result.booking.id);
+        window.location.href = result.checkoutUrl;
+        return;
+      }
+
       const totalPrice = hourlyRate * selectedDuration;
       let message = `Your bay is booked for ${format(selectedDate, "PPP")} at ${selectedTime}.`;
       if (paymentMethod === "balance") {
