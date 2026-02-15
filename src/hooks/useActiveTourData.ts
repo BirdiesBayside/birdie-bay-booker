@@ -22,15 +22,35 @@ interface Tournament {
 interface ActiveTourData {
   activeTour: Tour | null;
   currentTournament: Tournament | null;
+  previousTournament: Tournament | null;
   tours: Tour[];
   tournaments: Tournament[];
   isLoading: boolean;
   error: string | null;
 }
 
+/**
+ * Get today's date in Brisbane timezone (AEST UTC+10).
+ * Tournaments start on Sunday and end on Monday to account for timezone overlap,
+ * so "current week" = tournament whose end_date >= today (earliest such one).
+ * "Previous week" = the tournament right before the current one.
+ */
+function getBrisbaneToday(): string {
+  const now = new Date();
+  // Format in Brisbane timezone
+  const brisbane = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Australia/Brisbane",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now); // returns YYYY-MM-DD
+  return brisbane;
+}
+
 export function useActiveTourData(): ActiveTourData {
   const [activeTour, setActiveTour] = useState<Tour | null>(null);
   const [currentTournament, setCurrentTournament] = useState<Tournament | null>(null);
+  const [previousTournament, setPreviousTournament] = useState<Tournament | null>(null);
   const [tours, setTours] = useState<Tour[]>([]);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -64,21 +84,38 @@ export function useActiveTourData(): ActiveTourData {
 
           if (tournamentsError) throw tournamentsError;
 
-          // Filter to show only tournaments that have started or are in progress/completed
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
+          const today = getBrisbaneToday();
 
+          // Filter to show only tournaments that have started (start_date <= today)
+          // or have a relevant status
           const availableTournaments = (tournamentsData || []).filter((t) => {
             if (t.status === "Completed" || t.status === "In Progress" || t.status === "Active") return true;
             if (!t.start_date) return false;
-            const startDate = new Date(t.start_date + "T00:00:00");
-            return startDate <= today;
+            return t.start_date <= today;
           });
 
           setTournaments(availableTournaments);
 
-          // Current tournament is the most recent one (first in the sorted list)
-          setCurrentTournament(availableTournaments[0] || null);
+          // Current tournament: the one whose end_date >= today with the earliest end_date.
+          // This correctly handles the Sunday overlap where a new tournament starts 
+          // on Sunday but the previous week's tournament ends on Monday.
+          const activeTournaments = availableTournaments
+            .filter((t) => t.end_date && t.end_date >= today)
+            .sort((a, b) => (a.end_date || "").localeCompare(b.end_date || ""));
+
+          const current = activeTournaments[0] || availableTournaments[0] || null;
+          setCurrentTournament(current);
+
+          // Previous tournament: the one right before the current one in chronological order
+          if (current) {
+            const previous = availableTournaments.find(
+              (t) => t.tournament_id !== current.tournament_id && 
+                     (t.start_date || "") < (current.start_date || "")
+            );
+            setPreviousTournament(previous || null);
+          } else {
+            setPreviousTournament(null);
+          }
         }
       } catch (err) {
         console.error("[useActiveTourData] Error:", err);
@@ -94,6 +131,7 @@ export function useActiveTourData(): ActiveTourData {
   return {
     activeTour,
     currentTournament,
+    previousTournament,
     tours,
     tournaments,
     isLoading,
