@@ -299,6 +299,7 @@ export type Database = {
           end_time: string
           hourly_rate: number
           id: string
+          notes: string | null
           payment_method: string | null
           player_count: number
           start_time: string
@@ -316,6 +317,7 @@ export type Database = {
           end_time: string
           hourly_rate: number
           id?: string
+          notes?: string | null
           payment_method?: string | null
           player_count?: number
           start_time: string
@@ -333,6 +335,7 @@ export type Database = {
           end_time?: string
           hourly_rate?: number
           id?: string
+          notes?: string | null
           payment_method?: string | null
           player_count?: number
           start_time?: string

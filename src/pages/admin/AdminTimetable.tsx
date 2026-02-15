@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Textarea } from "@/components/ui/textarea";
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -39,7 +40,8 @@ import {
   Trash2,
   CircleDollarSign,
   AlertCircle,
-  ShoppingCart
+  ShoppingCart,
+  MessageSquare
 } from "lucide-react";
 import { AddBookingDialog } from "@/components/admin/AddBookingDialog";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -74,6 +76,7 @@ interface Booking {
   user_id: string;
   stripe_payment_intent_id?: string | null;
   payment_method?: string | null;
+  notes?: string | null;
   profile?: {
     first_name: string;
     last_name: string;
@@ -130,6 +133,7 @@ export default function AdminTimetable() {
   const [editDuration, setEditDuration] = useState("");
   const [editBayId, setEditBayId] = useState("");
   const [editPlayerCount, setEditPlayerCount] = useState("");
+  const [editNotes, setEditNotes] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [editCalendarOpen, setEditCalendarOpen] = useState(false);
 
@@ -446,6 +450,7 @@ export default function AdminTimetable() {
     setEditDuration(selectedBooking.duration_hours.toString());
     setEditBayId(selectedBooking.bay_id);
     setEditPlayerCount(selectedBooking.player_count.toString());
+    setEditNotes(selectedBooking.notes || "");
     setIsEditing(true);
   };
 
@@ -496,6 +501,7 @@ export default function AdminTimetable() {
         player_count: parseInt(editPlayerCount),
         total_price: newTotalPrice,
         hourly_rate: hourlyRate,
+        notes: editNotes || null,
       })
       .eq("id", selectedBooking.id);
 
@@ -804,6 +810,11 @@ export default function AdminTimetable() {
                                 }`}>
                                   {booking.status === 'pending' ? 'Payment pending...' : `${formatTime(booking.start_time)} - ${formatTime(booking.end_time)}`}
                                 </p>
+                                {booking.notes && (
+                                  <div className={`absolute bottom-1 right-1 ${booking.status === 'pending' ? "text-white/60" : "text-primary-foreground/60"}`}>
+                                    <MessageSquare className="h-2.5 w-2.5" />
+                                  </div>
+                                )}
                               </button>
                             )}
                           </div>
@@ -928,6 +939,17 @@ export default function AdminTimetable() {
                     </div>
                   </div>
                 </div>
+
+                {/* Notes */}
+                {selectedBooking.notes && (
+                  <div className="p-3 bg-muted/50 rounded-lg">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <MessageSquare className="h-3.5 w-3.5 text-muted-foreground" />
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Staff Notes</p>
+                    </div>
+                    <p className="text-sm">{selectedBooking.notes}</p>
+                  </div>
+                )}
 
                 <hr className="border-border" />
 
@@ -1099,9 +1121,18 @@ export default function AdminTimetable() {
                       </SelectContent>
                     </Select>
                   </div>
-                </div>
 
-                <hr className="border-border" />
+                  {/* Notes */}
+                  <div className="space-y-2">
+                    <Label>Staff Notes</Label>
+                    <Textarea
+                      value={editNotes}
+                      onChange={(e) => setEditNotes(e.target.value)}
+                      placeholder="Add notes for staff (e.g. birthday party, lesson, etc.)"
+                      className="min-h-[60px] text-sm"
+                    />
+                  </div>
+                </div>
 
                 {/* Save/Cancel Actions */}
                 <div className="flex gap-2">
