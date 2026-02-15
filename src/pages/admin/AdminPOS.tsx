@@ -116,6 +116,10 @@ export default function AdminPOS() {
   const [showCreditDialog, setShowCreditDialog] = useState(false);
   const [creditToApply, setCreditToApply] = useState<number>(0);
   
+  // Cash payment flow
+  const [cashStep, setCashStep] = useState<'input' | 'change' | null>(null);
+  const [cashTendered, setCashTendered] = useState<string>("");
+  
   // Surcharge state - persisted to localStorage
   const [surchargeEnabled, setSurchargeEnabled] = useState(() => {
     const saved = localStorage.getItem('pos_surcharge_enabled');
@@ -554,9 +558,11 @@ export default function AdminPOS() {
         setTimeout(checkStatus, 1000);
         return; // Don't close dialog yet for POS
       } else {
-        // Cash payment
-        await saveTransaction(method, null);
-        toast.success("Cash payment recorded!");
+        // Cash payment - open cash tendered input
+        setCashStep('input');
+        setCashTendered("");
+        setIsProcessing(false);
+        return; // Don't close dialog
       }
 
       setShowPaymentDialog(false);
@@ -962,7 +968,7 @@ export default function AdminPOS() {
       )}
 
       {/* Payment Method Dialog */}
-      <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
+      <Dialog open={showPaymentDialog} onOpenChange={(open) => { setShowPaymentDialog(open); if (!open) { setCashStep(null); setCashTendered(""); } }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="font-display text-2xl uppercase text-center">
@@ -998,11 +1004,92 @@ export default function AdminPOS() {
               variant="outline"
               className="w-full h-16 text-lg justify-start gap-4"
               onClick={() => handlePayment('cash')}
-              disabled={isProcessing}
+              disabled={isProcessing || cashStep !== null}
             >
               <Banknote className="h-8 w-8 text-green-600" />
               <span>Cash</span>
             </Button>
+
+            {/* Cash Tendered Input */}
+            {cashStep === 'input' && (
+              <div className="border rounded-lg p-4 space-y-3 bg-muted/30">
+                <Label className="text-sm font-medium">Cash Tendered</Label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min={0}
+                      value={cashTendered}
+                      onChange={(e) => setCashTendered(e.target.value)}
+                      className="pl-7 text-lg h-12"
+                      placeholder="0.00"
+                      autoFocus
+                    />
+                  </div>
+                  <Button
+                    className="h-12 px-6"
+                    disabled={!cashTendered || parseFloat(cashTendered) < total}
+                    onClick={() => setCashStep('change')}
+                  >
+                    Confirm
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-12"
+                    onClick={() => { setCashStep(null); setCashTendered(""); }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+                {cashTendered && parseFloat(cashTendered) < total && (
+                  <p className="text-sm text-destructive">Amount must be at least ${total.toFixed(2)}</p>
+                )}
+              </div>
+            )}
+
+            {/* Change Due Display */}
+            {cashStep === 'change' && (
+              <div className="border rounded-lg p-4 space-y-4 bg-muted/30">
+                <div className="text-center space-y-2">
+                  <p className="text-sm text-muted-foreground">Cash Tendered: ${parseFloat(cashTendered).toFixed(2)}</p>
+                  <p className="text-3xl font-bold text-primary">
+                    Change: ${(parseFloat(cashTendered) - total).toFixed(2)}
+                  </p>
+                </div>
+                <div className="flex gap-3">
+                  <Button
+                    variant="outline"
+                    className="flex-1 h-12"
+                    onClick={() => { setCashStep('input'); }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    className="flex-1 h-12"
+                    onClick={async () => {
+                      setIsProcessing(true);
+                      try {
+                        await saveTransaction('cash', null);
+                        toast.success("Cash payment recorded!");
+                        setCashStep(null);
+                        setCashTendered("");
+                        setShowPaymentDialog(false);
+                        clearCart();
+                      } catch (error: any) {
+                        toast.error(error.message || "Payment failed");
+                      } finally {
+                        setIsProcessing(false);
+                      }
+                    }}
+                    disabled={isProcessing}
+                  >
+                    {isProcessing ? "Processing..." : "Confirm Payment"}
+                  </Button>
+                </div>
+              </div>
+            )}
             <Button
               variant="outline"
               className="w-full h-16 text-lg justify-start gap-4"
