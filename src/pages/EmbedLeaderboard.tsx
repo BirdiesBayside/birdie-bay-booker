@@ -268,11 +268,11 @@ export default function EmbedLeaderboard() {
                   <SelectValue placeholder="Select week" />
                 </SelectTrigger>
                 <SelectContent>
-                  {filteredTournaments.map((tournament, index) => (
+                  {filteredTournaments.map((tournament) => (
                     <SelectItem key={tournament.tournament_id} value={tournament.tournament_id.toString()}>
                       <div className="flex items-center gap-2">
                         <span>{tournament.name}</span>
-                        {index === 0 && (
+                        {currentTournament && tournament.tournament_id === currentTournament.tournament_id && (
                           <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-[hsl(18,84%,55%)] text-white rounded">
                             CURRENT
                           </span>

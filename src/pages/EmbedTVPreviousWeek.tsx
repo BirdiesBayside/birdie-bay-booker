@@ -1,97 +1,20 @@
-import { useEffect, useState } from "react";
 import { Trophy, Medal, Award, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { supabase } from "@/integrations/supabase/client";
+import { useSGTTournamentStandings } from "@/hooks/useSGTEmbedData";
+import { useActiveTourData } from "@/hooks/useActiveTourData";
 import birdiesLogo from "@/assets/birdies-b-orange.png";
 
-interface TournamentStanding {
-  position: number;
-  playerName: string;
-  hcp: number | null;
-  r1: string;
-  r1Thru: string;
-  r2: string;
-  r2Thru: string;
-  total: string;
-  toPar: string;
-}
-
-interface Tournament {
-  tournament_id: number;
-  name: string;
-  course_name: string | null;
-}
-
 export default function EmbedTVLastWeek() {
-  const [tournament, setTournament] = useState<Tournament | null>(null);
-  const [standings, setStandings] = useState<TournamentStanding[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+  const { previousTournament, isLoading: tourLoading } = useActiveTourData();
 
-  const loadData = async () => {
-    try {
-      // Get the Loco Wrapz Championship tour (tour_id 2458) which has the weekly tournaments
-      const { data: activeTour } = await supabase
-        .from("sgt_tours")
-        .select("tour_id, name")
-        .eq("tour_id", 2458)
-        .maybeSingle();
+  const { standings, isLoading: standingsLoading, lastUpdated } = useSGTTournamentStandings({
+    id: previousTournament?.tournament_id ?? null,
+    scoreType: "net",
+    enabled: !!previousTournament,
+    refreshInterval: 30000,
+  });
 
-      if (!activeTour) {
-        setIsLoading(false);
-        return;
-      }
-
-      // Get the current tournament (most recent that has started)
-      const today = new Date().toISOString().split("T")[0];
-      const { data: tournaments } = await supabase
-        .from("sgt_tournaments")
-        .select("tournament_id, name, course_name, start_date")
-        .eq("tour_id", activeTour.tour_id)
-        .lte("start_date", today)
-        .order("start_date", { ascending: false })
-        .limit(1);
-
-      if (!tournaments || tournaments.length === 0) {
-        setIsLoading(false);
-        return;
-      }
-
-      const currentTournament = tournaments[0];
-      setTournament(currentTournament);
-
-      // Use the embed scrape to get live standings
-      const { data: scrapeData, error: scrapeError } = await supabase.functions.invoke(
-        "sgt-embed-scrape",
-        {
-          body: {
-            type: "tournament",
-            id: currentTournament.tournament_id.toString(),
-            scoreType: "net",
-          },
-        }
-      );
-
-      if (scrapeError) {
-        console.error("Scrape error:", scrapeError);
-      } else if (scrapeData?.standings) {
-        setStandings(scrapeData.standings);
-      }
-
-      setLastUpdated(new Date());
-    } catch (error) {
-      console.error("Failed to load TV data:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadData();
-    // Auto-refresh every 30 seconds
-    const interval = setInterval(loadData, 30 * 1000);
-    return () => clearInterval(interval);
-  }, []);
+  const isLoading = tourLoading || standingsLoading;
 
   const getPositionIcon = (position: number) => {
     switch (position) {
@@ -125,10 +48,10 @@ export default function EmbedTVLastWeek() {
           <img src={birdiesLogo} alt="Birdies" className="h-16" />
           <div>
             <h1 className="font-bold text-4xl text-[hsl(128,42%,21%)] tracking-tight">
-              {tournament?.name || "This Week"}
+              {previousTournament?.name || "Previous Week"}
             </h1>
             <p className="text-xl text-[hsl(128,20%,40%)]">
-              {tournament?.course_name} • NET Scores
+              {previousTournament?.course_name || "Birdies Tour"} • NET Scores
             </p>
           </div>
         </div>
@@ -136,9 +59,11 @@ export default function EmbedTVLastWeek() {
           <div className="px-6 py-3 bg-[hsl(18,84%,55%)] text-white rounded-lg text-xl font-bold">
             PREVIOUS WEEK
           </div>
-          <p className="text-sm text-[hsl(128,20%,40%)] mt-2">
-            Updated: {lastUpdated.toLocaleTimeString()}
-          </p>
+          {lastUpdated && (
+            <p className="text-sm text-[hsl(128,20%,40%)] mt-2">
+              Updated: {lastUpdated.toLocaleTimeString()}
+            </p>
+          )}
         </div>
       </div>
 
@@ -151,8 +76,7 @@ export default function EmbedTVLastWeek() {
           <div className="col-span-1 text-center">HCP</div>
           <div className="col-span-2 text-center">Rd 1</div>
           <div className="col-span-2 text-center">Rd 2</div>
-          <div className="col-span-1 text-center">Total</div>
-          <div className="col-span-1 text-center">+/-</div>
+          <div className="col-span-2 text-center">Total</div>
         </div>
 
         {/* Table Body */}
@@ -192,24 +116,28 @@ export default function EmbedTVLastWeek() {
                 <div className="col-span-1 text-center text-xl text-[hsl(128,20%,40%)]">
                   {result.hcp ?? "-"}
                 </div>
-                <div className="col-span-2 text-center text-xl text-[hsl(128,20%,40%)]">
-                  {result.r1}
-                  {result.r1Thru && result.r1Thru !== "F" && (
-                    <span className="text-sm ml-1">({result.r1Thru})</span>
+
+                <div className="col-span-2 text-center">
+                  <span className="text-xl text-[hsl(128,20%,40%)]">{result.r1}</span>
+                  {result.r1Thru && (
+                    <span className="text-sm text-[hsl(128,20%,40%)] ml-1">
+                      {result.r1Thru === "F" ? "F" : `(${result.r1Thru})`}
+                    </span>
                   )}
                 </div>
-                <div className="col-span-2 text-center text-xl text-[hsl(128,20%,40%)]">
-                  {result.r2}
-                  {result.r2Thru && result.r2Thru !== "F" && (
-                    <span className="text-sm ml-1">({result.r2Thru})</span>
+
+                <div className="col-span-2 text-center">
+                  <span className="text-xl text-[hsl(128,20%,40%)]">{result.r2}</span>
+                  {result.r2Thru && (
+                    <span className="text-sm text-[hsl(128,20%,40%)] ml-1">
+                      {result.r2Thru === "F" ? "F" : `(${result.r2Thru})`}
+                    </span>
                   )}
                 </div>
-                <div className="col-span-1 text-center font-bold text-2xl text-[hsl(128,42%,21%)]">
-                  {result.total}
-                </div>
-                <div className="col-span-1 text-center">
+
+                <div className="col-span-2 text-center">
                   <span className={cn(
-                    "px-3 py-1 rounded-lg font-bold text-xl",
+                    "px-4 py-2 rounded-lg font-bold text-2xl",
                     getScoreColor(result.toPar)
                   )}>
                     {result.toPar}
