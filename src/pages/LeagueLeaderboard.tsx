@@ -42,16 +42,18 @@ export default function LeagueLeaderboard() {
   const INITIAL_WEEKS_TO_SHOW = 5;
 
   // Get active tour and tournaments automatically
-  const { activeTour, tournaments, isLoading: tourLoading } = useActiveTourData();
+  const { activeTour, currentTournament, tournaments, isLoading: tourLoading } = useActiveTourData();
   
   const [selectedTournament, setSelectedTournament] = useState<number | null>(null);
 
-  // Set initial tournament when data loads
+  // Set initial tournament to the current tournament when data loads
   useEffect(() => {
-    if (tournaments.length > 0 && !selectedTournament) {
+    if (currentTournament && !selectedTournament) {
+      setSelectedTournament(currentTournament.tournament_id);
+    } else if (tournaments.length > 0 && !selectedTournament && !currentTournament) {
       setSelectedTournament(tournaments[0].tournament_id);
     }
-  }, [tournaments, selectedTournament]);
+  }, [tournaments, currentTournament, selectedTournament]);
 
   // Fetch monthly standings
   useEffect(() => {
@@ -307,7 +309,7 @@ export default function LeagueLeaderboard() {
                     <SelectItem key={tournament.tournament_id} value={tournament.tournament_id.toString()}>
                       <div className="flex items-center gap-2">
                         <span>{tournament.name}</span>
-                        {index === 0 && (
+                        {currentTournament && tournament.tournament_id === currentTournament.tournament_id && (
                           <span className="ml-1 px-1.5 py-0.5 text-[10px] font-semibold bg-secondary text-secondary-foreground rounded">
                             CURRENT
                           </span>
