@@ -96,11 +96,11 @@ export function useActiveTourData(): ActiveTourData {
 
           setTournaments(availableTournaments);
 
-          // Current tournament: the one whose end_date >= today with the earliest end_date.
-          // This correctly handles the Sunday overlap where a new tournament starts 
-          // on Sunday but the previous week's tournament ends on Monday.
+          // Current tournament: the one whose end_date >= today with the earliest end_date,
+          // BUT excluding "Completed" tournaments. Once the Monday morning sync closes
+          // a tournament (marks it Completed), the next tournament becomes current.
           const activeTournaments = availableTournaments
-            .filter((t) => t.end_date && t.end_date >= today)
+            .filter((t) => t.end_date && t.end_date >= today && t.status !== "Completed")
             .sort((a, b) => (a.end_date || "").localeCompare(b.end_date || ""));
 
           const current = activeTournaments[0] || availableTournaments[0] || null;
