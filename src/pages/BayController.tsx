@@ -2141,7 +2141,17 @@ export default function BayController() {
     // are on the wrong display.
     if (!isManual && appsRunning && appLaunchConfig.enabled) {
       console.log('[turnOffPlugs] Auto plug-off: closing apps BEFORE turning off plugs');
-      await closeApps('scheduled');
+      const appsClosed = await closeApps('scheduled');
+      
+      // If apps could NOT be closed (e.g. displays were missing so close was skipped),
+      // ABORT the plug-off entirely to prevent orphaned apps on wrong screens.
+      if (!appsClosed) {
+        console.warn('[turnOffPlugs] ABORTED: Apps could not be closed - cannot turn off plugs safely');
+        addLog('Plug-off aborted: apps could not be closed (displays may be missing)', 'error');
+        bayLogger.logError('Plug-off aborted: apps could not be closed', undefined, activeBooking?.id);
+        return;
+      }
+      
       // Small delay to let apps fully exit before cutting power
       await new Promise(resolve => setTimeout(resolve, 2000));
     }
@@ -2389,10 +2399,10 @@ export default function BayController() {
     }
   };
 
-  const closeApps = async (reason?: 'scheduled' | 'manual') => {
+  const closeApps = async (reason?: 'scheduled' | 'manual'): Promise<boolean> => {
     if (!isElectron || !window.electronAPI) {
       toast.error("App control requires desktop app");
-      return;
+      return false;
     }
 
     const closeReason = reason || 'manual';
@@ -2421,14 +2431,14 @@ export default function BayController() {
         if (missingDisplays.length > 0) {
           addLog(`Auto-close skipped - displays missing: ${missingDisplays.join(', ')}. Waiting for screens.`, 'error');
           bayLogger.sendLog('automation_decision', `Auto-close skipped - displays missing: ${missingDisplays.join(', ')}`, { bookingId: activeBooking?.id });
-          return;
+          return false;
         }
         
         addLog(`Display check passed for close. Available: ${Array.from(currentLabels).join(', ')}`, 'info');
       } catch (err) {
         addLog(`Display check failed before close - skipping auto-close`, 'error');
         bayLogger.logError('Display check failed before auto-close', err, activeBooking?.id);
-        return;
+        return false;
       }
     }
 
@@ -2446,10 +2456,12 @@ export default function BayController() {
       }
       // Clear flag after a short delay to allow GSPro close event to be processed
       setTimeout(() => { intentionalCloseInProgressRef.current = false; }, 2000);
+      return result.success;
     } catch (error) {
       intentionalCloseInProgressRef.current = false;
       bayLogger.logError('Failed to close apps', error, activeBooking?.id);
       toast.error("Failed to close apps");
+      return false;
     }
   };
 
