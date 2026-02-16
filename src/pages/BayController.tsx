@@ -1439,6 +1439,27 @@ export default function BayController() {
     const checkNotifications = async () => {
       const now = new Date();
       
+      // Suppress notifications if a changeover to a DIFFERENT customer is in progress or imminent
+      // The changeover sequence already handles the transition - showing end-of-session warnings
+      // to the outgoing customer during/after changeover is confusing
+      if (changeoverInProgressRef.current) {
+        return;
+      }
+      
+      // Also suppress if a different-customer booking is about to start (within 2 minutes)
+      // This prevents the "1 min warning" from firing right as the changeover triggers
+      const nextBooking = getNextBooking(activeBooking);
+      if (nextBooking && nextBooking.user_id !== activeBooking.user_id) {
+        const [hours, minutes] = nextBooking.start_time.split(':').map(Number);
+        const nextStartTime = new Date(now);
+        nextStartTime.setHours(hours, minutes, 0, 0);
+        const secondsUntilNextStart = (nextStartTime.getTime() - now.getTime()) / 1000;
+        if (secondsUntilNextStart <= 120 && secondsUntilNextStart > -30) {
+          console.log(`[Notifications] Suppressed: changeover to ${nextBooking.customer_name} in ${Math.round(secondsUntilNextStart)}s`);
+          return;
+        }
+      }
+      
       // Get the FINAL end time (accounts for same-customer back-to-back bookings)
       const finalEndTime = getFinalEndTimeForCustomer(activeBooking);
       const minutesRemaining = (finalEndTime.getTime() - now.getTime()) / (1000 * 60);
@@ -1491,7 +1512,7 @@ export default function BayController() {
     checkNotifications(); // Check immediately
 
     return () => clearInterval(interval);
-  }, [activeBooking, notificationConfig, isElectron, getFinalEndTimeForCustomer]); // Removed shownNotifications from deps to prevent effect re-runs
+  }, [activeBooking, notificationConfig, isElectron, getFinalEndTimeForCustomer, getNextBooking]); // Removed shownNotifications from deps to prevent effect re-runs
 
   // Reset shown notifications when customer changes (not just booking ID)
   useEffect(() => {
