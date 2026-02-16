@@ -93,13 +93,8 @@ declare global {
         hasDpsFile: boolean;
         hasSettingsFile: boolean;
         isWatching: boolean;
-        proteeDisplayLabel: string;
-        proteeScreenId: string;
       }>;
-      // Protee display / App Restore
-      getDisplayDevicePaths: () => Promise<{ label: string; devicePath: string }[]>;
-      setProteeDisplay: (label: string, devicePath: string) => Promise<{ success: boolean }>;
-      readProteeCurrentScreen: () => Promise<{ success: boolean; currentScreen?: string; path: string; error?: string }>;
+      // GSPro folder / baseline files
       browseGsproFolder: () => Promise<{ success: boolean; canceled?: boolean; folderPath?: string; dpsFilePath?: string; settingsFilePath?: string; error?: string }>;
       setGsproFolder: (folderPath: string) => Promise<{ success: boolean; dpsFilePath?: string; settingsFilePath?: string; error?: string }>;
       browseBaselineFile: (fileName: string) => Promise<{ success: boolean; canceled?: boolean; sourcePath?: string; storedPath?: string; error?: string }>;
