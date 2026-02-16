@@ -14,7 +14,7 @@ import { toast } from "sonner";
 import { format, addMinutes, isBefore, isAfter, parseISO } from "date-fns";
 import { SGTPlayerOverlay } from "@/components/bay-controller/SGTPlayerOverlay";
 import { SGTIconButton } from "@/components/bay-controller/SGTIconButton";
-import { GSProBaselineSettings } from "@/components/bay-controller/GSProBaselineSettings";
+import { AppRestoreSettings } from "@/components/bay-controller/AppRestoreSettings";
 import { PlugDiagnostics } from "@/components/bay-controller/PlugDiagnostics";
 
 interface Booking {
@@ -3252,9 +3252,9 @@ export default function BayController() {
           </details>
         </CollapsibleSettingsCard>
 
-        {/* GSPro Baseline Settings - Collapsible */}
-        <CollapsibleSettingsCard title="GSPro Baseline Settings" icon={<FileText className="w-5 h-5" />} defaultOpen={false}>
-          <GSProBaselineSettings isElectron={isElectron} />
+        {/* App Restore Settings - Collapsible */}
+        <CollapsibleSettingsCard title="App Restore" icon={<FileText className="w-5 h-5" />} defaultOpen={false}>
+          <AppRestoreSettings isElectron={isElectron} />
         </CollapsibleSettingsCard>
 
         {/* SGT Icon Settings - Collapsible */}
