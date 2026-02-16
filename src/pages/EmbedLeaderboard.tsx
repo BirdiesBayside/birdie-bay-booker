@@ -22,6 +22,8 @@ interface MonthlyStanding {
   gross_position: number | null;
   total_net_score: number | null;
   total_gross_score: number | null;
+  monthly_net_points: number | null;
+  monthly_gross_points: number | null;
   best_net: number | null;
   best_gross: number | null;
   tournaments_played: number;
@@ -204,15 +206,15 @@ export default function EmbedLeaderboard() {
               <div className="grid grid-cols-12 gap-2 px-4 py-3 bg-[hsl(128,42%,21%)] text-sm font-medium text-white">
                 <div className="col-span-1 text-center">#</div>
                 <div className="col-span-5">Player</div>
-                <div className="col-span-2 text-center">Rounds</div>
+                <div className="col-span-2 text-center">Played</div>
                 <div className="col-span-2 text-center">Best</div>
-                <div className="col-span-2 text-center">Total</div>
+                <div className="col-span-2 text-center">Points</div>
               </div>
 
               <div className="divide-y divide-[hsl(128,20%,85%)]">
                 {monthlyStandings.map((standing, index) => {
                   const position = scoreType === "net" ? standing.net_position : standing.gross_position;
-                  const total = scoreType === "net" ? standing.total_net_score : standing.total_gross_score;
+                  const points = scoreType === "net" ? (standing.monthly_net_points ?? standing.total_net_score) : (standing.monthly_gross_points ?? standing.total_gross_score);
                   const best = scoreType === "net" ? standing.best_net : standing.best_gross;
 
                   return (
@@ -244,8 +246,8 @@ export default function EmbedLeaderboard() {
                         {best ?? "-"}
                       </div>
 
-                      <div className="col-span-2 text-center font-bold text-[hsl(128,42%,21%)]">
-                        {total ?? "-"}
+                      <div className="col-span-2 text-center font-bold text-[hsl(18,84%,55%)]">
+                        {points ?? "-"}
                       </div>
                     </div>
                   );
