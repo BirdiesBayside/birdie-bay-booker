@@ -1,179 +1,111 @@
 
-# Birdies League Format Overhaul Plan
 
-## Current State Analysis
+# App Restore: Auto-Detect Protee Screen ID from Display Name
 
-### Existing API Architecture
+## Overview
+Instead of manually entering the cryptic `\\?\DISPLAY#BNQB870#...` device path, you will simply pick the correct monitor from a dropdown showing familiar names like "BENQ RE6504" or "LG". The system will automatically resolve the Windows device path behind the scenes and write it into the Protee config on session close.
 
-| Function | Schedule | Purpose |
-|----------|----------|---------|
-| `sgt-refresh-api-key` | Daily 4am Brisbane (18:00 UTC) | Refreshes the 24-hour SGT API key |
-| `sgt-daily-tournament-register` | Daily 6am Brisbane (20:00 UTC) | Registers tour members for tomorrow's tournaments |
-| `sgt-course-sync` | Daily 1pm Brisbane (03:00 UTC) | Syncs course data |
-| `sgt-sync` | **NOT SCHEDULED** | Main sync for tours, tournaments, standings, scorecards |
-| `sgt-auto-register` | Triggered by admin onboarding | Registers new member for all active tournaments |
+## How It Works
 
-**Critical Finding**: The main `sgt-sync` function is NOT on a cron schedule! It only runs when manually triggered from the admin panel.
+1. **New "Detect Screen IDs" function** in the Electron app uses a PowerShell/WMI command to enumerate all connected monitors and retrieve both the friendly name (e.g., "BENQ RE6504") and the Windows device path (the `\\?\DISPLAY#...` string that Protee uses).
 
-### API Call Summary
+2. **In the App Restore settings UI**, a new "Protee Labs Display" section shows a dropdown of all connected displays by their label. When you select one, the system stores the corresponding device path.
 
-Currently, each sync cycle makes these calls:
-1. `/members/list` - Get all club members
-2. `/tours/list` - Get all tours
-3. `/tours/standings?grossOrNet=gross` - Per active tour
-4. `/tours/standings?grossOrNet=net` - Per active tour  
-5. `/tours/members` - Per active tour (handicap refresh)
-6. `/tournaments/list` - Per active tour
-7. `/tournaments/scorecards` - Per **completed** tournament only
-
----
-
-## Proposed Changes
-
-### 1. Monthly Winner System (Build Our Own)
-
-Since you're keeping one continuous tour, SGT's overall standings will accumulate points year-round. We need our own monthly aggregation:
-
-**New Table: `sgt_monthly_standings`**
-```
-- id (uuid)
-- tour_id (integer)
-- month (text, e.g., "February 2026")
-- player_name (text)
-- player_id (integer)
-- total_net_score (integer) - Sum of weekly to_par_net
-- total_gross_score (integer) - Sum of weekly to_par_gross
-- tournaments_played (integer)
-- best_net (integer) - Best single-week net score
-- position (integer) - Calculated rank
-- created_at / updated_at
-```
-
-**Logic**: After each tournament completes, sum `to_par_net` and `to_par_gross` for all tournaments in that calendar month to calculate monthly rankings. The lower total wins.
-
-**Benefits**:
-- Uses existing `sgt_scorecards` data (no extra API calls)
-- Works automatically as tournaments complete
-- Supports both gross and net rankings
-- Can handle partial months and DNFs
-
-### 2. URL Leaderboard Scraper (Already Correct)
-
-The current implementation in `useActiveTourData.ts` correctly:
-1. Queries `sgt_tours` for `active = 1`
-2. Queries `sgt_tournaments` ordered by `start_date DESC`
-3. Returns the most recent tournament that has started
-
-The `useSGTEmbedData` hook then scrapes `https://simulatorgolftour.com/embed/tournament/{id}/standings/net` for live scoring.
-
-**No changes needed** - the scraper already dynamically finds the latest tournament.
-
-### 3. Handicap Clarification
-
-Based on SGT API documentation and your current implementation:
-
-**How SGT Handicaps Work:**
-- **hcp_index**: SGT's calculated "Combo HCP" based on a player's rounds
-- **custom_hcp**: A manually-set override (only used if `useCustomCap=true`)
-- New tour = **does NOT** reset handicaps (they're player-level, not tour-level)
-- SGT calculates combo HCP from a player's best differentials across all their rounds
-
-**Current Flow (First Week Only)**:
-1. Admin links SGT account and sets `custom_hcp` in `sgt_tour_members`
-2. `sgt-auto-register` checks if player has scorecards:
-   - If NO scorecards: Uses `custom_hcp` for registration
-   - If HAS scorecards: Uses SGT's combo HCP
-3. After first tournament completes, `sgt-sync` refreshes `hcp_index` from SGT
-
-This matches your preference of "first week only" - the custom HCP applies for their first tournament, then SGT takes over.
-
-### 4. Pending Player Workflow Enhancement
-
-Current flow is already correct but can be improved with better visibility:
-
-```
-1. Customer links SGT account → status: "pending"
-2. Admin receives notification → navigates to SGT Manager
-3. Admin sets custom_hcp → adds to sgt_tour_members
-4. Database trigger fires sgt-auto-register → player registered for all active tournaments
-5. Player plays first round → sgt-sync updates their hcp_index
-6. Future tournaments use SGT combo HCP automatically
-```
-
-### 5. Schedule the Missing sgt-sync Cron Job
-
-Add `sgt-sync` to run every 4 hours:
-
-```sql
-SELECT cron.schedule(
-  'sgt-sync-regular',
-  '0 */4 * * *',  -- Every 4 hours at :00
-  $$
-  SELECT net.http_post(
-    url := 'https://hltrcuypuxhetcjyvedl.supabase.co/functions/v1/sgt-sync',
-    headers := '{"Content-Type": "application/json", "x-sync-secret": "<SYNC_SECRET>"}'::jsonb,
-    body := '{}'::jsonb
-  ) AS request_id;
-  $$
-);
-```
-
----
-
-## Implementation Tasks
-
-### Phase 1: Fix Missing Sync Schedule
-1. Add `sgt-sync` to cron.job table (every 4 hours)
-2. Verify API key refresh timing aligns (currently 4am Brisbane)
-
-### Phase 2: Monthly Winner Tables
-1. Create `sgt_monthly_standings` table with RLS
-2. Create edge function `sgt-calculate-monthly-standings` that:
-   - Queries `sgt_scorecards` filtered by tournament start_date
-   - Groups by player and sums scores for the calendar month
-   - Upserts into `sgt_monthly_standings`
-3. Trigger calculation when tournaments complete (in `sgt-sync` or via webhook)
-
-### Phase 3: Update SGTWinners Component
-1. Add a new "Monthly Leaderboard" section showing computed standings
-2. Allow admin to confirm/award monthly winner from the calculated rankings
-3. Show both net and gross monthly standings
-
-### Phase 4: Documentation Updates
-1. Update memory files with new monthly winner logic
-2. Document the complete API call flow
-
----
+3. **On session close**, the stored device path is written into the Protee config file at `C:\Users\Golf Sim\AppData\Roaming\ProTeeUnited\Configs\Config`, replacing the `CurrentStartupScreen=` line.
 
 ## Technical Details
 
-### API Efficiency Optimizations Already in Place:
-- Scorecards only fetched for **Completed** tournaments (not in-progress)
-- Live leaderboards use the **web scraper** (no API key required)
-- API key is cached and refreshed daily at 4am
-- Handicap refresh only for players in completed tournaments
+### 1. `electron/main.js`
 
-### Proposed API Call Schedule:
-| Time (Brisbane) | Function | API Calls |
-|-----------------|----------|-----------|
-| 4:00 AM | sgt-refresh-api-key | 1 (auth) |
-| 6:00 AM | sgt-daily-tournament-register | 1-3 per tournament |
-| Every 4 hours | sgt-sync | ~15-25 total |
-| On-demand | sgt-embed-scrape | 0 (web scrape only) |
+**New function `getDisplayDevicePaths()`**:
+- Runs a PowerShell command to query `Win32_PnPEntity` or reads from the Windows registry (`HKLM\SYSTEM\CurrentControlSet\Enum\DISPLAY`) to get the full device paths in the `\\?\DISPLAY#...` format
+- Maps each device path to the monitor's manufacturer/model name (parsed from the EDID hardware ID segment, e.g., `BNQB870` maps to BENQ)
+- Returns an array of `{ label, devicePath }` objects
 
-### Monthly Calculation SQL Example:
-```sql
-SELECT 
-  player_name,
-  player_id,
-  COUNT(DISTINCT tournament_id) as tournaments_played,
-  SUM(to_par_net) as total_net_score,
-  SUM(to_par_gross) as total_gross_score,
-  MIN(to_par_net) as best_net
-FROM sgt_scorecards sc
-JOIN sgt_tournaments t ON sc.tournament_id = t.tournament_id
-WHERE t.status = 'Completed'
-  AND to_char(t.start_date, 'Month YYYY') = 'February 2026'
-GROUP BY player_name, player_id
-ORDER BY total_net_score ASC;
+**New function `restoreProteeConfig()`**:
+- Reads `C:\Users\Golf Sim\AppData\Roaming\ProTeeUnited\Configs\Config`
+- Finds the `CurrentStartupScreen=` line
+- Replaces the value with the stored device path
+- Writes the file back
+- Called alongside GSPro baseline restore on session close
+
+**Updated `baselineConfig`** -- add two new fields:
+- `proteeDisplayLabel`: The friendly display name selected (e.g., "BENQ RE6504")
+- `proteeScreenId`: The resolved `\\?\DISPLAY#...` device path
+
+**Updated `restoreBaselineFiles()`** -- after restoring GSPro files, also call `restoreProteeConfig()`
+
+**New IPC handlers**:
+- `get-display-device-paths` -- returns all displays with friendly names and Windows device paths
+- `set-protee-display` -- saves the selected display label and its device path
+- `read-protee-current-screen` -- reads the live Protee config and returns the current `CurrentStartupScreen` value
+
+### 2. `electron/preload.js`
+
+Expose three new methods:
+- `getDisplayDevicePaths()` -- returns display list with device paths
+- `setProteeDisplay(label, devicePath)` -- saves the selection
+- `readProteeCurrentScreen()` -- reads current value from Protee config
+
+### 3. `src/types/electron.d.ts`
+
+Add TypeScript declarations for the three new methods and update the baseline config return type to include `proteeDisplayLabel` and `proteeScreenId`.
+
+### 4. Rename `GSProBaselineSettings.tsx` to `AppRestoreSettings.tsx`
+
+- Rename component export
+- Change title to "App Restore"
+- Add a new **Protee Labs Monitor** section:
+  - Dropdown listing all connected displays by name (fetched via `getDisplayDevicePaths()`)
+  - Shows the currently configured display with a green checkmark, or "Not Set" warning
+  - A "Refresh Displays" button to re-scan
+  - Shows the current `CurrentStartupScreen` value from the live Protee config for verification
+- Update the "How it works" info to mention Protee restoration
+- "Restore Now" button will now also patch the Protee config
+
+### 5. `src/pages/BayController.tsx`
+
+- Update import from `GSProBaselineSettings` to `AppRestoreSettings`
+- Update the collapsible section title to "App Restore"
+
+### Device Path Resolution Approach
+
+The PowerShell command to get device paths:
+
+```text
+powershell -Command "Get-PnpDevice -Class Monitor -Status OK | Select-Object InstanceId, FriendlyName | ConvertTo-Json"
 ```
+
+This returns data like:
+```text
+{
+  "InstanceId": "DISPLAY\\BNQB870\\5&2a4b1e4&0&UID4353",
+  "FriendlyName": "BenQ RE6504"
+}
+```
+
+The `InstanceId` is then converted to the `\\?\DISPLAY#BNQB870#5&2a4b1e4&0&UID4353#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}` format by replacing backslashes with hashes and appending the standard monitor device interface GUID (`{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}`).
+
+The friendly name from PowerShell is matched against Electron's `display.label` to create the mapping.
+
+### Restore Flow on Session Close
+
+```text
+1. GSPro process detected as closed
+2. Wait for file handles to release
+3. Restore GSPro baseline files (existing)
+4. Restore Protee config (NEW):
+   a. Read Protee config file
+   b. Replace CurrentStartupScreen= with stored device path
+   c. Write file back
+   d. Log result
+5. Report all results to UI
+```
+
+### Files to Modify
+- `electron/main.js` -- device path detection, Protee config patching, new IPC handlers
+- `electron/preload.js` -- expose new methods
+- `src/types/electron.d.ts` -- new type declarations
+- `src/components/bay-controller/GSProBaselineSettings.tsx` -- rename to AppRestoreSettings, add Protee display picker
+- `src/pages/BayController.tsx` -- update import and title
+
