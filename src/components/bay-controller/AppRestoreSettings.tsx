@@ -4,7 +4,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
 import { Separator } from "@/components/ui/separator";
 import { 
   FolderOpen, 
@@ -14,8 +14,7 @@ import {
   RefreshCw, 
   FileText,
   AlertTriangle,
-  Play,
-  Monitor
+  Play
 } from "lucide-react";
 import { toast } from "sonner";
 import "@/types/electron.d";
@@ -28,13 +27,6 @@ interface BaselineConfig {
   hasDpsFile: boolean;
   hasSettingsFile: boolean;
   isWatching: boolean;
-  proteeDisplayLabel: string;
-  proteeScreenId: string;
-}
-
-interface DisplayDevice {
-  label: string;
-  devicePath: string;
 }
 
 interface AppRestoreSettingsProps {
@@ -47,11 +39,6 @@ export function AppRestoreSettings({ isElectron }: AppRestoreSettingsProps) {
   const [isRestoring, setIsRestoring] = useState(false);
   const [gsproRunning, setGsproRunning] = useState(false);
 
-  // Protee display state
-  const [displayDevices, setDisplayDevices] = useState<DisplayDevice[]>([]);
-  const [isLoadingDisplays, setIsLoadingDisplays] = useState(false);
-  const [currentProteeScreen, setCurrentProteeScreen] = useState<string>("");
-  const [isReadingConfig, setIsReadingConfig] = useState(false);
 
   // Load config on mount
   useEffect(() => {
@@ -105,12 +92,6 @@ export function AppRestoreSettings({ isElectron }: AppRestoreSettingsProps) {
       
       const { isRunning } = await window.electronAPI.isGsproRunning();
       setGsproRunning(isRunning);
-
-      // Load display devices
-      refreshDisplays();
-      
-      // Read current Protee config
-      readCurrentScreen();
     } catch (err) {
       console.error("Failed to load baseline config:", err);
     } finally {
@@ -118,46 +99,6 @@ export function AppRestoreSettings({ isElectron }: AppRestoreSettingsProps) {
     }
   };
 
-  const refreshDisplays = async () => {
-    if (!window.electronAPI) return;
-    setIsLoadingDisplays(true);
-    try {
-      const devices = await window.electronAPI.getDisplayDevicePaths();
-      setDisplayDevices(devices);
-    } catch (err) {
-      console.error("Failed to get display devices:", err);
-    } finally {
-      setIsLoadingDisplays(false);
-    }
-  };
-
-  const readCurrentScreen = async () => {
-    if (!window.electronAPI) return;
-    setIsReadingConfig(true);
-    try {
-      const result = await window.electronAPI.readProteeCurrentScreen();
-      if (result.success) {
-        setCurrentProteeScreen(result.currentScreen || "");
-      }
-    } catch (err) {
-      console.error("Failed to read Protee config:", err);
-    } finally {
-      setIsReadingConfig(false);
-    }
-  };
-
-  const selectProteeDisplay = async (label: string) => {
-    if (!window.electronAPI) return;
-    
-    const device = displayDevices.find(d => d.label === label);
-    if (!device) return;
-
-    const result = await window.electronAPI.setProteeDisplay(device.label, device.devicePath);
-    if (result.success) {
-      toast.success(`Protee display set to: ${label}`);
-      loadConfig();
-    }
-  };
 
   const browseGsproFolder = async () => {
     if (!window.electronAPI) return;
@@ -210,8 +151,6 @@ export function AppRestoreSettings({ isElectron }: AppRestoreSettingsProps) {
       } else {
         toast.error(`Restore failed: ${result.error}`);
       }
-      // Re-read current protee screen after restore
-      readCurrentScreen();
     } finally {
       setIsRestoring(false);
     }
@@ -268,79 +207,6 @@ export function AppRestoreSettings({ isElectron }: AppRestoreSettingsProps) {
           Process watcher active - monitoring GSPro
         </div>
       )}
-
-      <Separator />
-
-      {/* ===== PROTEE LABS MONITOR SECTION ===== */}
-      <div className="space-y-3">
-        <div className="flex items-center gap-2">
-          <Monitor className="h-4 w-4" />
-          <Label className="text-base font-semibold">Protee Labs Monitor</Label>
-        </div>
-        <p className="text-xs text-muted-foreground">
-          Select the correct display for Protee Labs. On session close, the config will be patched to ensure it always opens on this monitor.
-        </p>
-
-        {/* Display dropdown */}
-        <div className="space-y-2">
-          <Label>Target Display</Label>
-          <div className="flex gap-2">
-            <Select
-              value={config?.proteeDisplayLabel || ""}
-              onValueChange={selectProteeDisplay}
-            >
-              <SelectTrigger className="flex-1">
-                <SelectValue placeholder="Select a display..." />
-              </SelectTrigger>
-              <SelectContent>
-                {displayDevices.map(d => (
-                  <SelectItem key={d.devicePath} value={d.label}>
-                    {d.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button variant="outline" size="sm" onClick={refreshDisplays} disabled={isLoadingDisplays}>
-              <RefreshCw className={`h-4 w-4 ${isLoadingDisplays ? 'animate-spin' : ''}`} />
-            </Button>
-          </div>
-        </div>
-
-        {/* Current config status */}
-        <div className="flex items-center justify-between p-3 border rounded-lg">
-          <div className="flex items-center gap-2">
-            <Monitor className="h-4 w-4 text-muted-foreground" />
-            <div>
-              <p className="font-medium text-sm">Configured Display</p>
-              <p className="text-xs text-muted-foreground truncate max-w-[250px]">
-                {config?.proteeDisplayLabel || "Not configured"}
-              </p>
-            </div>
-          </div>
-          {config?.proteeScreenId ? (
-            <Badge variant="secondary" className="text-green-600 bg-green-500/10">
-              <Check className="h-3 w-3 mr-1" /> Set
-            </Badge>
-          ) : (
-            <Badge variant="secondary" className="text-yellow-600 bg-yellow-500/10">
-              <AlertTriangle className="h-3 w-3 mr-1" /> Not Set
-            </Badge>
-          )}
-        </div>
-
-        {/* Live Protee config value */}
-        <div className="flex items-center justify-between p-3 border rounded-lg">
-          <div className="flex-1 min-w-0">
-            <p className="font-medium text-sm">Live Config Value</p>
-            <p className="text-xs text-muted-foreground truncate">
-              {isReadingConfig ? "Reading..." : (currentProteeScreen || "Not found")}
-            </p>
-          </div>
-          <Button variant="ghost" size="sm" onClick={readCurrentScreen} disabled={isReadingConfig}>
-            <RefreshCw className={`h-4 w-4 ${isReadingConfig ? 'animate-spin' : ''}`} />
-          </Button>
-        </div>
-      </div>
 
       <Separator />
 
@@ -440,7 +306,7 @@ export function AppRestoreSettings({ isElectron }: AppRestoreSettingsProps) {
         variant="outline"
         className="w-full"
         onClick={restoreNow}
-        disabled={isRestoring || (!config?.hasDpsFile && !config?.hasSettingsFile && !config?.proteeScreenId)}
+        disabled={isRestoring || (!config?.hasDpsFile && !config?.hasSettingsFile)}
       >
         {isRestoring ? (
           <><RefreshCw className="h-4 w-4 mr-2 animate-spin" /> Restoring...</>
@@ -453,11 +319,10 @@ export function AppRestoreSettings({ isElectron }: AppRestoreSettingsProps) {
       <div className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-lg space-y-1">
         <p><strong>How it works:</strong></p>
         <ol className="list-decimal list-inside space-y-1">
-          <li>Select the correct Protee Labs display above</li>
           <li>Set up GSPro with your preferred settings + Guest players</li>
           <li>Upload the two GSPro config files</li>
           <li>Enable auto-restore</li>
-          <li>When GSPro closes, settings &amp; Protee config are reset automatically</li>
+          <li>When GSPro closes, settings are reset automatically</li>
         </ol>
       </div>
     </div>
