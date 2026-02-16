@@ -2135,6 +2135,17 @@ export default function BayController() {
       setManualOverride(true);
     }
     
+    // CRITICAL: Close apps BEFORE turning off plugs to prevent orphaned processes.
+    // If apps are still running when screens lose power, the app windows get
+    // repositioned to the primary monitor. When screens come back on, the apps
+    // are on the wrong display.
+    if (!isManual && appsRunning && appLaunchConfig.enabled) {
+      console.log('[turnOffPlugs] Auto plug-off: closing apps BEFORE turning off plugs');
+      await closeApps('scheduled');
+      // Small delay to let apps fully exit before cutting power
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+    
     if (isElectron && window.electronAPI && selectedBay) {
       const bayPlugs = getAssignedPlugsForBay(selectedBay);
       console.log("Assigned plugs for bay:", bayPlugs);
