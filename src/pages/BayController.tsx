@@ -2386,6 +2386,41 @@ export default function BayController() {
 
     const closeReason = reason || 'manual';
 
+    // For scheduled/automated closes, verify all configured displays are present
+    // This prevents apps from closing while screens are off (TAPO power-cycled),
+    // which would cause apps to remember incorrect screen positions on next launch
+    if (closeReason === 'scheduled') {
+      try {
+        const currentDisplays = await window.electronAPI.getDisplays();
+        const currentLabels = new Set(currentDisplays.map(d => d.label));
+        
+        const gsproConfigured = appLaunchConfig.gsproDisplayLabel;
+        const proteeConfigured = appLaunchConfig.proteeDisplayLabel;
+        
+        const missingDisplays: string[] = [];
+        
+        if (gsproConfigured && !currentLabels.has(gsproConfigured)) {
+          missingDisplays.push(`GSPRO display "${gsproConfigured}"`);
+        }
+        
+        if (proteeConfigured && !currentLabels.has(proteeConfigured)) {
+          missingDisplays.push(`Protee display "${proteeConfigured}"`);
+        }
+        
+        if (missingDisplays.length > 0) {
+          addLog(`Auto-close skipped - displays missing: ${missingDisplays.join(', ')}. Waiting for screens.`, 'error');
+          bayLogger.sendLog('automation_decision', `Auto-close skipped - displays missing: ${missingDisplays.join(', ')}`, { bookingId: activeBooking?.id });
+          return;
+        }
+        
+        addLog(`Display check passed for close. Available: ${Array.from(currentLabels).join(', ')}`, 'info');
+      } catch (err) {
+        addLog(`Display check failed before close - skipping auto-close`, 'error');
+        bayLogger.logError('Display check failed before auto-close', err, activeBooking?.id);
+        return;
+      }
+    }
+
     try {
       // Set flag to prevent "unexpected close" log from onGsproClosed listener
       intentionalCloseInProgressRef.current = true;
