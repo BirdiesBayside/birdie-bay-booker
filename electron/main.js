@@ -2569,12 +2569,17 @@ ipcMain.handle('clear-auto-paste', async () => {
 // GSPRO BASELINE SETTINGS MANAGEMENT
 // =====================================================
 
+// Protee Labs config path (hardcoded per plan)
+const PROTEE_CONFIG_PATH = 'C:\\Users\\Golf Sim\\AppData\\Roaming\\ProTeeUnited\\Configs\\Config';
+
 // State for baseline settings
 let baselineConfig = {
   gsproFolderPath: '', // C:\Users\<user>\AppData\Local\GSPro
   dpsFilePath: '',     // Full path to dpsV2x3.gss in GSPro folder
   settingsFilePath: '', // Full path to Settings.vgs in GSPro folder
   enabled: false,
+  proteeDisplayLabel: '', // Friendly display name (e.g., "BenQ RE6504")
+  proteeScreenId: '',     // Resolved \\?\DISPLAY#...  device path
 };
 
 // State for process monitoring
@@ -2668,8 +2673,77 @@ async function restoreBaselineFiles() {
     results.push({ file: 'Settings.vgs', success: false, error: 'Not configured' });
   }
   
+  // Restore Protee Labs config (CurrentStartupScreen)
+  if (baselineConfig.proteeScreenId) {
+    try {
+      if (fs.existsSync(PROTEE_CONFIG_PATH)) {
+        let configContent = fs.readFileSync(PROTEE_CONFIG_PATH, 'utf-8');
+        const regex = /^CurrentStartupScreen=.*$/m;
+        if (regex.test(configContent)) {
+          configContent = configContent.replace(regex, `CurrentStartupScreen=${baselineConfig.proteeScreenId}`);
+        } else {
+          // Append if not found
+          configContent += `\nCurrentStartupScreen=${baselineConfig.proteeScreenId}`;
+        }
+        fs.writeFileSync(PROTEE_CONFIG_PATH, configContent);
+        console.log('Restored Protee CurrentStartupScreen to:', baselineConfig.proteeScreenId);
+        results.push({ file: 'Protee Config', success: true });
+      } else {
+        console.log('Protee config file not found at:', PROTEE_CONFIG_PATH);
+        results.push({ file: 'Protee Config', success: false, error: 'Config file not found' });
+      }
+    } catch (error) {
+      console.error('Failed to restore Protee config:', error);
+      results.push({ file: 'Protee Config', success: false, error: error.message });
+    }
+  } else {
+    console.log('Skipping Protee config restore - no screen ID configured');
+  }
+  
   console.log('=== BASELINE RESTORE COMPLETE ===', results);
   return results;
+}
+
+// Get display device paths using PowerShell (maps friendly names to \\?\DISPLAY#... paths)
+async function getDisplayDevicePaths() {
+  try {
+    const psCommand = `Get-PnpDevice -Class Monitor -Status OK | Select-Object InstanceId, FriendlyName | ConvertTo-Json`;
+    const { stdout } = await execAsync(`powershell -NoProfile -Command "${psCommand}"`, { timeout: 10000 });
+    
+    let devices = JSON.parse(stdout.trim());
+    // Ensure array (single device returns object)
+    if (!Array.isArray(devices)) devices = [devices];
+    
+    const MONITOR_GUID = '{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}';
+    
+    return devices
+      .filter(d => d.InstanceId && d.FriendlyName)
+      .map(d => ({
+        label: d.FriendlyName,
+        devicePath: `\\\\?\\${d.InstanceId.replace(/\\\\/g, '#')}#${MONITOR_GUID}`,
+      }));
+  } catch (error) {
+    console.error('Failed to get display device paths:', error);
+    return [];
+  }
+}
+
+// Read current Protee config CurrentStartupScreen value
+function readProteeCurrentScreen() {
+  try {
+    if (!fs.existsSync(PROTEE_CONFIG_PATH)) {
+      return { success: false, error: 'Config file not found', path: PROTEE_CONFIG_PATH };
+    }
+    const content = fs.readFileSync(PROTEE_CONFIG_PATH, 'utf-8');
+    const match = content.match(/^CurrentStartupScreen=(.*)$/m);
+    return {
+      success: true,
+      currentScreen: match ? match[1] : '',
+      path: PROTEE_CONFIG_PATH,
+    };
+  } catch (error) {
+    return { success: false, error: error.message, path: PROTEE_CONFIG_PATH };
+  }
 }
 
 // Start watching for GSPro process
@@ -2731,6 +2805,25 @@ ipcMain.handle('get-baseline-config', async () => {
     hasSettingsFile,
     isWatching: !!gsproWatchInterval,
   };
+});
+
+// IPC: Get display device paths (friendly name -> device path mapping)
+ipcMain.handle('get-display-device-paths', async () => {
+  return await getDisplayDevicePaths();
+});
+
+// IPC: Set Protee display selection
+ipcMain.handle('set-protee-display', async (event, { label, devicePath }) => {
+  baselineConfig.proteeDisplayLabel = label;
+  baselineConfig.proteeScreenId = devicePath;
+  saveBaselineConfig();
+  console.log('Saved Protee display:', label, '->', devicePath);
+  return { success: true };
+});
+
+// IPC: Read current Protee config screen value
+ipcMain.handle('read-protee-current-screen', async () => {
+  return readProteeCurrentScreen();
 });
 
 // IPC: Set GSPro folder path

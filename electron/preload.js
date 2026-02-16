@@ -224,5 +224,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onBaselineRestored: (callback) => {
     ipcRenderer.on('baseline-restored', (event, results) => callback(results));
     return () => ipcRenderer.removeAllListeners('baseline-restored');
-  }
+  },
+  
+  // =====================================================
+  // PROTEE DISPLAY / APP RESTORE APIs
+  // =====================================================
+  
+  // Get all display device paths (friendly name -> Windows device path)
+  getDisplayDevicePaths: () => ipcRenderer.invoke('get-display-device-paths'),
+  
+  // Save the selected Protee display (label + device path)
+  setProteeDisplay: (label, devicePath) => ipcRenderer.invoke('set-protee-display', { label, devicePath }),
+  
+  // Read the current CurrentStartupScreen value from the live Protee config
+  readProteeCurrentScreen: () => ipcRenderer.invoke('read-protee-current-screen')
 });
