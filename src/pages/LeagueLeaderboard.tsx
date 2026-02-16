@@ -24,6 +24,8 @@ interface MonthlyStanding {
   gross_position: number | null;
   total_net_score: number | null;
   total_gross_score: number | null;
+  monthly_net_points: number | null;
+  monthly_gross_points: number | null;
   best_net: number | null;
   best_gross: number | null;
   tournaments_played: number;
@@ -221,15 +223,15 @@ export default function LeagueLeaderboard() {
               <div className="grid grid-cols-12 gap-4 px-4 py-3 bg-muted/50 border-b border-border font-inter text-sm font-medium text-muted-foreground">
                 <div className="col-span-1 text-center">#</div>
                 <div className="col-span-5">Player</div>
-                <div className="col-span-2 text-center">Rounds</div>
+                <div className="col-span-2 text-center">Played</div>
                 <div className="col-span-2 text-center">Best</div>
-                <div className="col-span-2 text-center">Total</div>
+                <div className="col-span-2 text-center">Points</div>
               </div>
 
               <div className="divide-y divide-border">
                 {monthlyStandings.map((standing, index) => {
                   const position = scoreType === "net" ? standing.net_position : standing.gross_position;
-                  const total = scoreType === "net" ? standing.total_net_score : standing.total_gross_score;
+                  const points = scoreType === "net" ? (standing.monthly_net_points ?? standing.total_net_score) : (standing.monthly_gross_points ?? standing.total_gross_score);
                   const best = scoreType === "net" ? standing.best_net : standing.best_gross;
                   const isCurrentPlayer = displayName && standing.player_name.toLowerCase() === displayName.toLowerCase();
 
@@ -281,8 +283,8 @@ export default function LeagueLeaderboard() {
                       </div>
 
                       <div className="col-span-2 text-center">
-                        <span className="font-display text-lg">
-                          {total ?? "-"}
+                        <span className="font-display text-lg text-secondary">
+                          {points ?? "-"}
                         </span>
                       </div>
                     </div>

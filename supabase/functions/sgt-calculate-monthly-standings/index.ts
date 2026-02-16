@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -6,13 +5,20 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-interface ScorecardData {
-  player_id: number;
-  player_name: string;
-  tournament_id: number;
-  to_par_net: number | null;
-  to_par_gross: number | null;
+// Points awarded by finish position (1st=25, 2nd=20, etc.)
+const POINTS_TABLE: Record<number, number> = {
+  1: 25, 2: 20, 3: 16, 4: 13, 5: 11,
+  6: 10, 7: 9, 8: 8, 9: 7, 10: 6,
+  11: 5, 12: 4, 13: 3, 14: 2,
+};
+const DEFAULT_POINTS = 1; // 15th and below
+
+function getPoints(position: number): number {
+  return POINTS_TABLE[position] ?? DEFAULT_POINTS;
 }
+
+// Minimum completed rounds to qualify for the monthly leaderboard
+const MIN_ROUNDS = 2;
 
 interface TournamentData {
   tournament_id: number;
@@ -21,19 +27,32 @@ interface TournamentData {
   status: string;
 }
 
-interface MonthlyStanding {
-  tour_id: number;
-  month: string;
+interface ScorecardRow {
   player_id: number;
   player_name: string;
-  total_net_score: number;
-  total_gross_score: number;
-  tournaments_played: number;
-  best_net: number;
-  best_gross: number;
+  tournament_id: number;
+  round: number | null;
+  total_net: number | null;
+  total_gross: number | null;
+  to_par_net: number | null;
+  to_par_gross: number | null;
+  hole_data: Record<string, unknown> | null;
 }
 
-serve(async (req) => {
+/** Count completed holes (score > 0) in hole_data for a given score type */
+function countCompletedHoles(holeData: Record<string, unknown> | null, scoreType: "gross" | "net"): number {
+  if (!holeData) return 0;
+  let count = 0;
+  for (let hole = 1; hole <= 18; hole++) {
+    const key = `hole${hole}_${scoreType}`;
+    const raw = holeData[key];
+    const num = typeof raw === "number" ? raw : Number(raw);
+    if (Number.isFinite(num) && num > 0) count++;
+  }
+  return count;
+}
+
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -42,264 +61,272 @@ serve(async (req) => {
   const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(supabaseUrl, supabaseKey);
 
-  // Check for sync secret, service role key, OR admin user
+  // --- Auth check (sync secret, service role, or admin user) ---
   const syncSecret = req.headers.get("x-sync-secret");
   const expectedSecret = Deno.env.get("SYNC_SECRET");
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const authHeader = req.headers.get("Authorization");
   const token = authHeader ? authHeader.replace("Bearer ", "") : null;
-  
+
   let authorized = false;
-  
-  if (expectedSecret && syncSecret === expectedSecret) {
-    authorized = true;
-  }
-  
-  // Allow service role key as Bearer token (internal calls / cron)
-  if (!authorized && token && token === serviceRoleKey) {
+  if (expectedSecret && syncSecret === expectedSecret) authorized = true;
+  if (!authorized && token && token === supabaseKey) {
     authorized = true;
     console.log("[MONTHLY-STANDINGS] Authorized via service role key");
   }
-  
   if (!authorized && token) {
     const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
-      global: { headers: { Authorization: `Bearer ${token}` } }
+      global: { headers: { Authorization: `Bearer ${token}` } },
     });
-    
     const { data: { user } } = await userClient.auth.getUser(token);
     if (user) {
       const { data: roles } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id)
-        .eq("role", "admin");
-      
+        .from("user_roles").select("role")
+        .eq("user_id", user.id).eq("role", "admin");
       if (roles && roles.length > 0) {
         authorized = true;
-        console.log(`[MONTHLY-STANDINGS] Triggered by admin user: ${user.email}`);
+        console.log(`[MONTHLY-STANDINGS] Triggered by admin: ${user.email}`);
       }
     }
   }
-  
   if (!authorized) {
-    console.error("[MONTHLY-STANDINGS] Unauthorized attempt");
-    return new Response(
-      JSON.stringify({ error: "Unauthorized" }),
-      { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 
   try {
-    // Parse optional month filter from request body
     let targetMonth: string | null = null;
     try {
       const body = await req.json();
       targetMonth = body?.month || null;
-    } catch {
-      // No body or invalid JSON - calculate for all recent months
-    }
+    } catch { /* no body */ }
 
-    console.log(`[MONTHLY-STANDINGS] Starting calculation${targetMonth ? ` for ${targetMonth}` : ' for all recent months'}...`);
+    console.log(`[MONTHLY-STANDINGS] Starting calculation${targetMonth ? ` for ${targetMonth}` : ""}...`);
 
     // Get active tour
     const { data: activeTour, error: tourError } = await supabase
-      .from("sgt_tours")
-      .select("tour_id, name")
-      .eq("active", 1)
-      .limit(1)
-      .maybeSingle();
+      .from("sgt_tours").select("tour_id, name")
+      .eq("active", 1).limit(1).maybeSingle();
+    if (tourError || !activeTour) throw new Error("No active tour found");
 
-    if (tourError || !activeTour) {
-      throw new Error("No active tour found");
-    }
+    console.log(`[MONTHLY-STANDINGS] Tour: ${activeTour.name} (${activeTour.tour_id})`);
 
-    console.log(`[MONTHLY-STANDINGS] Processing tour: ${activeTour.name} (${activeTour.tour_id})`);
-
-    // Get completed tournaments for this tour
-    const { data: tournaments, error: tournError } = await supabase
+    // Get completed tournaments
+    const { data: tournaments, error: tournErr } = await supabase
       .from("sgt_tournaments")
       .select("tournament_id, tour_id, start_date, status")
       .eq("tour_id", activeTour.tour_id)
       .eq("status", "Completed")
       .order("start_date", { ascending: false });
 
-    if (tournError) {
-      throw new Error(`Failed to fetch tournaments: ${tournError.message}`);
-    }
-
+    if (tournErr) throw new Error(`Failed to fetch tournaments: ${tournErr.message}`);
     if (!tournaments || tournaments.length === 0) {
-      console.log("[MONTHLY-STANDINGS] No completed tournaments found");
-      return new Response(
-        JSON.stringify({ success: true, message: "No completed tournaments to process", monthsProcessed: 0 }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ success: true, message: "No completed tournaments", monthsProcessed: 0 }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    // Group tournaments by month (format: "February 2026")
+    // Group tournaments by month
     const tournamentsByMonth = new Map<string, TournamentData[]>();
-    
-    for (const tournament of tournaments as TournamentData[]) {
-      if (!tournament.start_date) continue;
-      
-      const date = new Date(tournament.start_date);
-      const monthYear = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-      
-      // If filtering by specific month, skip others
+    for (const t of tournaments as TournamentData[]) {
+      if (!t.start_date) continue;
+      const monthYear = new Date(t.start_date).toLocaleDateString("en-US", { month: "long", year: "numeric" });
       if (targetMonth && monthYear !== targetMonth) continue;
-      
-      if (!tournamentsByMonth.has(monthYear)) {
-        tournamentsByMonth.set(monthYear, []);
-      }
-      tournamentsByMonth.get(monthYear)!.push(tournament);
+      if (!tournamentsByMonth.has(monthYear)) tournamentsByMonth.set(monthYear, []);
+      tournamentsByMonth.get(monthYear)!.push(t);
     }
 
-    console.log(`[MONTHLY-STANDINGS] Found ${tournamentsByMonth.size} months to process`);
-
+    console.log(`[MONTHLY-STANDINGS] ${tournamentsByMonth.size} months to process`);
     let totalRecords = 0;
 
-    // Process each month
     for (const [month, monthTournaments] of tournamentsByMonth) {
-      console.log(`[MONTHLY-STANDINGS] Processing ${month} with ${monthTournaments.length} tournaments`);
-      
+      console.log(`[MONTHLY-STANDINGS] Processing ${month} (${monthTournaments.length} tournaments)`);
       const tournamentIds = monthTournaments.map(t => t.tournament_id);
-      
-      // Get all scorecards for these tournaments
-      const { data: scorecards, error: scError } = await supabase
+
+      // Fetch scorecards with hole_data for completion checking
+      const { data: scorecards, error: scErr } = await supabase
         .from("sgt_scorecards")
-        .select("player_id, player_name, tournament_id, to_par_net, to_par_gross")
+        .select("player_id, player_name, tournament_id, round, total_net, total_gross, to_par_net, to_par_gross, hole_data")
         .in("tournament_id", tournamentIds);
 
-      if (scError) {
-        console.error(`[MONTHLY-STANDINGS] Error fetching scorecards for ${month}:`, scError);
-        continue;
+      if (scErr) { console.error(`[MONTHLY-STANDINGS] Scorecard error for ${month}:`, scErr); continue; }
+      if (!scorecards || scorecards.length === 0) { console.log(`[MONTHLY-STANDINGS] No scorecards for ${month}`); continue; }
+
+      // ---- Step 1: For each tournament, rank players by net and gross to_par ----
+      // We need to compute finish positions per tournament ourselves from scorecards,
+      // using the same logic as the weekly leaderboard (sum of round to_par values, only 18-hole complete rounds).
+
+      // Group scorecards: tournament -> player -> rounds
+      const tournamentPlayerRounds = new Map<number, Map<number, ScorecardRow[]>>();
+      for (const sc of scorecards as ScorecardRow[]) {
+        if (!tournamentPlayerRounds.has(sc.tournament_id)) tournamentPlayerRounds.set(sc.tournament_id, new Map());
+        const playerMap = tournamentPlayerRounds.get(sc.tournament_id)!;
+        if (!playerMap.has(sc.player_id)) playerMap.set(sc.player_id, []);
+        playerMap.get(sc.player_id)!.push(sc);
       }
 
-      if (!scorecards || scorecards.length === 0) {
-        console.log(`[MONTHLY-STANDINGS] No scorecards found for ${month}`);
-        continue;
+      // For each tournament, compute net/gross rankings
+      interface TournamentResult {
+        playerId: number;
+        playerName: string;
+        totalNet: number | null;
+        totalGross: number | null;
+        completedRounds: number;
       }
 
-      // Aggregate by player
-      // For multi-round tournaments, we need the best round per tournament
-      const playerStats = new Map<number, MonthlyStanding>();
+      // Points accumulated per player across the month
+      const playerMonthlyData = new Map<number, {
+        playerName: string;
+        netPoints: number;
+        grossPoints: number;
+        tournamentsPlayed: number;
+        totalCompletedRounds: number;
+        bestNet: number;
+        bestGross: number;
+      }>();
 
-      // Group scorecards by player and tournament first
-      const playerTournamentScores = new Map<string, ScorecardData[]>();
-      
-      for (const sc of scorecards as ScorecardData[]) {
-        const key = `${sc.player_id}-${sc.tournament_id}`;
-        if (!playerTournamentScores.has(key)) {
-          playerTournamentScores.set(key, []);
-        }
-        playerTournamentScores.get(key)!.push(sc);
-      }
+      for (const tournamentId of tournamentIds) {
+        const playerMap = tournamentPlayerRounds.get(tournamentId);
+        if (!playerMap) continue;
 
-      // Now calculate best score per tournament for each player
-      for (const [key, scores] of playerTournamentScores) {
-        const playerId = scores[0].player_id;
-        const playerName = scores[0].player_name;
-        
-        // Take best (lowest) net and gross scores from this tournament
-        const validNetScores = scores.filter(s => s.to_par_net !== null).map(s => s.to_par_net!);
-        const validGrossScores = scores.filter(s => s.to_par_gross !== null).map(s => s.to_par_gross!);
-        
-        if (validNetScores.length === 0 && validGrossScores.length === 0) continue;
-        
-        const bestNet = validNetScores.length > 0 ? Math.min(...validNetScores) : 999;
-        const bestGross = validGrossScores.length > 0 ? Math.min(...validGrossScores) : 999;
+        const results: TournamentResult[] = [];
 
-        if (!playerStats.has(playerId)) {
-          playerStats.set(playerId, {
-            tour_id: activeTour.tour_id,
-            month,
-            player_id: playerId,
-            player_name: playerName,
-            total_net_score: 0,
-            total_gross_score: 0,
-            tournaments_played: 0,
-            best_net: 999,
-            best_gross: 999,
+        for (const [playerId, rounds] of playerMap) {
+          let totalNet: number | null = null;
+          let totalGross: number | null = null;
+          let completedRounds = 0;
+
+          for (const rd of rounds) {
+            // Check if this round is a full 18 holes
+            const netHoles = countCompletedHoles(rd.hole_data as Record<string, unknown> | null, "net");
+            const isComplete = netHoles === 18;
+            if (!isComplete) continue;
+
+            completedRounds++;
+            if (rd.to_par_net !== null) {
+              totalNet = (totalNet ?? 0) + rd.to_par_net;
+            }
+            if (rd.to_par_gross !== null) {
+              totalGross = (totalGross ?? 0) + rd.to_par_gross;
+            }
+          }
+
+          // Must have at least 1 completed round to count
+          if (completedRounds === 0) continue;
+
+          results.push({
+            playerId,
+            playerName: rounds[0].player_name,
+            totalNet,
+            totalGross,
+            completedRounds,
           });
         }
 
-        const stats = playerStats.get(playerId)!;
-        
-        // Sum up tournament scores (lower is better in golf)
-        if (bestNet !== 999) {
-          stats.total_net_score += bestNet;
+        if (results.length === 0) continue;
+
+        // Rank by net
+        const netRanked = [...results].filter(r => r.totalNet !== null)
+          .sort((a, b) => a.totalNet! - b.totalNet!);
+
+        // Rank by gross
+        const grossRanked = [...results].filter(r => r.totalGross !== null)
+          .sort((a, b) => a.totalGross! - b.totalGross!);
+
+        // Award points
+        for (const r of results) {
+          if (!playerMonthlyData.has(r.playerId)) {
+            playerMonthlyData.set(r.playerId, {
+              playerName: r.playerName,
+              netPoints: 0,
+              grossPoints: 0,
+              tournamentsPlayed: 0,
+              totalCompletedRounds: 0,
+              bestNet: 999,
+              bestGross: 999,
+            });
+          }
+          const pd = playerMonthlyData.get(r.playerId)!;
+          pd.tournamentsPlayed++;
+          pd.totalCompletedRounds += r.completedRounds;
+
+          // Net position & points
+          const netPos = netRanked.findIndex(x => x.playerId === r.playerId) + 1;
+          if (netPos > 0) pd.netPoints += getPoints(netPos);
+
+          // Gross position & points
+          const grossPos = grossRanked.findIndex(x => x.playerId === r.playerId) + 1;
+          if (grossPos > 0) pd.grossPoints += getPoints(grossPos);
+
+          // Track best to-par scores
+          if (r.totalNet !== null) pd.bestNet = Math.min(pd.bestNet, r.totalNet);
+          if (r.totalGross !== null) pd.bestGross = Math.min(pd.bestGross, r.totalGross);
         }
-        if (bestGross !== 999) {
-          stats.total_gross_score += bestGross;
-        }
-        stats.tournaments_played += 1;
-        stats.best_net = Math.min(stats.best_net, bestNet);
-        stats.best_gross = Math.min(stats.best_gross, bestGross);
       }
 
-      // Convert to array and calculate positions
-      const standings = Array.from(playerStats.values());
-      
-      // Sort by net score (lower is better) for net position
-      standings.sort((a, b) => a.total_net_score - b.total_net_score);
-      standings.forEach((s, idx) => {
-        (s as MonthlyStanding & { net_position: number }).net_position = idx + 1;
-      });
-      
-      // Create a separate array for gross positions
-      const grossRanked = [...standings].sort((a, b) => a.total_gross_score - b.total_gross_score);
-      grossRanked.forEach((s, idx) => {
-        (s as MonthlyStanding & { gross_position: number }).gross_position = idx + 1;
-      });
+      // Filter by minimum rounds requirement
+      const qualified = Array.from(playerMonthlyData.entries())
+        .filter(([, d]) => d.totalCompletedRounds >= MIN_ROUNDS);
+
+      // Sort by net points descending for net_position
+      const netSorted = [...qualified].sort((a, b) => b[1].netPoints - a[1].netPoints);
+      const grossSorted = [...qualified].sort((a, b) => b[1].grossPoints - a[1].grossPoints);
 
       // Upsert standings
-      for (const standing of standings) {
-        const grossPos = grossRanked.findIndex(g => g.player_id === standing.player_id) + 1;
-        
-        const { error: upsertError } = await supabase
+      // First, delete old standings for this month/tour so removed players don't linger
+      await supabase
+        .from("sgt_monthly_standings")
+        .delete()
+        .eq("tour_id", activeTour.tour_id)
+        .eq("month", month);
+
+      for (let i = 0; i < netSorted.length; i++) {
+        const [playerId, data] = netSorted[i];
+        const grossPos = grossSorted.findIndex(([pid]) => pid === playerId) + 1;
+
+        const { error: upsertErr } = await supabase
           .from("sgt_monthly_standings")
-          .upsert({
-            tour_id: standing.tour_id,
-            month: standing.month,
-            player_id: standing.player_id,
-            player_name: standing.player_name,
-            total_net_score: standing.total_net_score,
-            total_gross_score: standing.total_gross_score,
-            tournaments_played: standing.tournaments_played,
-            best_net: standing.best_net === 999 ? null : standing.best_net,
-            best_gross: standing.best_gross === 999 ? null : standing.best_gross,
-            net_position: (standing as MonthlyStanding & { net_position: number }).net_position,
+          .insert({
+            tour_id: activeTour.tour_id,
+            month,
+            player_id: playerId,
+            player_name: data.playerName,
+            total_net_score: data.netPoints,   // repurposed: now stores net points total for legacy column
+            total_gross_score: data.grossPoints,
+            monthly_net_points: data.netPoints,
+            monthly_gross_points: data.grossPoints,
+            tournaments_played: data.tournamentsPlayed,
+            best_net: data.bestNet === 999 ? null : data.bestNet,
+            best_gross: data.bestGross === 999 ? null : data.bestGross,
+            net_position: i + 1,
             gross_position: grossPos,
             updated_at: new Date().toISOString(),
-          }, { onConflict: 'tour_id,month,player_id' });
+          });
 
-        if (upsertError) {
-          console.error(`[MONTHLY-STANDINGS] Error upserting standing:`, upsertError);
+        if (upsertErr) {
+          console.error(`[MONTHLY-STANDINGS] Insert error:`, upsertErr);
         } else {
           totalRecords++;
         }
       }
 
-      console.log(`[MONTHLY-STANDINGS] Upserted ${standings.length} standings for ${month}`);
+      console.log(`[MONTHLY-STANDINGS] Inserted ${qualified.length} standings for ${month} (${qualified.length} qualified of ${playerMonthlyData.size} players)`);
     }
 
-    console.log(`[MONTHLY-STANDINGS] ✓ Calculation complete. Total records: ${totalRecords}`);
+    console.log(`[MONTHLY-STANDINGS] ✓ Done. Total records: ${totalRecords}`);
 
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        totalRecords,
-        monthsProcessed: tournamentsByMonth.size,
-        tourId: activeTour.tour_id
-      }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return new Response(JSON.stringify({
+      success: true,
+      totalRecords,
+      monthsProcessed: tournamentsByMonth.size,
+      tourId: activeTour.tour_id,
+    }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
   } catch (error) {
     console.error("[MONTHLY-STANDINGS] Error:", error);
-
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
 });

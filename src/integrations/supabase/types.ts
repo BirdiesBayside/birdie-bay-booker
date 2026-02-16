@@ -1108,6 +1108,8 @@ export type Database = {
           gross_position: number | null
           id: string
           month: string
+          monthly_gross_points: number
+          monthly_net_points: number
           net_position: number | null
           player_id: number
           player_name: string
@@ -1124,6 +1126,8 @@ export type Database = {
           gross_position?: number | null
           id?: string
           month: string
+          monthly_gross_points?: number
+          monthly_net_points?: number
           net_position?: number | null
           player_id: number
           player_name: string
@@ -1140,6 +1144,8 @@ export type Database = {
           gross_position?: number | null
           id?: string
           month?: string
+          monthly_gross_points?: number
+          monthly_net_points?: number
           net_position?: number | null
           player_id?: number
           player_name?: string
