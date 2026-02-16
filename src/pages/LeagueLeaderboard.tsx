@@ -62,7 +62,7 @@ export default function LeagueLeaderboard() {
     async function fetchMonthlyStandings() {
       setMonthlyLoading(true);
       const now = new Date();
-      const monthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+      const monthStr = now.toLocaleDateString("en-US", { month: "long", year: "numeric" });
       
       const { data, error } = await supabase
         .from("sgt_monthly_standings")
