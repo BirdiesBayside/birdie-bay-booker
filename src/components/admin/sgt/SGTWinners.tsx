@@ -60,6 +60,17 @@ interface Scorecard {
   player_name: string;
   to_par_net: number | null;
   total_net: number;
+  round: number | null;
+  out_gross: number | null;
+  in_gross: number | null;
+}
+
+interface AggregatedPlayer {
+  player_id: number;
+  player_name: string;
+  total_net_sum: number;
+  rounds_completed: number;
+  isDNF: boolean;
 }
 
 interface MonthlyStanding {
@@ -190,12 +201,49 @@ export function SGTWinners() {
 
       const { data, error } = await supabase
         .from("sgt_scorecards")
-        .select("player_id, player_name, to_par_net, total_net")
+        .select("player_id, player_name, to_par_net, total_net, round, out_gross, in_gross")
         .eq("tournament_id", selectedTournamentForApproval)
         .order("to_par_net", { ascending: true });
       
       if (error) throw error;
-      return data as Scorecard[];
+      
+      // Aggregate by player: sum total_net across complete 18-hole rounds
+      const playerMap = new Map<number, AggregatedPlayer>();
+      
+      for (const card of (data as Scorecard[])) {
+        const isComplete18 = (card.out_gross ?? 0) > 0 && (card.in_gross ?? 0) > 0;
+        
+        if (!playerMap.has(card.player_id)) {
+          playerMap.set(card.player_id, {
+            player_id: card.player_id,
+            player_name: card.player_name,
+            total_net_sum: 0,
+            rounds_completed: 0,
+            isDNF: false,
+          });
+        }
+        
+        const entry = playerMap.get(card.player_id)!;
+        if (isComplete18) {
+          entry.total_net_sum += card.total_net;
+          entry.rounds_completed += 1;
+        }
+      }
+      
+      // Mark players with < 2 complete rounds as DNF
+      const aggregated = Array.from(playerMap.values()).map(p => ({
+        ...p,
+        isDNF: p.rounds_completed < 2,
+      }));
+      
+      // Sort: non-DNF first by total_net_sum ascending, then DNF players
+      aggregated.sort((a, b) => {
+        if (a.isDNF && !b.isDNF) return 1;
+        if (!a.isDNF && b.isDNF) return -1;
+        return a.total_net_sum - b.total_net_sum;
+      });
+      
+      return aggregated;
     },
     enabled: !!selectedTournamentForApproval,
   });
@@ -449,11 +497,21 @@ export function SGTWinners() {
                             </SelectTrigger>
                             <SelectContent>
                               {tournamentLeaderboard.map((player, idx) => (
-                                <SelectItem key={player.player_id} value={`${player.player_id}`}>
+                                <SelectItem 
+                                  key={player.player_id} 
+                                  value={`${player.player_id}`}
+                                  disabled={player.isDNF}
+                                >
                                   <div className="flex items-center gap-2">
                                     <span className="font-mono text-muted-foreground w-6">#{idx + 1}</span>
-                                    <span>{player.player_name}</span>
-                                    <span className="text-muted-foreground">({formatScore(player.to_par_net)})</span>
+                                    <span className={player.isDNF ? "text-muted-foreground" : ""}>{player.player_name}</span>
+                                    {player.isDNF ? (
+                                      <Badge variant="outline" className="text-xs text-destructive border-destructive/30">DNF</Badge>
+                                    ) : (
+                                      <span className="text-muted-foreground">
+                                        (Net {player.total_net_sum} — {player.rounds_completed} rds)
+                                      </span>
+                                    )}
                                   </div>
                                 </SelectItem>
                               ))}
