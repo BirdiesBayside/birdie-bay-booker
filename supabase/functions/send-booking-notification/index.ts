@@ -389,19 +389,22 @@ serve(async (req) => {
       // Check if custom template exists (only for confirmation, not reschedule)
       if (!isReschedule && emailTemplate?.html_content) {
         htmlContent = replaceTemplateTags(emailTemplate.html_content, templateTags);
-        // Append Google Review CTA after the custom template content if eligible
+        // Insert Google Review CTA after "First Time at Birdies?" section
         if (reviewCtaHtml) {
-          // Insert before closing </body> or </table> or just append before footer
-          const closingBodyIndex = htmlContent.lastIndexOf('</body>');
-          if (closingBodyIndex !== -1) {
-            htmlContent = htmlContent.slice(0, closingBodyIndex) + reviewCtaHtml + htmlContent.slice(closingBodyIndex);
+          // Look for the "First Time at Birdies" section's closing </table> tag
+          const firstTimeIndex = htmlContent.indexOf('First Time at Birdies');
+          if (firstTimeIndex !== -1) {
+            // Find the closing </table> after the "First Time" section
+            const afterFirstTime = htmlContent.indexOf('</table>', firstTimeIndex);
+            if (afterFirstTime !== -1) {
+              const insertAt = afterFirstTime + '</table>'.length;
+              htmlContent = htmlContent.slice(0, insertAt) + reviewCtaHtml + htmlContent.slice(insertAt);
+            }
           } else {
-            // Fallback: append before last closing tags
-            const lastTableClose = htmlContent.lastIndexOf('</table>');
-            if (lastTableClose !== -1) {
-              htmlContent = htmlContent.slice(0, lastTableClose) + reviewCtaHtml + htmlContent.slice(lastTableClose);
-            } else {
-              htmlContent += reviewCtaHtml;
+            // Fallback: insert before "We look forward" text
+            const lookForwardIndex = htmlContent.indexOf('We look forward');
+            if (lookForwardIndex !== -1) {
+              htmlContent = htmlContent.slice(0, lookForwardIndex) + reviewCtaHtml + htmlContent.slice(lookForwardIndex);
             }
           }
         }
