@@ -27,6 +27,7 @@ interface MonthlyStanding {
   best_net: number | null;
   best_gross: number | null;
   tournaments_played: number;
+  hcp: number | null;
 }
 
 export default function EmbedLeaderboard() {
@@ -57,7 +58,7 @@ export default function EmbedLeaderboard() {
     if (tab === "monthly") setActiveTab("monthly");
   }, []);
 
-  // Fetch monthly standings
+  // Fetch monthly standings with handicap data
   useEffect(() => {
     if (!activeTour || activeTab !== "monthly") return;
     
@@ -74,7 +75,20 @@ export default function EmbedLeaderboard() {
         .order(scoreType === "net" ? "net_position" : "gross_position", { ascending: true });
       
       if (!error && data) {
-        setMonthlyStandings(data);
+        // Fetch handicaps from tour members
+        const { data: members } = await supabase
+          .from("sgt_tour_members")
+          .select("user_id, hcp_index, custom_hcp")
+          .eq("tour_id", activeTour.tour_id);
+        
+        const hcpMap = new Map<number, number | null>();
+        if (members) {
+          for (const m of members) {
+            hcpMap.set(m.user_id, m.custom_hcp ?? m.hcp_index);
+          }
+        }
+        
+        setMonthlyStandings(data.map(s => ({ ...s, hcp: hcpMap.get(s.player_id) ?? null })));
       }
       setMonthlyLoading(false);
     }
@@ -205,17 +219,16 @@ export default function EmbedLeaderboard() {
               {/* Table Header */}
               <div className="grid grid-cols-12 gap-2 px-4 py-3 bg-[hsl(128,42%,21%)] text-sm font-medium text-white">
                 <div className="col-span-1 text-center">#</div>
-                <div className="col-span-5">Player</div>
+                <div className="col-span-4">Player</div>
+                <div className="col-span-2 text-center">HCP</div>
                 <div className="col-span-2 text-center">Played</div>
-                <div className="col-span-2 text-center">Best</div>
-                <div className="col-span-2 text-center">Points</div>
+                <div className="col-span-3 text-center">Points</div>
               </div>
 
               <div className="divide-y divide-[hsl(128,20%,85%)]">
                 {monthlyStandings.map((standing, index) => {
                   const position = scoreType === "net" ? standing.net_position : standing.gross_position;
                   const points = scoreType === "net" ? (standing.monthly_net_points ?? standing.total_net_score) : (standing.monthly_gross_points ?? standing.total_gross_score);
-                  const best = scoreType === "net" ? standing.best_net : standing.best_gross;
 
                   return (
                     <div
@@ -232,21 +245,21 @@ export default function EmbedLeaderboard() {
                         </span>
                       </div>
 
-                      <div className="col-span-5">
+                      <div className="col-span-4">
                         <p className="font-semibold text-[hsl(128,42%,21%)] truncate">
                           {standing.player_name}
                         </p>
                       </div>
 
                       <div className="col-span-2 text-center text-[hsl(128,20%,40%)]">
-                        {standing.tournaments_played}
+                        {standing.hcp != null ? Math.round(standing.hcp) : "-"}
                       </div>
 
                       <div className="col-span-2 text-center text-[hsl(128,20%,40%)]">
-                        {best ?? "-"}
+                        {standing.tournaments_played}
                       </div>
 
-                      <div className="col-span-2 text-center font-bold text-[hsl(18,84%,55%)]">
+                      <div className="col-span-3 text-center font-bold text-[hsl(18,84%,55%)]">
                         {points ?? "-"}
                       </div>
                     </div>
