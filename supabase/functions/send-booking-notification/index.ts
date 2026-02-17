@@ -458,6 +458,46 @@ serve(async (req) => {
 
     logStep("Email sent successfully", { emailResponse });
 
+    // Send admin alert for watched customers
+    const watchedEmails = [
+      "luke.p.taylor81@gmail.com",
+      "jannie2909@hotmail.com",
+    ];
+    
+    if (notification_type === "confirmation" && watchedEmails.includes(profile.email.toLowerCase())) {
+      try {
+        logStep("Watched customer booked - sending admin alert", { email: profile.email });
+        await resend.emails.send({
+          from: "Birdies Bayside <info@birdiesbayside.com.au>",
+          to: ["admin@birdiesbayside.com.au"],
+          subject: `⚠️ Watched Customer Booking: ${profile.first_name} ${profile.last_name}`,
+          html: buildEmailTemplate("Watched Customer Alert", `
+            <p style="margin:0 0 18px; font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">
+              <strong>${profile.first_name} ${profile.last_name}</strong> (${profile.email}) has just made a new booking.
+            </p>
+            
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FFFFFF; border-radius:12px; margin:18px 0; border-left:4px solid #EC622D;">
+              <tr>
+                <td style="padding:20px; font-family:Inter, Arial, sans-serif; font-size:15px; color:#1F4C25;">
+                  <p style="margin:5px 0;"><strong>Date:</strong> ${bookingDate}</p>
+                  <p style="margin:5px 0;"><strong>Time:</strong> ${startTime12hr} - ${endTime12hr}</p>
+                  <p style="margin:5px 0;"><strong>Duration:</strong> ${booking.duration_hours} hour${booking.duration_hours > 1 ? "s" : ""}</p>
+                  <p style="margin:5px 0;"><strong>Bay:</strong> ${bayName}</p>
+                  <p style="margin:5px 0;"><strong>Players:</strong> ${booking.player_count}</p>
+                  <p style="margin:5px 0;"><strong>Total:</strong> $${booking.total_price.toFixed(2)}</p>
+                  <p style="margin:5px 0;"><strong>Phone:</strong> ${profile.phone || 'Not provided'}</p>
+                  <p style="margin:5px 0;"><strong>Membership:</strong> ${profile.membership_tier}</p>
+                </td>
+              </tr>
+            </table>
+          `),
+        });
+        logStep("Admin alert sent for watched customer");
+      } catch (alertError: any) {
+        logStep("Failed to send admin alert (non-blocking)", { error: alertError.message });
+      }
+    }
+
     // Send SMS for confirmations and reschedules (not cancellations)
     let smsResult: { success: boolean; response?: string; error?: string } = { success: false, error: "SMS not sent" };
     let gateSmsResult: { success: boolean; response?: string; error?: string } | null = null;
