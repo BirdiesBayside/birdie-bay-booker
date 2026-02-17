@@ -389,7 +389,23 @@ serve(async (req) => {
       // Check if custom template exists (only for confirmation, not reschedule)
       if (!isReschedule && emailTemplate?.html_content) {
         htmlContent = replaceTemplateTags(emailTemplate.html_content, templateTags);
-        logStep("Using custom email template");
+        // Append Google Review CTA after the custom template content if eligible
+        if (reviewCtaHtml) {
+          // Insert before closing </body> or </table> or just append before footer
+          const closingBodyIndex = htmlContent.lastIndexOf('</body>');
+          if (closingBodyIndex !== -1) {
+            htmlContent = htmlContent.slice(0, closingBodyIndex) + reviewCtaHtml + htmlContent.slice(closingBodyIndex);
+          } else {
+            // Fallback: append before last closing tags
+            const lastTableClose = htmlContent.lastIndexOf('</table>');
+            if (lastTableClose !== -1) {
+              htmlContent = htmlContent.slice(0, lastTableClose) + reviewCtaHtml + htmlContent.slice(lastTableClose);
+            } else {
+              htmlContent += reviewCtaHtml;
+            }
+          }
+        }
+        logStep("Using custom email template", { reviewCtaInjected: !!reviewCtaHtml });
       } else {
         // Build body content
         const headingText = isReschedule ? "Booking Rescheduled!" : "Booking Confirmed!";
