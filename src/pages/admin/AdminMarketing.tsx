@@ -40,7 +40,9 @@ import {
   Search,
   Pencil,
   Zap,
+  Star,
 } from "lucide-react";
+import { ReviewApprovals } from "@/components/admin/ReviewApprovals";
 
 interface Campaign {
   id: string;
@@ -536,6 +538,10 @@ export default function AdminMarketing() {
               <FileText className="h-4 w-4" />
               Templates
             </TabsTrigger>
+            <TabsTrigger value="reviews" className="flex items-center gap-2">
+              <Star className="h-4 w-4" />
+              Review Approvals
+            </TabsTrigger>
           </TabsList>
 
           {/* Campaigns Tab */}
@@ -720,6 +726,10 @@ export default function AdminMarketing() {
                 );
               })}
             </div>
+          </TabsContent>
+          {/* Review Approvals Tab */}
+          <TabsContent value="reviews" className="mt-4">
+            <ReviewApprovals />
           </TabsContent>
         </Tabs>
 

@@ -584,6 +584,39 @@ export type Database = {
         }
         Relationships: []
       }
+      google_review_rewards: {
+        Row: {
+          approved_at: string
+          approved_by: string | null
+          created_at: string
+          credit_amount: number
+          credit_issued: boolean
+          id: string
+          notes: string | null
+          user_id: string
+        }
+        Insert: {
+          approved_at?: string
+          approved_by?: string | null
+          created_at?: string
+          credit_amount?: number
+          credit_issued?: boolean
+          id?: string
+          notes?: string | null
+          user_id: string
+        }
+        Update: {
+          approved_at?: string
+          approved_by?: string | null
+          created_at?: string
+          credit_amount?: number
+          credit_issued?: boolean
+          id?: string
+          notes?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       marketing_campaigns: {
         Row: {
           clicks: number | null
