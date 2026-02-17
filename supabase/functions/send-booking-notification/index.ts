@@ -321,6 +321,18 @@ serve(async (req) => {
     let htmlContent: string;
     let smsMessage: string;
 
+    // Check if user has already been approved for Google review reward
+    let hasReviewReward = false;
+    if (notification_type === "confirmation") {
+      const { data: reviewReward } = await supabaseClient
+        .from("google_review_rewards")
+        .select("id")
+        .eq("user_id", booking.user_id)
+        .maybeSingle();
+      hasReviewReward = !!reviewReward;
+      logStep("Review reward check", { hasReviewReward });
+    }
+
     if (notification_type === "confirmation" || notification_type === "reschedule") {
       // Use custom subject if available
       const isReschedule = notification_type === "reschedule";
@@ -347,6 +359,32 @@ serve(async (req) => {
             ``,
             `Your door code is: 7675#`
           ].join('\n');
+
+      // Build Google Review CTA block (only for confirmations, not reschedules, and not if already rewarded)
+      const reviewCtaHtml = (!isReschedule && !hasReviewReward) ? `
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FFFFFF; border-radius:12px; margin:18px 0; border:1px solid rgba(31,76,37,0.12);">
+                <tr>
+                  <td style="padding:20px; text-align:center;">
+                    <p style="margin:0 0 8px; font-family:Anton, Impact, Arial Black, sans-serif; font-size:18px; color:#1F4C25;">
+                      ENJOYING BIRDIES? ⭐
+                    </p>
+                    <p style="margin:0 0 14px; font-family:Inter, Arial, sans-serif; font-size:14px; color:#1F4C25; line-height:1.5;">
+                      Leave us a Google Review and receive <strong>$15 credit</strong> on your next visit!
+                    </p>
+                    <table role="presentation" align="center" cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td bgcolor="#EC622D" style="border-radius:8px;">
+                          <a href="https://g.page/r/CSMrsLoxE318EBM/review"
+                             style="display:inline-block; padding:10px 20px; font-family:Inter, Arial, sans-serif; font-size:14px; font-weight:600; color:#FFFFFF; text-decoration:none;">
+                            Leave a Review →
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+      ` : '';
 
       // Check if custom template exists (only for confirmation, not reschedule)
       if (!isReschedule && emailTemplate?.html_content) {
@@ -390,6 +428,8 @@ serve(async (req) => {
                   </td>
                 </tr>
               </table>
+
+              ${reviewCtaHtml}
               
               <p style="margin:18px 0 0; font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">
                 We look forward to seeing you at Birdies Bayside!
