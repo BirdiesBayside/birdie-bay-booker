@@ -30,6 +30,7 @@ interface LogEntry {
   message: string;
   details?: Record<string, unknown>;
   booking_id?: string;
+  local_timestamp?: string;
 }
 
 interface UseBayControllerLoggerOptions {
@@ -124,6 +125,7 @@ export function useBayControllerLogger({
       message,
       details: options?.details,
       booking_id: options?.bookingId,
+      local_timestamp: new Date().toISOString(),
     };
     
     logQueueRef.current.push(entry);
