@@ -502,6 +502,10 @@ export function SGTDashboard() {
               disabled={updateNotificationMutation.isPending}
             />
           </div>
+          <p className="text-xs text-muted-foreground px-1">
+            Notifications are sent to <strong className="text-primary">info@birdiesbayside.com.au</strong> when members register via the app. 
+            The sync also sends notifications when externally-registered members are auto-linked by email match.
+          </p>
         </CardContent>
       </Card>
 
