@@ -19,7 +19,8 @@ export type LogEventType =
   | 'connection_lost'
   | 'connection_restored'
   | 'automation_decision'
-  | 'plug_control_result';
+  | 'plug_control_result'
+  | 'process_detection';
 
 export type LogEventLevel = 'info' | 'warning' | 'error';
 
