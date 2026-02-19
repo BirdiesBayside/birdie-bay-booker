@@ -71,6 +71,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // SECURITY / QUIT CONTROL APIs
   // =====================================================
   
+  // Install downloaded update and restart
+  installUpdate: () => ipcRenderer.invoke('install-update'),
+  
+  // Listen for update events from main process
+  onUpdateAvailable: (callback) => {
+    ipcRenderer.on('update-available', (event, version) => callback(version));
+    return () => ipcRenderer.removeAllListeners('update-available');
+  },
+  onUpdateDownloaded: (callback) => {
+    ipcRenderer.on('update-downloaded', (event, version) => callback(version));
+    return () => ipcRenderer.removeAllListeners('update-downloaded');
+  },
+  
   // Confirm quit (after password verification)
   confirmQuit: () => ipcRenderer.invoke('confirm-quit'),
   

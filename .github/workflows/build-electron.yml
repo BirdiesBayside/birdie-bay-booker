@@ -54,12 +54,16 @@ jobs:
       - name: Build Windows installer
         working-directory: ./electron
         run: npm run build
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
           name: BirdiesBayController-Windows
-          path: electron/dist-electron/*.exe
+          path: |
+            electron/dist-electron/*.exe
+            electron/dist-electron/latest.yml
           retention-days: 3
 
       - name: Create Release
@@ -68,7 +72,9 @@ jobs:
         with:
           tag_name: v${{ github.run_number }}
           name: Bay Controller Build ${{ github.run_number }}
-          files: electron/dist-electron/*.exe
+          files: |
+            electron/dist-electron/*.exe
+            electron/dist-electron/latest.yml
           draft: false
           prerelease: false
         env:
