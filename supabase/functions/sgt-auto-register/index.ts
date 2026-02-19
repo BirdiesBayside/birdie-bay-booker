@@ -224,7 +224,22 @@ serve(async (req) => {
         console.log(`[SGT-AUTO-REG] Using Combo HCP for user ${sgt_user_id} in tour ${tourId}`);
       }
 
-      // Get all tournaments for this tour
+      // STEP 1: Ensure user is a TOUR MEMBER on SGT's side (not just a club member)
+      // The /members/register-new endpoint only adds them as a club member.
+      // We must call /tours/add-member to add them to the tour before registering for tournaments.
+      try {
+        console.log(`[SGT-AUTO-REG] Adding user ${sgt_user_id} to tour ${tourId} on SGT...`);
+        const addMemberResult = await sgtPostRequest("/tours/add-member", {
+          tourId: tourId,
+          user_id: sgt_user_id,
+        });
+        console.log(`[SGT-AUTO-REG] Add to tour result:`, addMemberResult);
+      } catch (addError) {
+        // If they're already a tour member, SGT may return an error - log but continue
+        console.warn(`[SGT-AUTO-REG] Add to tour warning (may already be member):`, addError);
+      }
+
+      // STEP 2: Get all tournaments for this tour
       const tournamentsResponse = await sgtGetRequest("/tournaments/list", { tourId: tourId.toString() });
       const tournaments = extractArray(tournamentsResponse, ['results', 'tournaments']) as { 
         tournamentId: number; 
@@ -311,10 +326,17 @@ serve(async (req) => {
             tournament.tournamentId,
             tourId,
             [registrationItem]
-          );
+          ) as { success?: boolean; feedback?: string };
 
           console.log(`[SGT-AUTO-REG] Registration result for ${tournament.name}:`, registerResult);
-          totalTournamentRegistrations++;
+          
+          if (registerResult?.success === false) {
+            const errorMsg = `Registration rejected for ${tournament.name}: ${registerResult.feedback || 'Unknown reason'}`;
+            console.error(`[SGT-AUTO-REG] ${errorMsg}`);
+            allErrors.push(errorMsg);
+          } else {
+            totalTournamentRegistrations++;
+          }
         } catch (error) {
           const errorMsg = `Failed to register for ${tournament.name}: ${error instanceof Error ? error.message : 'Unknown error'}`;
           console.error(`[SGT-AUTO-REG] ${errorMsg}`);
