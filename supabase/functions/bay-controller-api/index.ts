@@ -135,7 +135,7 @@ serve(async (req) => {
           event_type: log.event_type || 'unknown',
           event_level: log.event_level || 'info',
           message: log.message || '',
-          details: log.details || {},
+          details: { ...(log.details as Record<string, unknown> || {}), local_timestamp: log.local_timestamp || null },
           booking_id: log.booking_id || null,
           app_version: appVersion,
         }));
