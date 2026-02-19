@@ -157,13 +157,84 @@ serve(async (req) => {
   supabaseClient = createClient(supabaseUrl, supabaseKey);
 
   try {
-    const { sgt_user_id } = await req.json();
+    const { sgt_user_id, force_email } = await req.json();
 
     if (!sgt_user_id) {
       return new Response(
         JSON.stringify({ error: "sgt_user_id is required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // Force email mode: skip registration, just send the league welcome email
+    if (force_email) {
+      console.log(`[SGT-AUTO-REG] Force email mode for SGT user ${sgt_user_id}`);
+      
+      const { data: profile } = await supabaseClient
+        .from("profiles")
+        .select("user_id, email, first_name")
+        .eq("sgt_user_id", sgt_user_id)
+        .maybeSingle();
+
+      const { data: tourMember } = await supabaseClient
+        .from("sgt_tour_members")
+        .select("tour_id, custom_hcp")
+        .eq("user_id", sgt_user_id)
+        .limit(1)
+        .maybeSingle();
+
+      const handicapDisplay = tourMember?.custom_hcp !== null && tourMember?.custom_hcp !== undefined
+        ? String(tourMember.custom_hcp)
+        : "Combo (auto)";
+
+      if (!profile?.email) {
+        return new Response(JSON.stringify({ error: "No profile with email found" }), 
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      const { data: emailTemplate } = await supabaseClient
+        .from("email_templates")
+        .select("subject, html_content")
+        .eq("template_key", "league_welcome")
+        .eq("is_active", true)
+        .single();
+
+      if (!emailTemplate?.html_content) {
+        return new Response(JSON.stringify({ error: "No active league_welcome template" }), 
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      const guideUrl = "https://hub.birdiesbayside.com.au/birdies-guide";
+      const tags: Record<string, string> = {
+        '{first_name}': profile.first_name || 'Golfer',
+        '{handicap}': handicapDisplay,
+        '{guide_url}': guideUrl,
+      };
+
+      let htmlContent = emailTemplate.html_content;
+      let subject = emailTemplate.subject || "Welcome to the Birdies League!";
+      for (const [tag, value] of Object.entries(tags)) {
+        const escaped = tag.replace(/[{}]/g, '\\$&');
+        htmlContent = htmlContent.replace(new RegExp(escaped, 'g'), value);
+        subject = subject.replace(new RegExp(escaped, 'g'), value);
+      }
+
+      const resendKey = Deno.env.get("RESEND_API_KEY");
+      const emailRes = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${resendKey}` },
+        body: JSON.stringify({
+          from: "Birdies Bayside <info@birdiesbayside.com.au>",
+          to: [profile.email],
+          subject,
+          html: htmlContent,
+        }),
+      });
+      const emailResult = await emailRes.json();
+      console.log(`[SGT-AUTO-REG] Force email sent to ${profile.email}:`, emailResult);
+
+      return new Response(JSON.stringify({ success: true, email_sent: true, to: profile.email }), 
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     console.log(`[SGT-AUTO-REG] Processing registration for SGT user ${sgt_user_id}`);
