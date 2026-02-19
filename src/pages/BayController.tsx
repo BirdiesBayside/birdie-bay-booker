@@ -2204,13 +2204,14 @@ export default function BayController() {
       console.log('[turnOffPlugs] Auto plug-off: closing apps BEFORE turning off plugs');
       const appsClosed = await closeApps('scheduled');
       
-      // If apps could NOT be closed (e.g. displays were missing so close was skipped),
-      // ABORT the plug-off entirely to prevent orphaned apps on wrong screens.
       if (!appsClosed) {
-        console.warn('[turnOffPlugs] ABORTED: Apps could not be closed - cannot turn off plugs safely');
-        addLog('Plug-off aborted: apps could not be closed (displays may be missing)', 'error');
-        bayLogger.logError('Plug-off aborted: apps could not be closed', undefined, activeBooking?.id);
-        return;
+        console.warn('[turnOffPlugs] closeApps returned false - force-killing as fallback');
+        addLog('closeApps failed - force-killing before plug-off', 'error');
+        try {
+          await window.electronAPI.closeApps(["GSPro.exe", "ProteeLabs.exe"]);
+        } catch (e) {
+          console.error('[turnOffPlugs] Force-kill also failed:', e);
+        }
       }
       
       // Small delay to let apps fully exit before cutting power
@@ -2247,8 +2248,14 @@ export default function BayController() {
         );
         
         if (appsAlive) {
-          console.error(`[turnOffPlugs] WARNING: Apps still running at plug-off! GSPro=${gsproStillRunning}, Protee=${proteeStillRunning}`);
-          addLog(`⚠️ APPS STILL RUNNING AT PLUG-OFF: GSPro=${gsproStillRunning}, Protee=${proteeStillRunning}`, 'error');
+          console.error(`[turnOffPlugs] WARNING: Apps still running at plug-off! Force-killing. GSPro=${gsproStillRunning}, Protee=${proteeStillRunning}`);
+          addLog(`⚠️ APPS STILL RUNNING AT PLUG-OFF - force-killing`, 'error');
+          try {
+            await window.electronAPI.closeApps(["GSPro.exe", "ProteeLabs.exe"]);
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          } catch (killErr) {
+            console.error('[turnOffPlugs] Emergency force-kill failed:', killErr);
+          }
         }
       } catch (err) {
         console.error('[turnOffPlugs] Failed to check process state before plug-off:', err);
@@ -2505,40 +2512,9 @@ export default function BayController() {
 
     const closeReason = reason || 'manual';
 
-    // For scheduled/automated closes, verify all configured displays are present
-    // This prevents apps from closing while screens are off (TAPO power-cycled),
-    // which would cause apps to remember incorrect screen positions on next launch
-    if (closeReason === 'scheduled') {
-      try {
-        const currentDisplays = await window.electronAPI.getDisplays();
-        const currentLabels = new Set(currentDisplays.map(d => d.label));
-        
-        const gsproConfigured = appLaunchConfig.gsproDisplayLabel;
-        const proteeConfigured = appLaunchConfig.proteeDisplayLabel;
-        
-        const missingDisplays: string[] = [];
-        
-        if (gsproConfigured && !currentLabels.has(gsproConfigured)) {
-          missingDisplays.push(`GSPRO display "${gsproConfigured}"`);
-        }
-        
-        if (proteeConfigured && !currentLabels.has(proteeConfigured)) {
-          missingDisplays.push(`Protee display "${proteeConfigured}"`);
-        }
-        
-        if (missingDisplays.length > 0) {
-          addLog(`Auto-close skipped - displays missing: ${missingDisplays.join(', ')}. Waiting for screens.`, 'error');
-          bayLogger.sendLog('automation_decision', `Auto-close skipped - displays missing: ${missingDisplays.join(', ')}`, { bookingId: activeBooking?.id });
-          return false;
-        }
-        
-        addLog(`Display check passed for close. Available: ${Array.from(currentLabels).join(', ')}`, 'info');
-      } catch (err) {
-        addLog(`Display check failed before close - skipping auto-close`, 'error');
-        bayLogger.logError('Display check failed before auto-close', err, activeBooking?.id);
-        return false;
-      }
-    }
+    // Apps must ALWAYS be killed before plugs turn off, regardless of display state.
+    // Display checks are only needed before LAUNCHING apps (to ensure correct screen placement).
+    // App Restore handles resetting config files so wrong-position saves are not a concern.
 
     try {
       // Set flag to prevent "unexpected close" log from onGsproClosed listener
