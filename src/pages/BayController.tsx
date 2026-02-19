@@ -2218,6 +2218,43 @@ export default function BayController() {
     }
     
     if (isElectron && window.electronAPI && selectedBay) {
+      // CRITICAL DIAGNOSTIC: Check if apps are STILL running right before plugs turn off
+      // This is the key audit point - if processes are alive here, they'll get orphaned
+      let gsproStillRunning = false;
+      let proteeStillRunning = false;
+      try {
+        const gsproCheck = await window.electronAPI.findWindow("GSPro");
+        const proteeCheck = await window.electronAPI.findWindow("ProTee");
+        gsproStillRunning = !!gsproCheck?.hwnd;
+        proteeStillRunning = !!proteeCheck?.hwnd;
+        
+        const appsAlive = gsproStillRunning || proteeStillRunning;
+        bayLogger.sendLog('automation_decision', 
+          `PRE-PLUG-OFF PROCESS CHECK: GSPro=${gsproStillRunning ? 'RUNNING' : 'dead'}, Protee=${proteeStillRunning ? 'RUNNING' : 'dead'}, appsRunningState=${appsRunning}`,
+          {
+            level: appsAlive ? 'error' : 'info',
+            details: {
+              gsproStillRunning,
+              proteeStillRunning,
+              appsRunningState: appsRunning,
+              appLaunchEnabled: appLaunchConfig.enabled,
+              isManual,
+              timestamp: new Date().toISOString(),
+            },
+            bookingId: activeBooking?.id,
+            immediate: true,
+          }
+        );
+        
+        if (appsAlive) {
+          console.error(`[turnOffPlugs] WARNING: Apps still running at plug-off! GSPro=${gsproStillRunning}, Protee=${proteeStillRunning}`);
+          addLog(`⚠️ APPS STILL RUNNING AT PLUG-OFF: GSPro=${gsproStillRunning}, Protee=${proteeStillRunning}`, 'error');
+        }
+      } catch (err) {
+        console.error('[turnOffPlugs] Failed to check process state before plug-off:', err);
+        bayLogger.logError('Failed to check process state before plug-off', err, activeBooking?.id);
+      }
+      
       const bayPlugs = getAssignedPlugsForBay(selectedBay);
       console.log("Assigned plugs for bay:", bayPlugs);
       
