@@ -1058,31 +1058,7 @@ async function runAppLaunchSequence(config) {
       return { success: false, cancelled: true, results };
     }
     
-    // Step 0.5: Wait for all configured displays to be enumerated by Windows
-    // After smart plugs power on displays, Windows can take 30-90s to detect them
-    const expectedDisplayLabels = [];
-    if (gsproTarget && typeof gsproTarget === 'string') expectedDisplayLabels.push(gsproTarget);
-    if (proteeTarget && typeof proteeTarget === 'string') expectedDisplayLabels.push(proteeTarget);
-    
-    if (expectedDisplayLabels.length > 0) {
-      console.log('Step 0.5: Waiting for configured displays to be ready...');
-      const displayWait = await waitForAllDisplays(expectedDisplayLabels, 90000);
-      
-      if (displayWait.cancelled) {
-        await closeWelcomeWindows();
-        return { success: false, cancelled: true, results };
-      }
-      
-      if (!displayWait.success) {
-        console.log('WARNING: Not all displays detected after timeout, proceeding anyway');
-        results.push({ step: 'wait_for_displays', success: false, error: displayWait.error });
-      } else {
-        console.log('All configured displays detected!');
-        results.push({ step: 'wait_for_displays', success: true });
-      }
-    }
-    
-    // Step 1: Launch GSPRO
+    // Step 1: Launch GSPRO immediately
     console.log('Step 1: Launching GSPRO...');
     const gsproLaunch = await launchApp(gsproPath);
     console.log('GSPRO launch result:', JSON.stringify(gsproLaunch));
