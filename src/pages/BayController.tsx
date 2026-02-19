@@ -1959,6 +1959,46 @@ export default function BayController() {
     localStorage.setItem("bayController_appsRunning", appsRunning.toString());
   }, [appsRunning]);
 
+  // PROCESS DETECTION: Detect externally-launched GSPro/Protee Labs and sync appsRunning state
+  // This ensures auto-close works even when staff launch apps manually outside the controller
+  useEffect(() => {
+    if (!isElectron || !window.electronAPI?.findWindow || !appLaunchConfig.enabled) return;
+    // Don't detect while we're in the middle of launching apps ourselves
+    if (isLaunchingApps) return;
+
+    const checkInterval = setInterval(async () => {
+      // Only detect externally launched apps when we think apps are NOT running
+      // If appsRunning is already true, the controller is already tracking them
+      if (appsRunning) return;
+
+      try {
+        const [gsproResult, proteeResult] = await Promise.all([
+          window.electronAPI!.findWindow("GSPro").catch(() => ({ found: false })),
+          window.electronAPI!.findWindow("ProTee").catch(() => ({ found: false })),
+        ]);
+
+        const gsproFound = !!(gsproResult as any)?.found;
+        const proteeFound = !!(proteeResult as any)?.found;
+
+        if (gsproFound || proteeFound) {
+          const detectedApps = [gsproFound && "GSPro", proteeFound && "Protee Labs"].filter(Boolean).join(" & ");
+          console.log(`[ProcessDetection] Externally launched app(s) detected: ${detectedApps} — setting appsRunning=true`);
+          addLog(`Detected externally launched: ${detectedApps}`, 'info');
+          bayLogger.sendLog('process_detection', `Externally launched app(s) detected: ${detectedApps}`, {
+            details: { gsproFound, proteeFound },
+            bookingId: activeBooking?.id,
+          });
+          setAppsRunning(true);
+          setAppLaunchStatus(`${detectedApps} detected (external launch)`);
+        }
+      } catch (err) {
+        // Silent failure — don't spam logs
+      }
+    }, 5000); // Check every 5 seconds
+
+    return () => clearInterval(checkInterval);
+  }, [isElectron, appsRunning, appLaunchConfig.enabled, isLaunchingApps, activeBooking?.id, addLog, bayLogger]);
+
   // Add a plug manually
   const addPlugManually = () => {
     if (!newPlugName.trim() || !newPlugIp.trim()) {
