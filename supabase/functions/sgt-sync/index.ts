@@ -186,6 +186,71 @@ serve(async (req) => {
     }
     console.log(`[SGT-SYNC] Synced ${members.length} members`);
 
+    // 1b. Auto-link SGT members to Birdies profiles by email match
+    // This catches users who registered on SGT externally (not via sgt-register)
+    console.log("[SGT-SYNC] Checking for unlinked profiles...");
+    let linkedCount = 0;
+    const newlyLinked: { username: string; email: string; sgtUserId: number }[] = [];
+    
+    for (const member of members) {
+      const m = member as { user_id: number; user_name: string; user_email?: string };
+      if (!m.user_email) continue;
+      
+      // Check if any profile with this email doesn't have sgt_user_id set
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("user_id, sgt_user_id, first_name, last_name")
+        .eq("email", m.user_email.toLowerCase())
+        .is("sgt_user_id", null)
+        .maybeSingle();
+      
+      if (profile) {
+        const { error: linkError } = await supabase
+          .from("profiles")
+          .update({ sgt_user_id: m.user_id })
+          .eq("user_id", profile.user_id);
+        
+        if (!linkError) {
+          linkedCount++;
+          newlyLinked.push({ username: m.user_name, email: m.user_email, sgtUserId: m.user_id });
+          console.log(`[SGT-SYNC] Linked profile ${m.user_email} → SGT user ${m.user_id}`);
+        }
+      }
+    }
+    
+    if (linkedCount > 0) {
+      console.log(`[SGT-SYNC] Auto-linked ${linkedCount} profiles`);
+      
+      // Send notification email for newly linked members
+      try {
+        const resendKey = Deno.env.get("RESEND_API_KEY");
+        if (resendKey) {
+          const { Resend } = await import("https://esm.sh/resend@2.0.0");
+          const resend = new Resend(resendKey);
+          const siteUrl = Deno.env.get("SITE_URL") || "https://birdie-bay-bookings.lovable.app";
+          
+          for (const linked of newlyLinked) {
+            try {
+              await resend.emails.send({
+                from: "Birdies Bayside <info@birdiesbayside.com.au>",
+                to: ["info@birdiesbayside.com.au"],
+                subject: `🆕 Action Required: Onboard ${linked.username} to Birdies League`,
+                html: `<p><strong>${linked.username}</strong> (${linked.email}) has been auto-linked to their Birdies profile via SGT sync.</p>
+                       <p>SGT User ID: ${linked.sgtUserId}</p>
+                       <p><strong>⚠️ Action Required:</strong> Set their handicap to complete onboarding.</p>
+                       <p><a href="${siteUrl}/admin/sgt-manager?tab=registrations">Open Pending Onboarding →</a></p>`,
+              });
+              console.log(`[SGT-SYNC] Sent onboarding notification for ${linked.username}`);
+            } catch (emailErr) {
+              console.error(`[SGT-SYNC] Failed to send notification for ${linked.username}:`, emailErr);
+            }
+          }
+        }
+      } catch (e) {
+        console.error("[SGT-SYNC] Error sending notifications:", e);
+      }
+    }
+
     // 2. Sync Tours
     console.log("[SGT-SYNC] Syncing tours...");
     const toursResponse = await sgtRequest("/tours/list", apiKey);
