@@ -362,6 +362,83 @@ serve(async (req) => {
       console.error("[SGT-AUTO-REG] Sync trigger failed:", syncError);
     }
 
+    // Send league welcome email if registration was successful
+    if (totalTournamentRegistrations > 0) {
+      try {
+        console.log(`[SGT-AUTO-REG] Sending league welcome email for user ${sgt_user_id}...`);
+
+        // Look up the profile linked to this SGT user
+        const { data: profile } = await supabaseClient
+          .from("profiles")
+          .select("user_id, email, first_name")
+          .eq("sgt_user_id", sgt_user_id)
+          .maybeSingle();
+
+        if (profile?.email) {
+          // Get the handicap used (from the first tour processed)
+          const firstTourId = memberTourIds[0];
+          const handicapValue = tourHcpMap.get(firstTourId);
+          const handicapDisplay = handicapValue !== null && handicapValue !== undefined
+            ? String(handicapValue)
+            : "Combo (auto)";
+
+          // Fetch league welcome email template
+          const { data: emailTemplate } = await supabaseClient
+            .from("email_templates")
+            .select("subject, html_content")
+            .eq("template_key", "league_welcome")
+            .eq("is_active", true)
+            .single();
+
+          if (emailTemplate?.html_content) {
+            const guideUrl = "https://hub.birdiesbayside.com.au/birdies-guide";
+            const tags: Record<string, string> = {
+              '{first_name}': profile.first_name || 'Golfer',
+              '{handicap}': handicapDisplay,
+              '{guide_url}': guideUrl,
+            };
+
+            let htmlContent = emailTemplate.html_content;
+            let subject = emailTemplate.subject || "Welcome to the Birdies League!";
+            for (const [tag, value] of Object.entries(tags)) {
+              const escaped = tag.replace(/[{}]/g, '\\$&');
+              htmlContent = htmlContent.replace(new RegExp(escaped, 'g'), value);
+              subject = subject.replace(new RegExp(escaped, 'g'), value);
+            }
+
+            // Send via Resend
+            const resendKey = Deno.env.get("RESEND_API_KEY");
+            if (resendKey) {
+              const emailRes = await fetch("https://api.resend.com/emails", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "Authorization": `Bearer ${resendKey}`,
+                },
+                body: JSON.stringify({
+                  from: "Birdies Bayside <info@birdiesbayside.com.au>",
+                  to: [profile.email],
+                  subject,
+                  html: htmlContent,
+                }),
+              });
+              const emailResult = await emailRes.json();
+              console.log(`[SGT-AUTO-REG] League welcome email sent to ${profile.email}:`, emailResult);
+            } else {
+              console.warn("[SGT-AUTO-REG] RESEND_API_KEY not set, skipping league welcome email");
+            }
+          } else {
+            console.warn("[SGT-AUTO-REG] No active league_welcome email template found");
+          }
+        } else {
+          console.log(`[SGT-AUTO-REG] No profile with email found for sgt_user_id ${sgt_user_id}, skipping email`);
+        }
+      } catch (emailError) {
+        console.error("[SGT-AUTO-REG] Failed to send league welcome email:", emailError);
+        // Don't fail the whole request for email errors
+      }
+    }
+
     const result = {
       success: true,
       tournamentsRegistered: totalTournamentRegistrations,
