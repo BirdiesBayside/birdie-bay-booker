@@ -1,4 +1,5 @@
 const { app, BrowserWindow, Tray, Menu, ipcMain, screen, dialog, clipboard, globalShortcut } = require('electron');
+const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const fs = require('fs');
 const { exec, spawn } = require('child_process');
@@ -151,6 +152,55 @@ app.whenReady().then(() => {
   createWindow();
   createTray();
   
+  // =====================================================
+  // AUTO-UPDATER - checks GitHub Releases for new versions
+  // =====================================================
+  if (app.isPackaged) {
+    autoUpdater.autoDownload = true;
+    autoUpdater.autoInstallOnAppQuit = true;
+    
+    autoUpdater.on('checking-for-update', () => {
+      console.log('[AutoUpdater] Checking for updates...');
+    });
+    
+    autoUpdater.on('update-available', (info) => {
+      console.log('[AutoUpdater] Update available:', info.version);
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('update-available', info.version);
+      }
+    });
+    
+    autoUpdater.on('update-not-available', () => {
+      console.log('[AutoUpdater] App is up to date');
+    });
+    
+    autoUpdater.on('download-progress', (progress) => {
+      console.log(`[AutoUpdater] Download: ${Math.round(progress.percent)}%`);
+    });
+    
+    autoUpdater.on('update-downloaded', (info) => {
+      console.log('[AutoUpdater] Update downloaded:', info.version, '- will install on next restart');
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('update-downloaded', info.version);
+      }
+    });
+    
+    autoUpdater.on('error', (err) => {
+      console.error('[AutoUpdater] Error:', err.message);
+    });
+    
+    // Check immediately on launch, then every 4 hours
+    autoUpdater.checkForUpdates().catch(err => {
+      console.error('[AutoUpdater] Initial check failed:', err.message);
+    });
+    
+    setInterval(() => {
+      autoUpdater.checkForUpdates().catch(err => {
+        console.error('[AutoUpdater] Periodic check failed:', err.message);
+      });
+    }, 4 * 60 * 60 * 1000);
+  }
+  
   // Register global F7 hotkey to toggle SGT info overlay (works even when app is in tray)
   globalShortcut.register('F7', async () => {
     console.log('[GlobalShortcut] F7 pressed - toggling SGT info overlay');
@@ -244,6 +294,13 @@ app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow();
   }
+});
+
+// Handle install update now (restart and install downloaded update)
+ipcMain.handle('install-update', async () => {
+  console.log('[AutoUpdater] Installing update and restarting...');
+  autoUpdater.quitAndInstall(false, true);
+  return { success: true };
 });
 
 // Handle authenticated quit from renderer
