@@ -1,120 +1,117 @@
 
-# Enhanced Bay Controller Diagnostic Logging
 
-## The Problem
+# Enhanced Diagnostic Logging for Display Timing Issues
 
-Bay 6 launched Protee Labs onto the wrong screen during a cold start (no prior session). The logs show plugs turned on at 16:57 and apps launched at 16:59:50, but there is **zero visibility** into:
-- What displays Windows detected at launch time
-- Whether the display-availability check passed or was skipped
-- Whether Protee Labs was placed on the correct display initially then moved, or started on the wrong one
+## The Core Question
 
-## What We Need to See
+Plugs turn on at **T-3 minutes** and apps launch at **T-1 minute**, giving only a **2-minute window** for the RE6504 to fully enumerate. You've measured it can take up to 90 seconds. That leaves as little as 30 seconds of margin -- and if anything delays the plug-on command or the display takes longer on a cold morning, apps could launch before the target screen is ready.
 
-Every time apps launch or close, the logs should capture:
-1. **Display enumeration** -- exactly which monitors Windows sees, by label
-2. **Display check result** -- did the target display pass the availability check? 
-3. **Process verification after close** -- are GSPro/Protee actually dead?
-4. **Launch placement** -- which display was targeted, and did the window end up there?
+The display guard at launch time calls `getDisplays()` and checks for the configured label. But we currently don't log:
+- What labels were actually returned by that check
+- Whether the check passed or was skipped
+- The exact timestamps of plug-on vs. display detection vs. app launch
 
-## Plan
+## What We Will Add
 
-### 1. Add `checkProcesses` IPC handler (electron/main.js)
+### 1. Log the display guard result in BayController.tsx
 
-New handler that runs `tasklist` and returns which simulator processes are currently running with their PIDs. This gives the controller a way to verify kills actually worked.
+Right now the display check (lines 2435-2469) only logs to the local UI via `addLog()`. We need to send this to the **server logs** via `bayLogger` so it appears in the diagnostic trail. Specifically:
 
-### 2. Update `closeApps` to return real results (electron/main.js)
+- **Guard PASSED**: Log all detected display labels with a `process_detection` event
+- **Guard FAILED**: Log the missing displays AND what was detected, with error level
+- **Guard ERROR**: Log the exception
 
-Currently always returns `{ success: true }`. Change it to:
-- Run `taskkill /IM <process> /F` as before
-- Then run `tasklist` to verify the processes are actually gone
-- Return `{ success: true/false, killed: [...], stillRunning: [...] }`
+### 2. Log timing gap between plug-on and app launch
 
-### 3. Log display enumeration at launch time (electron/main.js)
+Add an `automation_decision` log entry at the moment of app launch that includes:
+- How many seconds ago the plugs were turned on (the actual gap)
+- The configured `preStartMinutes` and `appLaunchMinutes` values
+- Whether this is a cold start (first session of the day) or a changeover
 
-Inside `runAppLaunchSequence`, before launching each app, call `screen.getAllDisplays()` and include the full display list (labels, bounds, sizes) in the IPC result so the renderer can log it.
+This will show definitively if the 2-minute gap is being respected, or if timing drift is shrinking it.
 
-### 4. Log display state and process state in BayController.tsx
+### 3. Log display enumeration BEFORE the guard check (not just at launch)
 
-At every key automation moment, log the actual state:
+Currently the display snapshot is captured inside `runAppLaunchSequence` in electron -- AFTER the guard has already passed. We need to log what `getDisplays()` returned BEFORE the guard decision, so we can see if labels were present but wrong, or if the display was genuinely missing.
 
-- **Before app launch**: Log all detected displays (labels and bounds)
-- **After app close**: Call `checkProcesses` and log whether GSPro/Protee are still alive
-- **Changeover Step 2**: Use the proper `closeApps()` wrapper instead of calling electronAPI directly, then verify processes are dead before proceeding to Step 3
-- **Changeover Step 3**: Log display state before relaunching
+### 4. Add a retry/wait mechanism for missing displays (optional but recommended)
 
-### 5. Update electron.d.ts types
+Instead of immediately cancelling when a display is missing, retry `getDisplays()` up to 3 times with 10-second gaps. Log each attempt. This handles the case where the display is 5-10 seconds away from being ready.
 
-Add the `checkProcesses` type definition.
+## Technical Changes
 
-### 6. Version bump to 1.0.7
+### BayController.tsx -- `launchApps()` function
 
-So we can confirm the new build is actually running.
-
-## Technical Details
-
-### New IPC handler: `check-processes`
-
-```text
-Input: none
-Output: {
-  success: boolean,
-  processes: [
-    { name: "GSPro.exe", pid: 1234 },
-    { name: "ProteeLabs.exe", pid: 5678 }
-  ]
+**Before the display guard check:**
+```
+Log via bayLogger: "Pre-launch display check starting"
+with details: { 
+  plugsOnSince: <timestamp when plugs were last turned on>,
+  secondsSincePlugOn: <calculated gap>,
+  preStartMinutes, 
+  appLaunchMinutes,
+  isColdStart: <true if no prior session today>
 }
 ```
 
-Uses `tasklist /FO CSV /NH` filtered for GSPro.exe and ProteeLabs.exe.
+**Display guard result logging:**
+```
+If PASSED: bayLogger.sendLog('process_detection', 
+  'Display guard PASSED: RE6504, SAMSUNG, LG detected', 
+  { details: { detectedLabels: [...], requiredLabels: {...} } })
 
-### Updated `closeApps` return shape
-
-```text
-{
-  success: boolean,           // true only if all targeted processes are confirmed dead
-  results: [
-    { app: "GSPro.exe", killed: true },
-    { app: "ProteeLabs.exe", killed: false, stillRunning: true, pid: 5678 }
-  ]
-}
+If FAILED: bayLogger.sendLog('process_detection',
+  'Display guard FAILED: RE6504 not detected',
+  { level: 'error', details: { detected: [...], missing: [...] } })
 ```
 
-### New log events from BayController.tsx
+**Add retry logic for missing displays:**
+- If configured display is missing, wait 10 seconds and recheck
+- Retry up to 3 times (30 seconds total)
+- Log each retry attempt with attempt number and what was detected
+- If still missing after retries, cancel launch and log final failure
 
-- `process_detection` -- logged after close, showing which processes are still alive
-- `automation_decision` -- enhanced with a `displays` field showing all detected monitor labels at launch time
+### BayController.tsx -- Track plug-on timestamp
 
-### Files changed
+Add a ref (`lastPlugOnTimeRef`) that records when plugs were last turned on. Use this in the launch logging to calculate the actual plug-on to app-launch gap.
+
+### electron/main.js -- No changes needed
+
+The display snapshot logging added in v1.0.7 already captures displays at launch time inside electron. The new logging is at the BayController level (before the IPC call).
+
+### Files Changed
 
 | File | Change |
 |------|--------|
-| `electron/main.js` | Add `check-processes` IPC, update `closeApps` to verify kills, add display logging to launch sequence |
-| `electron/preload.js` | Expose `checkProcesses` |
-| `src/types/electron.d.ts` | Add `checkProcesses` type |
-| `src/pages/BayController.tsx` | Log displays before launch, verify processes after close, fix changeover to use proper closeApps wrapper |
-| `electron/package.json` | Bump to 1.0.7 |
+| `src/pages/BayController.tsx` | Add bayLogger calls to display guard, track plug-on timestamp, add display retry logic |
 
-### What the logs will look like after this
+### What The Logs Will Show
 
-For every session start you will see:
-```
-[automation_decision] Launching apps - Displays detected: RE6504 (3840x2160), LG ULTRAFINE (3840x2160), LG (1920x1080)
-[app_launch] App launched: GSPro (target: RE6504)
-[app_launch] App launched: Protee Labs (target: RE6504)
-```
+For every automated app launch, you will now see this sequence in the server logs:
 
-For every close:
 ```
-[app_close_scheduled] Closing apps for session end
-[process_detection] Post-close verification: GSPro.exe NOT FOUND, ProteeLabs.exe NOT FOUND -- all clear
+[automation_decision] Pre-launch display check - plugs on 118s ago (cold start), checking for RE6504, SAMSUNG
+[process_detection] Display guard attempt 1/3: PASSED - Detected: RE6504 (3840x2160), SAMSUNG (3840x2160), LG (1920x1080)
+[automation_decision] App launch display snapshot: RE6504 (3840x2160), SAMSUNG (3840x2160), LG (1920x1080)
+[app_launch] App launched: GSPro
+[app_launch] App launched: Protee Labs
 ```
 
-Or if something goes wrong:
+Or if the display is slow:
+
 ```
-[process_detection] Post-close verification: GSPro.exe NOT FOUND, ProteeLabs.exe STILL RUNNING (PID 5678) -- KILL FAILED
+[automation_decision] Pre-launch display check - plugs on 115s ago (cold start), checking for RE6504, SAMSUNG
+[process_detection] Display guard attempt 1/3: FAILED - Detected: SAMSUNG (3840x2160), LG (1920x1080) - Missing: RE6504 - retrying in 10s
+[process_detection] Display guard attempt 2/3: FAILED - Detected: SAMSUNG (3840x2160), LG (1920x1080) - Missing: RE6504 - retrying in 10s
+[process_detection] Display guard attempt 3/3: PASSED - Detected: RE6504 (3840x2160), SAMSUNG (3840x2160), LG (1920x1080)
+[automation_decision] App launch display snapshot: RE6504 (3840x2160), SAMSUNG (3840x2160), LG (1920x1080)
 ```
 
-This will definitively answer whether the issue is:
-- Display not detected at launch time (timing/hardware)
-- Apps not dying properly (close failure) 
-- Apps launching correctly but Protee moving itself later (app behavior)
+Or worst case:
+
+```
+[process_detection] Display guard attempt 3/3: FAILED - Detected: SAMSUNG, LG - Missing: RE6504 - ALL RETRIES EXHAUSTED, LAUNCH CANCELLED
+```
+
+This will definitively answer: was the RE6504 detected when apps launched, and how long after plug-on did the launch actually happen?
+
