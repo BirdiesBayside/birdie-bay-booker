@@ -520,7 +520,7 @@ serve(async (req) => {
     // Send admin alert for watched customers
     const watchedEmails = [
       "luke.p.taylor81@gmail.com",
-      "jannie2909@hotmail.com",
+      "jannie2909@gmail.com",
     ];
     
     if (notification_type === "confirmation" && watchedEmails.includes(profile.email.toLowerCase())) {
