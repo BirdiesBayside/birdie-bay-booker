@@ -60,6 +60,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Close apps by process name
   closeApps: (appNames) => ipcRenderer.invoke('close-apps', { appNames }),
   
+  // Check which simulator processes are currently running
+  checkProcesses: () => ipcRenderer.invoke('check-processes'),
+  
   // Check and correct window positions
   checkWindowPositions: (gsproDisplay, proteeDisplay) => 
     ipcRenderer.invoke('check-window-positions', { gsproDisplay, proteeDisplay }),

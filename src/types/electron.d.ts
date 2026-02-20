@@ -43,9 +43,10 @@ declare global {
       moveWindow: (hwnd: number, displayIndex: number, fullscreen?: boolean) => Promise<{ success: boolean; error?: string }>;
       minimizeWindow: (hwnd: number) => Promise<{ success: boolean; error?: string }>;
       focusWindow: (hwnd: number) => Promise<{ success: boolean; error?: string }>;
-      runAppSequence: (config: { gsproPath: string; proteeLabsPath: string; gsproDisplay: number; proteeDisplay: number; gsproDisplayLabel?: string; proteeDisplayLabel?: string; postLaunchDelay?: number; firstName?: string }) => Promise<{ success: boolean; cancelled?: boolean; results?: any[]; error?: string }>;
+      runAppSequence: (config: { gsproPath: string; proteeLabsPath: string; gsproDisplay: number; proteeDisplay: number; gsproDisplayLabel?: string; proteeDisplayLabel?: string; postLaunchDelay?: number; firstName?: string }) => Promise<{ success: boolean; cancelled?: boolean; results?: any[]; displaySnapshot?: any[]; error?: string }>;
       cancelAppSequence: () => Promise<{ success: boolean }>;
-      closeApps: (appNames: string[]) => Promise<{ success: boolean; results?: any[]; error?: string }>;
+      closeApps: (appNames: string[]) => Promise<{ success: boolean; results?: any[]; stillRunning?: { name: string; pid: number }[]; error?: string }>;
+      checkProcesses: () => Promise<{ success: boolean; processes: { name: string; pid: number }[] }>;
       // Welcome window system
       showWelcomeWindows: (firstName: string) => Promise<{ success: boolean; windowCount?: number; error?: string }>;
       closeWelcomeWindows: () => Promise<{ success: boolean; error?: string }>;
