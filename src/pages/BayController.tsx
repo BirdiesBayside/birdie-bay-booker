@@ -255,6 +255,9 @@ export default function BayController() {
   // Timestamp of the last intentional app-close, used to prevent immediate auto-relaunch races
   const lastIntentionalAppCloseAtRef = useRef<number | null>(null);
   
+  // Timestamp of the last plug-on event, used to calculate timing gap at app launch
+  const lastPlugOnTimeRef = useRef<number | null>(null);
+  
   // SGT Player overlay state
   const [showSGTOverlay, setShowSGTOverlay] = useState(false);
   const [sgtIconHidden, setSgtIconHidden] = useState(false);
@@ -2129,6 +2132,8 @@ export default function BayController() {
       }
     );
     
+    // Track when plugs were turned on for timing gap diagnostics
+    lastPlugOnTimeRef.current = Date.now();
     // Set manual override when manually controlling
     if (isManual) {
       setManualOverride(true);
@@ -2432,39 +2437,115 @@ export default function BayController() {
       return;
     }
 
-    // Perform a fresh display check before launching
-    try {
-      const currentDisplays = await window.electronAPI.getDisplays();
-      const currentLabels = new Set(currentDisplays.map(d => d.label));
-      
-      // Update our display state with the fresh list
-      setDisplays(currentDisplays);
-      
-      // CRITICAL: Verify configured displays actually exist
-      const gsproConfigured = appLaunchConfig.gsproDisplayLabel;
-      const proteeConfigured = appLaunchConfig.proteeDisplayLabel;
-      
-      const missingDisplays: string[] = [];
-      
-      if (gsproConfigured && !currentLabels.has(gsproConfigured)) {
-        missingDisplays.push(`GSPRO display "${gsproConfigured}"`);
+    // Calculate timing diagnostics
+    const plugOnTimestamp = lastPlugOnTimeRef.current;
+    const secondsSincePlugOn = plugOnTimestamp ? Math.round((Date.now() - plugOnTimestamp) / 1000) : null;
+    const isColdStart = !plugOnTimestamp || secondsSincePlugOn === null || secondsSincePlugOn > 600; // >10min = cold start
+    
+    bayLogger.logAutomationDecision(
+      'app_launch',
+      `Pre-launch display check starting - plugs on ${secondsSincePlugOn !== null ? `${secondsSincePlugOn}s ago` : 'unknown'} (${isColdStart ? 'cold start' : 'warm'})`,
+      {
+        bookingId: activeBooking?.id,
+        bookingWindow: activeBooking ? { start: activeBooking.start_time, end: activeBooking.end_time } : undefined,
+        preStartMinutes,
+        localTime: new Date().toISOString(),
+        serverTimeOffset: secondsSincePlugOn,
       }
-      
-      if (proteeConfigured && !currentLabels.has(proteeConfigured)) {
-        missingDisplays.push(`Protee display "${proteeConfigured}"`);
+    );
+
+    // Perform display check with retry mechanism (up to 3 attempts, 10s apart)
+    const MAX_DISPLAY_RETRIES = 3;
+    const DISPLAY_RETRY_DELAY_MS = 10000;
+    const gsproConfigured = appLaunchConfig.gsproDisplayLabel;
+    const proteeConfigured = appLaunchConfig.proteeDisplayLabel;
+    
+    let displayCheckPassed = false;
+    
+    for (let attempt = 1; attempt <= MAX_DISPLAY_RETRIES; attempt++) {
+      try {
+        const currentDisplays = await window.electronAPI.getDisplays();
+        const currentLabels = new Set(currentDisplays.map(d => d.label));
+        const detectedDetails = currentDisplays.map(d => `${d.label} (${d.size.width}x${d.size.height})`);
+        
+        // Update our display state with the fresh list
+        setDisplays(currentDisplays);
+        
+        // Check which configured displays are missing
+        const missingDisplays: string[] = [];
+        const requiredLabels: Record<string, string> = {};
+        
+        if (gsproConfigured) {
+          requiredLabels['gspro'] = gsproConfigured;
+          if (!currentLabels.has(gsproConfigured)) {
+            missingDisplays.push(gsproConfigured);
+          }
+        }
+        
+        if (proteeConfigured) {
+          requiredLabels['protee'] = proteeConfigured;
+          if (!currentLabels.has(proteeConfigured)) {
+            missingDisplays.push(proteeConfigured);
+          }
+        }
+        
+        if (missingDisplays.length === 0) {
+          // All displays found
+          bayLogger.sendLog('process_detection', `Display guard attempt ${attempt}/${MAX_DISPLAY_RETRIES}: PASSED - Detected: ${detectedDetails.join(', ')}`, {
+            details: { 
+              attempt,
+              detectedLabels: Array.from(currentLabels),
+              detectedDetails,
+              requiredLabels,
+              secondsSincePlugOn,
+              isColdStart,
+            },
+            bookingId: activeBooking?.id,
+          });
+          addLog(`Display check passed (attempt ${attempt}/${MAX_DISPLAY_RETRIES}). Available: ${Array.from(currentLabels).join(', ')}`, 'success');
+          displayCheckPassed = true;
+          break;
+        } else {
+          // Some displays missing
+          const isLastAttempt = attempt === MAX_DISPLAY_RETRIES;
+          const retryMsg = isLastAttempt ? 'ALL RETRIES EXHAUSTED, LAUNCH CANCELLED' : `retrying in ${DISPLAY_RETRY_DELAY_MS / 1000}s`;
+          
+          bayLogger.sendLog('process_detection', `Display guard attempt ${attempt}/${MAX_DISPLAY_RETRIES}: FAILED - Detected: ${detectedDetails.join(', ') || 'none'} - Missing: ${missingDisplays.join(', ')} - ${retryMsg}`, {
+            level: isLastAttempt ? 'error' : 'warning',
+            details: {
+              attempt,
+              maxAttempts: MAX_DISPLAY_RETRIES,
+              detectedLabels: Array.from(currentLabels),
+              detectedDetails,
+              missingDisplays,
+              requiredLabels,
+              secondsSincePlugOn,
+              isColdStart,
+            },
+            bookingId: activeBooking?.id,
+          });
+          addLog(`Display check attempt ${attempt}/${MAX_DISPLAY_RETRIES}: Missing ${missingDisplays.join(', ')} (detected: ${Array.from(currentLabels).join(', ') || 'none'})`, 'error');
+          
+          if (!isLastAttempt) {
+            addLog(`Retrying display check in ${DISPLAY_RETRY_DELAY_MS / 1000}s...`, 'info');
+            await new Promise(resolve => setTimeout(resolve, DISPLAY_RETRY_DELAY_MS));
+          }
+        }
+      } catch (err) {
+        console.error(`Failed to check displays (attempt ${attempt}):`, err);
+        bayLogger.logError(`Display guard attempt ${attempt}/${MAX_DISPLAY_RETRIES}: EXCEPTION`, err, activeBooking?.id);
+        
+        if (attempt === MAX_DISPLAY_RETRIES) {
+          toast.error("Failed to verify displays - launch cancelled");
+          return;
+        }
+        await new Promise(resolve => setTimeout(resolve, DISPLAY_RETRY_DELAY_MS));
       }
-      
-      if (missingDisplays.length > 0) {
-        toast.error(`Launch cancelled - Missing: ${missingDisplays.join(', ')}`);
-        addLog(`Launch cancelled - configured displays not found: ${missingDisplays.join(', ')}`, 'error');
-        addLog(`Available displays: ${Array.from(currentLabels).join(', ')}`, 'info');
-        return;
-      }
-      
-      addLog(`Display check passed. Available: ${Array.from(currentLabels).join(', ')}`, 'success');
-    } catch (err) {
-      console.error("Failed to check displays before launch:", err);
-      toast.error("Failed to verify displays - launch cancelled");
+    }
+    
+    if (!displayCheckPassed) {
+      toast.error(`Launch cancelled - displays not found after ${MAX_DISPLAY_RETRIES} attempts`);
+      addLog(`Launch cancelled - configured displays not detected after ${MAX_DISPLAY_RETRIES} retries`, 'error');
       return;
     }
 
