@@ -69,6 +69,10 @@ declare global {
       sgtIconHideConfirmed: () => void;
       onSgtIconClicked: (callback: () => void) => () => void;
       onSgtIconHidden: (callback: () => void) => () => void;
+      // Auto-update
+      installUpdate: () => Promise<{ success: boolean }>;
+      onUpdateAvailable: (callback: (version: string) => void) => () => void;
+      onUpdateDownloaded: (callback: (version: string) => void) => () => void;
       // Security / Quit control
       confirmQuit: () => Promise<{ success: boolean }>;
       setAuthenticated: (authenticated: boolean) => Promise<{ success: boolean }>;

@@ -258,6 +258,9 @@ export default function BayController() {
   // SGT Player overlay state
   const [showSGTOverlay, setShowSGTOverlay] = useState(false);
   const [sgtIconHidden, setSgtIconHidden] = useState(false);
+  
+  // Auto-update state
+  const [updateDownloaded, setUpdateDownloaded] = useState<string | null>(null);
   const [sgtIconPosition, setSgtIconPosition] = useState<"top-left" | "top-right" | "bottom-left" | "bottom-right">(() => {
     const saved = localStorage.getItem("bayController_sgtIconPosition");
     return (saved as "top-left" | "top-right" | "bottom-left" | "bottom-right") || "top-right";
@@ -573,10 +576,17 @@ export default function BayController() {
         setQuitPasswordError("");
       });
       
+      // Listen for auto-update events
+      const cleanupUpdateDownloaded = window.electronAPI.onUpdateDownloaded((version) => {
+        console.log(`[AutoUpdater] Update downloaded: ${version}`);
+        setUpdateDownloaded(version);
+      });
+      
       return () => {
         clearInterval(displayMonitorInterval);
         cleanupLock?.();
         cleanupQuit?.();
+        cleanupUpdateDownloaded?.();
       };
     }
   }, []);
@@ -2791,6 +2801,26 @@ export default function BayController() {
             </Button>
           </div>
         </div>
+
+        {/* Update Available Banner */}
+        {updateDownloaded && (
+          <div className="flex items-center justify-between rounded-lg border border-primary/30 bg-primary/10 px-4 py-3">
+            <div className="flex items-center gap-2">
+              <RefreshCw className="w-4 h-4 text-primary" />
+              <span className="text-sm font-medium">Update v{updateDownloaded} downloaded and ready to install</span>
+            </div>
+            <Button
+              size="sm"
+              onClick={() => {
+                if (window.electronAPI) {
+                  window.electronAPI.installUpdate();
+                }
+              }}
+            >
+              Install &amp; Restart
+            </Button>
+          </div>
+        )}
 
         {/* Settings Panel */}
         {showSettings && (
