@@ -95,7 +95,7 @@ import "@/types/electron.d";
 import { useBayControllerLogger } from "@/hooks/useBayControllerLogger";
 
 const CORRECT_PASSWORD = "Holeinone1";
-const APP_VERSION = "1.0.4";
+const APP_VERSION = "1.0.7";
 
 // Debug log for Electron builds
 console.log(`Bay Controller v${APP_VERSION} starting...`, {
@@ -1615,9 +1615,26 @@ export default function BayController() {
               // Set flag to prevent "unexpected close" log from onGsproClosed listener
               intentionalCloseInProgressRef.current = true;
               lastIntentionalAppCloseAtRef.current = Date.now();
-              await window.electronAPI.closeApps(["GSPro.exe", "ProteeLabs.exe"]);
+              const closeResult = await window.electronAPI.closeApps(["GSPro.exe", "ProteeLabs.exe"]);
+              
+              // Log post-close verification
+              if (closeResult.stillRunning && closeResult.stillRunning.length > 0) {
+                const stillAlive = closeResult.stillRunning.map((p: any) => `${p.name} (PID ${p.pid})`).join(', ');
+                bayLogger.sendLog('process_detection', `[Changeover Step 2] Post-close: STILL RUNNING - ${stillAlive}`, {
+                  level: 'warning',
+                  details: { stillRunning: closeResult.stillRunning },
+                  bookingId: activeBooking.id,
+                });
+              } else {
+                bayLogger.sendLog('process_detection', '[Changeover Step 2] Post-close: all processes confirmed dead', {
+                  bookingId: activeBooking.id,
+                });
+              }
+              
               setAppsRunning(false);
               setAppLaunchStatus(null);
+              bayLogger.logAppClose('GSPro', 'scheduled', activeBooking.id);
+              bayLogger.logAppClose('Protee Labs', 'scheduled', activeBooking.id);
               // Clear flag after a short delay to allow GSPro close event to be processed
               setTimeout(() => { intentionalCloseInProgressRef.current = false; }, 2000);
             } else {
@@ -1646,6 +1663,15 @@ export default function BayController() {
                     postLaunchDelay: 3000,
                     firstName: firstName,
                   });
+                  
+                  // Log display snapshot from electron for diagnostics
+                  if (result.displaySnapshot) {
+                    const displayLabels = result.displaySnapshot.map((d: any) => `${d.label} (${d.size.width}x${d.size.height})`).join(', ');
+                    bayLogger.sendLog('automation_decision', `[Changeover Step 3] Display snapshot: ${displayLabels}`, {
+                      details: { displays: result.displaySnapshot, gsproTarget: appLaunchConfig.gsproDisplayLabel, proteeTarget: appLaunchConfig.proteeDisplayLabel },
+                      bookingId: activeBooking.id,
+                    });
+                  }
                   
                   if (result.success) {
                     setAppsRunning(true);
@@ -2464,6 +2490,16 @@ export default function BayController() {
         setAppsRunning(true);
         setAppLaunchStatus("All apps launched successfully");
         addLog("All apps launched successfully!", 'success');
+        
+        // Log display snapshot from electron for diagnostics
+        if (result.displaySnapshot) {
+          const displayLabels = result.displaySnapshot.map((d: any) => `${d.label} (${d.size.width}x${d.size.height})`).join(', ');
+          bayLogger.sendLog('automation_decision', `App launch display snapshot: ${displayLabels}`, {
+            details: { displays: result.displaySnapshot, gsproTarget: appLaunchConfig.gsproDisplayLabel, proteeTarget: appLaunchConfig.proteeDisplayLabel },
+            bookingId: activeBooking?.id,
+          });
+        }
+        
         bayLogger.logAppLaunch('GSPro', activeBooking?.id);
         bayLogger.logAppLaunch('Protee Labs', activeBooking?.id);
         toast.success("Apps launched successfully");
@@ -2521,12 +2557,37 @@ export default function BayController() {
       intentionalCloseInProgressRef.current = true;
       lastIntentionalAppCloseAtRef.current = Date.now();
       const result = await window.electronAPI.closeApps(["GSPro.exe", "ProteeLabs.exe"]);
+      
+      // Log post-close process verification
+      if (result.stillRunning && result.stillRunning.length > 0) {
+        const stillAlive = result.stillRunning.map(p => `${p.name} (PID ${p.pid})`).join(', ');
+        bayLogger.sendLog('process_detection', `Post-close verification: STILL RUNNING - ${stillAlive}`, {
+          level: 'warning',
+          details: { stillRunning: result.stillRunning },
+          bookingId: activeBooking?.id,
+        });
+      } else {
+        bayLogger.sendLog('process_detection', 'Post-close verification: all processes confirmed dead', {
+          bookingId: activeBooking?.id,
+        });
+      }
+      
       if (result.success) {
         setAppsRunning(false);
         setAppLaunchStatus(null);
         bayLogger.logAppClose('GSPro', closeReason, activeBooking?.id);
         bayLogger.logAppClose('Protee Labs', closeReason, activeBooking?.id);
         toast.info("Apps closed");
+      } else {
+        bayLogger.sendLog('error', `closeApps returned success=false, some processes may still be alive`, {
+          level: 'error',
+          details: { stillRunning: result.stillRunning },
+          bookingId: activeBooking?.id,
+          immediate: true,
+        });
+        // Still mark as not running from our perspective
+        setAppsRunning(false);
+        setAppLaunchStatus(null);
       }
       // Clear flag after a short delay to allow GSPro close event to be processed
       setTimeout(() => { intentionalCloseInProgressRef.current = false; }, 2000);

@@ -1041,6 +1041,20 @@ async function runAppLaunchSequence(config) {
   console.log('Protee Display Target:', proteeTarget, `(label: ${proteeDisplayLabel}, index: ${proteeDisplay})`);
   console.log('Customer First Name:', firstName);
   
+  // LOG DISPLAY ENUMERATION at launch time for diagnostics
+  const launchTimeDisplays = screen.getAllDisplays();
+  const displaySnapshot = launchTimeDisplays.map((d, i) => ({
+    index: i,
+    label: d.label || `Display ${i + 1}`,
+    bounds: d.bounds,
+    size: d.size,
+    isPrimary: d.bounds.x === 0 && d.bounds.y === 0,
+  }));
+  console.log('=== DISPLAYS AT LAUNCH TIME ===');
+  displaySnapshot.forEach(d => {
+    console.log(`  [${d.index}] ${d.label} - ${d.size.width}x${d.size.height} at (${d.bounds.x},${d.bounds.y})${d.isPrimary ? ' [PRIMARY]' : ''}`);
+  });
+  
   const results = [];
   appLaunchCancelled = false;
   // Removed fixed APP_LOAD_TIME - now we wait for ProTee United VX window dynamically
@@ -1404,10 +1418,35 @@ async function checkAndCorrectWindowPositions(gsproDisplay, proteeDisplay) {
     await focusWindow(gsproWindow.hwnd);
   }
   
-  return { success: true, results };
+  return { success: true, results, displaySnapshot };
 }
 
-// Close GSPRO, Protee Labs, and ProTee United VX
+// Check which simulator processes are currently running
+async function checkProcesses() {
+  try {
+    const { stdout } = await execAsync(
+      'tasklist /FO CSV /NH /FI "IMAGENAME eq GSPro.exe" /FI "IMAGENAME eq GSPRO.exe" /FI "IMAGENAME eq ProteeLabs.exe" /FI "IMAGENAME eq Protee Labs.exe"',
+      { timeout: 5000 }
+    );
+    
+    const processes = [];
+    const lines = stdout.trim().split('\n').filter(l => l.trim().length > 0);
+    for (const line of lines) {
+      // CSV format: "name.exe","PID","Session","Session#","Mem"
+      const match = line.match(/"([^"]+)","(\d+)"/);
+      if (match && !line.toLowerCase().includes('info:')) {
+        processes.push({ name: match[1], pid: parseInt(match[2]) });
+      }
+    }
+    
+    return { success: true, processes };
+  } catch (error) {
+    // If no matching processes, tasklist returns exit code 1
+    return { success: true, processes: [] };
+  }
+}
+
+// Close GSPRO, Protee Labs, and ProTee United VX -- with post-kill verification
 async function closeApps(appNames) {
   const results = [];
   
@@ -1455,8 +1494,21 @@ async function closeApps(appNames) {
     console.log('No United windows found or already closed');
   }
   
-  console.log('=== CLOSE APPS COMPLETE ===');
-  return { success: true, results };
+  // POST-KILL VERIFICATION: Check if main processes are actually dead
+  console.log('=== POST-KILL VERIFICATION ===');
+  await new Promise(resolve => setTimeout(resolve, 1000)); // Brief pause for OS to clean up
+  const verification = await checkProcesses();
+  const stillRunning = verification.processes || [];
+  
+  if (stillRunning.length > 0) {
+    console.warn(`STILL RUNNING after kill: ${stillRunning.map(p => `${p.name} (PID ${p.pid})`).join(', ')}`);
+  } else {
+    console.log('All simulator processes confirmed dead');
+  }
+  
+  const allDead = stillRunning.length === 0;
+  console.log(`=== CLOSE APPS COMPLETE (verified: ${allDead ? 'ALL DEAD' : 'SOME STILL ALIVE'}) ===`);
+  return { success: allDead, results, stillRunning };
 }
 
 // IPC Handlers - TAPO
@@ -1521,6 +1573,10 @@ ipcMain.handle('cancel-app-sequence', async () => {
 
 ipcMain.handle('close-apps', async (event, { appNames }) => {
   return await closeApps(appNames);
+});
+
+ipcMain.handle('check-processes', async () => {
+  return await checkProcesses();
 });
 
 ipcMain.handle('check-window-positions', async (event, { gsproDisplay, proteeDisplay }) => {
