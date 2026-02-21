@@ -12,6 +12,7 @@ declare global {
   interface Window {
     electronAPI?: {
       isElectron: boolean;
+      getAppVersion: () => Promise<string>;
       tapoInit: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
       tapoTestLogin: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
       controlPlug: (email: string, password: string, ip: string, action: 'on' | 'off' | 'status') => Promise<{ success: boolean; isOn?: boolean; error?: string }>;
