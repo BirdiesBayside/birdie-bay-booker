@@ -1537,6 +1537,10 @@ ipcMain.handle('check-electron', async () => {
   return true;
 });
 
+ipcMain.handle('get-app-version', async () => {
+  return app.getVersion();
+});
+
 // IPC Handlers - App Automation
 ipcMain.handle('get-displays', async () => {
   return await getDisplayInfo();

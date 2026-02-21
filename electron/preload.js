@@ -22,6 +22,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Check if running in Electron environment
   checkElectron: () => ipcRenderer.invoke('check-electron'),
   
+  // Get the actual installed app version from Electron
+  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  
   // =====================================================
   // APP AUTOMATION APIs
   // =====================================================

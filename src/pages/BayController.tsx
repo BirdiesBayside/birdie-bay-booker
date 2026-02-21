@@ -95,10 +95,10 @@ import "@/types/electron.d";
 import { useBayControllerLogger } from "@/hooks/useBayControllerLogger";
 
 const CORRECT_PASSWORD = "Holeinone1";
-const APP_VERSION = "1.0.7";
+const FALLBACK_VERSION = "1.0.7";
 
 // Debug log for Electron builds
-console.log(`Bay Controller v${APP_VERSION} starting...`, {
+console.log(`Bay Controller v${FALLBACK_VERSION} starting...`, {
   isElectron: typeof window !== 'undefined' && !!(window as any).electronAPI?.isElectron,
   userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'N/A'
 });
@@ -154,6 +154,7 @@ export default function BayController() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [password, setPassword] = useState("");
   const [passwordError, setPasswordError] = useState("");
+  const [appVersion, setAppVersion] = useState(FALLBACK_VERSION);
   
   // Quit confirmation state
   const [showQuitDialog, setShowQuitDialog] = useState(false);
@@ -278,9 +279,18 @@ export default function BayController() {
   // Centralized logging hook for backend logs
   const bayLogger = useBayControllerLogger({
     bayNumber: selectedBay,
-    appVersion: APP_VERSION,
+    appVersion: appVersion,
     enabled: isElectron, // Only log when running in Electron desktop app
   });
+  
+  // Fetch real version from Electron at startup
+  useEffect(() => {
+    if (window.electronAPI?.getAppVersion) {
+      window.electronAPI.getAppVersion().then((v) => {
+        if (v) setAppVersion(v);
+      }).catch(() => {});
+    }
+  }, []);
 
   // Helper to add debug log
   const addLog = useCallback((message: string, type: 'info' | 'error' | 'success' = 'info') => {
@@ -704,7 +714,7 @@ export default function BayController() {
         body: { action: "bookings" },
         headers: {
           "x-bay-number": selectedBay.toString(),
-          "x-app-version": APP_VERSION,
+          "x-app-version": appVersion,
           "x-action": "bookings", // Explicit action header
         },
       });
@@ -751,7 +761,7 @@ export default function BayController() {
         errorType: error instanceof Error ? error.name : 'Unknown',
         errorMessage: error instanceof Error ? error.message : String(error),
         bayNumber: selectedBay,
-        appVersion: APP_VERSION,
+        appVersion: appVersion,
       };
       console.error("Connection error details:", errorInfo);
       
@@ -784,7 +794,7 @@ export default function BayController() {
         body: { action: "heartbeat" },
         headers: {
           "x-bay-number": selectedBay.toString(),
-          "x-app-version": APP_VERSION,
+          "x-app-version": appVersion,
           "x-action": "heartbeat", // Explicit lightweight heartbeat
         },
       });
@@ -2817,7 +2827,7 @@ export default function BayController() {
               </Button>
             </form>
             <p className="text-xs text-muted-foreground text-center mt-4">
-              Version {APP_VERSION}
+              Version {appVersion}
             </p>
           </CardContent>
         </Card>
@@ -3870,7 +3880,7 @@ export default function BayController() {
 
         {/* Footer */}
         <p className="text-xs text-muted-foreground text-center">
-          Bay Controller v{APP_VERSION}
+          Bay Controller v{appVersion}
         </p>
       </div>
 
