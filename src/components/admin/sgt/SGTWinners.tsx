@@ -171,11 +171,17 @@ export function SGTWinners() {
       // Only show tournaments from February 2026 onwards (when prizes started)
       const prizeStartDate = "2026-02-01";
       
+      // Get today's date in Brisbane timezone for comparison
+      const now = new Date();
+      const brisbaneTime = new Date(now.getTime() + 10 * 60 * 60 * 1000);
+      const todayBrisbane = brisbaneTime.toISOString().split('T')[0];
+      
       const { data: tournaments, error: tournError } = await supabase
         .from("sgt_tournaments")
         .select("tournament_id, name, status, start_date, end_date")
-        .eq("status", "Completed")
+        .in("status", ["Completed", "In Progress", "Active"])
         .gte("start_date", prizeStartDate)
+        .lte("end_date", todayBrisbane)
         .order("end_date", { ascending: false })
         .limit(20);
       
