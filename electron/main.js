@@ -303,6 +303,19 @@ ipcMain.handle('install-update', async () => {
   return { success: true };
 });
 
+// Handle manual check for updates
+ipcMain.handle('check-for-updates', async () => {
+  console.log('[AutoUpdater] Manual update check triggered');
+  try {
+    const result = await autoUpdater.checkForUpdates();
+    console.log('[AutoUpdater] Manual check result:', result?.updateInfo?.version);
+    return { success: true, currentVersion: app.getVersion(), latestVersion: result?.updateInfo?.version || null };
+  } catch (err) {
+    console.error('[AutoUpdater] Manual check failed:', err.message);
+    return { success: false, error: err.message };
+  }
+});
+
 // Handle authenticated quit from renderer
 ipcMain.handle('confirm-quit', async () => {
   app.isQuitting = true;

@@ -3879,9 +3879,31 @@ export default function BayController() {
 
 
         {/* Footer */}
-        <p className="text-xs text-muted-foreground text-center">
-          Bay Controller v{appVersion}
-        </p>
+        <div className="flex items-center justify-center gap-2">
+          <p className="text-xs text-muted-foreground">
+            Bay Controller v{appVersion}
+          </p>
+          {window.electronAPI?.isElectron && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-5 px-2 text-[10px] text-muted-foreground"
+              onClick={async () => {
+                if (!window.electronAPI) return;
+                const result = await window.electronAPI.checkForUpdates();
+                if (result.success && result.latestVersion && result.latestVersion !== appVersion) {
+                  toast(`Update v${result.latestVersion} found, downloading...`);
+                } else if (result.success) {
+                  toast("You're on the latest version");
+                } else {
+                  toast.error(`Update check failed: ${result.error}`);
+                }
+              }}
+            >
+              Check for updates
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Customer notifications now shown via Electron popup windows on configured display */}
