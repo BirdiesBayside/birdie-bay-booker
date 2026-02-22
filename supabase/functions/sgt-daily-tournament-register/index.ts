@@ -101,19 +101,24 @@
    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
    supabaseClient = createClient(supabaseUrl, supabaseKey);
  
-  try {
-    // Get today's date in Brisbane timezone (AEST/AEDT)
-    const now = new Date();
-    const brisbaneTime = new Date(now.getTime() + 10 * 60 * 60 * 1000);
-    const todayStr = brisbaneTime.toISOString().split('T')[0];
+   try {
+     // Get today's date in Brisbane timezone (AEST/AEDT)
+     const now = new Date();
+     const brisbaneTime = new Date(now.getTime() + 10 * 60 * 60 * 1000);
+     const todayStr = brisbaneTime.toISOString().split('T')[0];
+     
+     // Also check tomorrow - tournaments are created on Sundays for Monday starts,
+     // so the 6AM Sunday cron needs to catch Monday-start tournaments
+     const tomorrowTime = new Date(brisbaneTime.getTime() + 24 * 60 * 60 * 1000);
+     const tomorrowStr = tomorrowTime.toISOString().split('T')[0];
 
-    console.log(`[SGT-DAILY-REG] Looking for tournaments starting today: ${todayStr}`);
+     console.log(`[SGT-DAILY-REG] Looking for tournaments starting today (${todayStr}) or tomorrow (${tomorrowStr})`);
 
-    // Find tournaments starting TODAY - this runs on the morning of the tournament start date
-    const { data: tournamentsData, error: tError } = await supabaseClient
-      .from("sgt_tournaments")
-      .select("tournament_id, tour_id, name, start_date")
-      .eq("start_date", todayStr);
+     // Find tournaments starting today OR tomorrow that haven't been registered yet
+     const { data: tournamentsData, error: tError } = await supabaseClient
+       .from("sgt_tournaments")
+       .select("tournament_id, tour_id, name, start_date")
+       .in("start_date", [todayStr, tomorrowStr]);
 
     if (tError) throw tError;
     const tournaments = (tournamentsData || []) as Tournament[];
