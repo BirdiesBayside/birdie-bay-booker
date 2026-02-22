@@ -72,6 +72,7 @@ declare global {
       onSgtIconHidden: (callback: () => void) => () => void;
       // Auto-update
       installUpdate: () => Promise<{ success: boolean }>;
+      checkForUpdates: () => Promise<{ success: boolean; currentVersion?: string; latestVersion?: string; error?: string }>;
       onUpdateAvailable: (callback: (version: string) => void) => () => void;
       onUpdateDownloaded: (callback: (version: string) => void) => () => void;
       // Security / Quit control

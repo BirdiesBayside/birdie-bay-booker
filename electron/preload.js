@@ -79,6 +79,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // Install downloaded update and restart
   installUpdate: () => ipcRenderer.invoke('install-update'),
+  // Manually check for updates
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
   
   // Listen for update events from main process
   onUpdateAvailable: (callback) => {
