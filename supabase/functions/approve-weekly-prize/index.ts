@@ -251,6 +251,30 @@ serve(async (req) => {
               .eq("tournament_id", tournamentId);
 
             tournamentClosed = true;
+
+            // Trigger monthly standings recalculation now that a tournament is completed
+            console.log(`[APPROVE-PRIZE] Triggering monthly standings recalculation...`);
+            try {
+              const monthlyResponse = await fetch(
+                `${supabaseUrl}/functions/v1/sgt-calculate-monthly-standings`,
+                {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${supabaseServiceKey}`,
+                  },
+                  body: JSON.stringify({}),
+                }
+              );
+              if (monthlyResponse.ok) {
+                const monthlyResult = await monthlyResponse.json();
+                console.log(`[APPROVE-PRIZE] Monthly standings updated:`, JSON.stringify(monthlyResult));
+              } else {
+                console.error(`[APPROVE-PRIZE] Monthly standings update failed: ${monthlyResponse.status}`);
+              }
+            } catch (monthlyErr) {
+              console.error(`[APPROVE-PRIZE] Monthly standings trigger error:`, monthlyErr);
+            }
           } else {
             const errText = await closeResponse.text();
             console.error(`[APPROVE-PRIZE] SGT close API error: ${closeResponse.status} - ${errText}`);
@@ -261,8 +285,25 @@ serve(async (req) => {
           console.error(`[APPROVE-PRIZE] Cannot close tournament: ${closeError}`);
         }
       } else if (tournData?.status === "Completed") {
-        console.log(`[APPROVE-PRIZE] Tournament ${tournamentId} already closed`);
+        console.log(`[APPROVE-PRIZE] Tournament ${tournamentId} already closed, triggering monthly standings refresh...`);
         tournamentClosed = true;
+        
+        // Still recalculate monthly standings in case it wasn't done before
+        try {
+          await fetch(
+            `${supabaseUrl}/functions/v1/sgt-calculate-monthly-standings`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${supabaseServiceKey}`,
+              },
+              body: JSON.stringify({}),
+            }
+          );
+        } catch (monthlyErr) {
+          console.error(`[APPROVE-PRIZE] Monthly standings trigger error:`, monthlyErr);
+        }
       }
     } catch (err) {
       closeError = err instanceof Error ? err.message : "Unknown close error";
