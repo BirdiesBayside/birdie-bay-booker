@@ -1188,7 +1188,7 @@ async function runAppLaunchSequence(config) {
     }
     
     console.log('=== APP LAUNCH SEQUENCE COMPLETE ===');
-    return { success: true, results };
+    return { success: true, results, displaySnapshot };
   } catch (error) {
     console.error('App launch sequence failed:', error.message);
     await closeWelcomeWindows();
@@ -1376,6 +1376,17 @@ async function closeWelcomeWindows() {
 // Also minimizes United VX API window and focuses GSPRO at the end
 async function checkAndCorrectWindowPositions(gsproDisplay, proteeDisplay) {
   const results = [];
+  
+  // Capture display snapshot for diagnostics (this function has its own scope)
+  const { screen: electronScreen } = require('electron');
+  const currentDisplays = electronScreen.getAllDisplays();
+  const displaySnapshot = currentDisplays.map((d, i) => ({
+    index: i,
+    label: d.label || `Display ${i + 1}`,
+    bounds: d.bounds,
+    size: d.size,
+    isPrimary: d.bounds.x === 0 && d.bounds.y === 0,
+  }));
   
   console.log('=== CHECKING WINDOW POSITIONS ===');
   console.log('Expected GSPRO display:', gsproDisplay, typeof gsproDisplay);
