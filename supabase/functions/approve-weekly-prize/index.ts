@@ -206,6 +206,69 @@ serve(async (req) => {
 
     console.log(`[APPROVE-PRIZE] Prize approved successfully for ${playerName}`);
 
+    // AUTO-CLOSE TOURNAMENT: Now that the winner is approved, close the tournament on SGT
+    let tournamentClosed = false;
+    let closeError: string | null = null;
+    try {
+      // Check if tournament is still open (not already Completed)
+      const { data: tournData } = await supabase
+        .from("sgt_tournaments")
+        .select("status, tour_id")
+        .eq("tournament_id", tournamentId)
+        .maybeSingle();
+
+      if (tournData && tournData.status !== "Completed") {
+        console.log(`[APPROVE-PRIZE] Auto-closing tournament ${tournamentId} (status: ${tournData.status})`);
+        
+        // Get API key
+        const { data: configData } = await supabase
+          .from("sgt_api_config")
+          .select("api_key, expires_at")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (configData?.api_key && new Date(configData.expires_at) > new Date()) {
+          const clubUrl = "birdiesbayside";
+          const formData = new URLSearchParams();
+          formData.append("api-key", configData.api_key);
+          formData.append("tournamentId", tournamentId.toString());
+          formData.append("assess_points", "1");
+
+          const closeResponse = await fetch(
+            `https://simulatorgolftour.com/sgt-api/club-admin/${clubUrl}/tournaments/close`,
+            { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: formData }
+          );
+
+          if (closeResponse.ok) {
+            const closeResult = await closeResponse.json();
+            console.log(`[APPROVE-PRIZE] Tournament ${tournamentId} closed successfully:`, JSON.stringify(closeResult));
+            
+            // Update local status
+            await supabase
+              .from("sgt_tournaments")
+              .update({ status: "Completed" })
+              .eq("tournament_id", tournamentId);
+
+            tournamentClosed = true;
+          } else {
+            const errText = await closeResponse.text();
+            console.error(`[APPROVE-PRIZE] SGT close API error: ${closeResponse.status} - ${errText}`);
+            closeError = `SGT API returned ${closeResponse.status}`;
+          }
+        } else {
+          closeError = "API key missing or expired";
+          console.error(`[APPROVE-PRIZE] Cannot close tournament: ${closeError}`);
+        }
+      } else if (tournData?.status === "Completed") {
+        console.log(`[APPROVE-PRIZE] Tournament ${tournamentId} already closed`);
+        tournamentClosed = true;
+      }
+    } catch (err) {
+      closeError = err instanceof Error ? err.message : "Unknown close error";
+      console.error(`[APPROVE-PRIZE] Failed to auto-close tournament:`, err);
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
@@ -213,6 +276,8 @@ serve(async (req) => {
         emailSent,
         playerName,
         prizeAmount,
+        tournamentClosed,
+        closeError,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
