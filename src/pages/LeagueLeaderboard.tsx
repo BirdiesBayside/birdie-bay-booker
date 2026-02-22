@@ -283,7 +283,7 @@ export default function LeagueLeaderboard() {
                       </div>
 
                       <div className="col-span-2 text-center">
-                        <span className="font-display text-lg text-secondary">
+                        <span className="font-display text-lg text-birdies-orange">
                           {points ?? "-"}
                         </span>
                       </div>
