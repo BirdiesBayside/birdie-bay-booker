@@ -2226,7 +2226,7 @@ export default function BayController() {
     }
   };
 
-  const turnOffPlugs = async (isManual = false, showToast = true) => {
+  const turnOffPlugs = async (isManual = false, showToast = true, retryCount = 0) => {
     console.log("Turning OFF plugs for bay:", selectedBay, isManual ? "(MANUAL)" : "(AUTO)");
     
     // Log automation decision with full context
@@ -2298,7 +2298,7 @@ export default function BayController() {
           }
         );
         
-        if (appsAlive) {
+        if (appsAlive && !isManual) {
           console.error(`[turnOffPlugs] WARNING: Apps still running at plug-off! Force-killing. GSPro=${gsproStillRunning}, Protee=${proteeStillRunning}`);
           addLog(`⚠️ APPS STILL RUNNING AT PLUG-OFF - force-killing`, 'error');
           try {
@@ -2307,6 +2307,45 @@ export default function BayController() {
           } catch (killErr) {
             console.error('[turnOffPlugs] Emergency force-kill failed:', killErr);
           }
+          
+          // FINAL SAFETY CHECK: Re-verify apps are truly dead before allowing plug-off
+          try {
+            const gsproFinal = await window.electronAPI.findWindow("GSPro");
+            const proteeFinal = await window.electronAPI.findWindow("ProTee");
+            const stillAlive = !!gsproFinal?.hwnd || !!proteeFinal?.hwnd;
+            
+            if (stillAlive) {
+              console.error('[turnOffPlugs] BLOCKED: Apps still running after kill attempt. Aborting plug-off.');
+              addLog('Plug-off BLOCKED: apps still running' + (retryCount < 3 ? `, will retry in 5s (attempt ${retryCount + 1}/3)` : ' - max retries reached'), 'error');
+              bayLogger.sendLog('automation_decision', 'PLUG-OFF BLOCKED: apps still alive after kill attempt', {
+                level: 'error',
+                details: {
+                  retryCount,
+                  gsproAlive: !!gsproFinal?.hwnd,
+                  proteeAlive: !!proteeFinal?.hwnd,
+                },
+                bookingId: activeBooking?.id,
+                immediate: true,
+              });
+              
+              // Retry after 5 seconds (up to 3 attempts)
+              if (retryCount < 3) {
+                setTimeout(() => turnOffPlugs(isManual, showToast, retryCount + 1), 5000);
+              }
+              return; // DO NOT proceed to plug-off
+            }
+          } catch (recheckErr) {
+            console.error('[turnOffPlugs] Final safety recheck failed:', recheckErr);
+            // If we can't verify, abort to be safe
+            addLog('Plug-off BLOCKED: unable to verify apps are closed', 'error');
+            if (retryCount < 3) {
+              setTimeout(() => turnOffPlugs(isManual, showToast, retryCount + 1), 5000);
+            }
+            return;
+          }
+        } else if (appsAlive && isManual) {
+          console.warn(`[turnOffPlugs] Manual override: apps still running but proceeding with plug-off`);
+          addLog('Manual plug-off: apps still running, proceeding anyway', 'error');
         }
       } catch (err) {
         console.error('[turnOffPlugs] Failed to check process state before plug-off:', err);
