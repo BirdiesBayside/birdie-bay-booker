@@ -187,6 +187,9 @@ app.whenReady().then(() => {
     
     autoUpdater.on('error', (err) => {
       console.error('[AutoUpdater] Error:', err.message);
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('update-error', err.message);
+      }
     });
     
     // Check immediately on launch, then every 4 hours

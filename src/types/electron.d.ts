@@ -75,6 +75,7 @@ declare global {
       checkForUpdates: () => Promise<{ success: boolean; currentVersion?: string; latestVersion?: string; error?: string }>;
       onUpdateAvailable: (callback: (version: string) => void) => () => void;
       onUpdateDownloaded: (callback: (version: string) => void) => () => void;
+      onUpdateError: (callback: (error: string) => void) => () => void;
       // Security / Quit control
       confirmQuit: () => Promise<{ success: boolean }>;
       setAuthenticated: (authenticated: boolean) => Promise<{ success: boolean }>;

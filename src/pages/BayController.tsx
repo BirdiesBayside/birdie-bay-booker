@@ -265,6 +265,7 @@ export default function BayController() {
   
   // Auto-update state
   const [updateDownloaded, setUpdateDownloaded] = useState<string | null>(null);
+  const [updateDownloading, setUpdateDownloading] = useState(false);
   const [sgtIconPosition, setSgtIconPosition] = useState<"top-left" | "top-right" | "bottom-left" | "bottom-right">(() => {
     const saved = localStorage.getItem("bayController_sgtIconPosition");
     return (saved as "top-left" | "top-right" | "bottom-left" | "bottom-right") || "top-right";
@@ -592,7 +593,14 @@ export default function BayController() {
       // Listen for auto-update events
       const cleanupUpdateDownloaded = window.electronAPI.onUpdateDownloaded((version) => {
         console.log(`[AutoUpdater] Update downloaded: ${version}`);
+        setUpdateDownloading(false);
         setUpdateDownloaded(version);
+      });
+      
+      const cleanupUpdateError = window.electronAPI.onUpdateError?.((error) => {
+        console.error(`[AutoUpdater] Update error: ${error}`);
+        setUpdateDownloading(false);
+        toast.error(`Update failed: ${error}`);
       });
       
       return () => {
@@ -600,6 +608,7 @@ export default function BayController() {
         cleanupLock?.();
         cleanupQuit?.();
         cleanupUpdateDownloaded?.();
+        cleanupUpdateError?.();
       };
     }
   }, []);
@@ -3922,7 +3931,7 @@ export default function BayController() {
           <p className="text-xs text-muted-foreground">
             Bay Controller v{appVersion}
           </p>
-          {window.electronAPI?.isElectron && (
+          {window.electronAPI?.isElectron && !updateDownloading && (
             <Button
               variant="ghost"
               size="sm"
@@ -3931,6 +3940,7 @@ export default function BayController() {
                 if (!window.electronAPI) return;
                 const result = await window.electronAPI.checkForUpdates();
                 if (result.success && result.latestVersion && result.latestVersion !== appVersion) {
+                  setUpdateDownloading(true);
                   toast(`Update v${result.latestVersion} found, downloading...`);
                 } else if (result.success) {
                   toast("You're on the latest version");
@@ -3941,6 +3951,12 @@ export default function BayController() {
             >
               Check for updates
             </Button>
+          )}
+          {updateDownloading && (
+            <span className="text-[10px] text-muted-foreground animate-pulse flex items-center gap-1">
+              <RefreshCw className="w-3 h-3 animate-spin" />
+              Downloading update...
+            </span>
           )}
         </div>
       </div>
