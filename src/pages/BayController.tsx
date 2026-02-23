@@ -1865,7 +1865,10 @@ export default function BayController() {
   }, [currentTime, bookings, preStartMinutes, manualOverride, calculateShouldPlugsBeOn]);
 
   // PRECISION SCHEDULER: Schedule exact timeouts for upcoming booking transitions
-  // This ensures plugs turn on/off at the exact second rather than waiting for next poll
+  // This uses a DUAL-TIMER approach:
+  //   1. App close at T-appCloseSeconds (e.g. T-15s) — kills apps while screens are still on
+  //   2. Plug off at T+0 — cuts power after apps are confirmed dead
+  // This ensures apps are fully terminated before plugs turn off, preventing orphaned processes.
   const scheduledTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
   
   useEffect(() => {
@@ -1897,7 +1900,6 @@ export default function BayController() {
       const msUntilPreStart = preStartTime.getTime() - now.getTime();
       
       if (msUntilPreStart > 0 && msUntilPreStart < 300000 && !scheduledTimeoutsRef.current.has(preStartKey)) {
-        // Only schedule if within 5 minutes and not already scheduled
         console.log(`[PrecisionScheduler] Scheduling plug ON for booking ${booking.id} in ${Math.round(msUntilPreStart / 1000)}s`);
         const timeout = setTimeout(() => {
           console.log(`[PrecisionScheduler] EXECUTING: Turning ON plugs for booking ${booking.id}`);
@@ -1909,20 +1911,73 @@ export default function BayController() {
         scheduledTimeoutsRef.current.set(preStartKey, timeout);
       }
       
-      // Schedule plug OFF at end time (only if no back-to-back booking)
+      // Determine if there's a back-to-back booking after this one
       const hasNextBooking = todaysBookings.some(b => 
         b.id !== booking.id && b.start_time === booking.end_time
       );
       
+      // For same-customer B2B, find the FINAL end time in the chain
+      // This prevents early app-close when the same customer has consecutive sessions
+      const isSameCustomerNext = hasNextBooking && todaysBookings.some(b => 
+        b.id !== booking.id && b.start_time === booking.end_time && b.user_id === booking.user_id
+      );
+      
+      // Different-customer B2B: changeover effect handles app close/relaunch at T-60s
+      // So we skip BOTH app-close and plug-off timers for this booking
+      const isDiffCustomerNext = hasNextBooking && !isSameCustomerNext;
+      
       if (!hasNextBooking) {
+        // --- TIMER 1: APP CLOSE at T-appCloseSeconds ---
+        // Close apps while screens are still powered on
+        const appCloseTime = new Date(endTime.getTime() - (appLaunchConfig.appCloseSeconds * 1000));
+        const appCloseKey = `${booking.id}-appclose`;
+        const msUntilAppClose = appCloseTime.getTime() - now.getTime();
+        
+        if (msUntilAppClose > 0 && msUntilAppClose < 300000 && !scheduledTimeoutsRef.current.has(appCloseKey)) {
+          console.log(`[PrecisionScheduler] Scheduling APP CLOSE for booking ${booking.id} in ${Math.round(msUntilAppClose / 1000)}s (T-${appLaunchConfig.appCloseSeconds}s)`);
+          const timeout = setTimeout(async () => {
+            console.log(`[PrecisionScheduler] EXECUTING: Closing apps ${appLaunchConfig.appCloseSeconds}s before booking ${booking.id} ends`);
+            
+            // Just-in-time validation: re-check bookings to see if session was extended
+            const currentBookings = bookingsRef.current;
+            const stillLastBooking = !currentBookings.some(b => 
+              b.id !== booking.id && b.start_time === booking.end_time && 
+              b.booking_date === today && (b.status === 'confirmed' || b.status === 'pending')
+            );
+            
+            if (!stillLastBooking) {
+              console.log(`[PrecisionScheduler] App close SKIPPED - booking ${booking.id} now has a follow-up booking`);
+              bayLogger.sendLog('automation_decision', `[PrecisionScheduler] App close skipped - session extended or B2B added`, {
+                bookingId: booking.id,
+              });
+              scheduledTimeoutsRef.current.delete(appCloseKey);
+              return;
+            }
+            
+            if (!manualOverride && appsRunning && appLaunchConfig.enabled) {
+              bayLogger.sendLog('automation_decision', `[PrecisionScheduler] Closing apps at T-${appLaunchConfig.appCloseSeconds}s (before plug-off)`, {
+                bookingId: booking.id,
+                immediate: true,
+              });
+              intentionalCloseInProgressRef.current = true;
+              lastIntentionalAppCloseAtRef.current = Date.now();
+              await closeApps('scheduled');
+              setTimeout(() => { intentionalCloseInProgressRef.current = false; }, 2000);
+            }
+            scheduledTimeoutsRef.current.delete(appCloseKey);
+          }, msUntilAppClose);
+          scheduledTimeoutsRef.current.set(appCloseKey, timeout);
+        }
+        
+        // --- TIMER 2: PLUG OFF at T+0 ---
+        // Cut power - apps should already be dead from Timer 1
         const endKey = `${booking.id}-end`;
         const msUntilEnd = endTime.getTime() - now.getTime();
         
         if (msUntilEnd > 0 && msUntilEnd < 300000 && !scheduledTimeoutsRef.current.has(endKey)) {
-          // Only schedule if within 5 minutes and not already scheduled
-          console.log(`[PrecisionScheduler] Scheduling plug OFF for booking ${booking.id} in ${Math.round(msUntilEnd / 1000)}s`);
+          console.log(`[PrecisionScheduler] Scheduling plug OFF for booking ${booking.id} in ${Math.round(msUntilEnd / 1000)}s (T+0)`);
           const timeout = setTimeout(() => {
-            console.log(`[PrecisionScheduler] EXECUTING: Turning OFF plugs after booking ${booking.id}`);
+            console.log(`[PrecisionScheduler] EXECUTING: Turning OFF plugs after booking ${booking.id} (apps should already be closed)`);
             if (!manualOverride) {
               turnOffPlugs(false, false);
             }
@@ -1930,6 +1985,12 @@ export default function BayController() {
           }, msUntilEnd);
           scheduledTimeoutsRef.current.set(endKey, timeout);
         }
+      } else if (isSameCustomerNext) {
+        // Same customer B2B: no app-close, no plug-off - apps keep running
+        console.log(`[PrecisionScheduler] Skipping end timers for booking ${booking.id} - same customer B2B`);
+      } else if (isDiffCustomerNext) {
+        // Different customer B2B: changeover effect handles app close at T-60s, no plug-off needed
+        console.log(`[PrecisionScheduler] Skipping end timers for booking ${booking.id} - different customer B2B (changeover handles it)`);
       }
     }
     
@@ -1937,7 +1998,7 @@ export default function BayController() {
     return () => {
       scheduledTimeoutsRef.current.forEach((timeout) => clearTimeout(timeout));
     };
-  }, [bookings, preStartMinutes, manualOverride, isElectron]);
+  }, [bookings, preStartMinutes, manualOverride, isElectron, appLaunchConfig.appCloseSeconds, appLaunchConfig.enabled]);
 
   const resumeAuto = useCallback(async () => {
     console.log('Resuming auto control...');
@@ -2226,27 +2287,10 @@ export default function BayController() {
       setManualOverride(true);
     }
     
-    // CRITICAL: Close apps BEFORE turning off plugs to prevent orphaned processes.
-    // If apps are still running when screens lose power, the app windows get
-    // repositioned to the primary monitor. When screens come back on, the apps
-    // are on the wrong display.
-    if (!isManual && appsRunning && appLaunchConfig.enabled) {
-      console.log('[turnOffPlugs] Auto plug-off: closing apps BEFORE turning off plugs');
-      const appsClosed = await closeApps('scheduled');
-      
-      if (!appsClosed) {
-        console.warn('[turnOffPlugs] closeApps returned false - force-killing as fallback');
-        addLog('closeApps failed - force-killing before plug-off', 'error');
-        try {
-          await window.electronAPI.closeApps(["GSPro.exe", "ProteeLabs.exe"]);
-        } catch (e) {
-          console.error('[turnOffPlugs] Force-kill also failed:', e);
-        }
-      }
-      
-      // Small delay to let apps fully exit before cutting power
-      await new Promise(resolve => setTimeout(resolve, 2000));
-    }
+    // NOTE: App closure is now handled by the Precision Scheduler's dual-timer approach.
+    // Timer 1 (T-appCloseSeconds) closes apps while screens are still on.
+    // Timer 2 (T+0) calls this function to cut power.
+    // The safety check below acts as a last-resort guard in case Timer 1 failed.
     
     if (isElectron && window.electronAPI && selectedBay) {
       // CRITICAL DIAGNOSTIC: Check if apps are STILL running right before plugs turn off
