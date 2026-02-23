@@ -1,38 +1,65 @@
 
-# Fix Watched Customer Alert for Jannie
 
-## Root Cause
+# Simpler Fix: Never Allow Plug-Off While Apps Are Running
 
-The watched customer email list in `supabase/functions/send-booking-notification/index.ts` has the wrong email address for Jannie.
+## The Problem
+The current `turnOffPlugs` function detects running apps, tries to kill them, but then **always proceeds to turn off plugs regardless** -- even if the kill failed or new apps spawned in the meantime.
 
-- **Hardcoded in watchlist**: `jannie2909@hotmail.com`
-- **Jannie's actual account email**: `jannie2909@gmail.com`
+## The Solution
+One simple rule enforced at a single point: **the plug-off command will not execute if apps are still running.** Instead of adding complex re-check guards and concurrency locks across multiple code paths, we make `turnOffPlugs` itself the gatekeeper.
 
-The alert check on line 526 is:
-```js
-if (notification_type === "confirmation" && watchedEmails.includes(profile.email.toLowerCase())) {
+## How It Works
+
+**File: `src/pages/BayController.tsx` -- `turnOffPlugs` function (line ~2229)**
+
+The existing code already has a "PRE-PLUG-OFF PROCESS CHECK" at lines 2278-2314 that detects running apps. Currently, if apps are found alive, it force-kills and continues. The change:
+
+1. After the kill attempt and 2-second wait, **re-check** if apps are truly dead
+2. If apps are **still running**, **abort the plug-off entirely** and log it
+3. Schedule a short retry (e.g., 5 seconds) to attempt the plug-off again
+4. Cap retries (e.g., 3 attempts) to avoid infinite loops
+
+This means no matter what triggers `turnOffPlugs` -- Precision Scheduler, auto-mode logic, booking removal, cancellation -- the same safety gate applies. No plug-off command will ever reach the smart plugs while apps are alive.
+
+## Technical Detail
+
+```text
+// After the existing kill attempt + 2s wait (around line 2306-2309):
+
+// FINAL SAFETY CHECK: Re-verify apps are truly dead
+const gsproFinal = await window.electronAPI.findWindow("GSPro");
+const proteeFinal = await window.electronAPI.findWindow("ProTee");
+const stillAlive = !!gsproFinal?.hwnd || !!proteeFinal?.hwnd;
+
+if (stillAlive) {
+  console.error('[turnOffPlugs] BLOCKED: Apps still running after kill attempt. Aborting plug-off.');
+  addLog('Plug-off BLOCKED: apps still running, will retry in 5s', 'error');
+  bayLogger.sendLog('automation_decision', 'PLUG-OFF BLOCKED: apps still alive after kill', {
+    level: 'error', immediate: true
+  });
+
+  // Retry after 5 seconds (up to 3 attempts)
+  if (retryCount < 3) {
+    setTimeout(() => turnOffPlugs(isManual, showToast, retryCount + 1), 5000);
+  }
+  return; // DO NOT proceed to plug-off
+}
+
+// Only reaches here if apps are confirmed dead -- safe to cut power
 ```
 
-Because `jannie2909@gmail.com` does not match `jannie2909@hotmail.com`, the condition is always false for Jannie's bookings and the admin alert is silently skipped. No error is ever thrown -- the function completes successfully, the booking confirmation email and SMS go to Jannie, but the admin alert to `admin@birdiesbayside.com.au` is never sent.
+The function signature gains an optional `retryCount` parameter (default 0) to track retry attempts.
 
-## The Fix
+## What This Covers
 
-Change one line in the watchlist array from:
+- Late-booked extensions (the Bay 6 scenario) -- new apps spawn, plug-off is blocked
+- Slow app shutdown -- kill takes longer than expected, plug-off waits
+- Any future edge case -- the rule is universal: no apps running = safe to cut power
 
-```
-"jannie2909@hotmail.com",
-```
+## What This Does NOT Change
 
-to:
+- Manual override plug-off (already skips the app check with `isManual`)
+- App launch/close logic (unchanged)
+- Precision Scheduler timing (unchanged, it still fires, but `turnOffPlugs` blocks itself)
+- No new refs, no new locks, no changes to multiple code paths
 
-```
-"jannie2909@gmail.com",
-```
-
-## Files Changed
-
-| File | Change |
-|------|--------|
-| `supabase/functions/send-booking-notification/index.ts` | Fix Jannie's email from `hotmail.com` to `gmail.com` in the `watchedEmails` array |
-
-The fix is one character change. The function will be redeployed automatically.
