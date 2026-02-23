@@ -34,7 +34,7 @@
     "publish": {
       "provider": "github",
       "owner": "birdiesbayside",
-      "repo": "birdie-bay-bookings"
+      "repo": "birdie-bay-booker"
     },
     "win": {
       "target": "nsis",
