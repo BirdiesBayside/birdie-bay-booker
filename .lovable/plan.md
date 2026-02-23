@@ -1,65 +1,66 @@
 
 
-# Simpler Fix: Never Allow Plug-Off While Apps Are Running
+# Fix: Bay Controller Update Download Stuck / Silent Failures
 
 ## The Problem
-The current `turnOffPlugs` function detects running apps, tries to kill them, but then **always proceeds to turn off plugs regardless** -- even if the kill failed or new apps spawned in the meantime.
 
-## The Solution
-One simple rule enforced at a single point: **the plug-off command will not execute if apps are still running.** Instead of adding complex re-check guards and concurrency locks across multiple code paths, we make `turnOffPlugs` itself the gatekeeper.
+When a user clicks "Check for updates" and an update is found, a toast says "downloading..." but then nothing happens. The download either:
+- Fails silently (the error handler in the Electron main process only logs to console, never tells the UI)
+- Succeeds but the "update downloaded" event doesn't reach the UI
+- Takes a long time with no progress feedback
 
-## How It Works
+## The Fix (2 files)
 
-**File: `src/pages/BayController.tsx` -- `turnOffPlugs` function (line ~2229)**
+### 1. Forward update errors to the renderer (`electron/main.js`)
 
-The existing code already has a "PRE-PLUG-OFF PROCESS CHECK" at lines 2278-2314 that detects running apps. Currently, if apps are found alive, it force-kills and continues. The change:
+Currently the `autoUpdater.on('error')` handler only does `console.error`. We need to also send the error to the renderer window so the UI can show it.
 
-1. After the kill attempt and 2-second wait, **re-check** if apps are truly dead
-2. If apps are **still running**, **abort the plug-off entirely** and log it
-3. Schedule a short retry (e.g., 5 seconds) to attempt the plug-off again
-4. Cap retries (e.g., 3 attempts) to avoid infinite loops
+Also forward `update-available` so the UI knows downloading has started.
 
-This means no matter what triggers `turnOffPlugs` -- Precision Scheduler, auto-mode logic, booking removal, cancellation -- the same safety gate applies. No plug-off command will ever reach the smart plugs while apps are alive.
+### 2. Handle errors and show progress in the UI (`src/pages/BayController.tsx`)
 
-## Technical Detail
+- Add an `updateError` state so failed downloads show an error toast
+- Listen for `onUpdateAvailable` to confirm download is in progress
+- Show a persistent "Downloading update..." indicator (not just a fleeting toast)
 
-```text
-// After the existing kill attempt + 2s wait (around line 2306-2309):
+## Technical Details
 
-// FINAL SAFETY CHECK: Re-verify apps are truly dead
-const gsproFinal = await window.electronAPI.findWindow("GSPro");
-const proteeFinal = await window.electronAPI.findWindow("ProTee");
-const stillAlive = !!gsproFinal?.hwnd || !!proteeFinal?.hwnd;
+### `electron/main.js` -- forward error and available events
 
-if (stillAlive) {
-  console.error('[turnOffPlugs] BLOCKED: Apps still running after kill attempt. Aborting plug-off.');
-  addLog('Plug-off BLOCKED: apps still running, will retry in 5s', 'error');
-  bayLogger.sendLog('automation_decision', 'PLUG-OFF BLOCKED: apps still alive after kill', {
-    level: 'error', immediate: true
-  });
-
-  // Retry after 5 seconds (up to 3 attempts)
-  if (retryCount < 3) {
-    setTimeout(() => turnOffPlugs(isManual, showToast, retryCount + 1), 5000);
+```javascript
+autoUpdater.on('error', (err) => {
+  console.error('[AutoUpdater] Error:', err.message);
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('update-error', err.message);
   }
-  return; // DO NOT proceed to plug-off
-}
-
-// Only reaches here if apps are confirmed dead -- safe to cut power
+});
 ```
 
-The function signature gains an optional `retryCount` parameter (default 0) to track retry attempts.
+### `electron/preload.js` -- expose error listener
 
-## What This Covers
+```javascript
+onUpdateError: (callback) => {
+  ipcRenderer.on('update-error', (event, error) => callback(error));
+  return () => ipcRenderer.removeAllListeners('update-error');
+},
+```
 
-- Late-booked extensions (the Bay 6 scenario) -- new apps spawn, plug-off is blocked
-- Slow app shutdown -- kill takes longer than expected, plug-off waits
-- Any future edge case -- the rule is universal: no apps running = safe to cut power
+### `src/types/electron.d.ts` -- add type
 
-## What This Does NOT Change
+```typescript
+onUpdateError: (callback: (error: string) => void) => () => void;
+```
 
-- Manual override plug-off (already skips the app check with `isManual`)
-- App launch/close logic (unchanged)
-- Precision Scheduler timing (unchanged, it still fires, but `turnOffPlugs` blocks itself)
-- No new refs, no new locks, no changes to multiple code paths
+### `src/pages/BayController.tsx` -- listen for errors and show feedback
+
+- Add listener for `onUpdateError` that shows `toast.error("Update failed: ...")`
+- Change the "Check for updates" button handler to show the error if download fails
+- This way users see either "Update downloaded - Install and Restart" or "Update failed: [reason]"
+
+## Files Changed
+
+1. `electron/main.js` -- send `update-error` event to renderer
+2. `electron/preload.js` -- expose `onUpdateError` listener
+3. `src/types/electron.d.ts` -- add type for new listener
+4. `src/pages/BayController.tsx` -- listen for error events and display feedback
 
