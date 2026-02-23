@@ -91,6 +91,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('update-downloaded', (event, version) => callback(version));
     return () => ipcRenderer.removeAllListeners('update-downloaded');
   },
+  onUpdateError: (callback) => {
+    ipcRenderer.on('update-error', (event, error) => callback(error));
+    return () => ipcRenderer.removeAllListeners('update-error');
+  },
   
   // Confirm quit (after password verification)
   confirmQuit: () => ipcRenderer.invoke('confirm-quit'),
