@@ -447,9 +447,14 @@ serve(async (req) => {
     if (event.type === "invoice.payment_failed") {
       const invoice = event.data.object as Stripe.Invoice;
       const customerId = invoice.customer as string;
-      const subscriptionId = invoice.subscription as string;
+      
+      // Support both old and new Stripe API structure for subscription ID
+      let subscriptionId = invoice.subscription as string | null;
+      if (!subscriptionId && (invoice as any).parent?.subscription_details?.subscription) {
+        subscriptionId = (invoice as any).parent.subscription_details.subscription;
+      }
 
-      logStep("Payment failed", { invoiceId: invoice.id, subscriptionId });
+      logStep("Payment failed", { invoiceId: invoice.id, subscriptionId, hasParentSubscription: !!(invoice as any).parent?.subscription_details?.subscription });
 
       // Only process if this is a subscription invoice
       if (subscriptionId) {
