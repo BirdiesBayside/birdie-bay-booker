@@ -256,6 +256,10 @@ export default function BayController() {
   // Timestamp of the last intentional app-close, used to prevent immediate auto-relaunch races
   const lastIntentionalAppCloseAtRef = useRef<number | null>(null);
   
+  // Guard against re-entrant launchApps calls and cooldown after failed launches
+  const launchInProgressRef = useRef(false);
+  const launchFailedCooldownUntilRef = useRef<number>(0);
+  
   // Timestamp of the last plug-on event, used to calculate timing gap at app launch
   const lastPlugOnTimeRef = useRef<number | null>(null);
   
@@ -2509,6 +2513,14 @@ export default function BayController() {
       return;
     }
 
+    // Re-entrancy guard: prevent multiple parallel launchApps calls
+    if (launchInProgressRef.current) {
+      console.log('[BayController] launchApps already in progress, skipping');
+      return;
+    }
+    launchInProgressRef.current = true;
+    setIsLaunchingApps(true);
+
     // Calculate timing diagnostics
     const plugOnTimestamp = lastPlugOnTimeRef.current;
     const secondsSincePlugOn = plugOnTimestamp ? Math.round((Date.now() - plugOnTimestamp) / 1000) : null;
@@ -2618,10 +2630,13 @@ export default function BayController() {
     if (!displayCheckPassed) {
       toast.error(`Launch cancelled - displays not found after ${MAX_DISPLAY_RETRIES} attempts`);
       addLog(`Launch cancelled - configured displays not detected after ${MAX_DISPLAY_RETRIES} retries`, 'error');
+      // Set a 60-second cooldown before the next auto-launch attempt
+      launchFailedCooldownUntilRef.current = Date.now() + 60000;
+      launchInProgressRef.current = false;
+      setIsLaunchingApps(false);
       return;
     }
 
-    setIsLaunchingApps(true);
     setAppLaunchStatus("Starting app launch sequence...");
     addLog("Starting app launch sequence...", 'info');
 
@@ -2689,6 +2704,7 @@ export default function BayController() {
       toast.error(`Launch error: ${errorMsg}`);
     } finally {
       setIsLaunchingApps(false);
+      launchInProgressRef.current = false;
     }
   };
 
@@ -2843,6 +2859,10 @@ export default function BayController() {
     if (shouldLaunchApps && !appsRunning && !isLaunchingApps) {
       // Avoid racing the intentional relaunch that happens a few seconds after a changeover close.
       if (changeoverInProgress && inIntentionalCloseCooldown) {
+        return;
+      }
+      // Skip if in failed-launch cooldown period (prevents rapid-fire retries after display detection failure)
+      if (Date.now() < launchFailedCooldownUntilRef.current) {
         return;
       }
       launchApps();
