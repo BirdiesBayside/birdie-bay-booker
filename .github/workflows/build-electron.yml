@@ -68,12 +68,38 @@ jobs:
         working-directory: ./electron
         run: npx electron-builder --publish never
 
+      - name: Resolve updater asset path
+        id: resolve_updater_asset
+        shell: pwsh
+        run: |
+          $latestYml = "electron/dist-electron/latest.yml"
+          if (!(Test-Path $latestYml)) { throw "latest.yml not found at $latestYml" }
+
+          $pathLine = Select-String -Path $latestYml -Pattern '^path:\s*(.+)$'
+          if (!$pathLine) { throw "Could not find 'path:' in latest.yml" }
+
+          $expectedName = $pathLine.Matches[0].Groups[1].Value.Trim()
+          $expectedPath = "electron/dist-electron/$expectedName"
+
+          if (!(Test-Path $expectedPath)) {
+            $exe = Get-ChildItem "electron/dist-electron" -Filter "*.exe" |
+              Sort-Object LastWriteTime -Descending |
+              Select-Object -First 1
+
+            if (!$exe) { throw "No .exe file found in electron/dist-electron" }
+
+            Copy-Item $exe.FullName $expectedPath
+            Write-Host "Copied $($exe.Name) -> $expectedName"
+          }
+
+          "asset_path=$expectedPath" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
           name: BirdiesBayController-Windows
           path: |
-            electron/dist-electron/*.exe
+            ${{ steps.resolve_updater_asset.outputs.asset_path }}
             electron/dist-electron/latest.yml
           retention-days: 3
 
@@ -84,7 +110,7 @@ jobs:
           tag_name: v${{ github.run_number }}
           name: Bay Controller Build ${{ github.run_number }}
           files: |
-            electron/dist-electron/*.exe
+            ${{ steps.resolve_updater_asset.outputs.asset_path }}
             electron/dist-electron/latest.yml
           draft: false
           prerelease: false
