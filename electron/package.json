@@ -45,7 +45,8 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "runAfterFinish": true
+      "runAfterFinish": true,
+      "artifactName": "BirdiesBayController-Setup-${version}.${ext}"
     }
   },
   "devDependencies": {
