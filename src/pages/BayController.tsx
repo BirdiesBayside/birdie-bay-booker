@@ -1840,32 +1840,9 @@ export default function BayController() {
     // Update previous bookings ref
     previousBookingsRef.current = [...bookings];
 
-    // Control plugs based on booking state - ONLY if manual override is not active
-    if (!manualOverride) {
-      if (shouldBeOn && (!plugsStatus.monitor || !plugsStatus.projector)) {
-        turnOnPlugs(false, false);
-      } else if (!shouldBeOn && (plugsStatus.monitor || plugsStatus.projector)) {
-        turnOffPlugs(false, false);
-      }
-    }
-
-    // Check for warnings
-    if (currentBooking) {
-      const endTime = parseISO(`${currentBooking.booking_date}T${currentBooking.end_time}`);
-      const minutesRemaining = Math.floor((endTime.getTime() - now.getTime()) / 60000);
-
-      if (warningMinutes.includes(minutesRemaining)) {
-        const key = `${currentBooking.id}-${minutesRemaining}`;
-        if (!shownNotifications.has(key)) {
-          setShownNotifications(prev => {
-            const next = new Set(prev);
-            next.add(key);
-            return next;
-          });
-          showWarningNotification(minutesRemaining, currentBooking);
-        }
-      }
-    }
+    // NOTE: Plug on/off is handled EXCLUSIVELY by the PrecisionScheduler (below).
+    // This polling effect only handles activeBooking state and cancellation detection.
+    // Legacy warning notifications are handled by the dedicated notification effect (N1).
   }, [currentTime, bookings, preStartMinutes, manualOverride, calculateShouldPlugsBeOn]);
 
   // PRECISION SCHEDULER: Schedule exact timeouts for upcoming booking transitions
@@ -2297,11 +2274,11 @@ export default function BayController() {
     // The safety check below acts as a last-resort guard in case Timer 1 failed.
     
     if (isElectron && window.electronAPI && selectedBay) {
-      // CRITICAL DIAGNOSTIC: Check if apps are STILL running right before plugs turn off
-      // This is the key audit point - if processes are alive here, they'll get orphaned
-      let gsproStillRunning = false;
-      let proteeStillRunning = false;
+      // SAFETY GATE: Check if apps are STILL running right before plugs turn off.
+      // Wrapped in top-level try/catch to prevent unhandled exceptions from crashing Electron.
       try {
+        let gsproStillRunning = false;
+        let proteeStillRunning = false;
         const gsproCheck = await window.electronAPI.findWindow("GSPro");
         const proteeCheck = await window.electronAPI.findWindow("ProTee");
         gsproStillRunning = !!gsproCheck?.hwnd;
@@ -2312,21 +2289,14 @@ export default function BayController() {
           `PRE-PLUG-OFF PROCESS CHECK: GSPro=${gsproStillRunning ? 'RUNNING' : 'dead'}, Protee=${proteeStillRunning ? 'RUNNING' : 'dead'}, appsRunningState=${appsRunning}`,
           {
             level: appsAlive ? 'error' : 'info',
-            details: {
-              gsproStillRunning,
-              proteeStillRunning,
-              appsRunningState: appsRunning,
-              appLaunchEnabled: appLaunchConfig.enabled,
-              isManual,
-              timestamp: new Date().toISOString(),
-            },
+            details: { gsproStillRunning, proteeStillRunning, appsRunningState: appsRunning, isManual, retryCount },
             bookingId: activeBooking?.id,
             immediate: true,
           }
         );
         
         if (appsAlive && !isManual) {
-          console.error(`[turnOffPlugs] WARNING: Apps still running at plug-off! Force-killing. GSPro=${gsproStillRunning}, Protee=${proteeStillRunning}`);
+          console.error(`[turnOffPlugs] Apps still running at plug-off! Force-killing.`);
           addLog(`⚠️ APPS STILL RUNNING AT PLUG-OFF - force-killing`, 'error');
           try {
             await window.electronAPI.closeApps(["GSPro.exe", "ProteeLabs.exe"]);
@@ -2335,48 +2305,36 @@ export default function BayController() {
             console.error('[turnOffPlugs] Emergency force-kill failed:', killErr);
           }
           
-          // FINAL SAFETY CHECK: Re-verify apps are truly dead before allowing plug-off
+          // Re-verify apps are dead
           try {
             const gsproFinal = await window.electronAPI.findWindow("GSPro");
             const proteeFinal = await window.electronAPI.findWindow("ProTee");
             const stillAlive = !!gsproFinal?.hwnd || !!proteeFinal?.hwnd;
             
-            if (stillAlive) {
-              console.error('[turnOffPlugs] BLOCKED: Apps still running after kill attempt. Aborting plug-off.');
-              addLog('Plug-off BLOCKED: apps still running' + (retryCount < 3 ? `, will retry in 5s (attempt ${retryCount + 1}/3)` : ' - max retries reached'), 'error');
-              bayLogger.sendLog('automation_decision', 'PLUG-OFF BLOCKED: apps still alive after kill attempt', {
-                level: 'error',
-                details: {
-                  retryCount,
-                  gsproAlive: !!gsproFinal?.hwnd,
-                  proteeAlive: !!proteeFinal?.hwnd,
-                },
-                bookingId: activeBooking?.id,
-                immediate: true,
+            if (stillAlive && retryCount < 3) {
+              addLog(`Plug-off BLOCKED: apps still running, retry ${retryCount + 1}/3 in 5s`, 'error');
+              setTimeout(() => turnOffPlugs(isManual, showToast, retryCount + 1), 5000);
+              return;
+            } else if (stillAlive) {
+              addLog('Plug-off BLOCKED: max retries reached, proceeding anyway', 'error');
+              bayLogger.sendLog('automation_decision', 'PLUG-OFF FORCED: max retries reached, apps may still be alive', {
+                level: 'error', bookingId: activeBooking?.id, immediate: true,
               });
-              
-              // Retry after 5 seconds (up to 3 attempts)
-              if (retryCount < 3) {
-                setTimeout(() => turnOffPlugs(isManual, showToast, retryCount + 1), 5000);
-              }
-              return; // DO NOT proceed to plug-off
+              // Fall through to proceed with plug-off
             }
           } catch (recheckErr) {
             console.error('[turnOffPlugs] Final safety recheck failed:', recheckErr);
-            // If we can't verify, abort to be safe
-            addLog('Plug-off BLOCKED: unable to verify apps are closed', 'error');
-            if (retryCount < 3) {
-              setTimeout(() => turnOffPlugs(isManual, showToast, retryCount + 1), 5000);
-            }
-            return;
+            // Can't verify → proceed with plug-off rather than blocking forever
+            addLog('Safety recheck failed, proceeding with plug-off', 'error');
           }
         } else if (appsAlive && isManual) {
-          console.warn(`[turnOffPlugs] Manual override: apps still running but proceeding with plug-off`);
           addLog('Manual plug-off: apps still running, proceeding anyway', 'error');
         }
-      } catch (err) {
-        console.error('[turnOffPlugs] Failed to check process state before plug-off:', err);
-        bayLogger.logError('Failed to check process state before plug-off', err, activeBooking?.id);
+      } catch (safetyErr) {
+        // TOP-LEVEL CATCH: Prevents safety gate from crashing the entire Electron app
+        console.error('[turnOffPlugs] Safety gate exception (proceeding with plug-off):', safetyErr);
+        bayLogger.logError('Safety gate exception - proceeding with plug-off', safetyErr, activeBooking?.id);
+        addLog('Safety gate error - proceeding with plug-off', 'error');
       }
       
       const bayPlugs = getAssignedPlugsForBay(selectedBay);
@@ -2797,55 +2755,40 @@ export default function BayController() {
     const todaysBookings = bookings.filter(b => b.booking_date === today && (b.status === 'confirmed' || b.status === 'pending'));
     
     let shouldLaunchApps = false;
-    let shouldCloseApps = false;
 
     for (const booking of todaysBookings) {
       const startTime = parseISO(`${booking.booking_date}T${booking.start_time}`);
       const endTime = parseISO(`${booking.booking_date}T${booking.end_time}`);
       const appLaunchTime = addMinutes(startTime, -appLaunchConfig.appLaunchMinutes);
       
-      // Close apps X seconds before booking ends (while screens are still on)
+      // CRITICAL FIX: Don't launch apps if we're within appCloseSeconds of booking end.
+      // The PrecisionScheduler handles app close at T-appCloseSeconds; re-launching here
+      // after that close was the root cause of the Bay 6 crash (apps relaunched then
+      // immediately killed by plug-off safety gate).
       const appCloseTime = new Date(endTime.getTime() - (appLaunchConfig.appCloseSeconds * 1000));
 
-      // Should launch if we're past launch time but before close time
+      // Should launch if we're past launch time but BEFORE close time
       if (isAfter(now, appLaunchTime) && isBefore(now, appCloseTime)) {
         shouldLaunchApps = true;
       }
-      
-      // Should close if we're past close time but still before end time (plugs still on)
-      if (isAfter(now, appCloseTime) && isBefore(now, endTime)) {
-        shouldCloseApps = true;
-      }
 
-      // Check for back-to-back - handle based on whether it's same or different customer
+      // Check for back-to-back - extend the launch window through the chain
       const nextBooking = todaysBookings.find(b => b.id !== booking.id && b.start_time === booking.end_time);
       if (nextBooking) {
-        const isSameCustomer = nextBooking.user_id === booking.user_id;
         const nextEndTime = parseISO(`${nextBooking.booking_date}T${nextBooking.end_time}`);
         const nextAppCloseTime = new Date(nextEndTime.getTime() - (appLaunchConfig.appCloseSeconds * 1000));
         
-        if (isSameCustomer) {
-          // Same customer back-to-back: keep apps running continuously
-          if (isBefore(now, nextAppCloseTime)) {
-            shouldLaunchApps = true;
-            shouldCloseApps = false;
-          }
-        } else {
-          // Different customer back-to-back: the changeover effect handles the reset at T-1m
-          // This effect should just ensure apps stay "logically running" through the transition
-          // The changeover effect will handle the actual close/relaunch
-          if (isBefore(now, nextAppCloseTime)) {
-            shouldLaunchApps = true;
-            shouldCloseApps = false; // Don't auto-close - changeover handles it
-          }
+        // Keep apps running through the entire B2B chain (both same and different customer)
+        // Changeover effect handles the close/relaunch for different customers
+        if (isBefore(now, nextAppCloseTime)) {
+          shouldLaunchApps = true;
         }
       }
     }
 
-    // Auto-launch/close rules:
-    // - Manual mode blocks all automation.
-    // - Changeover in progress should NOT prevent recovery launches (if apps are down),
-    //   but it SHOULD prevent scheduled closes to avoid fighting the changeover.
+    // NOTE: App CLOSE is handled exclusively by the PrecisionScheduler (A4) and Changeover (C1).
+    // This effect only handles launching apps. No shouldCloseApps logic needed.
+    
     if (manualOverride) {
       return;
     }
@@ -2866,11 +2809,8 @@ export default function BayController() {
         return;
       }
       launchApps();
-    } else if (!changeoverInProgress && shouldCloseApps && appsRunning) {
-      console.log(`Closing apps ${appLaunchConfig.appCloseSeconds}s before booking ends (while screens still on)`);
-      closeApps('scheduled');
-    } else if (!changeoverInProgress && !shouldLaunchApps && !shouldCloseApps && appsRunning) {
-      // Fallback: close apps if no active booking window at all (including when all bookings cancelled)
+    } else if (!changeoverInProgress && !shouldLaunchApps && appsRunning) {
+      // Fallback: close apps if no active booking window at all (e.g. all bookings cancelled)
       console.log('No active booking window - closing apps as fallback');
       closeApps('scheduled');
     }
