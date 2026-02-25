@@ -168,7 +168,6 @@ export function GiftCardsSection() {
               gift_card_id: newGiftCard.id,
               recipient_email: recipientEmail.toLowerCase().trim(),
               amount: amountNum,
-              token: newGiftCard.token,
             },
           });
 

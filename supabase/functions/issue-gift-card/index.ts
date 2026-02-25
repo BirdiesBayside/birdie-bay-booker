@@ -13,21 +13,18 @@ interface IssueGiftCardRequest {
   gift_card_id: string;
   recipient_email: string;
   amount: number;
-  token: string;
 }
 
 serve(async (req: Request): Promise<Response> => {
-  // Handle CORS
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { gift_card_id, recipient_email, amount, token }: IssueGiftCardRequest = await req.json();
+    const { gift_card_id, recipient_email, amount }: IssueGiftCardRequest = await req.json();
 
     console.log(`[issue-gift-card] Issuing gift card for ${recipient_email}, amount: $${amount}`);
 
-    // Create Supabase client
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -40,19 +37,18 @@ serve(async (req: Request): Promise<Response> => {
       .eq("is_active", true)
       .maybeSingle();
 
-    // Build activation URL with token
-    const baseUrl = Deno.env.get("SITE_URL") || "https://hub.birdiesbayside.com.au";
-    const activationUrl = `${baseUrl}/?gift_token=${token}`;
+    // Clean link to the hub sign-up page (no token)
+    const signupUrl = "https://hub.birdiesbayside.com.au";
 
     // Use template or fallback
     let subject = template?.subject || `You've received a $${amount.toFixed(2)} gift card!`;
-    let htmlContent = template?.html_content || getDefaultTemplate(amount, activationUrl);
+    let htmlContent = template?.html_content || getDefaultTemplate(amount, signupUrl);
 
     // Replace placeholders
     subject = subject.replace(/\{amount\}/g, amount.toFixed(2));
     htmlContent = htmlContent
       .replace(/\{amount\}/g, amount.toFixed(2))
-      .replace(/\{activation_url\}/g, activationUrl);
+      .replace(/\{activation_url\}/g, signupUrl);
 
     // Send email
     const emailResponse = await resend.emails.send({
@@ -83,7 +79,7 @@ serve(async (req: Request): Promise<Response> => {
   }
 });
 
-function getDefaultTemplate(amount: number, activationUrl: string): string {
+function getDefaultTemplate(amount: number, signupUrl: string): string {
   return `
 <!doctype html>
 <html lang="en">
@@ -114,14 +110,15 @@ function getDefaultTemplate(amount: number, activationUrl: string): string {
                   </td>
                 </tr>
               </table>
-              <p style="margin:18px 0; font-family:Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">Click the button below to activate your account and start using your credit.</p>
+              <p style="margin:18px 0; font-family:Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">Set up your free account to start using your credit for sessions at Birdies.</p>
               <table role="presentation" align="center" cellpadding="0" cellspacing="0" border="0" style="margin:22px auto 0;">
                 <tr>
                   <td bgcolor="#EC622D" style="border-radius:12px;">
-                    <a href="${activationUrl}" style="display:inline-block; padding:14px 28px; font-family:Arial, sans-serif; font-size:18px; font-weight:bold; color:#FFFFFF; text-decoration:none;">Activate Your Account</a>
+                    <a href="${signupUrl}" style="display:inline-block; padding:14px 28px; font-family:Arial, sans-serif; font-size:18px; font-weight:bold; color:#FFFFFF; text-decoration:none;">Set Up Your Account</a>
                   </td>
                 </tr>
               </table>
+              <p style="margin:18px 0 0; font-family:Arial, sans-serif; font-size:13px; line-height:1.5; color:#1F4C25; text-align:center; opacity:0.7;">Your credit will be automatically added once your account is set up using this email address.</p>
             </td>
           </tr>
           <tr>
