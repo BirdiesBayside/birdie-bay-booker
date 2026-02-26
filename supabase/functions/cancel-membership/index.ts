@@ -37,7 +37,7 @@ serve(async (req) => {
     // Get user profile
     const { data: profile, error: profileError } = await supabaseClient
       .from("profiles")
-      .select("*")
+      .select("email, membership_tier, custom_billing")
       .eq("user_id", user_id)
       .single();
 
