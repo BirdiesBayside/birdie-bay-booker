@@ -53,6 +53,53 @@ const getPriceToTierMap = async (supabaseAdmin: any): Promise<Record<string, str
   return map;
 };
 
+// Remove user from SGT tour when downgraded
+const removeFromSGT = async (supabaseAdmin: any, email: string) => {
+  try {
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("id, sgt_user_id")
+      .eq("email", email)
+      .maybeSingle();
+
+    if (!profile?.sgt_user_id) {
+      logStep("No SGT user ID found, skipping SGT removal", { email });
+      return;
+    }
+
+    const sgtUserId = profile.sgt_user_id;
+    logStep("Removing user from SGT", { email, sgtUserId });
+
+    // Find the active tour
+    const { data: activeTour } = await supabaseAdmin
+      .from("sgt_tours")
+      .select("tour_id")
+      .eq("active", 1)
+      .single();
+
+    if (!activeTour) {
+      logStep("No active tour found, skipping SGT removal");
+      return;
+    }
+
+    // Remove from tour members
+    const { error: tourMemberError } = await supabaseAdmin
+      .from("sgt_tour_members")
+      .delete()
+      .eq("tour_id", activeTour.tour_id)
+      .eq("user_id", sgtUserId);
+
+    if (tourMemberError) {
+      logStep("Error removing from tour members", { error: tourMemberError.message });
+    } else {
+      logStep("Removed from SGT tour members", { tourId: activeTour.tour_id, sgtUserId });
+    }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logStep("Error during SGT removal", { email, error: errorMessage });
+  }
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -102,13 +149,13 @@ serve(async (req) => {
     // Load dynamic price to tier map
     const PRICE_TO_TIER = await getPriceToTierMap(supabaseAdmin);
 
+    // ─── SUBSCRIPTION CREATED / UPDATED ───
     if (event.type === "customer.subscription.created" || event.type === "customer.subscription.updated") {
       const subscription = event.data.object as Stripe.Subscription;
       const customerId = subscription.customer as string;
       
       logStep("Processing subscription", { subscriptionId: subscription.id, status: subscription.status });
 
-      // Get customer email from Stripe
       const customer = await stripe.customers.retrieve(customerId);
       if (customer.deleted) {
         logStep("Customer deleted, skipping");
@@ -127,11 +174,9 @@ serve(async (req) => {
 
       logStep("Found customer email", { email });
 
-      // Handle past_due or unpaid subscriptions - 24-hour grace period instead of immediate downgrade
-      // The grace period is handled by invoice.payment_failed event, so we just log here
+      // past_due/unpaid are now handled immediately by invoice.payment_failed
       if (subscription.status === "past_due" || subscription.status === "unpaid") {
-        logStep("Subscription is past_due/unpaid - grace period handled by invoice.payment_failed", { email, status: subscription.status });
-        
+        logStep("Subscription is past_due/unpaid - handled by invoice.payment_failed", { email, status: subscription.status });
         return new Response(JSON.stringify({ received: true }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -145,16 +190,15 @@ serve(async (req) => {
         if (newTier) {
           logStep("Updating membership tier", { email, newTier });
 
-          // Get previous tier to check if this is a new subscription
           const { data: profile } = await supabaseAdmin
             .from("profiles")
             .select("first_name, last_name, membership_tier, custom_billing")
             .eq("email", email)
             .maybeSingle();
 
-          // Skip tier update if customer has custom billing enabled
+          // Skip if custom billing
           if (profile?.custom_billing) {
-            logStep("Customer has custom billing enabled, skipping tier update", { email });
+            logStep("Customer has custom billing, skipping tier update", { email });
             return new Response(JSON.stringify({ received: true }), {
               headers: { ...corsHeaders, "Content-Type": "application/json" },
             });
@@ -182,7 +226,6 @@ serve(async (req) => {
             const tierName = TIER_NAMES[newTier] || newTier;
             const weeklyPrice = TIER_WEEKLY_PRICES[newTier] || "";
 
-            // Fetch custom template
             const { data: emailTemplate } = await supabaseAdmin
               .from("email_templates")
               .select("*")
@@ -258,6 +301,9 @@ serve(async (req) => {
       }
     }
 
+    // ─── SUBSCRIPTION DELETED ───
+    // This is the SINGLE place that handles downgrade + cancellation email.
+    // Triggered by: voluntary cancellation, admin cancellation, OR immediate cancel from payment failure.
     if (event.type === "customer.subscription.deleted") {
       const subscription = event.data.object as Stripe.Subscription;
       const customerId = subscription.customer as string;
@@ -272,7 +318,7 @@ serve(async (req) => {
         });
       }
 
-      // Check if customer has any other active subscriptions (e.g., they switched plans)
+      // Check if customer has any other active subscriptions (e.g., plan switch)
       const activeSubscriptions = await stripe.subscriptions.list({
         customer: customerId,
         status: "active",
@@ -291,16 +337,23 @@ serve(async (req) => {
 
       const email = customer.email;
       if (email) {
-        // Get profile to find previous tier and check custom billing
         const { data: profile } = await supabaseAdmin
           .from("profiles")
           .select("first_name, last_name, membership_tier, custom_billing")
           .eq("email", email)
           .maybeSingle();
 
-        // Skip tier reset if customer has custom billing enabled
+        // Skip if custom billing
         if (profile?.custom_billing) {
-          logStep("Customer has custom billing enabled, skipping tier reset", { email });
+          logStep("Customer has custom billing, skipping tier reset", { email });
+          return new Response(JSON.stringify({ received: true }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        // Already visitor — nothing to do
+        if (profile?.membership_tier === "visitor") {
+          logStep("Already visitor, skipping", { email });
           return new Response(JSON.stringify({ received: true }), {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
@@ -310,7 +363,7 @@ serve(async (req) => {
         const lastName = profile?.last_name || "";
         const previousTier = profile?.membership_tier ? TIER_NAMES[profile.membership_tier] || profile.membership_tier : "Member";
 
-        logStep("Resetting membership tier to visitor", { email });
+        logStep("Resetting membership tier to visitor", { email, previousTier });
 
         const { error } = await supabaseAdmin
           .from("profiles")
@@ -324,9 +377,11 @@ serve(async (req) => {
 
         logStep("Membership tier reset to visitor");
 
-        // Send membership cancellation email
+        // Remove from SGT tour
+        await removeFromSGT(supabaseAdmin, email);
+
+        // Send ONE cancellation email
         if (resend) {
-          // Fetch custom template
           const { data: emailTemplate } = await supabaseAdmin
             .from("email_templates")
             .select("*")
@@ -365,7 +420,7 @@ serve(async (req) => {
                   
                   <p>Your account has been reverted to Visitor status. You can still book sessions at our standard visitor rates.</p>
                   
-                  <p>If you'd like to rejoin and enjoy member benefits again, you can resubscribe at any time through your account.</p>
+                  <p>If you'd like to rejoin, simply re-register for a membership through your account when you have a valid payment method.</p>
                   
                   <p>We hope to see you back soon!</p>
                   
@@ -395,7 +450,7 @@ serve(async (req) => {
       }
     }
 
-    // Handle checkout session completed (for booking payments)
+    // ─── CHECKOUT SESSION COMPLETED (booking payments) ───
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
       const bookingId = session.metadata?.booking_id;
@@ -404,7 +459,6 @@ serve(async (req) => {
       logStep("Checkout session completed", { sessionId: session.id, bookingId, paymentIntentId });
 
       if (bookingId) {
-        // Update booking to confirmed
         const { error: updateError } = await supabaseAdmin
           .from("bookings")
           .update({
@@ -419,7 +473,6 @@ serve(async (req) => {
         } else {
           logStep("Booking confirmed successfully", { bookingId });
 
-          // Send booking confirmation notification
           try {
             const supabaseUrl = Deno.env.get("SUPABASE_URL");
             const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -443,7 +496,9 @@ serve(async (req) => {
       }
     }
 
-    // Handle failed payment for subscriptions - 24-hour grace period
+    // ─── INVOICE PAYMENT FAILED ───
+    // IMMEDIATE CANCELLATION: Cancel the subscription right away.
+    // The customer.subscription.deleted event will handle downgrade + email.
     if (event.type === "invoice.payment_failed") {
       const invoice = event.data.object as Stripe.Invoice;
       const customerId = invoice.customer as string;
@@ -454,17 +509,15 @@ serve(async (req) => {
         subscriptionId = (invoice as any).parent.subscription_details.subscription;
       }
 
-      logStep("Payment failed", { invoiceId: invoice.id, subscriptionId, hasParentSubscription: !!(invoice as any).parent?.subscription_details?.subscription });
+      logStep("Payment failed", { invoiceId: invoice.id, subscriptionId });
 
-      // Only process if this is a subscription invoice
+      // Only process subscription invoices
       if (subscriptionId) {
-        // Check if the subscription is paused (membership on hold)
-        // When pause_collection is active with behavior "void", Stripe voids invoices
-        // which triggers payment_failed - but this is expected and should NOT start a grace period
+        // Skip if subscription is paused (membership on hold)
         try {
           const subscription = await stripe.subscriptions.retrieve(subscriptionId);
           if (subscription.pause_collection) {
-            logStep("Subscription is paused (membership on hold), skipping payment failure handling", { 
+            logStep("Subscription is paused (membership on hold), skipping", { 
               subscriptionId, 
               pauseBehavior: subscription.pause_collection.behavior 
             });
@@ -473,7 +526,7 @@ serve(async (req) => {
             });
           }
         } catch (subError) {
-          logStep("Could not check subscription pause status, proceeding with failure handling", { error: subError });
+          logStep("Could not check subscription pause status, proceeding", { error: subError });
         }
 
         const customer = await stripe.customers.retrieve(customerId);
@@ -485,135 +538,47 @@ serve(async (req) => {
         }
 
         const email = customer.email;
-        const customerName = customer.name || "Valued Customer";
-
         if (email) {
-          // Get the current profile to find their tier and check custom billing
+          // Check custom billing
           const { data: profile } = await supabaseAdmin
             .from("profiles")
-            .select("first_name, last_name, membership_tier, custom_billing, payment_failed_at")
+            .select("custom_billing")
             .eq("email", email)
             .maybeSingle();
 
-          // Skip if customer has custom billing enabled
           if (profile?.custom_billing) {
-            logStep("Customer has custom billing enabled, skipping grace period for failed payment", { email });
+            logStep("Customer has custom billing, skipping cancellation", { email });
             return new Response(JSON.stringify({ received: true }), {
               headers: { ...corsHeaders, "Content-Type": "application/json" },
             });
           }
+        }
 
-          const firstName = profile?.first_name || customerName.split(" ")[0];
-          const previousTier = profile?.membership_tier ? TIER_NAMES[profile.membership_tier] || profile.membership_tier : "Member";
+        // IMMEDIATELY cancel the subscription — this triggers customer.subscription.deleted
+        // which handles the downgrade to visitor, SGT removal, and sends ONE email
+        try {
+          await stripe.subscriptions.cancel(subscriptionId);
+          logStep("Subscription immediately cancelled due to payment failure", { subscriptionId });
+        } catch (cancelError) {
+          logStep("Failed to cancel subscription", { error: cancelError });
+        }
 
-          // Set grace period flag if not already set (idempotent - don't reset the 24h clock on retries)
-          if (!profile?.payment_failed_at) {
-            logStep("Setting 24-hour grace period for failed payment", { email, previousTier });
-
-            const { error } = await supabaseAdmin
-              .from("profiles")
-              .update({ payment_failed_at: new Date().toISOString() })
-              .eq("email", email);
-
-            if (error) {
-              logStep("Error setting grace period", { error: error.message });
-            } else {
-              logStep("Grace period set - membership remains active for 24 hours");
-            }
-          } else {
-            logStep("Grace period already active, skipping flag update", { 
-              email, 
-              existingGracePeriodStart: profile.payment_failed_at 
-            });
-          }
-
-          // Do NOT cancel subscription or remove payment methods
-          // Keep everything intact so they can update their card and retry
-
-          // Send payment failed notification email with 24-hour deadline messaging
-          if (resend) {
-            // Fetch custom template
-            const { data: emailTemplate } = await supabaseAdmin
-              .from("email_templates")
-              .select("*")
-              .eq("template_key", "payment_failed")
-              .eq("is_active", true)
-              .single();
-
-            // If template is disabled, skip sending
-            if (!emailTemplate) {
-              logStep("Payment failed template disabled or not found, skipping email");
-            } else {
-              const templateTags: Record<string, string> = {
-                '{first_name}': firstName,
-                '{last_name}': profile?.last_name || '',
-                '{email}': email,
-                '{tier_name}': previousTier,
-                '{hub_account_url}': 'https://hub.birdiesbayside.com.au/account',
-                '{deadline_hours}': '24',
-              };
-
-              let subject = emailTemplate?.subject || "Action Required: Payment Failed - Update Within 24 Hours";
-              let htmlContent: string;
-
-              if (emailTemplate?.html_content) {
-                htmlContent = replaceTemplateTags(emailTemplate.html_content, templateTags);
-                subject = replaceTemplateTags(subject, templateTags);
-              } else {
-                htmlContent = `
-                  <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                    <h2 style="color: #1f4c25;">Hi ${firstName},</h2>
-                    
-                    <p>We were unable to process your weekly membership payment.</p>
-                    
-                    <div style="background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; padding: 16px; margin: 20px 0;">
-                      <p style="margin: 0; font-weight: bold; color: #856404;">⚠️ Action Required Within 24 Hours</p>
-                      <p style="margin: 8px 0 0 0; color: #856404;">Please update your payment method to avoid losing your <strong>${previousTier}</strong> membership benefits.</p>
-                    </div>
-                    
-                    <p>Your membership is still active, but you need to update your card within 24 hours to continue.</p>
-                    
-                    <div style="text-align: center; margin: 24px 0;">
-                      <a href="https://hub.birdiesbayside.com.au/account" style="display: inline-block; background-color: #ec622d; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">Update Payment Method</a>
-                    </div>
-                    
-                    <p>If you don't update your card within 24 hours, your membership will be automatically cancelled.</p>
-                    
-                    <p>If you believe this is an error or need assistance, please contact us at info@birdiesbayside.com.au</p>
-                    
-                    <p>Best regards,<br>The Birdies Team</p>
-                  </div>
-                `;
-              }
-
-              try {
-                await resend.emails.send({
-                  from: "Birdies Bayside <info@birdiesbayside.com.au>",
-                  to: [email],
-                  subject: subject,
-                  html: htmlContent,
-                });
-                logStep("Payment failed notification email sent with 24h deadline", { email });
-              } catch (emailError) {
-                logStep("Failed to send payment failed email", { error: emailError });
-              }
-            }
-          }
+        // Void the failed invoice to clean up
+        try {
+          await stripe.invoices.voidInvoice(invoice.id);
+          logStep("Failed invoice voided", { invoiceId: invoice.id });
+        } catch (voidError) {
+          logStep("Could not void invoice (may already be handled)", { error: voidError });
         }
       }
     }
 
-    // Handle successful subscription payment - record for revenue tracking
+    // ─── INVOICE PAYMENT SUCCEEDED ───
     if (event.type === "invoice.payment_succeeded") {
       const invoice = event.data.object as Stripe.Invoice;
       const customerId = invoice.customer as string;
       
-      // Support both old and new Stripe API structure for subscription ID
-      // Old: invoice.subscription (string)
-      // New (2025-07-30.basil): invoice.parent.subscription_details.subscription (string)
       let subscriptionId = invoice.subscription as string | null;
-      
-      // Check new API structure if old one is null
       if (!subscriptionId && (invoice as any).parent?.subscription_details?.subscription) {
         subscriptionId = (invoice as any).parent.subscription_details.subscription;
       }
@@ -624,30 +589,26 @@ serve(async (req) => {
         customerId,
         billingReason: invoice.billing_reason,
         amountPaid: invoice.amount_paid,
-        hasParentSubscription: !!(invoice as any).parent?.subscription_details?.subscription
       });
 
-      // Only process if this is a subscription invoice (not one-time payments)
+      // Only process subscription invoices
       if (!subscriptionId) {
-        logStep("No subscription ID, skipping payment recording (not a subscription invoice)");
+        logStep("No subscription ID, skipping (not a subscription invoice)");
         return new Response(JSON.stringify({ received: true }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
       if (invoice.billing_reason === "manual") {
-        logStep("Manual billing reason, skipping payment recording");
+        logStep("Manual billing reason, skipping");
         return new Response(JSON.stringify({ received: true }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
-      logStep("Processing subscription payment recording");
-
       let customer;
       try {
         customer = await stripe.customers.retrieve(customerId);
-        logStep("Customer retrieved", { customerId, deleted: customer.deleted });
       } catch (customerError) {
         logStep("Error retrieving customer", { error: customerError });
         return new Response(JSON.stringify({ received: true }), {
@@ -656,7 +617,7 @@ serve(async (req) => {
       }
 
       if (customer.deleted) {
-        logStep("Customer deleted, skipping payment recording");
+        logStep("Customer deleted, skipping");
         return new Response(JSON.stringify({ received: true }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -664,50 +625,23 @@ serve(async (req) => {
 
       const email = customer.email;
       if (!email) {
-        logStep("No email found for customer, cannot record payment");
+        logStep("No email found, cannot record payment");
         return new Response(JSON.stringify({ received: true }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
-      logStep("Looking up profile for email", { email });
-
-      // Get user profile
       const { data: profile, error: profileError } = await supabaseAdmin
         .from("profiles")
-        .select("user_id, membership_tier, payment_failed_at")
+        .select("user_id, membership_tier")
         .eq("email", email)
         .maybeSingle();
 
-      if (profileError) {
-        logStep("Error fetching profile", { error: profileError.message });
+      if (profileError || !profile?.user_id) {
+        logStep("No profile found", { email });
         return new Response(JSON.stringify({ received: true }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
-      }
-
-      if (!profile?.user_id) {
-        logStep("No profile found for email, cannot record payment", { email });
-        return new Response(JSON.stringify({ received: true }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      logStep("Profile found", { userId: profile.user_id, membershipTier: profile.membership_tier });
-
-      // Clear any grace period flag - they've successfully paid
-      if (profile.payment_failed_at) {
-        logStep("Clearing grace period flag after successful payment", { email });
-        const { error: clearError } = await supabaseAdmin
-          .from("profiles")
-          .update({ payment_failed_at: null })
-          .eq("email", email);
-        
-        if (clearError) {
-          logStep("Error clearing grace period", { error: clearError.message });
-        } else {
-          logStep("Grace period cleared successfully");
-        }
       }
 
       // Determine tier from subscription price
@@ -715,7 +649,6 @@ serve(async (req) => {
       try {
         const subscription = await stripe.subscriptions.retrieve(subscriptionId);
         const priceId = subscription.items.data[0]?.price?.id;
-        logStep("Subscription retrieved", { priceId });
         if (priceId && PRICE_TO_TIER[priceId]) {
           tier = PRICE_TO_TIER[priceId];
         }
@@ -723,27 +656,17 @@ serve(async (req) => {
         logStep("Error retrieving subscription, using profile tier", { error: subError });
       }
 
-      // Amount is in cents, convert to dollars
       const amount = (invoice.amount_paid || 0) / 100;
 
-      logStep("Payment details", { amount, tier });
-
-      // Skip $0 payments (first week free)
+      // Skip $0 payments
       if (amount <= 0) {
-        logStep("Skipping $0 payment (likely free trial)", { invoiceId: invoice.id });
+        logStep("Skipping $0 payment", { invoiceId: invoice.id });
         return new Response(JSON.stringify({ received: true }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
-      // Insert membership payment record
-      logStep("Inserting payment record", { 
-        userId: profile.user_id, 
-        invoiceId: invoice.id, 
-        amount, 
-        tier 
-      });
-
+      // Record membership payment
       const { error: insertError } = await supabaseAdmin
         .from("membership_payments")
         .upsert({
@@ -762,12 +685,7 @@ serve(async (req) => {
       if (insertError) {
         logStep("Error recording membership payment", { error: insertError.message });
       } else {
-        logStep("Membership payment recorded successfully", { 
-          email, 
-          tier, 
-          amount, 
-          invoiceId: invoice.id 
-        });
+        logStep("Membership payment recorded", { email, tier, amount, invoiceId: invoice.id });
       }
     }
 
