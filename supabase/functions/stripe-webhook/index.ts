@@ -34,6 +34,82 @@ const replaceTemplateTags = (template: string, tags: Record<string, string>): st
   return result;
 };
 
+// Build branded email wrapper matching Birdies design system
+const buildEmailTemplate = (heading: string, bodyContent: string, ctaButton?: { text: string; url: string }) => {
+  const buttonHtml = ctaButton ? `
+              <table role="presentation" align="center" cellpadding="0" cellspacing="0" border="0" style="margin:22px auto 0;">
+                <tr>
+                  <td bgcolor="#EC622D" style="border-radius:12px;">
+                    <a href="${ctaButton.url}"
+                       style="display:inline-block; padding:14px 24px; font-family:Anton, Impact, Arial Black, sans-serif; font-size:18px; letter-spacing:0.3px; color:#FFFFFF; text-decoration:none;">
+                      ${ctaButton.text}
+                    </a>
+                  </td>
+                </tr>
+              </table>
+  ` : '';
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Birdies Email</title>
+  <style>
+    @import url("https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;600&display=swap");
+  </style>
+</head>
+<body style="margin:0; padding:0; background-color:#FFF5E4;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#FFF5E4;">
+    <tr>
+      <td align="center" style="padding:24px 12px;">
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="max-width:600px; width:100%;">
+          <tr>
+            <td align="center" style="background-color:#1F4C25; padding:18px; border-radius:16px 16px 0 0;">
+              <img src="https://cdn.shopify.com/s/files/1/0758/7030/6550/files/NO-BG_BIRDIES-LOGOS_WORK-DOC_AMENDED-9.7.25-01.png?v=1761536603" width="140" alt="Birdies Bayside" style="display:block; width:140px; height:auto; border:0;" />
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color:#FFF5E4; padding:26px 22px; border-left:1px solid rgba(31,76,37,0.12); border-right:1px solid rgba(31,76,37,0.12);">
+              <h1 style="margin:0 0 14px; font-family:Anton, Impact, Arial Black, sans-serif; font-size:34px; line-height:1.1; color:#1F4C25; text-align:center;">
+                ${heading}
+              </h1>
+              ${bodyContent}
+              ${buttonHtml}
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color:#1F4C25; padding:22px; border-radius:0 0 16px 16px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td align="center" style="padding-bottom:14px;">
+                    <a href="https://www.instagram.com/birdiesbayside" style="margin:0 8px; text-decoration:none;">
+                      <img src="https://cdn-icons-png.flaticon.com/512/174/174855.png" alt="Instagram" width="28" height="28" style="display:inline-block; border:0;" />
+                    </a>
+                    <a href="https://www.facebook.com/share/17NifCh2vH/" style="margin:0 8px; text-decoration:none;">
+                      <img src="https://cdn-icons-png.flaticon.com/512/174/174848.png" alt="Facebook" width="28" height="28" style="display:inline-block; border:0;" />
+                    </a>
+                  </td>
+                </tr>
+                <tr>
+                  <td align="center" style="font-family:Inter, Arial, sans-serif; font-size:14px; line-height:1.7; color:#FFFFFF;">
+                    <div>Unit 2, 86 Jardine Drive, Redland Bay QLD 4165</div>
+                    <div><a href="tel:+61721468442" style="color:#FFFFFF; text-decoration:underline;">(07) 2146 8442</a></div>
+                    <div><a href="https://birdiesbayside.com.au" style="color:#FFFFFF; text-decoration:underline;">birdiesbayside.com.au</a></div>
+                    <div style="margin-top:10px; font-size:12px; opacity:0.75;">© Birdies Bayside</div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+};
+
 // Dynamically build price to tier map from database
 const getPriceToTierMap = async (supabaseAdmin: any): Promise<Record<string, string>> => {
   const { data: pricingConfig } = await supabaseAdmin
@@ -363,7 +439,9 @@ serve(async (req) => {
         const lastName = profile?.last_name || "";
         const previousTier = profile?.membership_tier ? TIER_NAMES[profile.membership_tier] || profile.membership_tier : "Member";
 
-        logStep("Resetting membership tier to visitor", { email, previousTier });
+        // Determine if this cancellation was triggered by a payment failure
+        const isPaymentFailure = subscription.metadata?.cancellation_reason === "payment_failed";
+        logStep("Resetting membership tier to visitor", { email, previousTier, isPaymentFailure });
 
         const { error } = await supabaseAdmin
           .from("profiles")
@@ -380,14 +458,27 @@ serve(async (req) => {
         // Remove from SGT tour
         await removeFromSGT(supabaseAdmin, email);
 
-        // Send ONE cancellation email
+        // Send ONE cancellation email — different content for payment failure vs voluntary
         if (resend) {
+          const templateKey = isPaymentFailure ? "membership_payment_failed" : "membership_cancelled";
           const { data: emailTemplate } = await supabaseAdmin
             .from("email_templates")
             .select("*")
-            .eq("template_key", "membership_cancelled")
+            .eq("template_key", templateKey)
             .eq("is_active", true)
             .single();
+
+          // Fallback: try the generic template if specific one not found
+          let finalTemplate = emailTemplate;
+          if (!finalTemplate && isPaymentFailure) {
+            const { data: fallbackTemplate } = await supabaseAdmin
+              .from("email_templates")
+              .select("*")
+              .eq("template_key", "membership_cancelled")
+              .eq("is_active", true)
+              .single();
+            finalTemplate = fallbackTemplate;
+          }
 
           const templateTags: Record<string, string> = {
             '{first_name}': firstName,
@@ -396,43 +487,64 @@ serve(async (req) => {
             '{tier_name}': previousTier,
           };
 
-          let subject = emailTemplate?.subject || "Your Birdies Membership Has Been Cancelled";
+          let subject: string;
           let htmlContent: string;
 
-          if (emailTemplate?.html_content) {
-            htmlContent = replaceTemplateTags(emailTemplate.html_content, templateTags);
-            subject = replaceTemplateTags(subject, templateTags);
+          if (finalTemplate?.html_content) {
+            subject = replaceTemplateTags(finalTemplate.subject || "Your Birdies Membership", templateTags);
+            htmlContent = replaceTemplateTags(finalTemplate.html_content, templateTags);
+          } else if (isPaymentFailure) {
+            // Payment failure specific default email
+            subject = "Payment Failed — Your Membership Has Been Cancelled";
+            htmlContent = buildEmailTemplate(
+              "Payment Failed",
+              `
+              <p style="margin:0 0 18px; font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">
+                Hi ${firstName}, unfortunately your card payment for your <strong>${previousTier}</strong> membership could not be processed.
+              </p>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FFFFFF; border-radius:12px; margin:18px 0; border-left:4px solid #EC622D;">
+                <tr>
+                  <td style="padding:20px; font-family:Inter, Arial, sans-serif; font-size:15px; color:#1F4C25;">
+                    <h3 style="margin:0 0 10px 0; font-family:Anton, Impact, Arial Black, sans-serif; color:#1F4C25;">What happened?</h3>
+                    <ul style="margin:0; padding-left:20px;">
+                      <li style="margin-bottom:8px;">Your card on file was declined when we tried to take your membership payment</li>
+                      <li style="margin-bottom:8px;">Your membership has been cancelled and your account has been moved to <strong>Visitor</strong> status</li>
+                      <li style="margin-bottom:8px;">You can still book sessions at our standard visitor rates</li>
+                    </ul>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:18px 0 0; font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">
+                To get your membership back, simply update your payment method and re-register through your account.
+              </p>
+              <p style="margin:18px 0 0; font-family:Inter, Arial, sans-serif; font-size:14px; line-height:1.6; color:#1F4C25; text-align:center; opacity:0.8;">
+                If you believe this was an error, please contact us and we'll help sort it out.
+              </p>
+              `,
+              { text: "Re-Register Membership", url: "https://hub.birdiesbayside.com.au/membership" }
+            );
           } else {
-            htmlContent = `
-              <!DOCTYPE html>
-              <html>
-              <head>
-                <meta charset="utf-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-              </head>
-              <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-                <div style="background-color: #1f4c25; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
-                  <h1 style="color: #fff5e4; margin: 0;">Membership Cancelled</h1>
-                </div>
-                <div style="background-color: #fff5e4; padding: 30px; border-radius: 0 0 8px 8px;">
-                  <p>Hi ${firstName},</p>
-                  <p>Your <strong>${previousTier}</strong> membership has been cancelled.</p>
-                  
-                  <p>Your account has been reverted to Visitor status. You can still book sessions at our standard visitor rates.</p>
-                  
-                  <p>If you'd like to rejoin, simply re-register for a membership through your account when you have a valid payment method.</p>
-                  
-                  <p>We hope to see you back soon!</p>
-                  
-                  <p>Best regards,<br><strong>The Birdies Team</strong></p>
-                </div>
-                <div style="text-align: center; padding: 20px; color: #666; font-size: 12px;">
-                  <p>Birdies Bayside Golf Simulators</p>
-                  <p>info@birdiesbayside.com.au</p>
-                </div>
-              </body>
-              </html>
-            `;
+            // Voluntary cancellation default email
+            subject = "Your Birdies Membership Has Been Cancelled";
+            htmlContent = buildEmailTemplate(
+              "Membership Cancelled",
+              `
+              <p style="margin:0 0 18px; font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">
+                Hi ${firstName}, your <strong>${previousTier}</strong> membership has been cancelled.
+              </p>
+              <p style="margin:0 0 18px; font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">
+                Your account has been reverted to Visitor status. You can still book sessions at our standard visitor rates.
+              </p>
+              <p style="margin:0 0 18px; font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">
+                If you'd like to rejoin, simply re-register for a membership through your account.
+              </p>
+              <p style="margin:18px 0 0; font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">
+                We hope to see you back soon!<br/>
+                <strong>The Birdies Team</strong>
+              </p>
+              `,
+              { text: "Rejoin Membership", url: "https://hub.birdiesbayside.com.au/membership" }
+            );
           }
 
           try {
@@ -442,7 +554,7 @@ serve(async (req) => {
               subject: subject,
               html: htmlContent,
             });
-            logStep("Membership cancellation email sent", { email });
+            logStep("Membership cancellation email sent", { email, isPaymentFailure });
           } catch (emailError) {
             logStep("Failed to send membership cancellation email", { error: emailError });
           }
@@ -554,9 +666,12 @@ serve(async (req) => {
           }
         }
 
-        // IMMEDIATELY cancel the subscription — this triggers customer.subscription.deleted
-        // which handles the downgrade to visitor, SGT removal, and sends ONE email
+        // Tag the subscription so the deleted handler knows this was a payment failure
+        // THEN cancel — this triggers customer.subscription.deleted
         try {
+          await stripe.subscriptions.update(subscriptionId, {
+            metadata: { cancellation_reason: "payment_failed" },
+          });
           await stripe.subscriptions.cancel(subscriptionId);
           logStep("Subscription immediately cancelled due to payment failure", { subscriptionId });
         } catch (cancelError) {
