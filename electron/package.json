@@ -33,7 +33,7 @@
     ],
     "publish": {
       "provider": "github",
-      "owner": "birdiesbayside",
+      "owner": "BirdiesBayside",
       "repo": "birdie-bay-booker"
     },
     "win": {
