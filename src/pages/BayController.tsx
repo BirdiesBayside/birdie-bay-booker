@@ -912,6 +912,7 @@ export default function BayController() {
   const fetchBookingsRef = useRef(fetchBookings);
   const fetchControlModeRef = useRef(fetchControlMode);
   const sendHeartbeatRef = useRef(sendHeartbeat);
+  const resumeAutoRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     fetchBookingsRef.current = fetchBookings;
@@ -977,7 +978,19 @@ export default function BayController() {
           (payload) => {
             const newMode = (payload.new as { control_mode?: string }).control_mode;
             if (newMode) {
-              setManualOverride(newMode === 'manual');
+              const wasManual = manualOverrideRef.current;
+              const isNowManual = newMode === 'manual';
+              setManualOverride(isNowManual);
+              
+              // When switching from manual -> auto via remote toggle,
+              // evaluate plug state immediately (turn off if no booking)
+              if (wasManual && !isNowManual) {
+                console.log('[Realtime] Mode changed to AUTO remotely, evaluating plug state');
+                // Small delay to let state settle before resumeAuto reads it
+                setTimeout(() => {
+                  resumeAutoRef.current();
+                }, 500);
+              }
             }
           }
         )
@@ -1047,6 +1060,7 @@ export default function BayController() {
   const bookingsRef = useRef(bookings);
   const preStartMinutesRef = useRef(preStartMinutes);
   const bayDeviceIdRef = useRef(bayDeviceId);
+  const manualOverrideRef = useRef(manualOverride);
   
   // Keep refs in sync with state
   useEffect(() => {
@@ -1076,6 +1090,10 @@ export default function BayController() {
   useEffect(() => {
     bayDeviceIdRef.current = bayDeviceId;
   }, [bayDeviceId]);
+  
+  useEffect(() => {
+    manualOverrideRef.current = manualOverride;
+  }, [manualOverride]);
 
   // Helper to update control mode in DB (for use in command handler)
   const updateControlModeInDb = async (isManual: boolean) => {
@@ -2737,7 +2755,12 @@ export default function BayController() {
     }
   };
 
-  
+  // Keep resumeAutoRef in sync so realtime callback can call it
+  useEffect(() => {
+    resumeAutoRef.current = resumeAuto;
+  }, [resumeAuto]);
+
+
 
   const updateAppConfig = (key: keyof AppLaunchConfig, value: any) => {
     setAppLaunchConfig(prev => ({ ...prev, [key]: value }));
