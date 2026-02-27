@@ -722,6 +722,30 @@ export type Database = {
         }
         Relationships: []
       }
+      membership_changes: {
+        Row: {
+          changed_at: string
+          id: string
+          new_tier: string
+          previous_tier: string
+          user_id: string
+        }
+        Insert: {
+          changed_at?: string
+          id?: string
+          new_tier: string
+          previous_tier: string
+          user_id: string
+        }
+        Update: {
+          changed_at?: string
+          id?: string
+          new_tier?: string
+          previous_tier?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       membership_payments: {
         Row: {
           amount: number
