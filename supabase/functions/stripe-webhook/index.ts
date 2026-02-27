@@ -285,7 +285,7 @@ serve(async (req) => {
 
           const { error } = await supabaseAdmin
             .from("profiles")
-            .update({ membership_tier: newTier })
+            .update({ membership_tier: newTier, payment_failed_at: null })
             .eq("email", email);
 
           if (error) {
@@ -443,9 +443,17 @@ serve(async (req) => {
         const isPaymentFailure = subscription.metadata?.cancellation_reason === "payment_failed";
         logStep("Resetting membership tier to visitor", { email, previousTier, isPaymentFailure });
 
+        const updateData: Record<string, any> = { membership_tier: "visitor" };
+        if (isPaymentFailure) {
+          updateData.payment_failed_at = new Date().toISOString();
+        } else {
+          // Voluntary cancellation — also stamp payment_failed_at so it shows in admin "Lost This Week"
+          updateData.payment_failed_at = new Date().toISOString();
+        }
+
         const { error } = await supabaseAdmin
           .from("profiles")
-          .update({ membership_tier: "visitor" })
+          .update(updateData)
           .eq("email", email);
 
         if (error) {

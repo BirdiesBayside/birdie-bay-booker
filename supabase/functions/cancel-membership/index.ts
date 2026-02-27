@@ -73,7 +73,7 @@ serve(async (req) => {
     // Update profile to visitor tier
     const { error: updateError } = await supabaseClient
       .from("profiles")
-      .update({ membership_tier: "visitor" })
+      .update({ membership_tier: "visitor", payment_failed_at: new Date().toISOString() })
       .eq("user_id", user_id);
 
     if (updateError) {
