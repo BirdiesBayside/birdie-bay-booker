@@ -29,7 +29,7 @@ import {
   TrendingDown,
   AlertCircle,
 } from "lucide-react";
-import { format, subDays, isAfter, parseISO } from "date-fns";
+import { format, subDays, parseISO } from "date-fns";
 
 interface MemberProfile {
   id: string;
@@ -43,6 +43,14 @@ interface MemberProfile {
   payment_failed_at: string | null;
   created_at: string;
   updated_at: string;
+}
+
+interface MembershipChange {
+  id: string;
+  user_id: string;
+  previous_tier: string;
+  new_tier: string;
+  changed_at: string;
 }
 
 type StatusFilter = "all" | "active" | "on_hold" | "payment_failed";
@@ -73,8 +81,13 @@ export function MembersSection() {
   const [tierFilter, setTierFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 
+  // Weekly changes from the audit table
+  const [weeklyJoins, setWeeklyJoins] = useState<(MembershipChange & { first_name?: string; last_name?: string })[]>([]);
+  const [weeklyDropoffs, setWeeklyDropoffs] = useState<(MembershipChange & { first_name?: string; last_name?: string })[]>([]);
+
   useEffect(() => {
     fetchMembers();
+    fetchWeeklyChanges();
   }, []);
 
   const fetchMembers = async () => {
@@ -91,22 +104,55 @@ export function MembersSection() {
     setIsLoading(false);
   };
 
-  const oneWeekAgo = useMemo(() => subDays(new Date(), 7), []);
+  const fetchWeeklyChanges = async () => {
+    const weekAgo = format(subDays(new Date(), 7), "yyyy-MM-dd");
 
-  // Weekly activity
-  const newThisWeek = useMemo(
-    () => members.filter((m) => isAfter(parseISO(m.created_at), oneWeekAgo) && MEMBER_TIERS.includes(m.membership_tier)),
-    [members, oneWeekAgo]
-  );
+    // Fetch all tier changes from the last 7 days
+    const { data: changes } = await supabase
+      .from("membership_changes")
+      .select("*")
+      .gte("changed_at", weekAgo)
+      .order("changed_at", { ascending: false });
 
-  // Members whose payment_failed_at was set in the last 7 days
-  const droppedThisWeek = useMemo(
-    () =>
-      members.filter(
-        (m) => m.payment_failed_at && isAfter(parseISO(m.payment_failed_at), oneWeekAgo)
-      ),
-    [members, oneWeekAgo]
-  );
+    if (!changes || changes.length === 0) {
+      setWeeklyJoins([]);
+      setWeeklyDropoffs([]);
+      return;
+    }
+
+    // Get profile names for all user_ids in the changes
+    const userIds = [...new Set(changes.map((c: MembershipChange) => c.user_id))];
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("user_id, first_name, last_name")
+      .in("user_id", userIds);
+
+    const nameMap = new Map<string, { first_name: string; last_name: string }>();
+    if (profiles) {
+      for (const p of profiles) {
+        nameMap.set(p.user_id, { first_name: p.first_name, last_name: p.last_name });
+      }
+    }
+
+    const enriched = changes.map((c: MembershipChange) => ({
+      ...c,
+      first_name: nameMap.get(c.user_id)?.first_name || "",
+      last_name: nameMap.get(c.user_id)?.last_name || "",
+    }));
+
+    // Joins: visitor -> member tier
+    const joins = enriched.filter(
+      (c) => c.previous_tier === "visitor" && MEMBER_TIERS.includes(c.new_tier)
+    );
+
+    // Dropoffs: member tier -> visitor
+    const dropoffs = enriched.filter(
+      (c) => MEMBER_TIERS.includes(c.previous_tier) && c.new_tier === "visitor"
+    );
+
+    setWeeklyJoins(joins);
+    setWeeklyDropoffs(dropoffs);
+  };
 
   const onHoldMembers = useMemo(
     () => members.filter((m) => m.membership_on_hold),
@@ -121,7 +167,6 @@ export function MembersSection() {
   // Filtered list
   const filteredMembers = useMemo(() => {
     return members.filter((m) => {
-      // Search
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
         const fullName = `${m.first_name} ${m.last_name}`.toLowerCase();
@@ -132,9 +177,7 @@ export function MembersSection() {
         )
           return false;
       }
-      // Tier
       if (tierFilter !== "all" && m.membership_tier !== tierFilter) return false;
-      // Status
       if (statusFilter === "active" && (m.membership_on_hold || m.payment_failed_at))
         return false;
       if (statusFilter === "on_hold" && !m.membership_on_hold) return false;
@@ -143,30 +186,6 @@ export function MembersSection() {
       return true;
     });
   }, [members, searchQuery, tierFilter, statusFilter]);
-
-  // -- Note: we also want to detect "visitors" who were recently members (dropped off).
-  // payment_failed_at on a visitor profile means they were downgraded this week.
-  // We fetch those separately.
-  const [recentDropoffs, setRecentDropoffs] = useState<MemberProfile[]>([]);
-  useEffect(() => {
-    const fetchDropoffs = async () => {
-      const weekAgo = format(subDays(new Date(), 7), "yyyy-MM-dd");
-      const { data } = await supabase
-        .from("profiles")
-        .select("id, user_id, first_name, last_name, email, phone, membership_tier, membership_on_hold, payment_failed_at, created_at, updated_at")
-        .eq("membership_tier", "visitor")
-        .gte("payment_failed_at", weekAgo)
-        .order("payment_failed_at", { ascending: false });
-
-      if (data) setRecentDropoffs(data as MemberProfile[]);
-    };
-    fetchDropoffs();
-  }, []);
-
-  const allDroppedThisWeek = useMemo(
-    () => [...droppedThisWeek, ...recentDropoffs],
-    [droppedThisWeek, recentDropoffs]
-  );
 
   if (isLoading) {
     return (
@@ -194,22 +213,22 @@ export function MembersSection() {
             <p className="mt-2 text-3xl font-bold tracking-tight">{activeMembers.length}</p>
           </CardContent>
         </Card>
-        <Card className={newThisWeek.length > 0 ? "border-emerald-200 dark:border-emerald-800" : ""}>
+        <Card className={weeklyJoins.length > 0 ? "border-emerald-200 dark:border-emerald-800" : ""}>
           <CardContent className="p-4">
             <div className="flex items-center gap-2 text-sm font-medium text-emerald-600 dark:text-emerald-400">
               <UserPlus className="h-4 w-4" />
               New This Week
             </div>
-            <p className="mt-2 text-3xl font-bold tracking-tight">{newThisWeek.length}</p>
+            <p className="mt-2 text-3xl font-bold tracking-tight">{weeklyJoins.length}</p>
           </CardContent>
         </Card>
-        <Card className={allDroppedThisWeek.length > 0 ? "border-destructive/50" : ""}>
+        <Card className={weeklyDropoffs.length > 0 ? "border-destructive/50" : ""}>
           <CardContent className="p-4">
             <div className="flex items-center gap-2 text-sm font-medium text-destructive">
               <UserMinus className="h-4 w-4" />
               Lost This Week
             </div>
-            <p className="mt-2 text-3xl font-bold tracking-tight">{allDroppedThisWeek.length}</p>
+            <p className="mt-2 text-3xl font-bold tracking-tight">{weeklyDropoffs.length}</p>
           </CardContent>
         </Card>
         <Card>
@@ -224,46 +243,44 @@ export function MembersSection() {
       </div>
 
       {/* Weekly Activity Feed */}
-      {(newThisWeek.length > 0 || allDroppedThisWeek.length > 0) && (
+      {(weeklyJoins.length > 0 || weeklyDropoffs.length > 0) && (
         <Card>
           <CardContent className="p-4 space-y-3">
             <h3 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground">
               This Week's Changes
             </h3>
             <div className="space-y-2 max-h-48 overflow-y-auto">
-              {newThisWeek.map((m) => (
+              {weeklyJoins.map((c) => (
                 <div
-                  key={`new-${m.id}`}
+                  key={`join-${c.id}`}
                   className="flex items-center gap-3 text-sm py-1.5 px-2 rounded-md bg-emerald-50 dark:bg-emerald-950/30"
                 >
                   <TrendingUp className="h-4 w-4 text-emerald-600 shrink-0" />
                   <span className="font-medium">
-                    {m.first_name} {m.last_name}
+                    {c.first_name} {c.last_name}
                   </span>
-                  <Badge variant="outline" className={getTierColor(m.membership_tier)}>
-                    {m.membership_tier}
+                  <Badge variant="outline" className={getTierColor(c.new_tier)}>
+                    {c.new_tier}
                   </Badge>
                   <span className="text-muted-foreground ml-auto text-xs">
-                    Joined {format(parseISO(m.created_at), "EEE d MMM")}
+                    Joined {format(parseISO(c.changed_at), "EEE d MMM")}
                   </span>
                 </div>
               ))}
-              {allDroppedThisWeek.map((m) => (
+              {weeklyDropoffs.map((c) => (
                 <div
-                  key={`dropped-${m.id}`}
+                  key={`drop-${c.id}`}
                   className="flex items-center gap-3 text-sm py-1.5 px-2 rounded-md bg-destructive/5"
                 >
                   <TrendingDown className="h-4 w-4 text-destructive shrink-0" />
                   <span className="font-medium">
-                    {m.first_name} {m.last_name}
+                    {c.first_name} {c.last_name}
                   </span>
                   <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/20">
-                    {m.membership_tier === "visitor" ? "cancelled" : "payment failed"}
+                    was {c.previous_tier}
                   </Badge>
                   <span className="text-muted-foreground ml-auto text-xs">
-                    {m.payment_failed_at
-                      ? format(parseISO(m.payment_failed_at), "EEE d MMM")
-                      : ""}
+                    {format(parseISO(c.changed_at), "EEE d MMM")}
                   </span>
                 </div>
               ))}
