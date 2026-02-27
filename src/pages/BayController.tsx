@@ -1888,6 +1888,30 @@ export default function BayController() {
       }
     });
     
+    // COLD-START CATCH-UP: If the app just started (or was reinstalled) during an active
+    // booking window, the pre-start time is already past so no timeout will be scheduled.
+    // Detect this and immediately turn plugs on.
+    const coldStartCatchUpKey = '__coldstart_catchup';
+    if (!scheduledTimeoutsRef.current.has(coldStartCatchUpKey)) {
+      const activeNow = todaysBookings.find(b => {
+        const st = parseISO(`${b.booking_date}T${b.start_time}`);
+        const et = parseISO(`${b.booking_date}T${b.end_time}`);
+        const preSt = addMinutes(st, -preStartMinutes);
+        return isAfter(now, preSt) && isBefore(now, et);
+      });
+      if (activeNow && !plugsStatus.monitor && !plugsStatus.projector) {
+        console.log(`[PrecisionScheduler] COLD-START CATCH-UP: Active booking ${activeNow.id} detected, turning plugs ON immediately`);
+        bayLogger.sendLog('automation_decision', `[PrecisionScheduler] Cold-start catch-up: plugs ON for active booking`, {
+          bookingId: activeNow.id,
+          immediate: true,
+        });
+        turnOnPlugs(false, false);
+        // Mark so we don't re-trigger on every render
+        const marker = setTimeout(() => {}, 0);
+        scheduledTimeoutsRef.current.set(coldStartCatchUpKey, marker);
+      }
+    }
+
     // Schedule precise timeouts for each booking transition
     for (const booking of todaysBookings) {
       const startTime = parseISO(`${booking.booking_date}T${booking.start_time}`);
@@ -1997,7 +2021,7 @@ export default function BayController() {
     return () => {
       scheduledTimeoutsRef.current.forEach((timeout) => clearTimeout(timeout));
     };
-  }, [bookings, preStartMinutes, manualOverride, isElectron, appLaunchConfig.appCloseSeconds, appLaunchConfig.enabled]);
+  }, [bookings, preStartMinutes, manualOverride, isElectron, appLaunchConfig.appCloseSeconds, appLaunchConfig.enabled, plugsStatus.monitor, plugsStatus.projector]);
 
   const resumeAuto = useCallback(async () => {
     console.log('Resuming auto control...');
