@@ -41,21 +41,49 @@ jobs:
           pyinstaller --onefile --distpath . --workpath build_temp --specpath build_temp --clean --noconfirm tapo_control.py
           Remove-Item -Recurse -Force build_temp -ErrorAction SilentlyContinue
 
-      - name: Set deterministic bay controller version
+      - name: Set sequential bay controller version
         id: set_version
         working-directory: ./electron
         run: |
           node -e "
             const fs = require('fs');
-            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-            const [major, minor] = pkg.version.split('.').map(Number);
-            const runNumber = Number(process.env.GITHUB_RUN_NUMBER || 0);
-            const runAttempt = Number(process.env.GITHUB_RUN_ATTEMPT || 1);
-            const patch = runNumber * 100 + (runAttempt - 1);
-            pkg.version = [major, minor, patch].join('.');
-            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
-            fs.appendFileSync(process.env.GITHUB_OUTPUT, 'new_version=' + pkg.version + '\n');
-            console.log('Set version to ' + pkg.version + ' (run #' + runNumber + ', attempt #' + runAttempt + ')');
+
+            (async () => {
+              const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+              const [major, minor, localPatch] = pkg.version.split('.').map((n) => Number(n) || 0);
+
+              let latestPatch = localPatch;
+              try {
+                const response = await fetch('https://github.com/BirdiesBayside/birdie-bay-booker/releases/latest/download/latest.yml', {
+                  headers: { 'Cache-Control': 'no-cache' }
+                });
+
+                if (response.ok) {
+                  const latestYml = await response.text();
+                  const match = latestYml.match(/version:\s*(\d+)\.(\d+)\.(\d+)/);
+                  if (match) {
+                    const latestMajor = Number(match[1]);
+                    const latestMinor = Number(match[2]);
+                    const latestPatchFromRelease = Number(match[3]);
+                    if (latestMajor === major && latestMinor === minor) {
+                      latestPatch = latestPatchFromRelease;
+                    }
+                  }
+                }
+              } catch (err) {
+                console.log('Could not read latest release version, falling back to local package version');
+              }
+
+              const nextPatch = Math.max(localPatch, latestPatch) + 1;
+              pkg.version = [major, minor, nextPatch].join('.');
+
+              fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+              fs.appendFileSync(process.env.GITHUB_OUTPUT, 'new_version=' + pkg.version + '\n');
+              console.log('Set version to ' + pkg.version + ' (latest release patch: ' + latestPatch + ')');
+            })().catch((error) => {
+              console.error('Version step failed:', error);
+              process.exit(1);
+            });
           "
 
       - name: Install web app dependencies
