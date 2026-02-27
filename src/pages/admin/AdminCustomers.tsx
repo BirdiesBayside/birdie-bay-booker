@@ -69,6 +69,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { GiftCardsSection } from "@/components/admin/GiftCardsSection";
 import { CreditTransactionHistory } from "@/components/admin/CreditTransactionHistory";
+import { MembersSection } from "@/components/admin/MembersSection";
 import { format } from "date-fns";
 
 interface Customer {
@@ -963,6 +964,10 @@ export default function AdminCustomers() {
               <Users className="h-4 w-4" />
               Customers
             </TabsTrigger>
+            <TabsTrigger value="members" className="gap-2">
+              <Shield className="h-4 w-4" />
+              Members
+            </TabsTrigger>
             <TabsTrigger value="gift-cards" className="gap-2">
               <Gift className="h-4 w-4" />
               Gift Cards
@@ -1711,6 +1716,10 @@ export default function AdminCustomers() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+          </TabsContent>
+
+          <TabsContent value="members" className="mt-4">
+            <MembersSection />
           </TabsContent>
 
           <TabsContent value="gift-cards" className="mt-4">
