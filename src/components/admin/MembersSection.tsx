@@ -28,6 +28,9 @@ import {
   TrendingUp,
   TrendingDown,
   AlertCircle,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
 } from "lucide-react";
 import { format, subDays, parseISO } from "date-fns";
 
@@ -54,6 +57,8 @@ interface MembershipChange {
 }
 
 type StatusFilter = "all" | "active" | "on_hold" | "payment_failed";
+type SortField = "name" | "email" | "tier" | "status" | "created_at";
+type SortDirection = "asc" | "desc";
 
 const MEMBER_TIERS = ["weekday", "par", "birdie", "eagle", "albatross"];
 
@@ -80,6 +85,8 @@ export function MembersSection() {
   const [searchQuery, setSearchQuery] = useState("");
   const [tierFilter, setTierFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [sortField, setSortField] = useState<SortField>("created_at");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
   // Weekly changes from the audit table
   const [weeklyJoins, setWeeklyJoins] = useState<(MembershipChange & { first_name?: string; last_name?: string })[]>([]);
@@ -164,9 +171,21 @@ export function MembersSection() {
     [members]
   );
 
-  // Filtered list
+  const toggleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      setSortDirection(field === "created_at" ? "desc" : "asc");
+    }
+  };
+
+  const getMemberStatus = (m: MemberProfile) =>
+    m.payment_failed_at ? "payment_failed" : m.membership_on_hold ? "on_hold" : "active";
+
+  // Filtered & sorted list
   const filteredMembers = useMemo(() => {
-    return members.filter((m) => {
+    const filtered = members.filter((m) => {
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
         const fullName = `${m.first_name} ${m.last_name}`.toLowerCase();
@@ -182,10 +201,31 @@ export function MembersSection() {
         return false;
       if (statusFilter === "on_hold" && !m.membership_on_hold) return false;
       if (statusFilter === "payment_failed" && !m.payment_failed_at) return false;
-
       return true;
     });
-  }, [members, searchQuery, tierFilter, statusFilter]);
+
+    return filtered.sort((a, b) => {
+      let cmp = 0;
+      switch (sortField) {
+        case "name":
+          cmp = `${a.last_name} ${a.first_name}`.localeCompare(`${b.last_name} ${b.first_name}`);
+          break;
+        case "email":
+          cmp = (a.email || "").localeCompare(b.email || "");
+          break;
+        case "tier":
+          cmp = MEMBER_TIERS.indexOf(a.membership_tier) - MEMBER_TIERS.indexOf(b.membership_tier);
+          break;
+        case "status":
+          cmp = getMemberStatus(a).localeCompare(getMemberStatus(b));
+          break;
+        case "created_at":
+          cmp = a.created_at.localeCompare(b.created_at);
+          break;
+      }
+      return sortDirection === "desc" ? -cmp : cmp;
+    });
+  }, [members, searchQuery, tierFilter, statusFilter, sortField, sortDirection]);
 
   if (isLoading) {
     return (
@@ -331,11 +371,22 @@ export function MembersSection() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Tier</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Member Since</TableHead>
+              {([["name", "Name"], ["email", "Email"], ["tier", "Tier"], ["status", "Status"], ["created_at", "Member Since"]] as [SortField, string][]).map(([field, label]) => (
+                <TableHead
+                  key={field}
+                  className="cursor-pointer select-none hover:text-foreground transition-colors"
+                  onClick={() => toggleSort(field)}
+                >
+                  <span className="inline-flex items-center gap-1">
+                    {label}
+                    {sortField === field ? (
+                      sortDirection === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                    ) : (
+                      <ArrowUpDown className="h-3 w-3 opacity-30" />
+                    )}
+                  </span>
+                </TableHead>
+              ))}
             </TableRow>
           </TableHeader>
           <TableBody>
