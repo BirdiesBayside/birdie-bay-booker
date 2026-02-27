@@ -41,6 +41,60 @@ let currentAppLaunchConfig = null; // Store app launch config for global F10 hot
 
 const isDev = process.env.NODE_ENV === 'development';
 
+// Crash resilience / diagnostics
+let lastRendererRecoveryAt = 0;
+
+function safeSerialize(value) {
+  try {
+    if (typeof value === 'string') return value;
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+function logProcessIssue(scope, payload) {
+  try {
+    const timestamp = new Date().toISOString();
+    const logLine = `[${timestamp}] [${scope}] ${safeSerialize(payload)}\n`;
+    const logPath = path.join(app.getPath('userData'), 'controller-crash.log');
+    fs.appendFileSync(logPath, logLine, 'utf8');
+  } catch (err) {
+    console.error('[CrashLog] Failed to write crash log:', err?.message || err);
+  }
+}
+
+function recoverMainWindow(reason) {
+  const now = Date.now();
+  if (now - lastRendererRecoveryAt < 10000) {
+    console.warn('[Resilience] Recovery suppressed (cooldown):', reason);
+    return;
+  }
+
+  lastRendererRecoveryAt = now;
+  console.warn('[Resilience] Attempting window recovery:', reason);
+  logProcessIssue('window_recovery', { reason });
+
+  try {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.reload();
+      mainWindow.show();
+      mainWindow.focus();
+      return;
+    }
+  } catch (err) {
+    console.error('[Resilience] Reload failed, recreating window:', err?.message || err);
+    logProcessIssue('window_recovery_reload_failed', err?.stack || err?.message || String(err));
+  }
+
+  try {
+    createWindow();
+  } catch (err) {
+    console.error('[Resilience] Window recreation failed:', err?.message || err);
+    logProcessIssue('window_recovery_recreate_failed', err?.stack || err?.message || String(err));
+  }
+}
+
 // TAPO credentials - these should be set via environment or config
 const TAPO_EMAIL = process.env.TAPO_EMAIL || '';
 const TAPO_PASSWORD = process.env.TAPO_PASSWORD || '';
@@ -79,8 +133,30 @@ function createWindow() {
 
   // Open DevTools in development or if loading fails
   mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+    const msg = `did-fail-load code=${errorCode} desc=${errorDescription}`;
     console.error('Failed to load:', errorCode, errorDescription);
+    logProcessIssue('did_fail_load', msg);
     mainWindow.webContents.openDevTools();
+  });
+
+  // Recover if renderer process crashes/exits unexpectedly
+  mainWindow.webContents.on('render-process-gone', (event, details) => {
+    console.error('[Resilience] Renderer process gone:', details);
+    logProcessIssue('render_process_gone', details);
+
+    if (!app.isQuitting) {
+      setTimeout(() => recoverMainWindow(`render-process-gone:${details?.reason || 'unknown'}`), 1500);
+    }
+  });
+
+  // Recover if renderer becomes unresponsive
+  mainWindow.on('unresponsive', () => {
+    console.error('[Resilience] Main window became unresponsive');
+    logProcessIssue('window_unresponsive', 'Main window unresponsive');
+
+    if (!app.isQuitting) {
+      setTimeout(() => recoverMainWindow('window-unresponsive'), 1500);
+    }
   });
 
   mainWindow.once('ready-to-show', () => {
@@ -281,6 +357,22 @@ app.whenReady().then(() => {
       }
     }
   });
+});
+
+// Global crash diagnostics for main process
+process.on('uncaughtException', (error) => {
+  console.error('[MainProcess] uncaughtException:', error);
+  logProcessIssue('uncaught_exception', error?.stack || error?.message || String(error));
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[MainProcess] unhandledRejection:', reason);
+  logProcessIssue('unhandled_rejection', safeSerialize(reason));
+});
+
+app.on('child-process-gone', (event, details) => {
+  console.warn('[MainProcess] child-process-gone:', details);
+  logProcessIssue('child_process_gone', details);
 });
 
 // Unregister shortcuts on quit
