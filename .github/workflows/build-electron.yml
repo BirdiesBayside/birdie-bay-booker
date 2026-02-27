@@ -41,17 +41,21 @@ jobs:
           pyinstaller --onefile --distpath . --workpath build_temp --specpath build_temp --clean --noconfirm tapo_control.py
           Remove-Item -Recurse -Force build_temp -ErrorAction SilentlyContinue
 
-      - name: Auto-bump bay controller version
+      - name: Set deterministic bay controller version
+        id: set_version
         working-directory: ./electron
         run: |
           node -e "
             const fs = require('fs');
             const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-            const parts = pkg.version.split('.').map(Number);
-            parts[2]++;
-            pkg.version = parts.join('.');
+            const [major, minor] = pkg.version.split('.').map(Number);
+            const runNumber = Number(process.env.GITHUB_RUN_NUMBER || 0);
+            const runAttempt = Number(process.env.GITHUB_RUN_ATTEMPT || 1);
+            const patch = runNumber * 100 + (runAttempt - 1);
+            pkg.version = [major, minor, patch].join('.');
             fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
-            console.log('Bumped version to ' + pkg.version);
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, 'new_version=' + pkg.version + '\n');
+            console.log('Set version to ' + pkg.version + ' (run #' + runNumber + ', attempt #' + runAttempt + ')');
           "
 
       - name: Install web app dependencies
@@ -107,8 +111,8 @@ jobs:
         if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: v${{ github.run_number }}
-          name: Bay Controller Build ${{ github.run_number }}
+          tag_name: v${{ steps.set_version.outputs.new_version }}
+          name: Bay Controller Build ${{ steps.set_version.outputs.new_version }}
           files: |
             ${{ steps.resolve_updater_asset.outputs.asset_path }}
             electron/dist-electron/latest.yml
