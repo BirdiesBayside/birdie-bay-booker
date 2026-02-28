@@ -2831,8 +2831,12 @@ export default function BayController() {
       }
 
       // Check for back-to-back - extend the launch window through the chain
+      // CRITICAL: Only extend if we're already past the CURRENT booking's launch time.
+      // Without this check, a B2B pair later in the day (e.g., 15:00→19:00) would set
+      // shouldLaunchApps=true for the ENTIRE day up to 18:59:40, causing phantom launches
+      // after earlier bookings end (Bay 6 bug: apps relaunched at 13:00 after 11-13 booking ended).
       const nextBooking = todaysBookings.find(b => b.id !== booking.id && b.start_time === booking.end_time);
-      if (nextBooking) {
+      if (nextBooking && isAfter(now, appLaunchTime)) {
         const nextEndTime = parseISO(`${nextBooking.booking_date}T${nextBooking.end_time}`);
         const nextAppCloseTime = new Date(nextEndTime.getTime() - (appLaunchConfig.appCloseSeconds * 1000));
         
