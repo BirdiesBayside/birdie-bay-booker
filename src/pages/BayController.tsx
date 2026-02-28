@@ -2321,14 +2321,13 @@ export default function BayController() {
       setManualOverride(true);
     }
     
-    // NOTE: App closure is now handled by the Precision Scheduler's dual-timer approach.
-    // Timer 1 (T-appCloseSeconds) closes apps while screens are still on.
-    // Timer 2 (T+0) calls this function to cut power.
-    // The safety check below acts as a last-resort guard in case Timer 1 failed.
+    // HARD SAFETY GATE: Plugs CANNOT turn off if apps are running (non-manual).
+    // This is an absolute rule. No "proceed anyway", no "max retries exceeded".
+    // B2B bookings never call turnOffPlugs - they use the changeover sequence instead.
     
     if (isElectron && window.electronAPI && selectedBay) {
-      // SAFETY GATE: Check if apps are STILL running right before plugs turn off.
-      // Wrapped in top-level try/catch to prevent unhandled exceptions from crashing Electron.
+      // Check if apps are STILL running right before plugs turn off.
+      // If they are, kill them first. If kill fails, BLOCK plug-off entirely.
       try {
         let gsproStillRunning = false;
         let proteeStillRunning = false;
@@ -2339,7 +2338,7 @@ export default function BayController() {
         
         const appsAlive = gsproStillRunning || proteeStillRunning;
         bayLogger.sendLog('automation_decision', 
-          `PRE-PLUG-OFF PROCESS CHECK: GSPro=${gsproStillRunning ? 'RUNNING' : 'dead'}, Protee=${proteeStillRunning ? 'RUNNING' : 'dead'}, appsRunningState=${appsRunning}`,
+          `PRE-PLUG-OFF PROCESS CHECK (v1.0.21): GSPro=${gsproStillRunning ? 'RUNNING' : 'dead'}, Protee=${proteeStillRunning ? 'RUNNING' : 'dead'}, appsRunningState=${appsRunning}`,
           {
             level: appsAlive ? 'error' : 'info',
             details: { gsproStillRunning, proteeStillRunning, appsRunningState: appsRunning, isManual, retryCount },
@@ -2349,13 +2348,13 @@ export default function BayController() {
         );
         
         if (appsAlive && !isManual) {
-          console.error(`[turnOffPlugs] Apps still running at plug-off! Force-killing.`);
-          addLog(`⚠️ APPS STILL RUNNING AT PLUG-OFF - force-killing`, 'error');
+          console.error(`[turnOffPlugs] HARD GATE: Apps still running at plug-off! Force-killing first.`);
+          addLog(`⚠️ HARD GATE: Apps running - killing before plug-off (attempt ${retryCount + 1})`, 'error');
           try {
             await window.electronAPI.closeApps(["GSPro.exe", "ProteeLabs.exe"]);
             await new Promise(resolve => setTimeout(resolve, 2000));
           } catch (killErr) {
-            console.error('[turnOffPlugs] Emergency force-kill failed:', killErr);
+            console.error('[turnOffPlugs] Force-kill failed:', killErr);
           }
           
           // Re-verify apps are dead
@@ -2364,30 +2363,39 @@ export default function BayController() {
             const proteeFinal = await window.electronAPI.findWindow("ProTee");
             const stillAlive = !!gsproFinal?.hwnd || !!proteeFinal?.hwnd;
             
-            if (stillAlive && retryCount < 3) {
-              addLog(`Plug-off BLOCKED: apps still running, retry ${retryCount + 1}/3 in 5s`, 'error');
-              setTimeout(() => turnOffPlugs(isManual, showToast, retryCount + 1), 5000);
-              return;
-            } else if (stillAlive) {
-              addLog('Plug-off BLOCKED: max retries reached, proceeding anyway', 'error');
-              bayLogger.sendLog('automation_decision', 'PLUG-OFF FORCED: max retries reached, apps may still be alive', {
+            if (stillAlive) {
+              // ABSOLUTE BLOCK: Do NOT turn off plugs. Retry in 5s, no limit.
+              // Plugs stay on until apps are confirmed dead.
+              addLog(`🛑 PLUG-OFF BLOCKED: apps still running after kill attempt ${retryCount + 1}, retrying in 5s`, 'error');
+              bayLogger.sendLog('automation_decision', `PLUG-OFF BLOCKED (attempt ${retryCount + 1}): apps still alive, retrying in 5s`, {
                 level: 'error', bookingId: activeBooking?.id, immediate: true,
               });
-              // Fall through to proceed with plug-off
+              setTimeout(() => turnOffPlugs(isManual, showToast, retryCount + 1), 5000);
+              return; // HARD RETURN - plugs stay on
             }
           } catch (recheckErr) {
-            console.error('[turnOffPlugs] Final safety recheck failed:', recheckErr);
-            // Can't verify → proceed with plug-off rather than blocking forever
-            addLog('Safety recheck failed, proceeding with plug-off', 'error');
+            // Can't verify if apps are dead → BLOCK plug-off (assume they're still running)
+            console.error('[turnOffPlugs] Safety recheck failed - BLOCKING plug-off:', recheckErr);
+            addLog('🛑 PLUG-OFF BLOCKED: cannot verify app state, retrying in 5s', 'error');
+            bayLogger.sendLog('automation_decision', `PLUG-OFF BLOCKED: safety recheck failed, assuming apps alive (attempt ${retryCount + 1})`, {
+              level: 'error', bookingId: activeBooking?.id, immediate: true,
+            });
+            setTimeout(() => turnOffPlugs(isManual, showToast, retryCount + 1), 5000);
+            return; // HARD RETURN - plugs stay on
           }
+          
+          // If we reach here, apps are confirmed dead after force-kill
+          addLog('✅ Apps confirmed dead after force-kill, proceeding with plug-off', 'success');
         } else if (appsAlive && isManual) {
-          addLog('Manual plug-off: apps still running, proceeding anyway', 'error');
+          addLog('Manual plug-off: apps still running, proceeding (manual override)', 'error');
         }
       } catch (safetyErr) {
-        // TOP-LEVEL CATCH: Prevents safety gate from crashing the entire Electron app
-        console.error('[turnOffPlugs] Safety gate exception (proceeding with plug-off):', safetyErr);
-        bayLogger.logError('Safety gate exception - proceeding with plug-off', safetyErr, activeBooking?.id);
-        addLog('Safety gate error - proceeding with plug-off', 'error');
+        // Safety gate itself crashed → BLOCK plug-off (don't assume it's safe)
+        console.error('[turnOffPlugs] Safety gate exception - BLOCKING plug-off:', safetyErr);
+        bayLogger.logError('Safety gate exception - BLOCKING plug-off', safetyErr, activeBooking?.id);
+        addLog('🛑 PLUG-OFF BLOCKED: safety gate error, retrying in 5s', 'error');
+        setTimeout(() => turnOffPlugs(isManual, showToast, retryCount + 1), 5000);
+        return; // HARD RETURN - plugs stay on
       }
       
       const bayPlugs = getAssignedPlugsForBay(selectedBay);
