@@ -2028,15 +2028,26 @@ export default function BayController() {
     console.log('Current bookings count:', bookings.length);
     console.log('Active booking:', activeBooking ? `${activeBooking.customer_name} (${activeBooking.start_time}-${activeBooking.end_time})` : 'none');
     
+    // CRITICAL: Check plug state BEFORE flipping manualOverride to false.
+    // If plugs should be off, set the intentional-close cooldown first so
+    // the auto-launch effect doesn't race and launch apps in the brief window
+    // between manualOverride=false and plugs actually turning off.
+    const { shouldBeOn, currentBooking } = calculateShouldPlugsBeOn();
+    console.log('Current booking state - should plugs be on:', shouldBeOn);
+    console.log('Found current booking:', currentBooking ? `${currentBooking.customer_name} (${currentBooking.start_time}-${currentBooking.end_time})` : 'none');
+    
+    if (!shouldBeOn) {
+      // Pre-set the cooldown to block the auto-launch effect from firing
+      // during the manual→auto transition when no booking is active
+      lastIntentionalAppCloseAtRef.current = Date.now();
+      console.log('Auto mode: pre-setting intentional close cooldown to block phantom launches');
+    }
+    
     setManualOverride(false);
     bayLogger.logManualOverride(false);
     
     // Sync mode to database
     await updateControlMode(false);
-    
-    const { shouldBeOn, currentBooking } = calculateShouldPlugsBeOn();
-    console.log('Current booking state - should plugs be on:', shouldBeOn);
-    console.log('Found current booking:', currentBooking ? `${currentBooking.customer_name} (${currentBooking.start_time}-${currentBooking.end_time})` : 'none');
     
     if (shouldBeOn) {
       console.log('Auto mode: turning ON plugs');
