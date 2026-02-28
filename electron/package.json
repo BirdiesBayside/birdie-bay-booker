@@ -1,6 +1,6 @@
 {
   "name": "birdies-bay-controller",
-  "version": "1.0.20",
+  "version": "1.0.21",
   "description": "Bay Controller for Birdies Golf Simulators",
   "main": "main.js",
   "author": "Birdies",
