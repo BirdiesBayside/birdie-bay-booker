@@ -2847,8 +2847,10 @@ export default function BayController() {
     const inIntentionalCloseCooldown = msSinceIntentionalClose !== null && msSinceIntentionalClose < 5000;
 
     if (shouldLaunchApps && !appsRunning && !isLaunchingApps) {
-      // Avoid racing the intentional relaunch that happens a few seconds after a changeover close.
-      if (changeoverInProgress && inIntentionalCloseCooldown) {
+      // Block relaunch if apps were intentionally closed within the last 5 seconds.
+      // This prevents the race where T-20s scheduled close flips appsRunning to false,
+      // triggering this effect to relaunch apps right before plug-off kills them.
+      if (inIntentionalCloseCooldown) {
         return;
       }
       // Skip if in failed-launch cooldown period (prevents rapid-fire retries after display detection failure)
