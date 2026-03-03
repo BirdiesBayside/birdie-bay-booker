@@ -114,11 +114,27 @@
 
      console.log(`[SGT-DAILY-REG] Looking for tournaments starting today (${todayStr}) or tomorrow (${tomorrowStr})`);
 
-     // Find tournaments starting today OR tomorrow that haven't been registered yet
-     const { data: tournamentsData, error: tError } = await supabaseClient
-       .from("sgt_tournaments")
-       .select("tournament_id, tour_id, name, start_date")
-       .in("start_date", [todayStr, tomorrowStr]);
+      // Find tournaments starting today/tomorrow OR currently active (start_date <= today AND end_date >= today)
+      const { data: startingData } = await supabaseClient
+        .from("sgt_tournaments")
+        .select("tournament_id, tour_id, name, start_date")
+        .in("start_date", [todayStr, tomorrowStr]);
+
+      const { data: activeData } = await supabaseClient
+        .from("sgt_tournaments")
+        .select("tournament_id, tour_id, name, start_date")
+        .lte("start_date", todayStr)
+        .gte("end_date", todayStr);
+
+      // Merge and deduplicate by tournament_id
+      const allTournaments = [...(startingData || []), ...(activeData || [])];
+      const seen = new Set<number>();
+      const tournamentsData = allTournaments.filter(t => {
+        if (seen.has(t.tournament_id)) return false;
+        seen.add(t.tournament_id);
+        return true;
+      });
+      const tError = null;
 
     if (tError) throw tError;
     const tournaments = (tournamentsData || []) as Tournament[];
