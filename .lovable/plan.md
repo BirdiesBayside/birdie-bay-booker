@@ -1,66 +1,60 @@
 
 
-# Fix: Bay Controller Update Download Stuck / Silent Failures
+## Root Cause
 
-## The Problem
+There are **two separate auto-registration functions** with different logic, and the wrong one is on the cron.
 
-When a user clicks "Check for updates" and an update is found, a toast says "downloading..." but then nothing happens. The download either:
-- Fails silently (the error handler in the Electron main process only logs to console, never tells the UI)
-- Succeeds but the "update downloaded" event doesn't reach the UI
-- Takes a long time with no progress feedback
+### The cron job (`sgt-daily-tournament-register`, runs at 6AM Brisbane daily)
+- Queries the **local `sgt_tournaments` table** for tournaments with `start_date` matching **today or tomorrow only**
+- The "Arnold Palmer Invitational" has `start_date = 2026-02-28`, which is 4 days ago
+- The cron would have only tried to register on Feb 27 or Feb 28 — if it failed or the tournament wasn't synced to the local DB yet, registrations were permanently missed
+- **There is no retry for tournaments whose start_date has passed but members are still unregistered**
 
-## The Fix (2 files)
+### The better function (`sgt-tournament-auto-register`, NO cron job)
+- Queries the **live SGT API** for active tours and tournaments
+- Looks for tournaments that are "In Progress", "Active", "Upcoming within 48h", or currently running based on date range
+- Checks eligibility (membership + exempt status)
+- Much more robust — would catch this tournament since it's still "Upcoming"
+- **But it has no cron job, so it never runs automatically**
 
-### 1. Forward update errors to the renderer (`electron/main.js`)
+### Additional issue
+The `sgt-daily-tournament-register` cron has **no Authorization header**, which could cause silent failures depending on function configuration.
 
-Currently the `autoUpdater.on('error')` handler only does `console.error`. We need to also send the error to the renderer window so the UI can show it.
+---
 
-Also forward `update-available` so the UI knows downloading has started.
+## Plan
 
-### 2. Handle errors and show progress in the UI (`src/pages/BayController.tsx`)
+### 1. Replace the cron job to use `sgt-tournament-auto-register`
+Update the `sgt-daily-tournament-register` cron (job 12) to call `sgt-tournament-auto-register` instead, which queries the live SGT API and catches any active/in-progress tournament — not just ones starting today/tomorrow.
 
-- Add an `updateError` state so failed downloads show an error toast
-- Listen for `onUpdateAvailable` to confirm download is in progress
-- Show a persistent "Downloading update..." indicator (not just a fleeting toast)
+### 2. Fix the cron Authorization header
+The current cron for job 12 sends no Authorization header. Add the anon key to match other cron jobs.
 
-## Technical Details
+### 3. Update `sgt-daily-tournament-register` as a fallback
+Modify the function to also check for tournaments where `start_date <= today AND end_date >= today` (currently active) in addition to starting today/tomorrow, so it never misses an active tournament window again.
 
-### `electron/main.js` -- forward error and available events
+### Database changes (SQL)
+```sql
+-- Remove old cron
+SELECT cron.unschedule('sgt-daily-tournament-register');
 
-```javascript
-autoUpdater.on('error', (err) => {
-  console.error('[AutoUpdater] Error:', err.message);
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('update-error', err.message);
-  }
-});
+-- Add new cron pointing to the robust function, runs 6AM Brisbane (20:00 UTC)
+SELECT cron.schedule(
+  'sgt-tournament-auto-register-daily',
+  '0 20 * * *',
+  $$
+  SELECT net.http_post(
+    url := 'https://hltrcuypuxhetcjyvedl.supabase.co/functions/v1/sgt-tournament-auto-register',
+    headers := '{"Content-Type": "application/json", "Authorization": "Bearer <anon_key>"}'::jsonb,
+    body := '{}'::jsonb
+  ) AS request_id;
+  $$
+);
 ```
 
-### `electron/preload.js` -- expose error listener
+### Edge function change
+Update `sgt-daily-tournament-register` to also query tournaments where `start_date <= today AND end_date >= today` — so if it's ever called directly, it catches active tournaments too.
 
-```javascript
-onUpdateError: (callback) => {
-  ipcRenderer.on('update-error', (event, error) => callback(error));
-  return () => ipcRenderer.removeAllListeners('update-error');
-},
-```
-
-### `src/types/electron.d.ts` -- add type
-
-```typescript
-onUpdateError: (callback: (error: string) => void) => () => void;
-```
-
-### `src/pages/BayController.tsx` -- listen for errors and show feedback
-
-- Add listener for `onUpdateError` that shows `toast.error("Update failed: ...")`
-- Change the "Check for updates" button handler to show the error if download fails
-- This way users see either "Update downloaded - Install and Restart" or "Update failed: [reason]"
-
-## Files Changed
-
-1. `electron/main.js` -- send `update-error` event to renderer
-2. `electron/preload.js` -- expose `onUpdateError` listener
-3. `src/types/electron.d.ts` -- add type for new listener
-4. `src/pages/BayController.tsx` -- listen for error events and display feedback
+### Immediate action
+After deploying, manually trigger `sgt-tournament-auto-register` to register all members for the current "Arnold Palmer Invitational" tournament right now.
 
