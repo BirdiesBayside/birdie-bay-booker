@@ -54,9 +54,11 @@ serve(async (req) => {
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
 
-    // Generate idempotency key to prevent duplicate subscriptions
-    const dateKey = new Date().toISOString().split("T")[0];
-    const idempotencyKey = `membership_v3_${user.id}_${tierKey}_${priceId}_${dateKey}`;
+    // Generate unique idempotency key per attempt (crypto random suffix)
+    // Using a random suffix instead of date-only to avoid conflicts when
+    // a user retries after updating their payment method on the same day
+    const randomSuffix = crypto.randomUUID().slice(0, 8);
+    const idempotencyKey = `membership_v4_${user.id}_${tierKey}_${priceId}_${randomSuffix}`;
     logStep("Using idempotency key", { idempotencyKey });
 
     // Check if customer already exists
