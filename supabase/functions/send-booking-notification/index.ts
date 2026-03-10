@@ -573,15 +573,6 @@ serve(async (req) => {
         logStep("Gate SMS send result", gateSmsResult);
       }
 
-      // TEMPORARY: No staff SMS for bookings on 10th March 2026, 4pm onwards (Brisbane time)
-      if (smsResult.success && booking.booking_date === "2026-03-10") {
-        const bookingHour = parseInt(booking.start_time.split(":")[0], 10);
-        if (bookingHour >= 16) {
-          const noStaffMsg = `NO STAFF AVAILABLE 10th MARCH - Due to staff unavailability, there will be no alcohol service Tuesday 10th March. Apologies for the inconvenience`;
-          const noStaffResult = await sendSMS(profile.phone, noStaffMsg);
-          logStep("No-staff SMS send result (10 Mar)", noStaffResult);
-        }
-      }
     } else if (notification_type === "cancellation") {
       logStep("Cancellation - skipping SMS (email only)");
     } else {
