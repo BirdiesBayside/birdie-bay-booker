@@ -69,6 +69,7 @@ interface AggregatedPlayer {
   player_id: number;
   player_name: string;
   total_net_sum: number;
+  to_par_net_sum: number;
   rounds_completed: number;
   isDNF: boolean;
 }
