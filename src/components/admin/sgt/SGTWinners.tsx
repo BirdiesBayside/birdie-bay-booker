@@ -228,6 +228,7 @@ export function SGTWinners() {
             player_id: card.player_id,
             player_name: card.player_name,
             total_net_sum: 0,
+            to_par_net_sum: 0,
             rounds_completed: 0,
             isDNF: false,
           });
@@ -236,6 +237,7 @@ export function SGTWinners() {
         const entry = playerMap.get(card.player_id)!;
         if (isComplete18) {
           entry.total_net_sum += card.total_net;
+          entry.to_par_net_sum += (card.to_par_net ?? 0);
           entry.rounds_completed += 1;
         }
       }
@@ -246,11 +248,11 @@ export function SGTWinners() {
         isDNF: p.rounds_completed < 2,
       }));
       
-      // Sort: non-DNF first by total_net_sum ascending, then DNF players
+      // Sort: non-DNF first by to_par_net_sum ascending (lowest to-par wins), then DNF players
       aggregated.sort((a, b) => {
         if (a.isDNF && !b.isDNF) return 1;
         if (!a.isDNF && b.isDNF) return -1;
-        return a.total_net_sum - b.total_net_sum;
+        return a.to_par_net_sum - b.to_par_net_sum;
       });
       
       return aggregated;
