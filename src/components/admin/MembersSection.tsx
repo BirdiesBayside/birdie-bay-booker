@@ -123,7 +123,8 @@ export function MembersSection() {
       .order("changed_at", { ascending: false });
 
     if (!changes || changes.length === 0) {
-      setWeeklyJoins([]);
+      setWeeklyNetNew([]);
+      setWeeklyReturning([]);
       setWeeklyDropoffs([]);
       return;
     }
@@ -158,7 +159,32 @@ export function MembersSection() {
       (c) => MEMBER_TIERS.includes(c.previous_tier) && c.new_tier === "visitor"
     );
 
-    setWeeklyJoins(joins);
+    // Determine net-new vs returning: check if any PRIOR member->visitor record exists (before this week)
+    const joinUserIds = [...new Set(joins.map((j) => j.user_id))];
+    let previousMemberIds = new Set<string>();
+    if (joinUserIds.length > 0) {
+      const { data: priorChanges } = await supabase
+        .from("membership_changes")
+        .select("user_id")
+        .in("user_id", joinUserIds)
+        .in("previous_tier", MEMBER_TIERS)
+        .eq("new_tier", "visitor")
+        .lt("changed_at", weekAgo);
+      if (priorChanges) {
+        previousMemberIds = new Set(priorChanges.map((c) => c.user_id));
+      }
+      // Also check for same-week churn+rejoin (dropoff in same week = returning)
+      const sameWeekChurnIds = new Set(dropoffs.map((d) => d.user_id));
+      for (const id of sameWeekChurnIds) {
+        previousMemberIds.add(id);
+      }
+    }
+
+    const netNew = joins.filter((j) => !previousMemberIds.has(j.user_id));
+    const returning = joins.filter((j) => previousMemberIds.has(j.user_id));
+
+    setWeeklyNetNew(netNew);
+    setWeeklyReturning(returning);
     setWeeklyDropoffs(dropoffs);
   };
 
