@@ -183,9 +183,13 @@ export function MembersSection() {
     const netNew = joins.filter((j) => !previousMemberIds.has(j.user_id));
     const returning = joins.filter((j) => previousMemberIds.has(j.user_id));
 
+    // Exclude from "lost" anyone who re-joined this week
+    const rejoinedUserIds = new Set(joins.map((j) => j.user_id));
+    const actualDropoffs = dropoffs.filter((d) => !rejoinedUserIds.has(d.user_id));
+
     setWeeklyNetNew(netNew);
     setWeeklyReturning(returning);
-    setWeeklyDropoffs(dropoffs);
+    setWeeklyDropoffs(actualDropoffs);
   };
 
   const onHoldMembers = useMemo(
