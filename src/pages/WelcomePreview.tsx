@@ -86,8 +86,48 @@ const WelcomePreview = () => {
         >
           This window will close when you're ready to tee off!
         </p>
-        
-        <div className="mt-16 flex gap-4 justify-center">
+
+        {/* Etiquette Section */}
+        <div 
+          className="mt-12 mx-auto text-left px-10 py-8 rounded-2xl"
+          style={{ 
+            backgroundColor: 'rgba(31, 76, 37, 0.08)',
+            border: '2px solid rgba(31, 76, 37, 0.15)',
+            maxWidth: '720px'
+          }}
+        >
+          <h3 
+            className="text-[36px] mb-5 uppercase text-center"
+            style={{ 
+              fontFamily: 'Anton, sans-serif', 
+              color: '#1f4c25',
+              fontWeight: 400,
+              letterSpacing: '2px'
+            }}
+          >
+            Birdies Etiquette
+          </h3>
+          <ol className="space-y-3" style={{ fontFamily: 'Inter, sans-serif', color: '#1f4c25' }}>
+            {[
+              "Use a different ball after every shot, this prevents a ball cracking on you!",
+              "If you keep skying your drives, tee it down lower",
+              "Keep the bay tidy for the next golfer",
+              "Indoor Swing Syndrome is real (Google it!)"
+            ].map((rule, i) => (
+              <li key={i} className="flex gap-3 items-start text-[22px]" style={{ opacity: 0.85 }}>
+                <span 
+                  className="flex-shrink-0 w-[32px] h-[32px] rounded-full flex items-center justify-center text-[16px] font-semibold mt-[2px]"
+                  style={{ backgroundColor: '#ec622d', color: '#fff' }}
+                >
+                  {i + 1}
+                </span>
+                <span>{rule}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+
+        <div className="mt-10 flex gap-4 justify-center">
           <span 
             className="loading-dot w-[18px] h-[18px] rounded-full"
             style={{ backgroundColor: '#ec622d' }}
