@@ -223,7 +223,8 @@ serve(async (req: Request): Promise<Response> => {
         logStep(`Processing user ${i + 1}/${finalEligibleUsers.length}`, { email: user.email });
 
         // 1. Update deposit_balance and set promo timestamp
-        const newBalance = (user.deposit_balance || 0) + CREDIT_AMOUNT;
+        const currentBalance = user.deposit_balance || 0;
+        const newBalance = currentBalance + CREDIT_AMOUNT;
         const { error: updateError } = await supabase
           .from("profiles")
           .update({
@@ -234,6 +235,22 @@ serve(async (req: Request): Promise<Response> => {
 
         if (updateError) {
           throw new Error(`Failed to update profile: ${updateError.message}`);
+        }
+
+        // 2. Log deposit transaction for audit trail
+        const { error: txError } = await supabase
+          .from("deposit_transactions")
+          .insert({
+            user_id: user.user_id,
+            amount: CREDIT_AMOUNT,
+            balance_before: currentBalance,
+            balance_after: newBalance,
+            transaction_type: "promo_credit",
+            description: "First Session Free - $35 credit",
+          });
+
+        if (txError) {
+          logStep("Warning: Failed to log deposit transaction", { email: user.email, error: txError.message });
         }
 
         // 2. Send email
