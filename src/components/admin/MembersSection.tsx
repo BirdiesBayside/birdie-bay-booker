@@ -89,7 +89,8 @@ export function MembersSection() {
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
   // Weekly changes from the audit table
-  const [weeklyJoins, setWeeklyJoins] = useState<(MembershipChange & { first_name?: string; last_name?: string })[]>([]);
+  const [weeklyNetNew, setWeeklyNetNew] = useState<(MembershipChange & { first_name?: string; last_name?: string })[]>([]);
+  const [weeklyReturning, setWeeklyReturning] = useState<(MembershipChange & { first_name?: string; last_name?: string })[]>([]);
   const [weeklyDropoffs, setWeeklyDropoffs] = useState<(MembershipChange & { first_name?: string; last_name?: string })[]>([]);
 
   useEffect(() => {
