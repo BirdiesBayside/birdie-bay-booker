@@ -757,8 +757,12 @@ export default function AdminTimetable() {
                             }}
                           >
                             {showBlock && (
-                              <div
-                                className="absolute inset-x-0.5 top-0.5 rounded-sm bg-destructive/80 border border-destructive px-1.5 py-0.5 text-left z-10 overflow-hidden"
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedBlock(block);
+                                }}
+                                className="absolute inset-x-0.5 top-0.5 rounded-sm bg-destructive/80 border border-destructive px-1.5 py-0.5 text-left z-10 overflow-hidden hover:bg-destructive/90 cursor-pointer transition-colors"
                                 style={{
                                   height: `calc(${getBlockSlotSpan(block) * SLOT_HEIGHT}px - 4px)`,
                                 }}
@@ -771,7 +775,7 @@ export default function AdminTimetable() {
                                     {block.reason}
                                   </p>
                                 )}
-                              </div>
+                              </button>
                             )}
                             {showBooking && (
                               <button
