@@ -130,7 +130,7 @@ export function AdminOrderNotifications() {
   
   
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const pendingCount = orders.filter((o) => o.status === "pending").length;
 

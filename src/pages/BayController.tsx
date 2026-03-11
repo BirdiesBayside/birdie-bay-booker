@@ -1868,7 +1868,7 @@ export default function BayController() {
   //   1. App close at T-appCloseSeconds (e.g. T-15s) — kills apps while screens are still on
   //   2. Plug off at T+0 — cuts power after apps are confirmed dead
   // This ensures apps are fully terminated before plugs turn off, preventing orphaned processes.
-  const scheduledTimeoutsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
+  const scheduledTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   
   useEffect(() => {
     if (manualOverride || !isElectron) return;
