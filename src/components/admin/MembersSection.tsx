@@ -89,7 +89,8 @@ export function MembersSection() {
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
   // Weekly changes from the audit table
-  const [weeklyJoins, setWeeklyJoins] = useState<(MembershipChange & { first_name?: string; last_name?: string })[]>([]);
+  const [weeklyNetNew, setWeeklyNetNew] = useState<(MembershipChange & { first_name?: string; last_name?: string })[]>([]);
+  const [weeklyReturning, setWeeklyReturning] = useState<(MembershipChange & { first_name?: string; last_name?: string })[]>([]);
   const [weeklyDropoffs, setWeeklyDropoffs] = useState<(MembershipChange & { first_name?: string; last_name?: string })[]>([]);
 
   useEffect(() => {
@@ -122,7 +123,8 @@ export function MembersSection() {
       .order("changed_at", { ascending: false });
 
     if (!changes || changes.length === 0) {
-      setWeeklyJoins([]);
+      setWeeklyNetNew([]);
+      setWeeklyReturning([]);
       setWeeklyDropoffs([]);
       return;
     }
@@ -157,7 +159,32 @@ export function MembersSection() {
       (c) => MEMBER_TIERS.includes(c.previous_tier) && c.new_tier === "visitor"
     );
 
-    setWeeklyJoins(joins);
+    // Determine net-new vs returning: check if any PRIOR member->visitor record exists (before this week)
+    const joinUserIds = [...new Set(joins.map((j) => j.user_id))];
+    let previousMemberIds = new Set<string>();
+    if (joinUserIds.length > 0) {
+      const { data: priorChanges } = await supabase
+        .from("membership_changes")
+        .select("user_id")
+        .in("user_id", joinUserIds)
+        .in("previous_tier", MEMBER_TIERS)
+        .eq("new_tier", "visitor")
+        .lt("changed_at", weekAgo);
+      if (priorChanges) {
+        previousMemberIds = new Set(priorChanges.map((c) => c.user_id));
+      }
+      // Also check for same-week churn+rejoin (dropoff in same week = returning)
+      const sameWeekChurnIds = new Set(dropoffs.map((d) => d.user_id));
+      for (const id of sameWeekChurnIds) {
+        previousMemberIds.add(id);
+      }
+    }
+
+    const netNew = joins.filter((j) => !previousMemberIds.has(j.user_id));
+    const returning = joins.filter((j) => previousMemberIds.has(j.user_id));
+
+    setWeeklyNetNew(netNew);
+    setWeeklyReturning(returning);
     setWeeklyDropoffs(dropoffs);
   };
 
@@ -253,13 +280,18 @@ export function MembersSection() {
             <p className="mt-2 text-3xl font-bold tracking-tight">{activeMembers.length}</p>
           </CardContent>
         </Card>
-        <Card className={weeklyJoins.length > 0 ? "border-emerald-200 dark:border-emerald-800" : ""}>
+        <Card className={weeklyNetNew.length > 0 ? "border-emerald-200 dark:border-emerald-800" : ""}>
           <CardContent className="p-4">
             <div className="flex items-center gap-2 text-sm font-medium text-emerald-600 dark:text-emerald-400">
               <UserPlus className="h-4 w-4" />
-              New This Week
+              Net New
             </div>
-            <p className="mt-2 text-3xl font-bold tracking-tight">{weeklyJoins.length}</p>
+            <p className="mt-2 text-3xl font-bold tracking-tight">{weeklyNetNew.length}</p>
+            {weeklyReturning.length > 0 && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                +{weeklyReturning.length} returning
+              </p>
+            )}
           </CardContent>
         </Card>
         <Card className={weeklyDropoffs.length > 0 ? "border-destructive/50" : ""}>
@@ -283,16 +315,16 @@ export function MembersSection() {
       </div>
 
       {/* Weekly Activity Feed */}
-      {(weeklyJoins.length > 0 || weeklyDropoffs.length > 0) && (
+      {(weeklyNetNew.length > 0 || weeklyReturning.length > 0 || weeklyDropoffs.length > 0) && (
         <Card>
           <CardContent className="p-4 space-y-3">
             <h3 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground">
               This Week's Changes
             </h3>
             <div className="space-y-2 max-h-48 overflow-y-auto">
-              {weeklyJoins.map((c) => (
+              {weeklyNetNew.map((c) => (
                 <div
-                  key={`join-${c.id}`}
+                  key={`new-${c.id}`}
                   className="flex items-center gap-3 text-sm py-1.5 px-2 rounded-md bg-emerald-50 dark:bg-emerald-950/30"
                 >
                   <TrendingUp className="h-4 w-4 text-emerald-600 shrink-0" />
@@ -303,7 +335,24 @@ export function MembersSection() {
                     {c.new_tier}
                   </Badge>
                   <span className="text-muted-foreground ml-auto text-xs">
-                    Joined {format(parseISO(c.changed_at), "EEE d MMM")}
+                    New {format(parseISO(c.changed_at), "EEE d MMM")}
+                  </span>
+                </div>
+              ))}
+              {weeklyReturning.map((c) => (
+                <div
+                  key={`ret-${c.id}`}
+                  className="flex items-center gap-3 text-sm py-1.5 px-2 rounded-md bg-blue-50 dark:bg-blue-950/30"
+                >
+                  <TrendingUp className="h-4 w-4 text-blue-600 shrink-0" />
+                  <span className="font-medium">
+                    {c.first_name} {c.last_name}
+                  </span>
+                  <Badge variant="outline" className={getTierColor(c.new_tier)}>
+                    {c.new_tier}
+                  </Badge>
+                  <span className="text-muted-foreground ml-auto text-xs">
+                    Returned {format(parseISO(c.changed_at), "EEE d MMM")}
                   </span>
                 </div>
               ))}
