@@ -1226,6 +1226,76 @@ export default function AdminTimetable() {
           </AlertDialogContent>
         </AlertDialog>
 
+        {/* Block Details Dialog */}
+        <Dialog open={!!selectedBlock} onOpenChange={(open) => {
+          if (!open) setSelectedBlock(null);
+        }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="font-display text-xl uppercase tracking-wide">
+                Bay Block
+              </DialogTitle>
+            </DialogHeader>
+            {selectedBlock && (
+              <div className="space-y-4">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-sm">
+                    <Clock className="h-4 w-4 text-muted-foreground" />
+                    <span>{formatTime(selectedBlock.start_time)} – {formatTime(selectedBlock.end_time)}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+                    <span>{format(new Date(selectedBlock.block_date), "EEE, MMM d yyyy")}</span>
+                  </div>
+                  {selectedBlock.reason && (
+                    <div className="flex items-start gap-2 text-sm">
+                      <AlertCircle className="h-4 w-4 text-muted-foreground mt-0.5" />
+                      <span>{selectedBlock.reason}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="text-muted-foreground">Bay:</span>
+                    <span>{bays.find(b => b.id === selectedBlock.bay_id)?.name || 'Unknown'}</span>
+                  </div>
+                </div>
+
+                <hr className="border-border" />
+
+                <Button
+                  variant="destructive"
+                  className="w-full"
+                  onClick={async () => {
+                    const { error } = await supabase
+                      .from("bay_blocks")
+                      .delete()
+                      .eq("id", selectedBlock.id);
+
+                    if (error) {
+                      toast({
+                        title: "Error",
+                        description: "Failed to remove block.",
+                        variant: "destructive",
+                        duration: 4000,
+                      });
+                    } else {
+                      toast({
+                        title: "Block removed",
+                        description: "The bay block has been removed.",
+                        duration: 4000,
+                      });
+                      setSelectedBlock(null);
+                      fetchBookings();
+                    }
+                  }}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Remove Block
+                </Button>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
         {/* Add Booking Dialog */}
         <AddBookingDialog
           open={showAddBookingDialog}
