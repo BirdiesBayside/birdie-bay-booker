@@ -1404,6 +1404,55 @@ async function showWelcomeWindows(firstName) {
           0%, 80%, 100% { transform: scale(0.6); opacity: 0.5; }
           40% { transform: scale(1); opacity: 1; }
         }
+        .etiquette {
+          margin-top: 48px;
+          background: rgba(31, 76, 37, 0.08);
+          border: 2px solid rgba(31, 76, 37, 0.15);
+          border-radius: 16px;
+          padding: 32px 40px;
+          max-width: 720px;
+          text-align: left;
+        }
+        .etiquette h3 {
+          font-family: 'Anton', sans-serif;
+          font-size: 36px;
+          font-weight: 400;
+          color: #1f4c25;
+          letter-spacing: 2px;
+          text-transform: uppercase;
+          text-align: center;
+          margin: 0 0 20px 0;
+        }
+        .etiquette ol {
+          list-style: none;
+          padding: 0;
+          margin: 0;
+        }
+        .etiquette li {
+          display: flex;
+          align-items: flex-start;
+          gap: 12px;
+          font-family: 'Inter', sans-serif;
+          font-size: 22px;
+          color: #1f4c25;
+          opacity: 0.85;
+          margin-bottom: 12px;
+        }
+        .etiquette li:last-child { margin-bottom: 0; }
+        .etiquette .num {
+          flex-shrink: 0;
+          width: 32px;
+          height: 32px;
+          background: #ec622d;
+          color: #fff;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 16px;
+          font-weight: 600;
+          margin-top: 2px;
+        }
       </style>
     </head>
     <body>
@@ -1413,6 +1462,15 @@ async function showWelcomeWindows(firstName) {
         <h2>Welcome to Birdies</h2>
         <p>Your session is starting.</p>
         <p>This window will close when you're ready to tee off!</p>
+        <div class="etiquette">
+          <h3>Birdies Etiquette</h3>
+          <ol>
+            <li><span class="num">1</span><span>Use a different ball after every shot, this prevents a ball cracking on you!</span></li>
+            <li><span class="num">2</span><span>If you keep skying your drives, tee it down lower</span></li>
+            <li><span class="num">3</span><span>Keep the bay tidy for the next golfer</span></li>
+            <li><span class="num">4</span><span>Indoor Swing Syndrome is real (Google it!)</span></li>
+          </ol>
+        </div>
         <div class="loading">
           <span></span>
           <span></span>
