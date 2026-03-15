@@ -117,3 +117,6 @@ verify_jwt = false
 
 [functions.approve-monthly-prize]
 verify_jwt = false
+
+[functions.openclaw-api]
+verify_jwt = false
