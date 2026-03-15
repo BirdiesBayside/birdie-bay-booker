@@ -387,7 +387,7 @@ serve(async (req) => {
           // AUTO-CLOSE: Close tournaments whose end_date has arrived or passed
           // Tournaments end on Mondays, so the 6am Monday sync will close the previous week's tournament,
           // assess points, and the new week's tournament + registrations are already locked in
-          const tournEndDate = tourn.end_date || '';
+          const tournEndDate = (tourn.end_date || '').substring(0, 10); // Normalize to YYYY-MM-DD (API may return "YYYY-MM-DD HH:MM:SS")
           if ((status === 'In Progress' || status === 'Active') && tournEndDate && tournEndDate <= todayBrisbane) {
             console.log(`[SGT-SYNC] Auto-closing tournament ${tourn.tournamentId} (${tourn.name}) - end_date ${tournEndDate} <= ${todayBrisbane}`);
             try {
