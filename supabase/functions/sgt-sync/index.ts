@@ -374,25 +374,21 @@ serve(async (req) => {
         const tournamentsResponse = await sgtRequest("/tournaments/list", apiKey, { tourId: t.tourId.toString() });
         const tournaments = extractArray(tournamentsResponse, ['results', 'tournaments']);
         
-        // Check if today is Monday in Brisbane timezone for auto-close
+        // Get today's date in Brisbane timezone for auto-close checks
         const nowForDay = new Date();
         const brisbaneTimeForDay = new Date(nowForDay.getTime() + 10 * 60 * 60 * 1000);
-        const isMonday = brisbaneTimeForDay.getUTCDay() === 1; // Monday = 1
         const todayBrisbane = brisbaneTimeForDay.toISOString().split('T')[0]; // YYYY-MM-DD
-        
-        if (isMonday) {
-          console.log(`[SGT-SYNC] Monday detected (Brisbane time: ${todayBrisbane}) - will auto-close eligible tournaments`);
-        }
 
         for (const tournament of tournaments.slice(0, 20)) {
           const tourn = tournament as { tournamentId: number; name: string; courseName?: string; status?: string; start_date?: string; end_date?: string };
           
           let status = tourn.status;
           
-          // AUTO-CLOSE: On Mondays (Brisbane time), close tournaments that have ended (end_date <= today)
-          // Only close tournaments whose end_date has passed, NOT future tournaments
+          // AUTO-CLOSE: Close tournaments whose end_date has arrived or passed
+          // Tournaments end on Mondays, so the 6am Monday sync will close the previous week's tournament,
+          // assess points, and the new week's tournament + registrations are already locked in
           const tournEndDate = tourn.end_date || '';
-          if (isMonday && (status === 'In Progress' || status === 'Active') && tournEndDate && tournEndDate <= todayBrisbane) {
+          if ((status === 'In Progress' || status === 'Active') && tournEndDate && tournEndDate <= todayBrisbane) {
             console.log(`[SGT-SYNC] Auto-closing tournament ${tourn.tournamentId} (${tourn.name}) - end_date ${tournEndDate} <= ${todayBrisbane}`);
             try {
               const closeResult = await sgtPostRequest("/tournaments/close", apiKey, {
@@ -403,9 +399,8 @@ serve(async (req) => {
               status = 'Completed';
             } catch (closeError) {
               console.error(`[SGT-SYNC] Failed to close tournament ${tourn.tournamentId}:`, closeError);
-              // Don't mark as Completed if the API close actually failed
             }
-          } else if (isMonday && (status === 'In Progress' || status === 'Active') && tournEndDate > todayBrisbane) {
+          } else if ((status === 'In Progress' || status === 'Active') && tournEndDate > todayBrisbane) {
             console.log(`[SGT-SYNC] Skipping close for tournament ${tourn.tournamentId} (${tourn.name}) - end_date ${tournEndDate} is in the future`);
           }
           
