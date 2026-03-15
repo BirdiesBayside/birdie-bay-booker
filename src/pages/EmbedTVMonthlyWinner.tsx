@@ -52,21 +52,7 @@ export default function EmbedTVStandings() {
         if (monthlyStandings && monthlyStandings.length > 0) {
           setStandings(monthlyStandings);
         } else {
-          // If no standings for current month, try previous month
-          const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-          const prevMonthStr = format(prevMonth, "MMMM yyyy");
-          
-          const { data: prevStandings } = await supabase
-            .from("sgt_monthly_standings")
-            .select("*")
-            .eq("tour_id", activeTour.tour_id)
-            .eq("month", prevMonthStr)
-            .order("net_position", { ascending: true });
-
-          if (prevStandings) {
-            setStandings(prevStandings);
-            setCurrentMonth(prevMonthStr);
-          }
+          setStandings([]);
         }
       }
 
