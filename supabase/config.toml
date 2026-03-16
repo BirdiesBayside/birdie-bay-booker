@@ -120,3 +120,6 @@ verify_jwt = false
 
 [functions.openclaw-api]
 verify_jwt = false
+
+[functions.openclaw-mcp]
+verify_jwt = false
