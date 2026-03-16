@@ -1,5 +1,4 @@
 import { Hono } from "hono";
-import { McpServer, StreamableHttpTransport } from "mcp-lite";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import Stripe from "npm:stripe@18.5.0";
 
