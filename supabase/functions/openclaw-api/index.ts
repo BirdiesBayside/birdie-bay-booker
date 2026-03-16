@@ -4,13 +4,54 @@ import Stripe from "npm:stripe@18.5.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-openclaw-key",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-openclaw-key, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 const log = (action: string, msg: string, details?: any) => {
   const d = details ? ` - ${JSON.stringify(details)}` : "";
   console.log(`[OPENCLAW-API][${action}] ${msg}${d}`);
 };
+
+// ── Brisbane date helpers ──
+function getBrisbaneDate(dateStr?: string): Date {
+  // Returns a Date object representing the Brisbane date
+  if (dateStr) {
+    // Parse YYYY-MM-DD as local Brisbane date
+    const [y, m, d] = dateStr.split("-").map(Number);
+    return new Date(y, m - 1, d);
+  }
+  // Get current Brisbane date
+  const now = new Date();
+  const brisbaneStr = new Intl.DateTimeFormat("en-AU", {
+    timeZone: "Australia/Brisbane",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
+  // brisbaneStr = "DD/MM/YYYY"
+  const [dd, mm, yyyy] = brisbaneStr.split("/").map(Number);
+  return new Date(yyyy, mm - 1, dd);
+}
+
+function formatDateYMD(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function getBrisbaneDayBoundsUTC(dateStr: string): { start: string; end: string } {
+  // Brisbane is UTC+10 (no DST)
+  const [y, m, d] = dateStr.split("-").map(Number);
+  // Brisbane midnight = UTC previous day 14:00
+  const startUTC = new Date(Date.UTC(y, m - 1, d, -10, 0, 0, 0));
+  const endUTC = new Date(Date.UTC(y, m - 1, d, -10 + 23, 59, 59, 999));
+  return { start: startUTC.toISOString(), end: endUTC.toISOString() };
+}
+
+function getBrisbaneToday(): string {
+  return formatDateYMD(getBrisbaneDate());
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -54,11 +95,142 @@ serve(async (req) => {
     //  READ ACTIONS
     // ═══════════════════════════════════════════
 
-    // ── Dashboard Stats ──
-    if (action === "get-dashboard-stats") {
-      const today = new Date().toISOString().split("T")[0];
+    // ── Daily Summary (Brisbane-aware, structured) ──
+    if (action === "get-daily-summary") {
+      const dateStr = params.date || getBrisbaneToday();
+      const { start: dayStartUTC, end: dayEndUTC } = getBrisbaneDayBoundsUTC(dateStr);
 
-      const [bookingsToday, allProfiles, recentBookings, membershipPayments] =
+      const [bookingsRes, posRes, membershipRes] = await Promise.all([
+        supabase
+          .from("bookings")
+          .select("id, total_price, status, payment_method, start_time, end_time, duration_hours, bay_id, user_id, stripe_payment_intent_id")
+          .eq("booking_date", dateStr)
+          .in("status", ["confirmed", "completed"]),
+        supabase
+          .from("pos_transactions")
+          .select("id, total, payment_method, items, created_at")
+          .gte("created_at", dayStartUTC)
+          .lte("created_at", dayEndUTC),
+        supabase
+          .from("membership_payments")
+          .select("id, amount, tier, paid_at, user_id, stripe_invoice_id")
+          .gte("paid_at", dayStartUTC)
+          .lte("paid_at", dayEndUTC),
+      ]);
+
+      const bookings = bookingsRes.data || [];
+      const pos = posRes.data || [];
+      const memberships = membershipRes.data || [];
+
+      const bookingRevenue = bookings.reduce((s: number, b: any) => s + (parseFloat(b.total_price) || 0), 0);
+      const posRevenue = pos.reduce((s: number, t: any) => s + (parseFloat(t.total) || 0), 0);
+      const membershipRevenue = memberships.reduce((s: number, p: any) => s + (parseFloat(p.amount) || 0), 0);
+
+      return respond({
+        date: dateStr,
+        timezone: "Australia/Brisbane",
+        bookings: {
+          count: bookings.length,
+          revenue: Math.round(bookingRevenue * 100) / 100,
+          items: bookings.map((b: any) => ({
+            id: b.id,
+            total_price: parseFloat(b.total_price),
+            status: b.status,
+            payment_method: b.payment_method,
+            start_time: b.start_time,
+            end_time: b.end_time,
+            stripe_payment_intent_id: b.stripe_payment_intent_id,
+          })),
+        },
+        pos: {
+          count: pos.length,
+          revenue: Math.round(posRevenue * 100) / 100,
+          items: pos.map((t: any) => ({
+            id: t.id,
+            total: parseFloat(t.total),
+            payment_method: t.payment_method,
+            created_at: t.created_at,
+          })),
+        },
+        memberships: {
+          count: memberships.length,
+          revenue: Math.round(membershipRevenue * 100) / 100,
+          items: memberships.map((m: any) => ({
+            id: m.id,
+            amount: parseFloat(m.amount),
+            tier: m.tier,
+            paid_at: m.paid_at,
+            stripe_invoice_id: m.stripe_invoice_id,
+          })),
+        },
+        totals: {
+          revenue: Math.round((bookingRevenue + posRevenue + membershipRevenue) * 100) / 100,
+          booking_revenue: Math.round(bookingRevenue * 100) / 100,
+          pos_revenue: Math.round(posRevenue * 100) / 100,
+          membership_revenue: Math.round(membershipRevenue * 100) / 100,
+        },
+      });
+    }
+
+    // ── Range Summary (from/to, Brisbane-aware) ──
+    if (action === "get-range-summary") {
+      const today = getBrisbaneToday();
+      const fromDate = params.from || today;
+      const toDate = params.to || today;
+      const { start: fromUTC } = getBrisbaneDayBoundsUTC(fromDate);
+      const { end: toUTC } = getBrisbaneDayBoundsUTC(toDate);
+
+      const [bookingsRes, posRes, membershipRes] = await Promise.all([
+        supabase
+          .from("bookings")
+          .select("id, total_price, status, booking_date, payment_method")
+          .gte("booking_date", fromDate)
+          .lte("booking_date", toDate)
+          .in("status", ["confirmed", "completed"]),
+        supabase
+          .from("pos_transactions")
+          .select("id, total, payment_method, created_at")
+          .gte("created_at", fromUTC)
+          .lte("created_at", toUTC),
+        supabase
+          .from("membership_payments")
+          .select("id, amount, tier, paid_at")
+          .gte("paid_at", fromUTC)
+          .lte("paid_at", toUTC),
+      ]);
+
+      const bookings = bookingsRes.data || [];
+      const pos = posRes.data || [];
+      const memberships = membershipRes.data || [];
+
+      const bookingRevenue = bookings.reduce((s: number, b: any) => s + (parseFloat(b.total_price) || 0), 0);
+      const posRevenue = pos.reduce((s: number, t: any) => s + (parseFloat(t.total) || 0), 0);
+      const membershipRevenue = memberships.reduce((s: number, p: any) => s + (parseFloat(p.amount) || 0), 0);
+
+      return respond({
+        from: fromDate,
+        to: toDate,
+        timezone: "Australia/Brisbane",
+        bookings: { count: bookings.length, revenue: Math.round(bookingRevenue * 100) / 100 },
+        pos: { count: pos.length, revenue: Math.round(posRevenue * 100) / 100 },
+        memberships: { count: memberships.length, revenue: Math.round(membershipRevenue * 100) / 100 },
+        totals: {
+          revenue: Math.round((bookingRevenue + posRevenue + membershipRevenue) * 100) / 100,
+          booking_revenue: Math.round(bookingRevenue * 100) / 100,
+          pos_revenue: Math.round(posRevenue * 100) / 100,
+          membership_revenue: Math.round(membershipRevenue * 100) / 100,
+        },
+      });
+    }
+
+    // ── Dashboard Stats (now Brisbane-aware) ──
+    if (action === "get-dashboard-stats") {
+      const today = params.date || getBrisbaneToday();
+      const thirtyDaysAgo = formatDateYMD(new Date(getBrisbaneDate(today).getTime() - 30 * 86400000));
+      const { start: monthStartUTC } = getBrisbaneDayBoundsUTC(thirtyDaysAgo);
+      const { end: todayEndUTC } = getBrisbaneDayBoundsUTC(today);
+
+      const [bookingsToday, allProfiles, recentBookings, membershipPayments, posTransactions] =
         await Promise.all([
           supabase
             .from("bookings")
@@ -72,13 +244,20 @@ serve(async (req) => {
             .from("bookings")
             .select("id, total_price, status, booking_date, created_at")
             .in("status", ["confirmed", "completed"])
-            .gte("booking_date", new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0])
+            .gte("booking_date", thirtyDaysAgo)
+            .lte("booking_date", today)
             .order("booking_date", { ascending: false }),
           supabase
             .from("membership_payments")
             .select("amount, tier, paid_at")
-            .gte("paid_at", new Date(Date.now() - 30 * 86400000).toISOString())
+            .gte("paid_at", monthStartUTC)
+            .lte("paid_at", todayEndUTC)
             .order("paid_at", { ascending: false }),
+          supabase
+            .from("pos_transactions")
+            .select("id, total, created_at")
+            .gte("created_at", monthStartUTC)
+            .lte("created_at", todayEndUTC),
         ]);
 
       const profiles = allProfiles.data || [];
@@ -96,17 +275,26 @@ serve(async (req) => {
       const monthlyMembershipRevenue = (membershipPayments.data || []).reduce(
         (sum: number, p: any) => sum + (parseFloat(p.amount) || 0), 0
       );
+      const monthlyPosRevenue = (posTransactions.data || []).reduce(
+        (sum: number, t: any) => sum + (parseFloat(t.total) || 0), 0
+      );
 
       return respond({
+        date: today,
+        timezone: "Australia/Brisbane",
         today: {
           bookings_count: bookingsToday.data?.length || 0,
-          revenue: todayRevenue,
+          revenue: Math.round(todayRevenue * 100) / 100,
         },
         last_30_days: {
-          booking_revenue: monthlyBookingRevenue,
-          membership_revenue: monthlyMembershipRevenue,
-          total_revenue: monthlyBookingRevenue + monthlyMembershipRevenue,
+          from: thirtyDaysAgo,
+          to: today,
+          booking_revenue: Math.round(monthlyBookingRevenue * 100) / 100,
+          pos_revenue: Math.round(monthlyPosRevenue * 100) / 100,
+          membership_revenue: Math.round(monthlyMembershipRevenue * 100) / 100,
+          total_revenue: Math.round((monthlyBookingRevenue + monthlyMembershipRevenue + monthlyPosRevenue) * 100) / 100,
           bookings_count: recentBookings.data?.length || 0,
+          pos_count: posTransactions.data?.length || 0,
         },
         membership_breakdown: tiers,
         total_customers: profiles.length,
@@ -114,9 +302,9 @@ serve(async (req) => {
       });
     }
 
-    // ── Timetable / Bookings by date ──
+    // ── Timetable / Bookings by date (Brisbane-aware) ──
     if (action === "get-timetable") {
-      const date = params.date || new Date().toISOString().split("T")[0];
+      const date = params.date || getBrisbaneToday();
       const { data, error } = await supabase
         .from("bookings")
         .select("*, bays(name, bay_number), profiles!bookings_user_id_fkey(first_name, last_name, email, phone, membership_tier)")
@@ -125,7 +313,7 @@ serve(async (req) => {
         .order("start_time");
 
       if (error) throw new Error(error.message);
-      return respond({ date, bookings: data });
+      return respond({ date, timezone: "Australia/Brisbane", bookings: data });
     }
 
     // ── Get single booking ──
@@ -178,15 +366,13 @@ serve(async (req) => {
       const { data: profile, error } = await query.single();
       if (error) throw new Error(error.message);
 
-      // Also get their bookings
       const { data: bookings } = await supabase
         .from("bookings")
-        .select("id, booking_date, start_time, end_time, duration_hours, total_price, status, payment_method, bays(name)")
+        .select("id, booking_date, start_time, end_time, duration_hours, total_price, status, payment_method, stripe_payment_intent_id, bays(name)")
         .eq("user_id", profile.user_id)
         .order("booking_date", { ascending: false })
         .limit(20);
 
-      // And deposit transactions
       const { data: transactions } = await supabase
         .from("deposit_transactions")
         .select("*")
@@ -199,10 +385,11 @@ serve(async (req) => {
 
     // ── Bay status ──
     if (action === "get-bay-status") {
+      const today = getBrisbaneToday();
       const [bays, devices, blocks] = await Promise.all([
         supabase.from("bays").select("*").order("bay_number"),
         supabase.from("bay_devices").select("*"),
-        supabase.from("bay_blocks").select("*").gte("block_date", new Date().toISOString().split("T")[0]),
+        supabase.from("bay_blocks").select("*").gte("block_date", today),
       ]);
 
       return respond({
@@ -220,19 +407,7 @@ serve(async (req) => {
         .eq("active", 1)
         .order("tour_id", { ascending: false });
 
-      const tourId = params.tour_id || tours?.data?.[0]?.tour_id || tours?.[0]?.tour_id;
-
-      if (!tourId && tours && tours.length > 0) {
-        // Use first active tour
-        const activeTour = tours[0];
-        const { data: standings } = await supabase
-          .from("sgt_tour_standings")
-          .select("*")
-          .eq("tour_id", activeTour.tour_id)
-          .order("position");
-
-        return respond({ tour: activeTour, standings });
-      }
+      const tourId = params.tour_id || tours?.[0]?.tour_id;
 
       if (tourId) {
         const { data: standings } = await supabase
@@ -270,6 +445,10 @@ serve(async (req) => {
         .select("*")
         .order("created_at", { ascending: false });
 
+      if (params.date) {
+        const { start, end } = getBrisbaneDayBoundsUTC(params.date);
+        query = query.gte("created_at", start).lte("created_at", end);
+      }
       if (params.limit) query = query.limit(params.limit);
       else query = query.limit(50);
 
@@ -337,7 +516,6 @@ serve(async (req) => {
 
       let refundResult = null;
 
-      // Stripe refund
       if (booking.stripe_payment_intent_id && (booking.payment_method === "stripe" || booking.payment_method === "card")) {
         const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY")!, { apiVersion: "2025-08-27.basil" });
         const refund = await stripe.refunds.create({
@@ -348,7 +526,6 @@ serve(async (req) => {
         log(action, "Stripe refund processed", refundResult);
       }
 
-      // Balance refund
       if (booking.payment_method === "balance" || booking.payment_method === "partial") {
         const refundAmount = parseFloat(booking.total_price) || 0;
         if (refundAmount > 0) {
@@ -371,13 +548,11 @@ serve(async (req) => {
         }
       }
 
-      // Cancel the booking
       await supabase
         .from("bookings")
         .update({ status: "cancelled", updated_at: new Date().toISOString() })
         .eq("id", params.booking_id);
 
-      // Send notification if requested
       if (params.send_notification !== false) {
         try {
           await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-booking-notification`, {
@@ -521,7 +696,7 @@ serve(async (req) => {
       return respond({ success: true, previous_tier: profile?.membership_tier, new_tier: params.tier });
     }
 
-    // ── Send notification / announcement ──
+    // ── Create announcement ──
     if (action === "create-announcement") {
       if (!params.title || !params.content) return respond({ error: "title and content required" }, 400);
 
@@ -580,18 +755,20 @@ serve(async (req) => {
     if (action === "list-actions") {
       return respond({
         read_actions: [
-          "get-dashboard-stats",
-          "get-timetable (date?)",
-          "get-booking (booking_id)",
-          "get-customers (search?, membership_tier?, limit?)",
-          "get-customer (user_id | email)",
-          "get-bay-status",
-          "get-league-standings (tour_id?)",
-          "get-membership-payments (user_id?, limit?)",
-          "get-pos-transactions (limit?)",
-          "get-gift-cards (limit?)",
-          "get-announcements (limit?)",
-          "get-bay-logs (bay_number?, event_level?, limit?)",
+          "get-daily-summary (date?) — Brisbane-aware daily revenue breakdown (bookings/POS/memberships) with line items",
+          "get-range-summary (from?, to?) — Brisbane-aware revenue summary for a date range",
+          "get-dashboard-stats (date?) — Overview stats with 30-day revenue split",
+          "get-timetable (date?) — Bookings for a date with customer/bay details",
+          "get-booking (booking_id) — Single booking detail",
+          "get-customers (search?, membership_tier?, limit?) — Customer list",
+          "get-customer (user_id | email) — Customer profile + recent bookings + deposits",
+          "get-bay-status — Bay devices and upcoming blocks",
+          "get-league-standings (tour_id?) — SGT tour leaderboard",
+          "get-membership-payments (user_id?, limit?) — Membership payment history",
+          "get-pos-transactions (date?, limit?) — POS transactions (date is Brisbane-aware)",
+          "get-gift-cards (limit?) — Gift card list",
+          "get-announcements (limit?) — Announcements",
+          "get-bay-logs (bay_number?, event_level?, limit?) — Bay controller logs",
         ],
         write_actions: [
           "cancel-booking (booking_id, send_notification?)",
@@ -603,6 +780,10 @@ serve(async (req) => {
           "block-bay (bay_id, block_date, start_time, end_time, reason?)",
           "unblock-bay (block_id)",
         ],
+        notes: {
+          timezone: "All date parameters use YYYY-MM-DD in Australia/Brisbane timezone",
+          currency: "AUD",
+        },
       });
     }
 
