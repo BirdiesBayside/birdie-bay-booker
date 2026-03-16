@@ -755,18 +755,157 @@ mcpServer.tool("unblock_bay", {
 
 // ── MCP JSON-RPC HTTP endpoint ──
 const app = new Hono();
+const encoder = new TextEncoder();
+const SESSION_TTL_MS = 10 * 60 * 1000;
 
-function jsonRpcResult(id: unknown, result: unknown) {
-  return new Response(JSON.stringify({ jsonrpc: "2.0", id, result }), {
-    status: 200,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
+type SessionState = {
+  controller?: ReadableStreamDefaultController<Uint8Array>;
+  queue: string[];
+  createdAt: number;
+  lastSeenAt: number;
+  keepAliveId?: number;
+};
+
+const sseSessions = new Map<string, SessionState>();
+
+function buildHeaders(extra: HeadersInit = {}, sessionId?: string) {
+  return {
+    ...corsHeaders,
+    ...(sessionId ? { "mcp-session-id": sessionId } : {}),
+    ...extra,
+  };
+}
+
+function cleanupExpiredSessions() {
+  const now = Date.now();
+  for (const [sessionId, session] of sseSessions.entries()) {
+    if (now - session.lastSeenAt > SESSION_TTL_MS) {
+      if (session.keepAliveId) clearInterval(session.keepAliveId);
+      try {
+        session.controller?.close();
+      } catch {
+        // ignore
+      }
+      sseSessions.delete(sessionId);
+    }
+  }
+}
+
+function getOrCreateSession(sessionId?: string) {
+  cleanupExpiredSessions();
+  const resolvedId = sessionId || crypto.randomUUID();
+  const existing = sseSessions.get(resolvedId);
+
+  if (existing) {
+    existing.lastSeenAt = Date.now();
+    return { sessionId: resolvedId, session: existing };
+  }
+
+  const session: SessionState = {
+    queue: [],
+    createdAt: Date.now(),
+    lastSeenAt: Date.now(),
+  };
+  sseSessions.set(resolvedId, session);
+  return { sessionId: resolvedId, session };
+}
+
+function enqueueSessionPayload(sessionId: string, payload: unknown) {
+  const { session } = getOrCreateSession(sessionId);
+  const message = `data: ${JSON.stringify(payload)}\n\n`;
+  session.lastSeenAt = Date.now();
+
+  if (session.controller) {
+    session.controller.enqueue(encoder.encode(message));
+    return;
+  }
+
+  session.queue.push(message);
+}
+
+function createSingleEventStream(payload: unknown) {
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
+      controller.close();
+    },
   });
 }
 
-function jsonRpcError(id: unknown, code: number, message: string, status = 500) {
+function createSessionStream(sessionId: string) {
+  const { session } = getOrCreateSession(sessionId);
+
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      session.controller = controller;
+      session.lastSeenAt = Date.now();
+
+      controller.enqueue(encoder.encode(`: connected ${sessionId}\n\n`));
+
+      while (session.queue.length > 0) {
+        const queued = session.queue.shift();
+        if (queued) controller.enqueue(encoder.encode(queued));
+      }
+
+      session.keepAliveId = setInterval(() => {
+        try {
+          controller.enqueue(encoder.encode(`: ping ${Date.now()}\n\n`));
+        } catch {
+          if (session.keepAliveId) clearInterval(session.keepAliveId);
+          sseSessions.delete(sessionId);
+        }
+      }, 15000);
+    },
+    cancel() {
+      if (session.keepAliveId) clearInterval(session.keepAliveId);
+      sseSessions.delete(sessionId);
+    },
+  });
+}
+
+function jsonRpcResult(id: unknown, result: unknown, sessionId?: string) {
+  return new Response(JSON.stringify({ jsonrpc: "2.0", id, result }), {
+    status: 200,
+    headers: buildHeaders({ "Content-Type": "application/json" }, sessionId),
+  });
+}
+
+function jsonRpcError(id: unknown, code: number, message: string, status = 500, sessionId?: string) {
   return new Response(JSON.stringify({ jsonrpc: "2.0", id, error: { code, message } }), {
     status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    headers: buildHeaders({ "Content-Type": "application/json" }, sessionId),
+  });
+}
+
+function jsonRpcAccepted(sessionId?: string) {
+  return new Response(null, {
+    status: 202,
+    headers: buildHeaders({}, sessionId),
+  });
+}
+
+function streamableResult(id: unknown, result: unknown, request: Request, sessionId?: string) {
+  const accept = request.headers.get("accept") || "";
+  const wantsStream = accept.includes("text/event-stream");
+
+  if (!wantsStream) {
+    return jsonRpcResult(id, result, sessionId);
+  }
+
+  const payload = { jsonrpc: "2.0", id, result };
+
+  if (sessionId && sseSessions.has(sessionId)) {
+    enqueueSessionPayload(sessionId, payload);
+    return jsonRpcAccepted(sessionId);
+  }
+
+  return new Response(createSingleEventStream(payload), {
+    status: 200,
+    headers: buildHeaders({
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-cache",
+      "Connection": "keep-alive",
+    }, sessionId),
   });
 }
 
@@ -791,18 +930,45 @@ app.use("*", async (c, next) => {
 
     return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Authentication/configuration error" }), {
       status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: buildHeaders({ "Content-Type": "application/json" }),
     });
   }
 });
 
 app.get("*", (c) => {
-  return c.json({
-    name: serverInfo.name,
-    transport: "streamable-http",
-    status: "ok",
-    tools: toolRegistry.size,
-  }, { headers: corsHeaders });
+  const requestedSessionId = c.req.header("mcp-session-id") || undefined;
+  const { sessionId } = getOrCreateSession(requestedSessionId);
+
+  log("transport", "Opening SSE stream", {
+    path: c.req.path,
+    sessionId,
+    accept: c.req.header("accept") || null,
+  });
+
+  return new Response(createSessionStream(sessionId), {
+    status: 200,
+    headers: buildHeaders({
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-cache",
+      "Connection": "keep-alive",
+    }, sessionId),
+  });
+});
+
+app.delete("*", (c) => {
+  const sessionId = c.req.header("mcp-session-id") || undefined;
+  if (sessionId) {
+    const session = sseSessions.get(sessionId);
+    if (session?.keepAliveId) clearInterval(session.keepAliveId);
+    try {
+      session?.controller?.close();
+    } catch {
+      // ignore
+    }
+    sseSessions.delete(sessionId);
+  }
+
+  return new Response(null, { status: 204, headers: buildHeaders({}, sessionId) });
 });
 
 app.post("*", async (c) => {
@@ -815,10 +981,14 @@ app.post("*", async (c) => {
   }
 
   const { id = null, method, params } = body ?? {};
+  const requestedSessionId = c.req.header("mcp-session-id") || undefined;
+  const shouldCreateSession = method === "initialize" || Boolean(requestedSessionId);
+  const sessionId = shouldCreateSession ? getOrCreateSession(requestedSessionId).sessionId : undefined;
 
   log("rpc", "Incoming MCP request", {
     method,
     path: c.req.path,
+    sessionId: sessionId || null,
     contentType: c.req.header("content-type") || null,
     accept: c.req.header("accept") || null,
   });
@@ -826,28 +996,28 @@ app.post("*", async (c) => {
   try {
     switch (method) {
       case "initialize":
-        return jsonRpcResult(id, {
+        return streamableResult(id, {
           protocolVersion: "2025-03-26",
           capabilities: {
             tools: { listChanged: false },
           },
           serverInfo,
-        });
+        }, c.req.raw, sessionId);
 
       case "notifications/initialized":
-        return new Response(null, { status: 202, headers: corsHeaders });
+        return jsonRpcAccepted(sessionId);
 
       case "ping":
-        return jsonRpcResult(id, {});
+        return streamableResult(id, {}, c.req.raw, sessionId);
 
       case "tools/list":
-        return jsonRpcResult(id, {
+        return streamableResult(id, {
           tools: Array.from(toolRegistry.values()).map((tool) => ({
             name: tool.name,
             description: tool.description,
             inputSchema: tool.inputSchema,
           })),
-        });
+        }, c.req.raw, sessionId);
 
       case "tools/call": {
         const toolName = params?.name;
@@ -855,24 +1025,25 @@ app.post("*", async (c) => {
         const tool = toolRegistry.get(toolName);
 
         if (!tool) {
-          return jsonRpcError(id, -32601, `Unknown tool: ${toolName}`, 404);
+          return jsonRpcError(id, -32601, `Unknown tool: ${toolName}`, 404, sessionId);
         }
 
         const result = await tool.handler(args);
-        return jsonRpcResult(id, result);
+        return streamableResult(id, result, c.req.raw, sessionId);
       }
 
       default:
-        return jsonRpcError(id, -32601, `Method not found: ${method}`, 404);
+        return jsonRpcError(id, -32601, `Method not found: ${method}`, 404, sessionId);
     }
   } catch (error) {
     log("rpc", "Unhandled MCP error", {
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : null,
       method,
+      sessionId: sessionId || null,
     });
 
-    return jsonRpcError(id, -32603, error instanceof Error ? error.message : "Internal MCP server error", 500);
+    return jsonRpcError(id, -32603, error instanceof Error ? error.message : "Internal MCP server error", 500, sessionId);
   }
 });
 
