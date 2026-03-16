@@ -53,23 +53,92 @@ All requests are JSON POST bodies with an `action` field and optional parameters
 
 ## Read Actions
 
-### `get-dashboard-stats`
-Returns a real-time overview of the business.
+### `get-daily-summary` ⭐ NEW — Recommended for revenue reconciliation
+Returns a structured, Brisbane-aware daily breakdown of all revenue streams with line items.
 
-**Parameters:** None
+**Parameters:**
+| Param | Type | Required | Default |
+|-------|------|----------|---------|
+| `date` | `string` (YYYY-MM-DD) | No | Today (Brisbane time) |
+
+**Example:**
+```json
+{ "action": "get-daily-summary", "date": "2026-03-16" }
+```
 
 **Response:**
 ```json
 {
+  "date": "2026-03-16",
+  "timezone": "Australia/Brisbane",
+  "bookings": {
+    "count": 8,
+    "revenue": 320.00,
+    "items": [{ "id": "uuid", "total_price": 40.00, "status": "confirmed", "payment_method": "card", "stripe_payment_intent_id": "pi_..." }]
+  },
+  "pos": {
+    "count": 3,
+    "revenue": 45.00,
+    "items": [{ "id": "uuid", "total": 15.00, "payment_method": "cash", "created_at": "..." }]
+  },
+  "memberships": {
+    "count": 1,
+    "revenue": 89.00,
+    "items": [{ "id": "uuid", "amount": 89.00, "tier": "birdie", "stripe_invoice_id": "in_..." }]
+  },
+  "totals": {
+    "revenue": 454.00,
+    "booking_revenue": 320.00,
+    "pos_revenue": 45.00,
+    "membership_revenue": 89.00
+  }
+}
+```
+
+---
+
+### `get-range-summary` ⭐ NEW — Multi-day revenue summary
+Returns aggregated Brisbane-aware revenue totals for a date range.
+
+**Parameters:**
+| Param | Type | Required | Default |
+|-------|------|----------|---------|
+| `from` | `string` (YYYY-MM-DD) | No | Today |
+| `to` | `string` (YYYY-MM-DD) | No | Today |
+
+**Example:**
+```json
+{ "action": "get-range-summary", "from": "2026-03-01", "to": "2026-03-16" }
+```
+
+---
+
+### `get-dashboard-stats`
+Returns a real-time overview of the business. Now Brisbane-aware and includes POS revenue.
+
+**Parameters:**
+| Param | Type | Required | Default |
+|-------|------|----------|---------|
+| `date` | `string` (YYYY-MM-DD) | No | Today (Brisbane time) |
+
+**Response:**
+```json
+{
+  "date": "2026-03-16",
+  "timezone": "Australia/Brisbane",
   "today": {
     "bookings_count": 8,
     "revenue": 320.00
   },
   "last_30_days": {
+    "from": "2026-02-14",
+    "to": "2026-03-16",
     "booking_revenue": 4500.00,
+    "pos_revenue": 850.00,
     "membership_revenue": 2100.00,
-    "total_revenue": 6600.00,
-    "bookings_count": 142
+    "total_revenue": 7450.00,
+    "bookings_count": 142,
+    "pos_count": 67
   },
   "membership_breakdown": {
     "visitor": 85,
@@ -82,23 +151,6 @@ Returns a real-time overview of the business.
   "active_members": 24
 }
 ```
-
----
-
-### `get-timetable`
-Returns all bookings for a specific date with customer and bay details.
-
-**Parameters:**
-| Param | Type | Required | Default |
-|-------|------|----------|---------|
-| `date` | `string` (YYYY-MM-DD) | No | Today |
-
-**Example:**
-```json
-{ "action": "get-timetable", "date": "2026-03-15" }
-```
-
-**Response:** `{ "date": "...", "bookings": [...] }` — each booking includes nested `bays` and `profiles` data (name, email, phone, membership tier).
 
 ---
 
