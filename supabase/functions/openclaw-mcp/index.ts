@@ -1,5 +1,4 @@
 import { Hono } from "hono";
-import { McpServer, StreamableHttpTransport } from "mcp-lite";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import Stripe from "npm:stripe@18.5.0";
 
@@ -38,31 +37,81 @@ function getBrisbaneToday(): string {
   return formatDateYMD(getBrisbaneDate());
 }
 
-function getSupabase() {
-  return createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    { auth: { persistSession: false } }
-  );
+function getEnv(name: string): string {
+  const value = Deno.env.get(name);
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${name}`);
+  }
+  return value;
 }
 
-const log = (tool: string, msg: string, details?: any) => {
-  const d = details ? ` - ${JSON.stringify(details)}` : "";
-  console.log(`[OPENCLAW-MCP][${tool}] ${msg}${d}`);
+function getSupabase() {
+  return createClient(getEnv("SUPABASE_URL"), getEnv("SUPABASE_SERVICE_ROLE_KEY"), {
+    auth: { persistSession: false },
+  });
+}
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version, x-openclaw-key, accept, mcp-session-id",
+  "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
 };
 
-// ── Create MCP Server ──
-const mcpServer = new McpServer({
+const log = (scope: string, msg: string, details?: unknown) => {
+  const d = details ? ` - ${JSON.stringify(details)}` : "";
+  console.log(`[OPENCLAW-MCP][${scope}] ${msg}${d}`);
+};
+
+function ensureApiKey(req: Request) {
+  const apiKey = req.headers.get("x-openclaw-key") || req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+  const expectedKey = getEnv("OPENCLAW_API_KEY");
+  if (apiKey !== expectedKey) {
+    throw new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+}
+
+type RegisteredTool = {
+  name: string;
+  description: string;
+  inputSchema: Record<string, unknown>;
+  handler: (args: any) => Promise<any> | any;
+};
+
+const serverInfo = {
   name: "birdies-hub",
   version: "1.0.0",
-});
+};
+
+const toolRegistry = new Map<string, RegisteredTool>();
+
+const mcpServer = {
+  tool(nameOrConfig: string | { name: string; description?: string; inputSchema?: Record<string, unknown>; handler: (args: any) => Promise<any> | any }, maybeConfig?: { description?: string; inputSchema?: Record<string, unknown>; handler: (args: any) => Promise<any> | any }) {
+    const name = typeof nameOrConfig === "string" ? nameOrConfig : nameOrConfig.name;
+    const config = typeof nameOrConfig === "string" ? maybeConfig : nameOrConfig;
+
+    if (!name || !config?.handler) {
+      throw new Error(`Invalid tool registration for ${name || "unknown"}`);
+    }
+
+    toolRegistry.set(name, {
+      name,
+      description: config.description || "",
+      inputSchema: (config.inputSchema as Record<string, unknown>) || { type: "object", properties: {} },
+      handler: config.handler,
+    });
+
+    return this;
+  },
+};
 
 // ═══════════════════════════════════════════
 //  READ TOOLS
 // ═══════════════════════════════════════════
 
-mcpServer.tool({
-  name: "get_daily_summary",
+mcpServer.tool("get_daily_summary", {
   description: "Returns a Brisbane-aware daily breakdown of all revenue streams (bookings, POS, memberships) with line items and Stripe IDs for reconciliation. Revenue excludes pending/unpaid bookings.",
   inputSchema: {
     type: "object",
@@ -95,10 +144,36 @@ mcpServer.tool({
     const result = {
       date: dateStr,
       timezone: "Australia/Brisbane",
-      bookings: { count: paidBookings.length, revenue: Math.round(bookingRevenue * 100) / 100, pending_count: pendingBookings.length, items: bookings.map((b: any) => ({ id: b.id, total_price: parseFloat(b.total_price), status: b.status, payment_method: b.payment_method, start_time: b.start_time, end_time: b.end_time, stripe_payment_intent_id: b.stripe_payment_intent_id })) },
-      pos: { count: pos.length, revenue: Math.round(posRevenue * 100) / 100, items: pos.map((t: any) => ({ id: t.id, total: parseFloat(t.total), payment_method: t.payment_method, created_at: t.created_at })) },
-      memberships: { count: memberships.length, revenue: Math.round(membershipRevenue * 100) / 100, items: memberships.map((m: any) => ({ id: m.id, amount: parseFloat(m.amount), tier: m.tier, paid_at: m.paid_at, stripe_invoice_id: m.stripe_invoice_id })) },
-      totals: { revenue: Math.round((bookingRevenue + posRevenue + membershipRevenue) * 100) / 100, booking_revenue: Math.round(bookingRevenue * 100) / 100, pos_revenue: Math.round(posRevenue * 100) / 100, membership_revenue: Math.round(membershipRevenue * 100) / 100 },
+      bookings: {
+        count: paidBookings.length,
+        revenue: Math.round(bookingRevenue * 100) / 100,
+        pending_count: pendingBookings.length,
+        items: bookings.map((b: any) => ({
+          id: b.id,
+          total_price: parseFloat(b.total_price),
+          status: b.status,
+          payment_method: b.payment_method,
+          start_time: b.start_time,
+          end_time: b.end_time,
+          stripe_payment_intent_id: b.stripe_payment_intent_id,
+        })),
+      },
+      pos: {
+        count: pos.length,
+        revenue: Math.round(posRevenue * 100) / 100,
+        items: pos.map((t: any) => ({ id: t.id, total: parseFloat(t.total), payment_method: t.payment_method, created_at: t.created_at })),
+      },
+      memberships: {
+        count: memberships.length,
+        revenue: Math.round(membershipRevenue * 100) / 100,
+        items: memberships.map((m: any) => ({ id: m.id, amount: parseFloat(m.amount), tier: m.tier, paid_at: m.paid_at, stripe_invoice_id: m.stripe_invoice_id })),
+      },
+      totals: {
+        revenue: Math.round((bookingRevenue + posRevenue + membershipRevenue) * 100) / 100,
+        booking_revenue: Math.round(bookingRevenue * 100) / 100,
+        pos_revenue: Math.round(posRevenue * 100) / 100,
+        membership_revenue: Math.round(membershipRevenue * 100) / 100,
+      },
     };
 
     log("get_daily_summary", "Completed", { date: dateStr, total: result.totals.revenue });
@@ -106,8 +181,7 @@ mcpServer.tool({
   },
 });
 
-mcpServer.tool({
-  name: "get_range_summary",
+mcpServer.tool("get_range_summary", {
   description: "Returns aggregated Brisbane-aware revenue totals for a date range across bookings, POS, and memberships.",
   inputSchema: {
     type: "object",
@@ -139,19 +213,25 @@ mcpServer.tool({
     const membershipRevenue = memberships.reduce((s: number, p: any) => s + (parseFloat(p.amount) || 0), 0);
 
     const result = {
-      from: fromDate, to: toDate, timezone: "Australia/Brisbane",
+      from: fromDate,
+      to: toDate,
+      timezone: "Australia/Brisbane",
       bookings: { count: bookings.length, revenue: Math.round(bookingRevenue * 100) / 100 },
       pos: { count: pos.length, revenue: Math.round(posRevenue * 100) / 100 },
       memberships: { count: memberships.length, revenue: Math.round(membershipRevenue * 100) / 100 },
-      totals: { revenue: Math.round((bookingRevenue + posRevenue + membershipRevenue) * 100) / 100, booking_revenue: Math.round(bookingRevenue * 100) / 100, pos_revenue: Math.round(posRevenue * 100) / 100, membership_revenue: Math.round(membershipRevenue * 100) / 100 },
+      totals: {
+        revenue: Math.round((bookingRevenue + posRevenue + membershipRevenue) * 100) / 100,
+        booking_revenue: Math.round(bookingRevenue * 100) / 100,
+        pos_revenue: Math.round(posRevenue * 100) / 100,
+        membership_revenue: Math.round(membershipRevenue * 100) / 100,
+      },
     };
 
     return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
   },
 });
 
-mcpServer.tool({
-  name: "get_dashboard_stats",
+mcpServer.tool("get_dashboard_stats", {
   description: "Returns a real-time business overview: today's bookings/revenue, 30-day revenue split (bookings/POS/memberships), membership breakdown by tier, and total customer count.",
   inputSchema: {
     type: "object",
@@ -176,7 +256,9 @@ mcpServer.tool({
 
     const profiles = allProfiles.data || [];
     const tiers: Record<string, number> = {};
-    profiles.forEach((p: any) => { tiers[p.membership_tier] = (tiers[p.membership_tier] || 0) + 1; });
+    profiles.forEach((p: any) => {
+      tiers[p.membership_tier] = (tiers[p.membership_tier] || 0) + 1;
+    });
 
     const paidTodayBookings = (bookingsToday.data || []).filter((b: any) => b.payment_method !== "pending" && parseFloat(b.total_price) > 0);
     const paidRecentBookings = (recentBookings.data || []).filter((b: any) => b.payment_method !== "pending" && parseFloat(b.total_price) > 0);
@@ -187,10 +269,12 @@ mcpServer.tool({
     const monthlyPosRevenue = (posTransactions.data || []).reduce((sum: number, t: any) => sum + (parseFloat(t.total) || 0), 0);
 
     const result = {
-      date: today, timezone: "Australia/Brisbane",
+      date: today,
+      timezone: "Australia/Brisbane",
       today: { bookings_count: paidTodayBookings.length, revenue: Math.round(todayRevenue * 100) / 100 },
       last_30_days: {
-        from: thirtyDaysAgo, to: today,
+        from: thirtyDaysAgo,
+        to: today,
         booking_revenue: Math.round(monthlyBookingRevenue * 100) / 100,
         pos_revenue: Math.round(monthlyPosRevenue * 100) / 100,
         membership_revenue: Math.round(monthlyMembershipRevenue * 100) / 100,
@@ -207,8 +291,7 @@ mcpServer.tool({
   },
 });
 
-mcpServer.tool({
-  name: "get_timetable",
+mcpServer.tool("get_timetable", {
   description: "Returns all bookings for a specific date with customer details (name, email, membership tier) and bay info. Useful for seeing today's schedule.",
   inputSchema: {
     type: "object",
@@ -227,13 +310,17 @@ mcpServer.tool({
 
     const bookings = bookingsRes.data || [];
     const baysMap: Record<string, any> = {};
-    (baysRes.data || []).forEach((b: any) => { baysMap[b.id] = b; });
+    (baysRes.data || []).forEach((b: any) => {
+      baysMap[b.id] = b;
+    });
 
     const userIds = [...new Set(bookings.map((b: any) => b.user_id))];
-    let profilesMap: Record<string, any> = {};
+    const profilesMap: Record<string, any> = {};
     if (userIds.length > 0) {
       const { data: profiles } = await supabase.from("profiles").select("user_id, first_name, last_name, email, phone, membership_tier").in("user_id", userIds);
-      (profiles || []).forEach((p: any) => { profilesMap[p.user_id] = p; });
+      (profiles || []).forEach((p: any) => {
+        profilesMap[p.user_id] = p;
+      });
     }
 
     const enrichedBookings = bookings.map((b: any) => ({ ...b, bay: baysMap[b.bay_id] || null, customer: profilesMap[b.user_id] || null }));
@@ -241,8 +328,7 @@ mcpServer.tool({
   },
 });
 
-mcpServer.tool({
-  name: "get_booking",
+mcpServer.tool("get_booking", {
   description: "Returns full details of a single booking including customer profile and bay info.",
   inputSchema: {
     type: "object",
@@ -261,8 +347,7 @@ mcpServer.tool({
   },
 });
 
-mcpServer.tool({
-  name: "get_customers",
+mcpServer.tool("get_customers", {
   description: "Search and list customer profiles. Can filter by name/email search term and membership tier.",
   inputSchema: {
     type: "object",
@@ -284,8 +369,7 @@ mcpServer.tool({
   },
 });
 
-mcpServer.tool({
-  name: "get_customer",
+mcpServer.tool("get_customer", {
   description: "Returns a single customer's full profile, recent bookings (last 20), and deposit transaction history. Lookup by user_id or email.",
   inputSchema: {
     type: "object",
@@ -299,7 +383,7 @@ mcpServer.tool({
     const supabase = getSupabase();
     let query = supabase.from("profiles").select("*");
     if (user_id) query = query.eq("user_id", user_id);
-    else query = query.eq("email", email);
+    else query = query.eq("email", email!);
 
     const { data: profile, error } = await query.single();
     if (error) throw new Error(error.message);
@@ -313,8 +397,7 @@ mcpServer.tool({
   },
 });
 
-mcpServer.tool({
-  name: "get_bay_status",
+mcpServer.tool("get_bay_status", {
   description: "Returns all bays, their device status (online/offline, plug state), and upcoming blocks.",
   inputSchema: { type: "object", properties: {} },
   handler: async () => {
@@ -329,8 +412,7 @@ mcpServer.tool({
   },
 });
 
-mcpServer.tool({
-  name: "get_league_standings",
+mcpServer.tool("get_league_standings", {
   description: "Returns SGT tour leaderboard standings. Defaults to the current active tour.",
   inputSchema: {
     type: "object",
@@ -349,8 +431,7 @@ mcpServer.tool({
   },
 });
 
-mcpServer.tool({
-  name: "get_membership_payments",
+mcpServer.tool("get_membership_payments", {
   description: "Returns membership payment history, optionally filtered by customer.",
   inputSchema: {
     type: "object",
@@ -370,8 +451,7 @@ mcpServer.tool({
   },
 });
 
-mcpServer.tool({
-  name: "get_pos_transactions",
+mcpServer.tool("get_pos_transactions", {
   description: "Returns recent point-of-sale transactions. Optionally filter by date (Brisbane-aware).",
   inputSchema: {
     type: "object",
@@ -394,8 +474,7 @@ mcpServer.tool({
   },
 });
 
-mcpServer.tool({
-  name: "get_gift_cards",
+mcpServer.tool("get_gift_cards", {
   description: "Returns all gift cards and their status (pending/redeemed).",
   inputSchema: {
     type: "object",
@@ -409,8 +488,7 @@ mcpServer.tool({
   },
 });
 
-mcpServer.tool({
-  name: "get_announcements",
+mcpServer.tool("get_announcements", {
   description: "Returns current and past in-app announcements.",
   inputSchema: {
     type: "object",
@@ -424,8 +502,7 @@ mcpServer.tool({
   },
 });
 
-mcpServer.tool({
-  name: "get_bay_logs",
+mcpServer.tool("get_bay_logs", {
   description: "Returns bay controller event logs for diagnostics. Filter by bay number and severity.",
   inputSchema: {
     type: "object",
@@ -451,8 +528,7 @@ mcpServer.tool({
 //  WRITE TOOLS
 // ═══════════════════════════════════════════
 
-mcpServer.tool({
-  name: "cancel_booking",
+mcpServer.tool("cancel_booking", {
   description: "Cancels a booking and automatically processes the appropriate refund (Stripe card refund or deposit balance credit). Sends cancellation email by default.",
   inputSchema: {
     type: "object",
@@ -471,7 +547,7 @@ mcpServer.tool({
     let refundResult: any = null;
 
     if (booking.stripe_payment_intent_id && (booking.payment_method === "stripe" || booking.payment_method === "card")) {
-      const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY")!, { apiVersion: "2025-08-27.basil" });
+      const stripe = new Stripe(getEnv("STRIPE_SECRET_KEY"), { apiVersion: "2025-08-27.basil" });
       const refund = await stripe.refunds.create({ payment_intent: booking.stripe_payment_intent_id, reason: "requested_by_customer" });
       refundResult = { type: "stripe", refund_id: refund.id, amount: refund.amount / 100, status: refund.status };
     }
@@ -491,20 +567,21 @@ mcpServer.tool({
 
     if (send_notification !== false) {
       try {
-        await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-booking-notification`, {
+        await fetch(`${getEnv("SUPABASE_URL")}/functions/v1/send-booking-notification`, {
           method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}` },
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${getEnv("SUPABASE_SERVICE_ROLE_KEY")}` },
           body: JSON.stringify({ booking_id, notification_type: "cancellation" }),
         });
-      } catch (e) { log("cancel_booking", "Notification failed (non-fatal)", { error: String(e) }); }
+      } catch (e) {
+        log("cancel_booking", "Notification failed (non-fatal)", { error: String(e) });
+      }
     }
 
     return { content: [{ type: "text", text: JSON.stringify({ success: true, booking_id, refund: refundResult }, null, 2) }] };
   },
 });
 
-mcpServer.tool({
-  name: "cancel_membership",
+mcpServer.tool("cancel_membership", {
   description: "Cancels a customer's membership — cancels all active Stripe subscriptions and downgrades to 'visitor' tier.",
   inputSchema: {
     type: "object",
@@ -517,12 +594,15 @@ mcpServer.tool({
     if (pErr || !profile) throw new Error("Profile not found");
     if (profile.membership_tier === "visitor") throw new Error("Already a visitor");
 
-    const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY")!, { apiVersion: "2025-08-27.basil" });
+    const stripe = new Stripe(getEnv("STRIPE_SECRET_KEY"), { apiVersion: "2025-08-27.basil" });
     const customers = await stripe.customers.list({ email: profile.email, limit: 1 });
-    let cancelledSubs: string[] = [];
+    const cancelledSubs: string[] = [];
     if (customers.data.length > 0) {
       const subs = await stripe.subscriptions.list({ customer: customers.data[0].id, status: "active", limit: 10 });
-      for (const sub of subs.data) { await stripe.subscriptions.cancel(sub.id); cancelledSubs.push(sub.id); }
+      for (const sub of subs.data) {
+        await stripe.subscriptions.cancel(sub.id);
+        cancelledSubs.push(sub.id);
+      }
     }
 
     await supabase.from("profiles").update({ membership_tier: "visitor" }).eq("user_id", user_id);
@@ -530,8 +610,7 @@ mcpServer.tool({
   },
 });
 
-mcpServer.tool({
-  name: "create_booking",
+mcpServer.tool("create_booking", {
   description: "Creates a new confirmed booking (admin-style, no payment processing). Will fail if the time slot overlaps with an existing booking.",
   inputSchema: {
     type: "object",
@@ -553,10 +632,16 @@ mcpServer.tool({
   handler: async (params: any) => {
     const supabase = getSupabase();
     const { data, error } = await supabase.from("bookings").insert({
-      user_id: params.user_id, bay_id: params.bay_id, booking_date: params.booking_date,
-      start_time: params.start_time, end_time: params.end_time, duration_hours: params.duration_hours,
-      hourly_rate: params.hourly_rate, total_price: params.total_price,
-      player_count: params.player_count || 1, status: "confirmed",
+      user_id: params.user_id,
+      bay_id: params.bay_id,
+      booking_date: params.booking_date,
+      start_time: params.start_time,
+      end_time: params.end_time,
+      duration_hours: params.duration_hours,
+      hourly_rate: params.hourly_rate,
+      total_price: params.total_price,
+      player_count: params.player_count || 1,
+      status: "confirmed",
       payment_method: params.payment_method || "admin",
       notes: params.notes || "Created via OpenClaw MCP",
     }).select().single();
@@ -565,8 +650,7 @@ mcpServer.tool({
   },
 });
 
-mcpServer.tool({
-  name: "add_credit",
+mcpServer.tool("add_credit", {
   description: "Adds deposit credit to a customer's balance. Records a transaction for audit trail.",
   inputSchema: {
     type: "object",
@@ -592,8 +676,7 @@ mcpServer.tool({
   },
 });
 
-mcpServer.tool({
-  name: "update_membership",
+mcpServer.tool("update_membership", {
   description: "Changes a customer's membership tier directly (manual override — does NOT handle Stripe subscriptions).",
   inputSchema: {
     type: "object",
@@ -614,8 +697,7 @@ mcpServer.tool({
   },
 });
 
-mcpServer.tool({
-  name: "create_announcement",
+mcpServer.tool("create_announcement", {
   description: "Creates a new in-app announcement visible to customers.",
   inputSchema: {
     type: "object",
@@ -635,8 +717,7 @@ mcpServer.tool({
   },
 });
 
-mcpServer.tool({
-  name: "block_bay",
+mcpServer.tool("block_bay", {
   description: "Blocks a bay for a specific date and time range (e.g. maintenance, private events).",
   inputSchema: {
     type: "object",
@@ -657,8 +738,7 @@ mcpServer.tool({
   },
 });
 
-mcpServer.tool({
-  name: "unblock_bay",
+mcpServer.tool("unblock_bay", {
   description: "Removes a bay block by its ID.",
   inputSchema: {
     type: "object",
@@ -673,37 +753,127 @@ mcpServer.tool({
   },
 });
 
-// ── Set up HTTP transport with auth middleware ──
+// ── MCP JSON-RPC HTTP endpoint ──
 const app = new Hono();
-const transport = new StreamableHttpTransport();
 
-// Auth middleware — validate OPENCLAW_API_KEY on every request
+function jsonRpcResult(id: unknown, result: unknown) {
+  return new Response(JSON.stringify({ jsonrpc: "2.0", id, result }), {
+    status: 200,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+function jsonRpcError(id: unknown, code: number, message: string, status = 500) {
+  return new Response(JSON.stringify({ jsonrpc: "2.0", id, error: { code, message } }), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
 app.use("*", async (c, next) => {
-  // Allow CORS preflight
   if (c.req.method === "OPTIONS") {
-    return new Response(null, {
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-openclaw-key, accept, mcp-session-id",
-        "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
-      },
-    });
+    return new Response(null, { headers: corsHeaders });
   }
 
-  const apiKey = c.req.header("x-openclaw-key") || c.req.header("authorization")?.replace("Bearer ", "");
-  const expectedKey = Deno.env.get("OPENCLAW_API_KEY");
-  if (!expectedKey || apiKey !== expectedKey) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401,
-      headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+  try {
+    ensureApiKey(c.req.raw);
+    await next();
+  } catch (error) {
+    if (error instanceof Response) {
+      return error;
+    }
+
+    log("auth", "Request auth/config failed", {
+      error: error instanceof Error ? error.message : String(error),
+      method: c.req.method,
+      path: c.req.path,
+    });
+
+    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Authentication/configuration error" }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
-
-  await next();
 });
 
-app.all("/*", async (c) => {
-  return await transport.handleRequest(c.req.raw, mcpServer);
+app.get("*", (c) => {
+  return c.json({
+    name: serverInfo.name,
+    transport: "streamable-http",
+    status: "ok",
+    tools: toolRegistry.size,
+  }, { headers: corsHeaders });
+});
+
+app.post("*", async (c) => {
+  let body: any;
+
+  try {
+    body = await c.req.json();
+  } catch {
+    return jsonRpcError(null, -32700, "Invalid JSON", 400);
+  }
+
+  const { id = null, method, params } = body ?? {};
+
+  log("rpc", "Incoming MCP request", {
+    method,
+    path: c.req.path,
+    contentType: c.req.header("content-type") || null,
+    accept: c.req.header("accept") || null,
+  });
+
+  try {
+    switch (method) {
+      case "initialize":
+        return jsonRpcResult(id, {
+          protocolVersion: "2025-03-26",
+          capabilities: {
+            tools: { listChanged: false },
+          },
+          serverInfo,
+        });
+
+      case "notifications/initialized":
+        return new Response(null, { status: 202, headers: corsHeaders });
+
+      case "ping":
+        return jsonRpcResult(id, {});
+
+      case "tools/list":
+        return jsonRpcResult(id, {
+          tools: Array.from(toolRegistry.values()).map((tool) => ({
+            name: tool.name,
+            description: tool.description,
+            inputSchema: tool.inputSchema,
+          })),
+        });
+
+      case "tools/call": {
+        const toolName = params?.name;
+        const args = params?.arguments || {};
+        const tool = toolRegistry.get(toolName);
+
+        if (!tool) {
+          return jsonRpcError(id, -32601, `Unknown tool: ${toolName}`, 404);
+        }
+
+        const result = await tool.handler(args);
+        return jsonRpcResult(id, result);
+      }
+
+      default:
+        return jsonRpcError(id, -32601, `Method not found: ${method}`, 404);
+    }
+  } catch (error) {
+    log("rpc", "Unhandled MCP error", {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : null,
+      method,
+    });
+
+    return jsonRpcError(id, -32603, error instanceof Error ? error.message : "Internal MCP server error", 500);
+  }
 });
 
 Deno.serve(app.fetch);
