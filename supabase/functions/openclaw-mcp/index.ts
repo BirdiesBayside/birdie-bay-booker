@@ -73,11 +73,39 @@ function ensureApiKey(req: Request) {
   }
 }
 
-// ── Create MCP Server ──
-const mcpServer = new McpServer({
+type RegisteredTool = {
+  name: string;
+  description: string;
+  inputSchema: Record<string, unknown>;
+  handler: (args: any) => Promise<any> | any;
+};
+
+const serverInfo = {
   name: "birdies-hub",
   version: "1.0.0",
-});
+};
+
+const toolRegistry = new Map<string, RegisteredTool>();
+
+const mcpServer = {
+  tool(nameOrConfig: string | { name: string; description?: string; inputSchema?: Record<string, unknown>; handler: (args: any) => Promise<any> | any }, maybeConfig?: { description?: string; inputSchema?: Record<string, unknown>; handler: (args: any) => Promise<any> | any }) {
+    const name = typeof nameOrConfig === "string" ? nameOrConfig : nameOrConfig.name;
+    const config = typeof nameOrConfig === "string" ? maybeConfig : nameOrConfig;
+
+    if (!name || !config?.handler) {
+      throw new Error(`Invalid tool registration for ${name || "unknown"}`);
+    }
+
+    toolRegistry.set(name, {
+      name,
+      description: config.description || "",
+      inputSchema: (config.inputSchema as Record<string, unknown>) || { type: "object", properties: {} },
+      handler: config.handler,
+    });
+
+    return this;
+  },
+};
 
 // ═══════════════════════════════════════════
 //  READ TOOLS
