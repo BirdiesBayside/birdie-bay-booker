@@ -753,10 +753,22 @@ mcpServer.tool("unblock_bay", {
   },
 });
 
-// ── Set up HTTP transport with auth middleware ──
+// ── MCP JSON-RPC HTTP endpoint ──
 const app = new Hono();
-const transport = new StreamableHttpTransport();
-const httpHandler = transport.bind(mcpServer);
+
+function jsonRpcResult(id: unknown, result: unknown) {
+  return new Response(JSON.stringify({ jsonrpc: "2.0", id, result }), {
+    status: 200,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+function jsonRpcError(id: unknown, code: number, message: string, status = 500) {
+  return new Response(JSON.stringify({ jsonrpc: "2.0", id, error: { code, message } }), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
 
 app.use("*", async (c, next) => {
   if (c.req.method === "OPTIONS") {
@@ -777,68 +789,90 @@ app.use("*", async (c, next) => {
       path: c.req.path,
     });
 
-    return new Response(
-      JSON.stringify({
-        error: error instanceof Error ? error.message : "Authentication/configuration error",
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
-    );
+    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Authentication/configuration error" }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 });
 
-app.get("/", (c) => {
-  return c.json(
-    {
-      name: "birdies-hub",
-      transport: "streamable-http",
-      status: "ok",
-    },
-    { headers: corsHeaders },
-  );
+app.get("*", (c) => {
+  return c.json({
+    name: serverInfo.name,
+    transport: "streamable-http",
+    status: "ok",
+    tools: toolRegistry.size,
+  }, { headers: corsHeaders });
 });
 
-app.all("/*", async (c) => {
-  try {
-    log("http", "Incoming MCP request", {
-      method: c.req.method,
-      path: c.req.path,
-      contentType: c.req.header("content-type") || null,
-      accept: c.req.header("accept") || null,
-    });
+app.post("*", async (c) => {
+  let body: any;
 
-    const response = await httpHandler(c.req.raw);
-    const headers = new Headers(response.headers);
-    Object.entries(corsHeaders).forEach(([key, value]) => headers.set(key, value));
-    return new Response(response.body, {
-      status: response.status,
-      statusText: response.statusText,
-      headers,
-    });
+  try {
+    body = await c.req.json();
+  } catch {
+    return jsonRpcError(null, -32700, "Invalid JSON", 400);
+  }
+
+  const { id = null, method, params } = body ?? {};
+
+  log("rpc", "Incoming MCP request", {
+    method,
+    path: c.req.path,
+    contentType: c.req.header("content-type") || null,
+    accept: c.req.header("accept") || null,
+  });
+
+  try {
+    switch (method) {
+      case "initialize":
+        return jsonRpcResult(id, {
+          protocolVersion: "2025-03-26",
+          capabilities: {
+            tools: { listChanged: false },
+          },
+          serverInfo,
+        });
+
+      case "notifications/initialized":
+        return new Response(null, { status: 202, headers: corsHeaders });
+
+      case "ping":
+        return jsonRpcResult(id, {});
+
+      case "tools/list":
+        return jsonRpcResult(id, {
+          tools: Array.from(toolRegistry.values()).map((tool) => ({
+            name: tool.name,
+            description: tool.description,
+            inputSchema: tool.inputSchema,
+          })),
+        });
+
+      case "tools/call": {
+        const toolName = params?.name;
+        const args = params?.arguments || {};
+        const tool = toolRegistry.get(toolName);
+
+        if (!tool) {
+          return jsonRpcError(id, -32601, `Unknown tool: ${toolName}`, 404);
+        }
+
+        const result = await tool.handler(args);
+        return jsonRpcResult(id, result);
+      }
+
+      default:
+        return jsonRpcError(id, -32601, `Method not found: ${method}`, 404);
+    }
   } catch (error) {
-    log("http", "Unhandled MCP transport error", {
+    log("rpc", "Unhandled MCP error", {
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : null,
-      method: c.req.method,
-      path: c.req.path,
+      method,
     });
 
-    return new Response(
-      JSON.stringify({
-        jsonrpc: "2.0",
-        error: {
-          code: -32603,
-          message: error instanceof Error ? error.message : "Internal MCP server error",
-        },
-        id: null,
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
-    );
+    return jsonRpcError(id, -32603, error instanceof Error ? error.message : "Internal MCP server error", 500);
   }
 });
 
