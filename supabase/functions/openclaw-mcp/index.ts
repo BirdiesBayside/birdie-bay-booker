@@ -886,17 +886,22 @@ function jsonRpcAccepted(sessionId?: string) {
 
 function streamableResult(id: unknown, result: unknown, request: Request, sessionId?: string) {
   const accept = request.headers.get("accept") || "";
-  const wantsStream = accept.includes("text/event-stream");
-
-  if (!wantsStream) {
-    return jsonRpcResult(id, result, sessionId);
-  }
+  const acceptsJson = accept.includes("application/json") || accept.includes("*/*") || !accept;
+  const wantsStreamOnly = accept.includes("text/event-stream") && !acceptsJson;
 
   const payload = { jsonrpc: "2.0", id, result };
 
-  if (sessionId && sseSessions.has(sessionId)) {
-    enqueueSessionPayload(sessionId, payload);
-    return jsonRpcAccepted(sessionId);
+  // Prefer completing the POST request directly with JSON when the client accepts it.
+  // This avoids hanging clients that advertise SSE support for MCP transport negotiation
+  // but still expect tools/list and tools/call to resolve on the HTTP response itself.
+  if (!wantsStreamOnly) {
+    return new Response(JSON.stringify(payload), {
+      status: 200,
+      headers: buildHeaders({
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
+      }, sessionId),
+    });
   }
 
   return new Response(createSingleEventStream(payload), {
