@@ -739,6 +739,9 @@ export default function AdminMarketing() {
           <TabsContent value="reviews" className="mt-4">
             <ReviewApprovals />
           </TabsContent>
+
+          {/* Feedback Tab Content */}
+          <FeedbackTab activeTab={activeTab} />
         </Tabs>
 
         {/* Composer Dialog */}
