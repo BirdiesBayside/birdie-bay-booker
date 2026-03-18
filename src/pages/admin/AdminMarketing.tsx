@@ -533,7 +533,7 @@ export default function AdminMarketing() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid grid-cols-2 sm:inline-flex sm:grid-cols-none w-full sm:w-auto">
+          <TabsList className="flex w-full sm:inline-flex sm:w-auto overflow-x-auto no-scrollbar">
             <TabsTrigger value="campaigns" className="flex items-center gap-2">
               <Send className="h-4 w-4" />
               Campaigns
