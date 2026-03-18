@@ -791,6 +791,63 @@ Deno.serve(async (req) => {
       return respond({ success: true });
     }
 
+    // ── Toggle membership hold ──
+    if (action === "toggle-membership-hold") {
+      if (!params.user_id && !params.email) return respond({ error: "user_id or email required" }, 400);
+      if (typeof params.put_on_hold !== "boolean") return respond({ error: "put_on_hold (boolean) required" }, 400);
+
+      // Resolve email from user_id if needed
+      let email = params.email;
+      let userId = params.user_id;
+      if (!email && userId) {
+        const { data: profile } = await supabase.from("profiles").select("email, user_id").eq("user_id", userId).single();
+        if (!profile) return respond({ error: "Customer not found" }, 404);
+        email = profile.email;
+      }
+      if (!userId && email) {
+        const { data: profile } = await supabase.from("profiles").select("user_id").eq("email", email).single();
+        if (profile) userId = profile.user_id;
+      }
+
+      // Update the database hold flag
+      if (userId) {
+        const { error: dbErr } = await supabase
+          .from("profiles")
+          .update({ membership_on_hold: params.put_on_hold })
+          .eq("user_id", userId);
+        if (dbErr) throw new Error(dbErr.message);
+      }
+
+      // Pause/resume Stripe subscriptions
+      const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
+      let subscriptionsAffected = 0;
+      if (stripeKey && email) {
+        const stripe = new Stripe(stripeKey, { apiVersion: "2023-10-16" });
+        const customers = await stripe.customers.list({ email, limit: 1 });
+        if (customers.data.length > 0) {
+          const subs = await stripe.subscriptions.list({ customer: customers.data[0].id, status: "active", limit: 10 });
+          for (const sub of subs.data) {
+            if (params.put_on_hold) {
+              await stripe.subscriptions.update(sub.id, { pause_collection: { behavior: "void" } });
+            } else {
+              await stripe.subscriptions.update(sub.id, { pause_collection: null as any });
+            }
+            subscriptionsAffected++;
+          }
+        }
+      }
+
+      log(action, params.put_on_hold ? "Membership put on hold" : "Membership resumed", { user_id: userId, email, subscriptionsAffected });
+      return respond({
+        success: true,
+        on_hold: params.put_on_hold,
+        message: params.put_on_hold
+          ? `Membership paused${subscriptionsAffected > 0 ? ` — ${subscriptionsAffected} subscription(s) paused` : ""}`
+          : `Membership resumed${subscriptionsAffected > 0 ? ` — ${subscriptionsAffected} subscription(s) resumed` : ""}`,
+        subscriptions_affected: subscriptionsAffected,
+      });
+    }
+
     // ── List available actions ──
     if (action === "list-actions") {
       return respond({
