@@ -34,6 +34,7 @@ const WelcomePreview = lazy(() => import("./pages/WelcomePreview"));
 const BirdiesGuide = lazy(() => import("./pages/BirdiesGuide"));
 const Unsubscribe = lazy(() => import("./pages/Unsubscribe"));
 const BayOrder = lazy(() => import("./pages/BayOrder"));
+const Feedback = lazy(() => import("./pages/Feedback"));
 
 // Admin pages
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
