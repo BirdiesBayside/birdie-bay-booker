@@ -876,6 +876,7 @@ Deno.serve(async (req) => {
           "create-announcement (title, content, members_only?, expires_at?)",
           "block-bay (bay_id, block_date, start_time, end_time, reason?)",
           "unblock-bay (block_id)",
+          "toggle-membership-hold (user_id | email, put_on_hold) — Pause or resume a member's subscription billing and set hold flag",
         ],
         notes: {
           timezone: "All date parameters use YYYY-MM-DD in Australia/Brisbane timezone",
