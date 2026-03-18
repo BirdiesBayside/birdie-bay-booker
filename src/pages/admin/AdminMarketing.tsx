@@ -546,6 +546,10 @@ export default function AdminMarketing() {
               <Star className="h-4 w-4" />
               Review Approvals
             </TabsTrigger>
+            <TabsTrigger value="feedback" className="flex items-center gap-2">
+              <MessageSquare className="h-4 w-4" />
+              Feedback
+            </TabsTrigger>
           </TabsList>
 
           {/* Campaigns Tab */}
