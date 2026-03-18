@@ -41,6 +41,10 @@ import {
   Pencil,
   Zap,
   Star,
+  MessageSquare,
+  Frown,
+  Meh,
+  Smile,
 } from "lucide-react";
 import { ReviewApprovals } from "@/components/admin/ReviewApprovals";
 
