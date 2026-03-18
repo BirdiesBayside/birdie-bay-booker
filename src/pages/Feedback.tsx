@@ -21,7 +21,10 @@ export default function Feedback() {
   const prefillName = searchParams.get("name") || "";
   const prefillEmail = searchParams.get("email") || "";
 
-  const [score, setScore] = useState<Score | null>(null);
+  const quickScore = searchParams.get("quick") as Score | null;
+  const [score, setScore] = useState<Score | null>(
+    quickScore && ["bad", "ok", "good"].includes(quickScore) ? quickScore : null
+  );
   const [name, setName] = useState(prefillName);
   const [comment, setComment] = useState("");
   const [submitted, setSubmitted] = useState(false);

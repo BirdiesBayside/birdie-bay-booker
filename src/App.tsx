@@ -200,6 +200,7 @@ const App = () => (
             <Route path="/birdies-guide" element={<BirdiesGuide />} />
             <Route path="/unsubscribe" element={<Unsubscribe />} />
             <Route path="/order/:bayNumber" element={<BayOrder />} />
+            <Route path="/feedback" element={<Feedback />} />
             {/* Admin Routes */}
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/admin/analytics" element={<AdminAnalytics />} />
