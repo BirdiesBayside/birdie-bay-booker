@@ -58,17 +58,17 @@ const buildFeedbackEmail = (firstName: string, feedbackUrl: string) => {
               <table role="presentation" align="center" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto 24px;">
                 <tr>
                   <td style="padding:0 8px;">
-                    <a href="{{feedback_url}}&quick=bad" style="display:inline-block; padding:14px 20px; font-family:Inter, Arial, sans-serif; font-size:28px; text-decoration:none; background-color:#FEE2E2; border-radius:12px; text-align:center;">
+                    <a href="{{feedback_url}}&amp;quick=bad" style="display:inline-block; padding:14px 20px; font-family:Inter, Arial, sans-serif; font-size:28px; text-decoration:none; background-color:#FEE2E2; border-radius:12px; text-align:center;">
                       😞
                     </a>
                   </td>
                   <td style="padding:0 8px;">
-                    <a href="{{feedback_url}}&quick=ok" style="display:inline-block; padding:14px 20px; font-family:Inter, Arial, sans-serif; font-size:28px; text-decoration:none; background-color:#FEF3C7; border-radius:12px; text-align:center;">
+                    <a href="{{feedback_url}}&amp;quick=ok" style="display:inline-block; padding:14px 20px; font-family:Inter, Arial, sans-serif; font-size:28px; text-decoration:none; background-color:#FEF3C7; border-radius:12px; text-align:center;">
                       😐
                     </a>
                   </td>
                   <td style="padding:0 8px;">
-                    <a href="{{feedback_url}}&quick=good" style="display:inline-block; padding:14px 20px; font-family:Inter, Arial, sans-serif; font-size:28px; text-decoration:none; background-color:#D1FAE5; border-radius:12px; text-align:center;">
+                    <a href="{{feedback_url}}&amp;quick=good" style="display:inline-block; padding:14px 20px; font-family:Inter, Arial, sans-serif; font-size:28px; text-decoration:none; background-color:#D1FAE5; border-radius:12px; text-align:center;">
                       😊
                     </a>
                   </td>
