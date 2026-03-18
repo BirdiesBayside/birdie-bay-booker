@@ -466,6 +466,38 @@ Removes a bay block.
 
 ---
 
+### `toggle-membership-hold`
+Pauses or resumes a member's subscription billing via Stripe and updates the hold flag in the database.
+
+**Parameters:**
+| Param | Type | Required | Description |
+|-------|------|----------|-------------|
+| `user_id` | `string` (UUID) | One required | Customer's auth user ID |
+| `email` | `string` | One required | Customer email |
+| `put_on_hold` | `boolean` | Yes | `true` to pause, `false` to resume |
+
+**Example — Put on hold:**
+```json
+{ "action": "toggle-membership-hold", "email": "john@example.com", "put_on_hold": true }
+```
+
+**Example — Remove hold:**
+```json
+{ "action": "toggle-membership-hold", "user_id": "uuid-...", "put_on_hold": false }
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "on_hold": true,
+  "message": "Membership paused — 1 subscription(s) paused",
+  "subscriptions_affected": 1
+}
+```
+
+---
+
 ## Discovery
 
 Send `{ "action": "list-actions" }` to get a machine-readable list of all available actions and their parameters.
