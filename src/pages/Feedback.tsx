@@ -50,6 +50,13 @@ export default function Feedback() {
           .eq("id", token);
       }
 
+      // Notify admin immediately on bad feedback
+      if (score === "bad") {
+        supabase.functions.invoke("notify-bad-feedback", {
+          body: { name: name || null, email: prefillEmail || null, comment: comment || null },
+        }).catch(() => {}); // fire-and-forget
+      }
+
       setSubmitted(true);
     } catch {
       // Still show success to user
