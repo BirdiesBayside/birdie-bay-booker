@@ -48,7 +48,7 @@ const buildFeedbackEmail = (firstName: string, feedbackUrl: string) => {
                 HOW WAS YOUR VISIT?
               </h1>
               <p style="font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center; margin:0 0 8px;">
-                Hey ${firstName},
+                Hey {{first_name}},
               </p>
               <p style="font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center; margin:0 0 24px;">
                 Thanks for visiting Birdies! We'd love to know how your experience was — it only takes 10 seconds.
@@ -58,17 +58,17 @@ const buildFeedbackEmail = (firstName: string, feedbackUrl: string) => {
               <table role="presentation" align="center" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto 24px;">
                 <tr>
                   <td style="padding:0 8px;">
-                    <a href="${feedbackUrl}&quick=bad" style="display:inline-block; padding:14px 20px; font-family:Inter, Arial, sans-serif; font-size:28px; text-decoration:none; background-color:#FEE2E2; border-radius:12px; text-align:center;">
+                    <a href="{{feedback_url}}&quick=bad" style="display:inline-block; padding:14px 20px; font-family:Inter, Arial, sans-serif; font-size:28px; text-decoration:none; background-color:#FEE2E2; border-radius:12px; text-align:center;">
                       😞
                     </a>
                   </td>
                   <td style="padding:0 8px;">
-                    <a href="${feedbackUrl}&quick=ok" style="display:inline-block; padding:14px 20px; font-family:Inter, Arial, sans-serif; font-size:28px; text-decoration:none; background-color:#FEF3C7; border-radius:12px; text-align:center;">
+                    <a href="{{feedback_url}}&quick=ok" style="display:inline-block; padding:14px 20px; font-family:Inter, Arial, sans-serif; font-size:28px; text-decoration:none; background-color:#FEF3C7; border-radius:12px; text-align:center;">
                       😐
                     </a>
                   </td>
                   <td style="padding:0 8px;">
-                    <a href="${feedbackUrl}&quick=good" style="display:inline-block; padding:14px 20px; font-family:Inter, Arial, sans-serif; font-size:28px; text-decoration:none; background-color:#D1FAE5; border-radius:12px; text-align:center;">
+                    <a href="{{feedback_url}}&quick=good" style="display:inline-block; padding:14px 20px; font-family:Inter, Arial, sans-serif; font-size:28px; text-decoration:none; background-color:#D1FAE5; border-radius:12px; text-align:center;">
                       😊
                     </a>
                   </td>
@@ -88,7 +88,7 @@ const buildFeedbackEmail = (firstName: string, feedbackUrl: string) => {
               <table role="presentation" align="center" cellpadding="0" cellspacing="0" border="0" style="margin:16px auto 0;">
                 <tr>
                   <td bgcolor="#EC622D" style="border-radius:12px;">
-                    <a href="${feedbackUrl}"
+                    <a href="{{feedback_url}}"
                        style="display:inline-block; padding:14px 24px; font-family:Anton, Impact, Arial Black, sans-serif; font-size:18px; letter-spacing:0.3px; color:#FFFFFF; text-decoration:none;">
                       GIVE FEEDBACK
                     </a>
@@ -130,6 +130,15 @@ const buildFeedbackEmail = (firstName: string, feedbackUrl: string) => {
 </html>`;
 };
 
+// Render template by replacing placeholders
+const renderTemplate = (template: string, vars: Record<string, string>) => {
+  let result = template;
+  for (const [key, value] of Object.entries(vars)) {
+    result = result.replaceAll(`{{${key}}}`, value);
+  }
+  return result;
+};
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -142,83 +151,97 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-    // Find one-time visitors who:
-    // 1. Have exactly 1 confirmed booking
-    // 2. That booking was 14+ days ago
-    // 3. Haven't been sent a feedback email yet
     const fourteenDaysAgo = new Date();
     fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
     const cutoffDate = fourteenDaysAgo.toISOString().split("T")[0];
 
-    const { data: eligibleUsers, error: queryError } = await supabase.rpc("get_feedback_eligible_users" as any);
+    // Try to load template from email_templates table
+    let emailTemplate = buildFeedbackEmail("", "");
+    const { data: templateRow } = await supabase
+      .from("email_templates")
+      .select("html_content")
+      .eq("template_key", "feedback_request")
+      .eq("is_active", true)
+      .single();
 
-    // Fallback: query directly if RPC doesn't exist
-    let candidates: any[] = [];
-
-    if (queryError) {
-      logStep("RPC not found, using direct query approach");
-
-      // Get all profiles
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, email, first_name, last_name, marketing_opt_out");
-
-      if (!profiles) {
-        return new Response(JSON.stringify({ success: true, sent: 0, message: "No profiles found" }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      // Get already-sent emails
-      const { data: alreadySent } = await supabase
-        .from("feedback_emails_sent")
-        .select("user_id");
-
-      const sentUserIds = new Set((alreadySent || []).map((s: any) => s.user_id));
-
-      for (const profile of profiles) {
-        if (sentUserIds.has(profile.user_id)) continue;
-        if (profile.marketing_opt_out) continue;
-
-        // Check booking count and last booking date
-        const { data: bookings } = await supabase
-          .from("bookings")
-          .select("id, booking_date")
-          .eq("user_id", profile.user_id)
-          .eq("status", "confirmed")
-          .order("booking_date", { ascending: false });
-
-        if (!bookings || bookings.length === 0) continue;
-
-        // Only target one-time visitors OR lapsed regulars (no booking in 14+ days)
-        const lastBookingDate = bookings[0].booking_date;
-        if (lastBookingDate > cutoffDate) continue;
-
-        // They qualify - haven't been back in 14+ days
-        candidates.push({
-          user_id: profile.user_id,
-          email: profile.email,
-          first_name: profile.first_name,
-          total_bookings: bookings.length,
-        });
-      }
+    if (templateRow?.html_content) {
+      emailTemplate = templateRow.html_content;
+      logStep("Using template from email_templates table");
     } else {
-      candidates = eligibleUsers || [];
+      // Use the hardcoded default
+      emailTemplate = buildFeedbackEmail("{{first_name}}", "{{feedback_url}}");
+      logStep("Using default hardcoded template");
     }
 
-    logStep("Eligible users found", { count: candidates.length });
+    // Batch approach: get all profiles + all bookings in 2 queries
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("user_id, email, first_name, last_name, marketing_opt_out");
+
+    if (!profiles || profiles.length === 0) {
+      return new Response(JSON.stringify({ success: true, sent: 0, message: "No profiles" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Get already-sent user IDs
+    const { data: alreadySent } = await supabase
+      .from("feedback_emails_sent")
+      .select("user_id");
+    const sentUserIds = new Set((alreadySent || []).map((s: any) => s.user_id));
+
+    // Get all confirmed bookings (only need user_id and booking_date)
+    const { data: allBookings } = await supabase
+      .from("bookings")
+      .select("user_id, booking_date")
+      .eq("status", "confirmed")
+      .order("booking_date", { ascending: false });
+
+    // Build a map: user_id -> { lastBookingDate, count }
+    const bookingMap = new Map<string, { lastDate: string; count: number }>();
+    for (const b of (allBookings || [])) {
+      const existing = bookingMap.get(b.user_id);
+      if (!existing) {
+        bookingMap.set(b.user_id, { lastDate: b.booking_date, count: 1 });
+      } else {
+        existing.count++;
+        if (b.booking_date > existing.lastDate) {
+          existing.lastDate = b.booking_date;
+        }
+      }
+    }
+
+    logStep("Data loaded", { profiles: profiles.length, bookings: allBookings?.length, alreadySent: sentUserIds.size });
+
+    // Find candidates
+    const candidates: Array<{ user_id: string; email: string; first_name: string }> = [];
+    for (const profile of profiles) {
+      if (sentUserIds.has(profile.user_id)) continue;
+      if (profile.marketing_opt_out) continue;
+
+      const bookingInfo = bookingMap.get(profile.user_id);
+      if (!bookingInfo) continue; // no bookings at all
+
+      // Last booking must be 14+ days ago
+      if (bookingInfo.lastDate > cutoffDate) continue;
+
+      candidates.push({
+        user_id: profile.user_id,
+        email: profile.email,
+        first_name: profile.first_name,
+      });
+    }
+
+    logStep("Eligible candidates", { count: candidates.length });
 
     let sentCount = 0;
 
     for (const user of candidates) {
       try {
-        // Create tracking record first to get the token
+        // Create tracking record
         const { data: trackingRecord, error: insertError } = await supabase
           .from("feedback_emails_sent")
-          .insert({
-            user_id: user.user_id,
-            email: user.email,
-          })
+          .insert({ user_id: user.user_id, email: user.email })
           .select("id")
           .single();
 
@@ -230,13 +253,16 @@ Deno.serve(async (req) => {
         const token = trackingRecord.id;
         const feedbackUrl = `${SITE_URL}/feedback?token=${token}&name=${encodeURIComponent(user.first_name || "")}&email=${encodeURIComponent(user.email)}`;
 
-        const emailHtml = buildFeedbackEmail(user.first_name || "there", feedbackUrl);
+        const renderedHtml = renderTemplate(emailTemplate, {
+          first_name: user.first_name || "there",
+          feedback_url: feedbackUrl,
+        });
 
         await resend.emails.send({
           from: "Birdies Bayside <info@birdiesbayside.com.au>",
           to: [user.email],
           subject: "How was your visit to Birdies? 🏌️",
-          html: emailHtml,
+          html: renderedHtml,
         });
 
         sentCount++;
