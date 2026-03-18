@@ -251,7 +251,7 @@ Deno.serve(async (req) => {
         }
 
         const token = trackingRecord.id;
-        const feedbackUrl = `${SITE_URL}/feedback?token=${token}&name=${encodeURIComponent(user.first_name || "")}&email=${encodeURIComponent(user.email)}`;
+        const feedbackUrl = `${SITE_URL}/feedback?token=${token}`;
 
         const renderedHtml = renderTemplate(emailTemplate, {
           first_name: user.first_name || "there",
