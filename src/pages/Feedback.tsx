@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Textarea } from "@/components/ui/textarea";
@@ -18,10 +18,12 @@ const scoreOptions: { value: Score; label: string; icon: typeof Frown; color: st
 export default function Feedback() {
   const [searchParams] = useSearchParams();
   const token = searchParams.get("token") || "";
-  const prefillName = searchParams.get("name") || "";
-  const prefillEmail = searchParams.get("email") || "";
-
   const quickScore = searchParams.get("quick") as Score | null;
+
+  // Support legacy URL params, but also look up from token
+  const [prefillName, setPrefillName] = useState(searchParams.get("name") || "");
+  const [prefillEmail, setPrefillEmail] = useState(searchParams.get("email") || "");
+
   const [score, setScore] = useState<Score | null>(
     quickScore && ["bad", "ok", "good"].includes(quickScore) ? quickScore : null
   );
@@ -29,6 +31,36 @@ export default function Feedback() {
   const [comment, setComment] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  // Look up name/email from token if not in URL params
+  useEffect(() => {
+    if (token && !searchParams.get("name")) {
+      supabase
+        .from("feedback_emails_sent" as any)
+        .select("email, user_id")
+        .eq("id", token)
+        .single()
+        .then(({ data }: any) => {
+          if (data?.email) {
+            setPrefillEmail(data.email);
+            // Try to get name from profiles
+            if (data.user_id) {
+              supabase
+                .from("profiles")
+                .select("first_name")
+                .eq("user_id", data.user_id)
+                .single()
+                .then(({ data: profile }) => {
+                  if (profile?.first_name) {
+                    setPrefillName(profile.first_name);
+                    setName(profile.first_name);
+                  }
+                });
+            }
+          }
+        });
+    }
+  }, [token]);
 
   const handleSubmit = async () => {
     if (!score) return;
