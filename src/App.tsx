@@ -34,6 +34,7 @@ const WelcomePreview = lazy(() => import("./pages/WelcomePreview"));
 const BirdiesGuide = lazy(() => import("./pages/BirdiesGuide"));
 const Unsubscribe = lazy(() => import("./pages/Unsubscribe"));
 const BayOrder = lazy(() => import("./pages/BayOrder"));
+const Feedback = lazy(() => import("./pages/Feedback"));
 
 // Admin pages
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
@@ -199,6 +200,7 @@ const App = () => (
             <Route path="/birdies-guide" element={<BirdiesGuide />} />
             <Route path="/unsubscribe" element={<Unsubscribe />} />
             <Route path="/order/:bayNumber" element={<BayOrder />} />
+            <Route path="/feedback" element={<Feedback />} />
             {/* Admin Routes */}
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/admin/analytics" element={<AdminAnalytics />} />

@@ -542,6 +542,63 @@ export type Database = {
         }
         Relationships: []
       }
+      feedback_emails_sent: {
+        Row: {
+          email: string
+          feedback_received: boolean
+          id: string
+          sent_at: string
+          user_id: string
+        }
+        Insert: {
+          email: string
+          feedback_received?: boolean
+          id?: string
+          sent_at?: string
+          user_id: string
+        }
+        Update: {
+          email?: string
+          feedback_received?: boolean
+          id?: string
+          sent_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      feedback_responses: {
+        Row: {
+          comment: string | null
+          created_at: string
+          email: string | null
+          id: string
+          name: string | null
+          score: string
+          token: string
+          user_id: string | null
+        }
+        Insert: {
+          comment?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string | null
+          score: string
+          token: string
+          user_id?: string | null
+        }
+        Update: {
+          comment?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string | null
+          score?: string
+          token?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       gift_cards: {
         Row: {
           amount: number

@@ -41,6 +41,10 @@ import {
   Pencil,
   Zap,
   Star,
+  MessageSquare,
+  Frown,
+  Meh,
+  Smile,
 } from "lucide-react";
 import { ReviewApprovals } from "@/components/admin/ReviewApprovals";
 
@@ -542,6 +546,10 @@ export default function AdminMarketing() {
               <Star className="h-4 w-4" />
               Review Approvals
             </TabsTrigger>
+            <TabsTrigger value="feedback" className="flex items-center gap-2">
+              <MessageSquare className="h-4 w-4" />
+              Feedback
+            </TabsTrigger>
           </TabsList>
 
           {/* Campaigns Tab */}
@@ -998,7 +1006,190 @@ export default function AdminMarketing() {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Feedback Tab Content - rendered outside other dialogs */}
+        <FeedbackTab activeTab={activeTab} />
       </div>
     </AdminLayout>
+  );
+}
+
+// ───── Feedback Tab Component ─────
+function FeedbackTab({ activeTab }: { activeTab: string }) {
+  const { toast } = useToast();
+  const [feedbackResponses, setFeedbackResponses] = useState<any[]>([]);
+  const [isLoadingFeedback, setIsLoadingFeedback] = useState(false);
+  const [isSendingFeedback, setIsSendingFeedback] = useState(false);
+
+  useEffect(() => {
+    if (activeTab === "feedback") {
+      fetchFeedback();
+    }
+  }, [activeTab]);
+
+  const fetchFeedback = async () => {
+    setIsLoadingFeedback(true);
+    const { data, error } = await supabase
+      .from("feedback_responses" as any)
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(100);
+
+    if (!error && data) {
+      setFeedbackResponses(data as any[]);
+    }
+    setIsLoadingFeedback(false);
+  };
+
+  const handleTriggerFeedbackCampaign = async () => {
+    setIsSendingFeedback(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("send-feedback-request");
+      if (error) throw error;
+
+      toast({
+        title: "Feedback campaign sent",
+        description: `Sent ${data.sent} feedback request emails to lapsed visitors.`,
+      });
+      fetchFeedback();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to send feedback campaign.",
+        variant: "destructive",
+      });
+    }
+    setIsSendingFeedback(false);
+  };
+
+  const getScoreIcon = (score: string) => {
+    switch (score) {
+      case "bad": return <Frown className="h-5 w-5 text-red-500" />;
+      case "ok": return <Meh className="h-5 w-5 text-amber-500" />;
+      case "good": return <Smile className="h-5 w-5 text-emerald-600" />;
+      default: return null;
+    }
+  };
+
+  const getScoreBadge = (score: string) => {
+    switch (score) {
+      case "bad": return "bg-red-100 text-red-700 border-red-200";
+      case "ok": return "bg-amber-100 text-amber-700 border-amber-200";
+      case "good": return "bg-emerald-100 text-emerald-700 border-emerald-200";
+      default: return "";
+    }
+  };
+
+  // Score summary
+  const scoreCounts = feedbackResponses.reduce((acc, r) => {
+    acc[r.score] = (acc[r.score] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  if (activeTab !== "feedback") return null;
+
+  return (
+    <TabsContent value="feedback" className="mt-4 space-y-4" forceMount>
+      {/* Summary + Trigger */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="p-4 text-center">
+            <Smile className="h-8 w-8 text-emerald-600 mx-auto mb-1" />
+            <div className="text-2xl font-bold text-foreground">{scoreCounts.good || 0}</div>
+            <div className="text-xs text-muted-foreground">Good</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 text-center">
+            <Meh className="h-8 w-8 text-amber-500 mx-auto mb-1" />
+            <div className="text-2xl font-bold text-foreground">{scoreCounts.ok || 0}</div>
+            <div className="text-xs text-muted-foreground">OK</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 text-center">
+            <Frown className="h-8 w-8 text-red-500 mx-auto mb-1" />
+            <div className="text-2xl font-bold text-foreground">{scoreCounts.bad || 0}</div>
+            <div className="text-xs text-muted-foreground">Bad</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 flex flex-col items-center justify-center">
+            <Button
+              onClick={handleTriggerFeedbackCampaign}
+              disabled={isSendingFeedback}
+              className="bg-accent hover:bg-accent/90 text-accent-foreground w-full"
+            >
+              {isSendingFeedback ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <Send className="h-4 w-4 mr-2" />
+                  Send Feedback Requests
+                </>
+              )}
+            </Button>
+            <p className="text-xs text-muted-foreground mt-2 text-center">
+              Emails lapsed visitors (14+ days)
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Responses list */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Feedback Responses</CardTitle>
+          <CardDescription>
+            {feedbackResponses.length} response{feedbackResponses.length !== 1 ? "s" : ""} received
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoadingFeedback ? (
+            <div className="flex items-center justify-center h-32">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : feedbackResponses.length === 0 ? (
+            <div className="text-center py-8">
+              <MessageSquare className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+              <p className="text-muted-foreground">No feedback yet. Send some requests!</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {feedbackResponses.map((response: any) => (
+                <div
+                  key={response.id}
+                  className="flex items-start gap-3 p-3 rounded-lg border border-border bg-card"
+                >
+                  <div className="mt-0.5">{getScoreIcon(response.score)}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium text-foreground text-sm">
+                        {response.name || "Anonymous"}
+                      </span>
+                      <Badge variant="outline" className={`text-xs ${getScoreBadge(response.score)}`}>
+                        {response.score.toUpperCase()}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">
+                        {format(new Date(response.created_at), "MMM d, h:mm a")}
+                      </span>
+                    </div>
+                    {response.comment && (
+                      <p className="text-sm text-muted-foreground mt-1">{response.comment}</p>
+                    )}
+                    {response.email && (
+                      <p className="text-xs text-muted-foreground/70 mt-1">{response.email}</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </TabsContent>
   );
 }
