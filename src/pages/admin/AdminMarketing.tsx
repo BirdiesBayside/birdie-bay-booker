@@ -739,6 +739,9 @@ export default function AdminMarketing() {
           <TabsContent value="reviews" className="mt-4">
             <ReviewApprovals />
           </TabsContent>
+
+          {/* Feedback Tab Content */}
+          <FeedbackTab activeTab={activeTab} />
         </Tabs>
 
         {/* Composer Dialog */}
@@ -1007,8 +1010,6 @@ export default function AdminMarketing() {
           </DialogContent>
         </Dialog>
 
-        {/* Feedback Tab Content - rendered outside other dialogs */}
-        <FeedbackTab activeTab={activeTab} />
       </div>
     </AdminLayout>
   );
