@@ -57,26 +57,26 @@ const buildFeedbackEmail = (_firstName: string, _feedbackUrl: string) => {
               <!-- FEEDBACK BUTTONS -->
               <table role="presentation" align="center" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto 24px;">
                 <tr>
-                  <td style="padding:0 8px;">
-                    <a href="{{feedback_url}}&amp;quick=bad" style="display:inline-block; padding:14px 20px; font-family:Inter, Arial, sans-serif; font-size:28px; text-decoration:none; background-color:#FEE2E2; border-radius:12px; text-align:center;">
-                      😞
-                    </a>
+                  <td align="center" style="padding:0 8px;">
+                    <!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" href="{{feedback_url_bad}}" style="height:56px;v-text-anchor:middle;width:56px;" arcsize="21%" fillcolor="#FEE2E2" stroke="f"><v:textbox><center><![endif]-->
+                    <a href="{{feedback_url_bad}}" target="_blank" rel="noopener noreferrer" style="display:block; padding:14px 20px; font-family:Inter, Arial, sans-serif; font-size:28px; line-height:28px; text-decoration:none; background-color:#FEE2E2; border-radius:12px; text-align:center; mso-hide:all;">&#128543;</a>
+                    <!--[if mso]></center></v:textbox></v:roundrect><![endif]-->
                   </td>
-                  <td style="padding:0 8px;">
-                    <a href="{{feedback_url}}&amp;quick=ok" style="display:inline-block; padding:14px 20px; font-family:Inter, Arial, sans-serif; font-size:28px; text-decoration:none; background-color:#FEF3C7; border-radius:12px; text-align:center;">
-                      😐
-                    </a>
+                  <td align="center" style="padding:0 8px;">
+                    <!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" href="{{feedback_url_ok}}" style="height:56px;v-text-anchor:middle;width:56px;" arcsize="21%" fillcolor="#FEF3C7" stroke="f"><v:textbox><center><![endif]-->
+                    <a href="{{feedback_url_ok}}" target="_blank" rel="noopener noreferrer" style="display:block; padding:14px 20px; font-family:Inter, Arial, sans-serif; font-size:28px; line-height:28px; text-decoration:none; background-color:#FEF3C7; border-radius:12px; text-align:center; mso-hide:all;">&#128528;</a>
+                    <!--[if mso]></center></v:textbox></v:roundrect><![endif]-->
                   </td>
-                  <td style="padding:0 8px;">
-                    <a href="{{feedback_url}}&amp;quick=good" style="display:inline-block; padding:14px 20px; font-family:Inter, Arial, sans-serif; font-size:28px; text-decoration:none; background-color:#D1FAE5; border-radius:12px; text-align:center;">
-                      😊
-                    </a>
+                  <td align="center" style="padding:0 8px;">
+                    <!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" href="{{feedback_url_good}}" style="height:56px;v-text-anchor:middle;width:56px;" arcsize="21%" fillcolor="#D1FAE5" stroke="f"><v:textbox><center><![endif]-->
+                    <a href="{{feedback_url_good}}" target="_blank" rel="noopener noreferrer" style="display:block; padding:14px 20px; font-family:Inter, Arial, sans-serif; font-size:28px; line-height:28px; text-decoration:none; background-color:#D1FAE5; border-radius:12px; text-align:center; mso-hide:all;">&#128522;</a>
+                    <!--[if mso]></center></v:textbox></v:roundrect><![endif]-->
                   </td>
                 </tr>
                 <tr>
-                  <td style="padding:4px 8px 0; text-align:center; font-family:Inter, Arial, sans-serif; font-size:12px; color:#1F4C25;">Bad</td>
-                  <td style="padding:4px 8px 0; text-align:center; font-family:Inter, Arial, sans-serif; font-size:12px; color:#1F4C25;">OK</td>
-                  <td style="padding:4px 8px 0; text-align:center; font-family:Inter, Arial, sans-serif; font-size:12px; color:#1F4C25;">Good</td>
+                  <td style="padding:4px 8px 0; text-align:center; font-family:Inter, Arial, sans-serif; font-size:12px; color:#1F4C25;"><a href="{{feedback_url_bad}}" target="_blank" rel="noopener noreferrer" style="color:#1F4C25; text-decoration:none;">Bad</a></td>
+                  <td style="padding:4px 8px 0; text-align:center; font-family:Inter, Arial, sans-serif; font-size:12px; color:#1F4C25;"><a href="{{feedback_url_ok}}" target="_blank" rel="noopener noreferrer" style="color:#1F4C25; text-decoration:none;">OK</a></td>
+                  <td style="padding:4px 8px 0; text-align:center; font-family:Inter, Arial, sans-serif; font-size:12px; color:#1F4C25;"><a href="{{feedback_url_good}}" target="_blank" rel="noopener noreferrer" style="color:#1F4C25; text-decoration:none;">Good</a></td>
                 </tr>
               </table>
 
@@ -88,10 +88,12 @@ const buildFeedbackEmail = (_firstName: string, _feedbackUrl: string) => {
               <table role="presentation" align="center" cellpadding="0" cellspacing="0" border="0" style="margin:16px auto 0;">
                 <tr>
                   <td bgcolor="#EC622D" style="border-radius:12px;">
-                    <a href="{{feedback_url}}"
-                       style="display:inline-block; padding:14px 24px; font-family:Anton, Impact, Arial Black, sans-serif; font-size:18px; letter-spacing:0.3px; color:#FFFFFF; text-decoration:none;">
+                    <!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" href="{{feedback_url}}" style="height:46px;v-text-anchor:middle;width:200px;" arcsize="26%" fillcolor="#EC622D" stroke="f"><v:textbox><center><![endif]-->
+                    <a href="{{feedback_url}}" target="_blank" rel="noopener noreferrer"
+                       style="display:block; padding:14px 24px; font-family:Anton, Impact, Arial Black, sans-serif; font-size:18px; letter-spacing:0.3px; color:#FFFFFF; text-decoration:none; text-align:center;">
                       GIVE FEEDBACK
                     </a>
+                    <!--[if mso]></center></v:textbox></v:roundrect><![endif]-->
                   </td>
                 </tr>
               </table>
@@ -180,6 +182,9 @@ Deno.serve(async (req) => {
       const renderedHtml = renderTemplate(emailTemplate, {
         first_name: testName || "there",
         feedback_url: testFeedbackUrl,
+        feedback_url_bad: `${testFeedbackUrl}&quick=bad`,
+        feedback_url_ok: `${testFeedbackUrl}&quick=ok`,
+        feedback_url_good: `${testFeedbackUrl}&quick=good`,
       });
 
       await resend.emails.send({
@@ -319,6 +324,9 @@ Deno.serve(async (req) => {
         const renderedHtml = renderTemplate(emailTemplate, {
           first_name: user.first_name || "there",
           feedback_url: feedbackUrl,
+          feedback_url_bad: `${feedbackUrl}&quick=bad`,
+          feedback_url_ok: `${feedbackUrl}&quick=ok`,
+          feedback_url_good: `${feedbackUrl}&quick=good`,
         });
 
         await resend.emails.send({
