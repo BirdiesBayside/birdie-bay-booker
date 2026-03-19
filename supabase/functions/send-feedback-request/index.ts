@@ -182,6 +182,9 @@ Deno.serve(async (req) => {
       const renderedHtml = renderTemplate(emailTemplate, {
         first_name: testName || "there",
         feedback_url: testFeedbackUrl,
+        feedback_url_bad: `${testFeedbackUrl}&quick=bad`,
+        feedback_url_ok: `${testFeedbackUrl}&quick=ok`,
+        feedback_url_good: `${testFeedbackUrl}&quick=good`,
       });
 
       await resend.emails.send({
