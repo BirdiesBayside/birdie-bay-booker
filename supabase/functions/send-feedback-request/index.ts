@@ -145,6 +145,57 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // Parse request body for test mode
+    let testEmail: string | null = null;
+    let testName: string | null = null;
+    try {
+      const body = await req.json();
+      testEmail = body?.test_email || null;
+      testName = body?.test_name || null;
+    } catch { /* no body or not JSON */ }
+
+    // TEST MODE: send directly to a specific email without eligibility checks
+    if (testEmail) {
+      logStep("TEST MODE - sending to", { testEmail });
+
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      const supabase = createClient(supabaseUrl, serviceRoleKey);
+
+      let emailTemplate = buildFeedbackEmail("", "");
+      const { data: templateRow } = await supabase
+        .from("email_templates")
+        .select("html_content")
+        .eq("template_key", "feedback_request")
+        .eq("is_active", true)
+        .single();
+
+      if (templateRow?.html_content) {
+        emailTemplate = templateRow.html_content;
+      } else {
+        emailTemplate = buildFeedbackEmail("{{first_name}}", "{{feedback_url}}");
+      }
+
+      const testFeedbackUrl = `${SITE_URL}/feedback?token=test-preview`;
+      const renderedHtml = renderTemplate(emailTemplate, {
+        first_name: testName || "there",
+        feedback_url: testFeedbackUrl,
+      });
+
+      await resend.emails.send({
+        from: "Birdies Bayside <info@birdiesbayside.com.au>",
+        to: [testEmail],
+        subject: "Thanks for playing at Birdies! How was it? 🏌️",
+        html: renderedHtml,
+      });
+
+      logStep("TEST email sent", { testEmail });
+      return new Response(
+        JSON.stringify({ success: true, test: true, sent_to: testEmail }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     logStep("Function started - Post-first-session feedback (24hr)");
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
