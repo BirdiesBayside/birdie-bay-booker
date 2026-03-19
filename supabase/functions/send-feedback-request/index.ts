@@ -15,7 +15,7 @@ const logStep = (step: string, details?: any) => {
 
 const SITE_URL = Deno.env.get("SITE_URL") || "https://birdie-bay-bookings.lovable.app";
 
-const buildFeedbackEmail = (firstName: string, feedbackUrl: string) => {
+const buildFeedbackEmail = (_firstName: string, _feedbackUrl: string) => {
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -45,13 +45,13 @@ const buildFeedbackEmail = (firstName: string, feedbackUrl: string) => {
           <tr>
             <td style="background-color:#FFF5E4; padding:30px 22px; border-left:1px solid rgba(31,76,37,0.12); border-right:1px solid rgba(31,76,37,0.12);">
               <h1 style="margin:0 0 16px; font-family:Anton, Impact, Arial Black, sans-serif; font-size:30px; line-height:1.1; color:#1F4C25; text-align:center;">
-                HOW WAS YOUR VISIT?
+                THANKS FOR PLAYING!
               </h1>
               <p style="font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center; margin:0 0 8px;">
                 Hey {{first_name}},
               </p>
               <p style="font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center; margin:0 0 24px;">
-                Thanks for visiting Birdies! We'd love to know how your experience was — it only takes 10 seconds.
+                Thanks for your first session at Birdies — we hope you had a blast! We'd love to hear how it went. It only takes 10 seconds.
               </p>
               
               <!-- FEEDBACK BUTTONS -->
@@ -145,15 +145,11 @@ Deno.serve(async (req) => {
   }
 
   try {
-    logStep("Function started");
+    logStep("Function started - Post-first-session feedback (24hr)");
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceRoleKey);
-
-    const fourteenDaysAgo = new Date();
-    fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
-    const cutoffDate = fourteenDaysAgo.toISOString().split("T")[0];
 
     // Try to load template from email_templates table
     let emailTemplate = buildFeedbackEmail("", "");
@@ -168,12 +164,25 @@ Deno.serve(async (req) => {
       emailTemplate = templateRow.html_content;
       logStep("Using template from email_templates table");
     } else {
-      // Use the hardcoded default
       emailTemplate = buildFeedbackEmail("{{first_name}}", "{{feedback_url}}");
       logStep("Using default hardcoded template");
     }
 
-    // Batch approach: get all profiles + all bookings in 2 queries
+    // Window: bookings that occurred 24-48 hours ago (gives a day buffer)
+    const now = new Date();
+    const twentyFourHoursAgo = new Date(now);
+    twentyFourHoursAgo.setHours(twentyFourHoursAgo.getHours() - 24);
+    const fortyEightHoursAgo = new Date(now);
+    fortyEightHoursAgo.setHours(fortyEightHoursAgo.getHours() - 48);
+
+    // We use booking_date (date only), so calculate date range
+    // A booking_date that is 1-2 days ago means the session was yesterday or day before
+    const yesterdayDate = twentyFourHoursAgo.toISOString().split("T")[0];
+    const twoDaysAgoDate = fortyEightHoursAgo.toISOString().split("T")[0];
+
+    logStep("Date window", { yesterdayDate, twoDaysAgoDate });
+
+    // Get all profiles
     const { data: profiles } = await supabase
       .from("profiles")
       .select("user_id, email, first_name, last_name, marketing_opt_out");
@@ -184,46 +193,49 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Get already-sent user IDs
+    // Get already-sent user IDs (never send twice)
     const { data: alreadySent } = await supabase
       .from("feedback_emails_sent")
       .select("user_id");
     const sentUserIds = new Set((alreadySent || []).map((s: any) => s.user_id));
 
-    // Get all confirmed bookings (only need user_id and booking_date)
+    // Get all confirmed bookings grouped by user
     const { data: allBookings } = await supabase
       .from("bookings")
       .select("user_id, booking_date")
       .eq("status", "confirmed")
-      .order("booking_date", { ascending: false });
+      .order("booking_date", { ascending: true });
 
-    // Build a map: user_id -> { lastBookingDate, count }
-    const bookingMap = new Map<string, { lastDate: string; count: number }>();
+    // Build map: user_id -> { firstBookingDate, totalBookings }
+    const bookingMap = new Map<string, { firstDate: string; count: number }>();
     for (const b of (allBookings || [])) {
       const existing = bookingMap.get(b.user_id);
       if (!existing) {
-        bookingMap.set(b.user_id, { lastDate: b.booking_date, count: 1 });
+        bookingMap.set(b.user_id, { firstDate: b.booking_date, count: 1 });
       } else {
         existing.count++;
-        if (b.booking_date > existing.lastDate) {
-          existing.lastDate = b.booking_date;
-        }
+        // Since ordered ascending, first entry is already the earliest
       }
     }
 
-    logStep("Data loaded", { profiles: profiles.length, bookings: allBookings?.length, alreadySent: sentUserIds.size });
+    logStep("Data loaded", {
+      profiles: profiles.length,
+      bookings: allBookings?.length,
+      alreadySent: sentUserIds.size,
+    });
 
-    // Find candidates
+    // Find candidates: users whose FIRST EVER booking was 1-2 days ago
     const candidates: Array<{ user_id: string; email: string; first_name: string }> = [];
     for (const profile of profiles) {
       if (sentUserIds.has(profile.user_id)) continue;
       if (profile.marketing_opt_out) continue;
 
       const bookingInfo = bookingMap.get(profile.user_id);
-      if (!bookingInfo) continue; // no bookings at all
+      if (!bookingInfo) continue; // no bookings
 
-      // Last booking must be 14+ days ago
-      if (bookingInfo.lastDate > cutoffDate) continue;
+      // First booking must be within our 24-48hr window
+      // (booking_date between twoDaysAgoDate and yesterdayDate inclusive)
+      if (bookingInfo.firstDate < twoDaysAgoDate || bookingInfo.firstDate > yesterdayDate) continue;
 
       candidates.push({
         user_id: profile.user_id,
@@ -232,7 +244,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    logStep("Eligible candidates", { count: candidates.length });
+    logStep("Eligible candidates (first session 24-48hrs ago)", { count: candidates.length });
 
     let sentCount = 0;
 
@@ -261,7 +273,7 @@ Deno.serve(async (req) => {
         await resend.emails.send({
           from: "Birdies Bayside <info@birdiesbayside.com.au>",
           to: [user.email],
-          subject: "How was your visit to Birdies? 🏌️",
+          subject: "Thanks for playing at Birdies! How was it? 🏌️",
           html: renderedHtml,
         });
 
