@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -16,9 +16,10 @@ const scoreOptions: { value: Score; label: string; icon: typeof Frown; color: st
 ];
 
 export default function Feedback() {
+  const { token: routeToken, quick: routeQuick } = useParams<{ token?: string; quick?: Score }>();
   const [searchParams] = useSearchParams();
-  const token = searchParams.get("token") || "";
-  const quickScore = searchParams.get("quick") as Score | null;
+  const token = routeToken || searchParams.get("token") || "";
+  const quickScore = (routeQuick || searchParams.get("quick")) as Score | null;
 
   // Support legacy URL params, but also look up from token
   const [prefillName, setPrefillName] = useState(searchParams.get("name") || "");
