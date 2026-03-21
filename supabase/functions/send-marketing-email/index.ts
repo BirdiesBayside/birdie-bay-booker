@@ -25,7 +25,8 @@ async function generateUnsubscribeToken(email: string): Promise<string> {
 }
 
 function buildUnsubscribeUrl(email: string, token: string): string {
-  const siteUrl = Deno.env.get("SITE_URL") || "https://hub.birdiesbayside.com.au";
+  const rawUrl = Deno.env.get("SITE_URL") || "https://hub.birdiesbayside.com.au";
+  const siteUrl = /^https?:\/\//i.test(rawUrl) ? rawUrl.replace(/\/$/, "") : `https://${rawUrl.replace(/^\/+/, "").replace(/\/$/, "")}`;
   return `${siteUrl}/unsubscribe?email=${encodeURIComponent(email)}&token=${token}`;
 }
 
@@ -54,7 +55,8 @@ function replaceTemplateTags(html: string, recipient: Recipient, resetLink?: str
 // Generate password reset link for a user
 async function generateResetLink(supabaseAdmin: any, email: string): Promise<string | null> {
   try {
-    const siteUrl = Deno.env.get("SITE_URL") || "https://hub.birdiesbayside.com.au";
+    const rawUrl = Deno.env.get("SITE_URL") || "https://hub.birdiesbayside.com.au";
+    const siteUrl = /^https?:\/\//i.test(rawUrl) ? rawUrl.replace(/\/$/, "") : `https://${rawUrl.replace(/^\/+/, "").replace(/\/$/, "")}`;
     
     const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
       type: "recovery",

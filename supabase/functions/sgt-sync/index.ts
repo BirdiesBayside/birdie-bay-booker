@@ -227,7 +227,8 @@ serve(async (req) => {
         if (resendKey) {
           const { Resend } = await import("https://esm.sh/resend@2.0.0");
           const resend = new Resend(resendKey);
-          const siteUrl = Deno.env.get("SITE_URL") || "https://birdie-bay-bookings.lovable.app";
+          const rawUrl = Deno.env.get("SITE_URL") || "https://birdie-bay-bookings.lovable.app";
+          const siteUrl = /^https?:\/\//i.test(rawUrl) ? rawUrl.replace(/\/$/, "") : `https://${rawUrl.replace(/^\/+/, "").replace(/\/$/, "")}`;
           
           for (const linked of newlyLinked) {
             try {
