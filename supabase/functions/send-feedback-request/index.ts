@@ -15,6 +15,18 @@ const logStep = (step: string, details?: any) => {
 
 const SITE_URL = Deno.env.get("SITE_URL") || "https://birdie-bay-bookings.lovable.app";
 
+const buildFeedbackLinks = (token: string) => {
+  const encodedToken = encodeURIComponent(token);
+  const feedbackUrl = `${SITE_URL}/feedback?token=${encodedToken}`;
+
+  return {
+    feedbackUrl,
+    feedbackUrlBad: `${feedbackUrl}&quick=bad`,
+    feedbackUrlOk: `${feedbackUrl}&quick=ok`,
+    feedbackUrlGood: `${feedbackUrl}&quick=good`,
+  };
+};
+
 const buildFeedbackEmail = (_firstName: string, _feedbackUrl: string) => {
   return `<!doctype html>
 <html lang="en">
@@ -178,13 +190,13 @@ Deno.serve(async (req) => {
         emailTemplate = buildFeedbackEmail("{{first_name}}", "{{feedback_url}}");
       }
 
-      const testFeedbackUrl = `${SITE_URL}/feedback/test-preview`;
+      const testLinks = buildFeedbackLinks("test-preview");
       const renderedHtml = renderTemplate(emailTemplate, {
         first_name: testName || "there",
-        feedback_url: testFeedbackUrl,
-        feedback_url_bad: `${testFeedbackUrl}/bad`,
-        feedback_url_ok: `${testFeedbackUrl}/ok`,
-        feedback_url_good: `${testFeedbackUrl}/good`,
+         feedback_url: testLinks.feedbackUrl,
+         feedback_url_bad: testLinks.feedbackUrlBad,
+         feedback_url_ok: testLinks.feedbackUrlOk,
+         feedback_url_good: testLinks.feedbackUrlGood,
       });
 
       await resend.emails.send({
@@ -319,14 +331,14 @@ Deno.serve(async (req) => {
         }
 
         const token = trackingRecord.id;
-        const feedbackUrl = `${SITE_URL}/feedback/${token}`;
+        const links = buildFeedbackLinks(token);
 
         const renderedHtml = renderTemplate(emailTemplate, {
           first_name: user.first_name || "there",
-          feedback_url: feedbackUrl,
-          feedback_url_bad: `${feedbackUrl}/bad`,
-          feedback_url_ok: `${feedbackUrl}/ok`,
-          feedback_url_good: `${feedbackUrl}/good`,
+          feedback_url: links.feedbackUrl,
+          feedback_url_bad: links.feedbackUrlBad,
+          feedback_url_ok: links.feedbackUrlOk,
+          feedback_url_good: links.feedbackUrlGood,
         });
 
         await resend.emails.send({
