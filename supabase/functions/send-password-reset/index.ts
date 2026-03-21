@@ -38,7 +38,8 @@ serve(async (req) => {
 
     // Generate a password recovery link using Supabase Admin API
     // Use the SITE_URL environment variable or fall back to the published URL
-    const siteUrl = Deno.env.get("SITE_URL") || "https://hub.birdiesbayside.com.au";
+    const rawSiteUrl = Deno.env.get("SITE_URL") || "https://hub.birdiesbayside.com.au";
+    const siteUrl = /^https?:\/\//i.test(rawSiteUrl) ? rawSiteUrl.replace(/\/$/, "") : `https://${rawSiteUrl.replace(/^\/+/, "").replace(/\/$/, "")}`;
     
     const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
       type: "recovery",

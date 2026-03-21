@@ -586,7 +586,8 @@ serve(async (req) => {
       console.log("[SGT-REGISTER] Sending onboarding notification email...");
       
       // Build the onboarding URL - points to the SGT Manager Registrations tab
-      const siteUrl = Deno.env.get("SITE_URL") || "https://birdie-bay-bookings.lovable.app";
+      const rawUrl = Deno.env.get("SITE_URL") || "https://birdie-bay-bookings.lovable.app";
+      const siteUrl = /^https?:\/\//i.test(rawUrl) ? rawUrl.replace(/\/$/, "") : `https://${rawUrl.replace(/^\/+/, "").replace(/\/$/, "")}`;
       const onboardingUrl = `${siteUrl}/admin/sgt-manager?tab=registrations`;
       
       try {
