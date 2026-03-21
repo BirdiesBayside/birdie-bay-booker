@@ -178,13 +178,13 @@ Deno.serve(async (req) => {
         emailTemplate = buildFeedbackEmail("{{first_name}}", "{{feedback_url}}");
       }
 
-      const testFeedbackUrl = `${SITE_URL}/feedback?token=test-preview`;
+      const testFeedbackUrl = `${SITE_URL}/feedback/test-preview`;
       const renderedHtml = renderTemplate(emailTemplate, {
         first_name: testName || "there",
         feedback_url: testFeedbackUrl,
-        feedback_url_bad: `${testFeedbackUrl}&quick=bad`,
-        feedback_url_ok: `${testFeedbackUrl}&quick=ok`,
-        feedback_url_good: `${testFeedbackUrl}&quick=good`,
+        feedback_url_bad: `${testFeedbackUrl}/bad`,
+        feedback_url_ok: `${testFeedbackUrl}/ok`,
+        feedback_url_good: `${testFeedbackUrl}/good`,
       });
 
       await resend.emails.send({
@@ -319,14 +319,14 @@ Deno.serve(async (req) => {
         }
 
         const token = trackingRecord.id;
-        const feedbackUrl = `${SITE_URL}/feedback?token=${token}`;
+        const feedbackUrl = `${SITE_URL}/feedback/${token}`;
 
         const renderedHtml = renderTemplate(emailTemplate, {
           first_name: user.first_name || "there",
           feedback_url: feedbackUrl,
-          feedback_url_bad: `${feedbackUrl}&quick=bad`,
-          feedback_url_ok: `${feedbackUrl}&quick=ok`,
-          feedback_url_good: `${feedbackUrl}&quick=good`,
+          feedback_url_bad: `${feedbackUrl}/bad`,
+          feedback_url_ok: `${feedbackUrl}/ok`,
+          feedback_url_good: `${feedbackUrl}/good`,
         });
 
         await resend.emails.send({
