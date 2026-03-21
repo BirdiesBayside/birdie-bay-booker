@@ -13,7 +13,21 @@ const logStep = (step: string, details?: any) => {
   console.log(`[FEEDBACK-REQUEST] ${step}${detailsStr}`);
 };
 
-const SITE_URL = Deno.env.get("SITE_URL") || "https://birdie-bay-bookings.lovable.app";
+const normalizeSiteUrl = (rawUrl: string | undefined) => {
+  const fallbackUrl = "https://birdie-bay-bookings.lovable.app";
+  if (!rawUrl) return fallbackUrl;
+
+  const trimmedUrl = rawUrl.trim();
+  if (!trimmedUrl) return fallbackUrl;
+
+  if (/^https?:\/\//i.test(trimmedUrl)) {
+    return trimmedUrl.replace(/\/$/, "");
+  }
+
+  return `https://${trimmedUrl.replace(/^\/+/, "").replace(/\/$/, "")}`;
+};
+
+const SITE_URL = normalizeSiteUrl(Deno.env.get("SITE_URL"));
 
 const buildFeedbackLinks = (token: string) => {
   const encodedToken = encodeURIComponent(token);
