@@ -1133,9 +1133,9 @@ function FeedbackTab({ activeTab }: { activeTab: string }) {
                 </>
               )}
             </Button>
-            <p className="text-xs text-muted-foreground mt-2 text-center">
-              Emails lapsed visitors (14+ days)
-            </p>
+             <p className="text-xs text-muted-foreground mt-2 text-center">
+               Sent daily, 24hrs after first session
+             </p>
           </CardContent>
         </Card>
       </div>
