@@ -141,25 +141,6 @@ const renderTemplate = (template: string, vars: Record<string, string>) => {
   return result;
 };
 
-const buildFeedbackText = (vars: Record<string, string>) => `Thanks for playing at Birdies, ${vars.first_name || "there"}!
-
-We'd love to hear how your first session went.
-
-Open feedback form:
-${vars.feedback_url}
-
-Quick feedback links:
-Bad: ${vars.feedback_url_bad}
-OK: ${vars.feedback_url_ok}
-Good: ${vars.feedback_url_good}
-
-If tapping a link doesn't work, copy and paste it into Safari.
-
-Birdies Bayside
-Unit 2, 86 Jardine Drive, Redland Bay QLD 4165
-(07) 2146 8442
-https://birdiesbayside.com.au`;
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -205,20 +186,12 @@ Deno.serve(async (req) => {
         feedback_url_ok: `${testFeedbackUrl}/ok`,
         feedback_url_good: `${testFeedbackUrl}/good`,
       });
-      const renderedText = buildFeedbackText({
-        first_name: testName || "there",
-        feedback_url: testFeedbackUrl,
-        feedback_url_bad: `${testFeedbackUrl}/bad`,
-        feedback_url_ok: `${testFeedbackUrl}/ok`,
-        feedback_url_good: `${testFeedbackUrl}/good`,
-      });
 
       await resend.emails.send({
         from: "Birdies Bayside <info@birdiesbayside.com.au>",
         to: [testEmail],
         subject: "Thanks for playing at Birdies! How was it? 🏌️",
         html: renderedHtml,
-        text: renderedText,
       });
 
       logStep("TEST email sent", { testEmail });
@@ -355,20 +328,12 @@ Deno.serve(async (req) => {
           feedback_url_ok: `${feedbackUrl}/ok`,
           feedback_url_good: `${feedbackUrl}/good`,
         });
-        const renderedText = buildFeedbackText({
-          first_name: user.first_name || "there",
-          feedback_url: feedbackUrl,
-          feedback_url_bad: `${feedbackUrl}/bad`,
-          feedback_url_ok: `${feedbackUrl}/ok`,
-          feedback_url_good: `${feedbackUrl}/good`,
-        });
 
         await resend.emails.send({
           from: "Birdies Bayside <info@birdiesbayside.com.au>",
           to: [user.email],
           subject: "Thanks for playing at Birdies! How was it? 🏌️",
           html: renderedHtml,
-          text: renderedText,
         });
 
         sentCount++;
