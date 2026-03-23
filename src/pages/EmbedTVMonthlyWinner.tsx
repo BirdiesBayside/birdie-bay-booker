@@ -192,11 +192,9 @@ export default function EmbedTVStandings() {
                   <div className="col-span-2 text-center">
                     <span className={cn(
                       "px-4 py-2 rounded-lg font-bold text-2xl",
-                      standing.total_net_score !== null && standing.total_net_score < 0 && "bg-red-100 text-red-700",
-                      standing.total_net_score === 0 && "bg-green-100 text-green-700",
-                      standing.total_net_score !== null && standing.total_net_score > 0 && "bg-blue-100 text-blue-700",
+                      "bg-[hsl(18,84%,55%)]/10 text-[hsl(18,84%,55%)]",
                     )}>
-                      {formatScore(standing.total_net_score)}
+                      {formatPoints(standing.total_net_score)}
                     </span>
                   </div>
                 </div>
