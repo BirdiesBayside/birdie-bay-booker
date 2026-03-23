@@ -53,6 +53,35 @@ export function ScoreEntry() {
     enabled: !!selectedCompId,
   });
 
+  // Realtime subscription for payment updates
+  useEffect(() => {
+    if (!selectedCompId) return;
+    const channel = supabase
+      .channel(`local-comp-teams-${selectedCompId}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'local_comp_teams', filter: `competition_id=eq.${selectedCompId}` },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["local-comp-teams", selectedCompId] });
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [selectedCompId, queryClient]);
+
+  // Debounced score entry
+  const scoreTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const [localScores, setLocalScores] = useState<Record<string, string>>({});
+
+  const handleScoreChange = useCallback((teamId: string, value: string) => {
+    setLocalScores(prev => ({ ...prev, [teamId]: value }));
+    if (scoreTimers.current[teamId]) clearTimeout(scoreTimers.current[teamId]);
+    scoreTimers.current[teamId] = setTimeout(() => {
+      const grossScore = value === "" ? null : parseInt(value);
+      updateScoreMutation.mutate({ teamId, grossScore });
+    }, 1000);
+  }, []);
+
   const combinedHcpPreview = useMemo(() => {
     const h1 = parseFloat(p1Hcp) || 0;
     const h2 = parseFloat(p2Hcp) || 0;
