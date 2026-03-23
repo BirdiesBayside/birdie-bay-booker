@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
+
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
@@ -116,19 +116,7 @@ export function ScoreEntry() {
     },
   });
 
-  const togglePaidMutation = useMutation({
-    mutationFn: async ({ teamId, paid }: { teamId: string; paid: boolean }) => {
-      const { error } = await supabase
-        .from("local_comp_teams")
-        .update({ paid })
-        .eq("id", teamId);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["local-comp-teams", selectedCompId] });
-    },
-  });
-
+  // Remove togglePaidMutation - paid status is now managed via POS
   const deleteTeamMutation = useMutation({
     mutationFn: async (teamId: string) => {
       const { error } = await supabase.from("local_comp_teams").delete().eq("id", teamId);
@@ -285,9 +273,9 @@ export function ScoreEntry() {
                       <TableHead>Team</TableHead>
                       <TableHead>Players</TableHead>
                       <TableHead className="text-center w-20">HCP</TableHead>
-                      <TableHead className="text-center w-24">Gross</TableHead>
-                      <TableHead className="text-center w-20">Net</TableHead>
-                      <TableHead className="text-center w-16">Paid</TableHead>
+                      <TableHead className="text-center w-20">Gross</TableHead>
+                      <TableHead className="text-center w-16">Net</TableHead>
+                      <TableHead className="text-center">Payment</TableHead>
                       <TableHead className="w-12"></TableHead>
                     </TableRow>
                   </TableHeader>
@@ -323,38 +311,75 @@ export function ScoreEntry() {
                         </TableCell>
                         <TableCell className="text-center">
                           <div className="flex items-center justify-center gap-1">
-                            <Checkbox
-                              checked={team.paid}
-                              onCheckedChange={(checked) =>
-                                togglePaidMutation.mutate({ teamId: team.id, paid: !!checked })
-                              }
-                            />
-                            {team.paid ? (
-                              <Check className="h-3 w-3 text-green-500" />
+                            {team.player1_paid && team.player2_paid ? (
+                              <Badge className="bg-green-500/10 text-green-600 border-green-200">
+                                <Check className="h-3 w-3 mr-1" /> Paid
+                              </Badge>
                             ) : (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7"
-                                title="Send to POS"
-                                onClick={() => {
-                                  const comp = competitions?.find((c) => c.id === selectedCompId);
-                                  const entryFee = comp?.entry_fee || 10;
-                                  navigate("/admin/pos", {
-                                    state: {
-                                      localCompData: {
-                                        teamId: team.id,
-                                        competitionId: selectedCompId,
-                                        teamName: team.team_name,
-                                        entryFee,
-                                        compName: comp?.name || "Local Comp",
-                                      },
-                                    },
-                                  });
-                                }}
-                              >
-                                <ShoppingCart className="h-3.5 w-3.5" />
-                              </Button>
+                              <div className="flex flex-col gap-1">
+                                {!team.player1_paid ? (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 text-xs gap-1"
+                                    onClick={() => {
+                                      const comp = competitions?.find((c) => c.id === selectedCompId);
+                                      const halfFee = (comp?.entry_fee || 10) / 2;
+                                      navigate("/admin/pos", {
+                                        state: {
+                                          localCompData: {
+                                            teamId: team.id,
+                                            competitionId: selectedCompId,
+                                            teamName: team.team_name,
+                                            entryFee: halfFee,
+                                            compName: comp?.name || "Local Comp",
+                                            playerNumber: 1,
+                                            playerName: team.player1_name,
+                                          },
+                                        },
+                                      });
+                                    }}
+                                  >
+                                    <ShoppingCart className="h-3 w-3" />
+                                    {team.player1_name.split(" ").pop()}
+                                  </Button>
+                                ) : (
+                                  <Badge variant="outline" className="text-green-600 text-xs">
+                                    <Check className="h-3 w-3 mr-1" />{team.player1_name.split(" ").pop()}
+                                  </Badge>
+                                )}
+                                {!team.player2_paid ? (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 text-xs gap-1"
+                                    onClick={() => {
+                                      const comp = competitions?.find((c) => c.id === selectedCompId);
+                                      const halfFee = (comp?.entry_fee || 10) / 2;
+                                      navigate("/admin/pos", {
+                                        state: {
+                                          localCompData: {
+                                            teamId: team.id,
+                                            competitionId: selectedCompId,
+                                            teamName: team.team_name,
+                                            entryFee: halfFee,
+                                            compName: comp?.name || "Local Comp",
+                                            playerNumber: 2,
+                                            playerName: team.player2_name,
+                                          },
+                                        },
+                                      });
+                                    }}
+                                  >
+                                    <ShoppingCart className="h-3 w-3" />
+                                    {team.player2_name.split(" ").pop()}
+                                  </Button>
+                                ) : (
+                                  <Badge variant="outline" className="text-green-600 text-xs">
+                                    <Check className="h-3 w-3 mr-1" />{team.player2_name.split(" ").pop()}
+                                  </Badge>
+                                )}
+                              </div>
                             )}
                           </div>
                         </TableCell>
@@ -378,20 +403,26 @@ export function ScoreEntry() {
         )
       )}
 
-      {selectedCompId && sortedTeams.length > 0 && (
-        <Card className="bg-muted/30">
-          <CardContent className="p-4 flex items-center gap-4 text-sm">
-            <DollarSign className="h-5 w-5 text-green-500" />
-            <span>
-              <strong>{sortedTeams.filter((t) => t.paid).length}</strong> of{" "}
-              <strong>{sortedTeams.length}</strong> teams paid
-            </span>
-            <span className="text-muted-foreground">
-              (${sortedTeams.filter((t) => t.paid).length * (competitions?.find((c) => c.id === selectedCompId)?.entry_fee || 0)} collected)
-            </span>
-          </CardContent>
-        </Card>
-      )}
+      {selectedCompId && sortedTeams.length > 0 && (() => {
+        const comp = competitions?.find((c) => c.id === selectedCompId);
+        const halfFee = (comp?.entry_fee || 10) / 2;
+        const playersPaid = sortedTeams.reduce((sum, t) => sum + (t.player1_paid ? 1 : 0) + (t.player2_paid ? 1 : 0), 0);
+        const totalPlayers = sortedTeams.length * 2;
+        return (
+          <Card className="bg-muted/30">
+            <CardContent className="p-4 flex items-center gap-4 text-sm">
+              <DollarSign className="h-5 w-5 text-green-500" />
+              <span>
+                <strong>{playersPaid}</strong> of{" "}
+                <strong>{totalPlayers}</strong> players paid
+              </span>
+              <span className="text-muted-foreground">
+                (${(playersPaid * halfFee).toFixed(2)} collected)
+              </span>
+            </CardContent>
+          </Card>
+        );
+      })()}
     </div>
   );
 }
