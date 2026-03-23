@@ -122,6 +122,7 @@ export default function AdminPOS() {
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [processedNavBooking, setProcessedNavBooking] = useState<string | null>(null);
   const [localCompTeamId, setLocalCompTeamId] = useState<string | null>(null);
+  const [localCompPlayerNumber, setLocalCompPlayerNumber] = useState<1 | 2 | null>(null);
   const [terminalCountdown, setTerminalCountdown] = useState<number | null>(null);
   const [customerBalance, setCustomerBalance] = useState<number>(0);
   const [showCreditDialog, setShowCreditDialog] = useState(false);
