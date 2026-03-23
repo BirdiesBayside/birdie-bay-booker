@@ -133,7 +133,7 @@ export default function EmbedTVStandings() {
           <div className="col-span-5">Player</div>
           <div className="col-span-2 text-center">Rounds</div>
           <div className="col-span-2 text-center">Best</div>
-          <div className="col-span-2 text-center">Total</div>
+          <div className="col-span-2 text-center">Points</div>
         </div>
 
         {/* Table Body */}
