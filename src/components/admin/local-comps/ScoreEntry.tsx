@@ -116,19 +116,7 @@ export function ScoreEntry() {
     },
   });
 
-  const togglePaidMutation = useMutation({
-    mutationFn: async ({ teamId, paid }: { teamId: string; paid: boolean }) => {
-      const { error } = await supabase
-        .from("local_comp_teams")
-        .update({ paid })
-        .eq("id", teamId);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["local-comp-teams", selectedCompId] });
-    },
-  });
-
+  // Remove togglePaidMutation - paid status is now managed via POS
   const deleteTeamMutation = useMutation({
     mutationFn: async (teamId: string) => {
       const { error } = await supabase.from("local_comp_teams").delete().eq("id", teamId);
