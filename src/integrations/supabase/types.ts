@@ -709,8 +709,10 @@ export type Database = {
           paid: boolean
           player1_handicap: number
           player1_name: string
+          player1_paid: boolean
           player2_handicap: number
           player2_name: string
+          player2_paid: boolean
           position: number | null
           team_name: string
         }
@@ -724,8 +726,10 @@ export type Database = {
           paid?: boolean
           player1_handicap?: number
           player1_name: string
+          player1_paid?: boolean
           player2_handicap?: number
           player2_name: string
+          player2_paid?: boolean
           position?: number | null
           team_name: string
         }
@@ -739,8 +743,10 @@ export type Database = {
           paid?: boolean
           player1_handicap?: number
           player1_name?: string
+          player1_paid?: boolean
           player2_handicap?: number
           player2_name?: string
+          player2_paid?: boolean
           position?: number | null
           team_name?: string
         }
