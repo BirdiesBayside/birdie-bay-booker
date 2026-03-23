@@ -327,11 +327,8 @@ export function ScoreEntry() {
                           <Input
                             type="number"
                             className="w-20 text-center mx-auto h-8"
-                            value={team.gross_score ?? ""}
-                            onChange={(e) => {
-                              const val = e.target.value === "" ? null : parseInt(e.target.value);
-                              updateScoreMutation.mutate({ teamId: team.id, grossScore: val });
-                            }}
+                            value={localScores[team.id] !== undefined ? localScores[team.id] : (team.gross_score ?? "")}
+                            onChange={(e) => handleScoreChange(team.id, e.target.value)}
                             placeholder="-"
                           />
                         </TableCell>
