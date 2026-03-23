@@ -403,20 +403,26 @@ export function ScoreEntry() {
         )
       )}
 
-      {selectedCompId && sortedTeams.length > 0 && (
-        <Card className="bg-muted/30">
-          <CardContent className="p-4 flex items-center gap-4 text-sm">
-            <DollarSign className="h-5 w-5 text-green-500" />
-            <span>
-              <strong>{sortedTeams.filter((t) => t.paid).length}</strong> of{" "}
-              <strong>{sortedTeams.length}</strong> teams paid
-            </span>
-            <span className="text-muted-foreground">
-              (${sortedTeams.filter((t) => t.paid).length * (competitions?.find((c) => c.id === selectedCompId)?.entry_fee || 0)} collected)
-            </span>
-          </CardContent>
-        </Card>
-      )}
+      {selectedCompId && sortedTeams.length > 0 && (() => {
+        const comp = competitions?.find((c) => c.id === selectedCompId);
+        const halfFee = (comp?.entry_fee || 10) / 2;
+        const playersPaid = sortedTeams.reduce((sum, t) => sum + (t.player1_paid ? 1 : 0) + (t.player2_paid ? 1 : 0), 0);
+        const totalPlayers = sortedTeams.length * 2;
+        return (
+          <Card className="bg-muted/30">
+            <CardContent className="p-4 flex items-center gap-4 text-sm">
+              <DollarSign className="h-5 w-5 text-green-500" />
+              <span>
+                <strong>{playersPaid}</strong> of{" "}
+                <strong>{totalPlayers}</strong> players paid
+              </span>
+              <span className="text-muted-foreground">
+                (${(playersPaid * halfFee).toFixed(2)} collected)
+              </span>
+            </CardContent>
+          </Card>
+        );
+      })()}
     </div>
   );
 }
