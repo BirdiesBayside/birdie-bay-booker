@@ -49,6 +49,8 @@ const AdminMarketing = lazy(() => import("./pages/admin/AdminMarketing"));
 const AdminCustomerImport = lazy(() => import("./pages/admin/AdminCustomerImport"));
 const AdminAnnouncements = lazy(() => import("./pages/admin/AdminAnnouncements"));
 const AdminSGTManager = lazy(() => import("./pages/admin/AdminSGTManager"));
+const AdminLocalComps = lazy(() => import("./pages/admin/AdminLocalComps"));
+const EmbedTVLocalComp = lazy(() => import("./pages/EmbedTVLocalComp"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -216,6 +218,8 @@ const App = () => (
             <Route path="/admin/bulk-email" element={<AdminBulkEmail />} />
             <Route path="/admin/customer-import" element={<AdminCustomerImport />} />
             <Route path="/admin/sgt" element={<AdminSGTManager />} />
+            <Route path="/admin/local-comps" element={<AdminLocalComps />} />
+            <Route path="/embed/tv-local-comp" element={<EmbedTVLocalComp />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

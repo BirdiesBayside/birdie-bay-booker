@@ -14,7 +14,8 @@ import {
   Mail,
   Bell,
   Trophy,
-  BarChart3
+  BarChart3,
+  Target
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -33,6 +34,7 @@ const navItems = [
   { path: "/admin/customers", label: "Customers", icon: Users },
   { path: "/admin/bay-control", label: "Bay Control", icon: Zap },
   { path: "/admin/sgt", label: "SGT Manager", icon: Trophy },
+  { path: "/admin/local-comps", label: "Local Comps", icon: Target },
   { path: "/admin/analytics", label: "Analytics", icon: BarChart3 },
   { path: "/admin/marketing", label: "Marketing", icon: Mail },
   { path: "/admin/announcements", label: "Announcements", icon: Bell },

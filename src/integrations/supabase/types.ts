@@ -674,6 +674,119 @@ export type Database = {
         }
         Relationships: []
       }
+      local_comp_settings: {
+        Row: {
+          created_at: string
+          default_entry_fee: number
+          default_format: string
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          default_entry_fee?: number
+          default_format?: string
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          default_entry_fee?: number
+          default_format?: string
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      local_comp_teams: {
+        Row: {
+          combined_handicap: number
+          competition_id: string
+          created_at: string
+          gross_score: number | null
+          id: string
+          net_score: number | null
+          paid: boolean
+          player1_handicap: number
+          player1_name: string
+          player2_handicap: number
+          player2_name: string
+          position: number | null
+          team_name: string
+        }
+        Insert: {
+          combined_handicap?: number
+          competition_id: string
+          created_at?: string
+          gross_score?: number | null
+          id?: string
+          net_score?: number | null
+          paid?: boolean
+          player1_handicap?: number
+          player1_name: string
+          player2_handicap?: number
+          player2_name: string
+          position?: number | null
+          team_name: string
+        }
+        Update: {
+          combined_handicap?: number
+          competition_id?: string
+          created_at?: string
+          gross_score?: number | null
+          id?: string
+          net_score?: number | null
+          paid?: boolean
+          player1_handicap?: number
+          player1_name?: string
+          player2_handicap?: number
+          player2_name?: string
+          position?: number | null
+          team_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "local_comp_teams_competition_id_fkey"
+            columns: ["competition_id"]
+            isOneToOne: false
+            referencedRelation: "local_competitions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      local_competitions: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          date: string
+          entry_fee: number
+          format: string
+          id: string
+          name: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          date: string
+          entry_fee?: number
+          format?: string
+          id?: string
+          name: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          date?: string
+          entry_fee?: number
+          format?: string
+          id?: string
+          name?: string
+          status?: string
+        }
+        Relationships: []
+      }
       marketing_campaigns: {
         Row: {
           clicks: number | null
