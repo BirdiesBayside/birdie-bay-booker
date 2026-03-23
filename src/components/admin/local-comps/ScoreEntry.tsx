@@ -18,7 +18,6 @@ export function ScoreEntry() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const queryClient = useQueryClient();
   const [selectedCompId, setSelectedCompId] = useState<string>("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [teamName, setTeamName] = useState("");
