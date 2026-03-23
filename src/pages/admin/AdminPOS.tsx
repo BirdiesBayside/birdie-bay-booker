@@ -157,7 +157,7 @@ export default function AdminPOS() {
 
   // Handle booking data from navigation (from timetable)
   useEffect(() => {
-    const navState = location.state as { bookingData?: BookingDataFromNav; bayOrderData?: BayOrderFromNav } | null;
+    const navState = location.state as { bookingData?: BookingDataFromNav; bayOrderData?: BayOrderFromNav; localCompData?: LocalCompDataFromNav } | null;
     
     // Handle booking from timetable
     if (navState?.bookingData && processedNavBooking !== navState.bookingData.bookingId) {
