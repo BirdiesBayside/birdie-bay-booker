@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -52,6 +52,35 @@ export function ScoreEntry() {
     },
     enabled: !!selectedCompId,
   });
+
+  // Realtime subscription for payment updates
+  useEffect(() => {
+    if (!selectedCompId) return;
+    const channel = supabase
+      .channel(`local-comp-teams-${selectedCompId}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'local_comp_teams', filter: `competition_id=eq.${selectedCompId}` },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["local-comp-teams", selectedCompId] });
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [selectedCompId, queryClient]);
+
+  // Debounced score entry
+  const scoreTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const [localScores, setLocalScores] = useState<Record<string, string>>({});
+
+  const handleScoreChange = useCallback((teamId: string, value: string) => {
+    setLocalScores(prev => ({ ...prev, [teamId]: value }));
+    if (scoreTimers.current[teamId]) clearTimeout(scoreTimers.current[teamId]);
+    scoreTimers.current[teamId] = setTimeout(() => {
+      const grossScore = value === "" ? null : parseInt(value);
+      updateScoreMutation.mutate({ teamId, grossScore });
+    }, 1000);
+  }, []);
 
   const combinedHcpPreview = useMemo(() => {
     const h1 = parseFloat(p1Hcp) || 0;
@@ -298,11 +327,8 @@ export function ScoreEntry() {
                           <Input
                             type="number"
                             className="w-20 text-center mx-auto h-8"
-                            value={team.gross_score ?? ""}
-                            onChange={(e) => {
-                              const val = e.target.value === "" ? null : parseInt(e.target.value);
-                              updateScoreMutation.mutate({ teamId: team.id, grossScore: val });
-                            }}
+                            value={localScores[team.id] !== undefined ? localScores[team.id] : (team.gross_score ?? "")}
+                            onChange={(e) => handleScoreChange(team.id, e.target.value)}
                             placeholder="-"
                           />
                         </TableCell>
