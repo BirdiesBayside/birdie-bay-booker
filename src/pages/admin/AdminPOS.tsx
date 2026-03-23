@@ -211,19 +211,25 @@ export default function AdminPOS() {
     }
 
     // Handle local competition entry fee
-    if (navState?.localCompData && processedNavBooking !== navState.localCompData.teamId) {
+    if (navState?.localCompData) {
       const compData = navState.localCompData;
-      
-      setCart([{
-        id: `local-comp-${compData.teamId}`,
-        name: `${compData.compName}: ${compData.teamName} entry fee`,
-        price: compData.entryFee,
-        quantity: 1,
-      }]);
-      
-      setLocalCompTeamId(compData.teamId);
-      setProcessedNavBooking(compData.teamId);
-      toast.success(`${compData.teamName} entry fee ($${compData.entryFee}) loaded`);
+      const navKey = `${compData.teamId}-${compData.playerNumber || 'team'}`;
+      if (processedNavBooking !== navKey) {
+        const playerLabel = compData.playerName ? compData.playerName : compData.teamName;
+        const price = compData.entryFee;
+        
+        setCart([{
+          id: `local-comp-${navKey}`,
+          name: `${compData.compName}: ${playerLabel} entry fee`,
+          price,
+          quantity: 1,
+        }]);
+        
+        setLocalCompTeamId(compData.teamId);
+        setLocalCompPlayerNumber(compData.playerNumber || null);
+        setProcessedNavBooking(navKey);
+        toast.success(`${playerLabel} entry fee ($${price}) loaded`);
+      }
     }
   }, [location.state, processedNavBooking]);
 
