@@ -68,6 +68,22 @@ export function CompetitionList() {
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      // Delete teams first (FK constraint)
+      await supabase.from("local_comp_teams").delete().eq("competition_id", id);
+      const { error } = await supabase.from("local_competitions").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["local-competitions"] });
+      toast({ title: "Competition deleted", duration: 3000 });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
   const statusColor = (status: string) => {
     switch (status) {
       case "upcoming": return "bg-blue-500/10 text-blue-500 border-blue-500/20";
