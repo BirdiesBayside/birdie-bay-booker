@@ -311,38 +311,75 @@ export function ScoreEntry() {
                         </TableCell>
                         <TableCell className="text-center">
                           <div className="flex items-center justify-center gap-1">
-                            <Checkbox
-                              checked={team.paid}
-                              onCheckedChange={(checked) =>
-                                togglePaidMutation.mutate({ teamId: team.id, paid: !!checked })
-                              }
-                            />
-                            {team.paid ? (
-                              <Check className="h-3 w-3 text-green-500" />
+                            {team.player1_paid && team.player2_paid ? (
+                              <Badge className="bg-green-500/10 text-green-600 border-green-200">
+                                <Check className="h-3 w-3 mr-1" /> Paid
+                              </Badge>
                             ) : (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7"
-                                title="Send to POS"
-                                onClick={() => {
-                                  const comp = competitions?.find((c) => c.id === selectedCompId);
-                                  const entryFee = comp?.entry_fee || 10;
-                                  navigate("/admin/pos", {
-                                    state: {
-                                      localCompData: {
-                                        teamId: team.id,
-                                        competitionId: selectedCompId,
-                                        teamName: team.team_name,
-                                        entryFee,
-                                        compName: comp?.name || "Local Comp",
-                                      },
-                                    },
-                                  });
-                                }}
-                              >
-                                <ShoppingCart className="h-3.5 w-3.5" />
-                              </Button>
+                              <div className="flex flex-col gap-1">
+                                {!team.player1_paid ? (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 text-xs gap-1"
+                                    onClick={() => {
+                                      const comp = competitions?.find((c) => c.id === selectedCompId);
+                                      const halfFee = (comp?.entry_fee || 10) / 2;
+                                      navigate("/admin/pos", {
+                                        state: {
+                                          localCompData: {
+                                            teamId: team.id,
+                                            competitionId: selectedCompId,
+                                            teamName: team.team_name,
+                                            entryFee: halfFee,
+                                            compName: comp?.name || "Local Comp",
+                                            playerNumber: 1,
+                                            playerName: team.player1_name,
+                                          },
+                                        },
+                                      });
+                                    }}
+                                  >
+                                    <ShoppingCart className="h-3 w-3" />
+                                    {team.player1_name.split(" ").pop()}
+                                  </Button>
+                                ) : (
+                                  <Badge variant="outline" className="text-green-600 text-xs">
+                                    <Check className="h-3 w-3 mr-1" />{team.player1_name.split(" ").pop()}
+                                  </Badge>
+                                )}
+                                {!team.player2_paid ? (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 text-xs gap-1"
+                                    onClick={() => {
+                                      const comp = competitions?.find((c) => c.id === selectedCompId);
+                                      const halfFee = (comp?.entry_fee || 10) / 2;
+                                      navigate("/admin/pos", {
+                                        state: {
+                                          localCompData: {
+                                            teamId: team.id,
+                                            competitionId: selectedCompId,
+                                            teamName: team.team_name,
+                                            entryFee: halfFee,
+                                            compName: comp?.name || "Local Comp",
+                                            playerNumber: 2,
+                                            playerName: team.player2_name,
+                                          },
+                                        },
+                                      });
+                                    }}
+                                  >
+                                    <ShoppingCart className="h-3 w-3" />
+                                    {team.player2_name.split(" ").pop()}
+                                  </Button>
+                                ) : (
+                                  <Badge variant="outline" className="text-green-600 text-xs">
+                                    <Check className="h-3 w-3 mr-1" />{team.player2_name.split(" ").pop()}
+                                  </Badge>
+                                )}
+                              </div>
                             )}
                           </div>
                         </TableCell>
