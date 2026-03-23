@@ -207,6 +207,22 @@ export default function AdminPOS() {
       setProcessedNavBooking(orderData.orderId);
       toast.success(`Bay ${orderData.bayNumber} order loaded ($${orderData.total.toFixed(2)})`);
     }
+
+    // Handle local competition entry fee
+    if (navState?.localCompData && processedNavBooking !== navState.localCompData.teamId) {
+      const compData = navState.localCompData;
+      
+      setCart([{
+        id: `local-comp-${compData.teamId}`,
+        name: `${compData.compName}: ${compData.teamName} entry fee`,
+        price: compData.entryFee,
+        quantity: 1,
+      }]);
+      
+      setLocalCompTeamId(compData.teamId);
+      setProcessedNavBooking(compData.teamId);
+      toast.success(`${compData.teamName} entry fee ($${compData.entryFee}) loaded`);
+    }
   }, [location.state, processedNavBooking]);
 
   const fetchProducts = async () => {
