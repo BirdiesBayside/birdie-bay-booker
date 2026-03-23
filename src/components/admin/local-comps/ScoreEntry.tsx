@@ -273,9 +273,9 @@ export function ScoreEntry() {
                       <TableHead>Team</TableHead>
                       <TableHead>Players</TableHead>
                       <TableHead className="text-center w-20">HCP</TableHead>
-                      <TableHead className="text-center w-24">Gross</TableHead>
-                      <TableHead className="text-center w-20">Net</TableHead>
-                      <TableHead className="text-center w-16">Paid</TableHead>
+                      <TableHead className="text-center w-20">Gross</TableHead>
+                      <TableHead className="text-center w-16">Net</TableHead>
+                      <TableHead className="text-center">Payment</TableHead>
                       <TableHead className="w-12"></TableHead>
                     </TableRow>
                   </TableHeader>
