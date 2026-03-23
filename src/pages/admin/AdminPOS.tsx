@@ -661,6 +661,15 @@ export default function AdminPOS() {
 
       fetchUnpaidBookings();
     }
+
+    // Mark local comp team as paid if this was for a comp entry fee
+    if (localCompTeamId) {
+      await supabase
+        .from('local_comp_teams')
+        .update({ paid: true })
+        .eq('id', localCompTeamId);
+      setLocalCompTeamId(null);
+    }
   };
 
   const filteredProducts = selectedFamily === 'all'
