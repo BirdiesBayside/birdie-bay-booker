@@ -671,13 +671,35 @@ export default function AdminPOS() {
       fetchUnpaidBookings();
     }
 
-    // Mark local comp team as paid if this was for a comp entry fee
+    // Mark local comp player as paid if this was for a comp entry fee
     if (localCompTeamId) {
+      const updateData: Record<string, boolean> = {};
+      if (localCompPlayerNumber === 1) {
+        updateData.player1_paid = true;
+      } else if (localCompPlayerNumber === 2) {
+        updateData.player2_paid = true;
+      } else {
+        // Full team payment
+        updateData.player1_paid = true;
+        updateData.player2_paid = true;
+      }
+      // Also set paid = true if both players are now paid
+      const { data: teamData } = await supabase
+        .from('local_comp_teams')
+        .select('player1_paid, player2_paid')
+        .eq('id', localCompTeamId)
+        .single();
+      
+      const p1 = updateData.player1_paid || teamData?.player1_paid || false;
+      const p2 = updateData.player2_paid || teamData?.player2_paid || false;
+      if (p1 && p2) updateData.paid = true;
+      
       await supabase
         .from('local_comp_teams')
-        .update({ paid: true })
+        .update(updateData)
         .eq('id', localCompTeamId);
       setLocalCompTeamId(null);
+      setLocalCompPlayerNumber(null);
     }
   };
 
