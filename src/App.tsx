@@ -218,6 +218,8 @@ const App = () => (
             <Route path="/admin/bulk-email" element={<AdminBulkEmail />} />
             <Route path="/admin/customer-import" element={<AdminCustomerImport />} />
             <Route path="/admin/sgt" element={<AdminSGTManager />} />
+            <Route path="/admin/local-comps" element={<AdminLocalComps />} />
+            <Route path="/embed/tv-local-comp" element={<EmbedTVLocalComp />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
