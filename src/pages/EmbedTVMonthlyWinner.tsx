@@ -80,6 +80,11 @@ export default function EmbedTVStandings() {
     }
   };
 
+  const formatPoints = (points: number | null) => {
+    if (points === null || points === undefined) return "-";
+    return `${points} pts`;
+  };
+
   const formatScore = (score: number | null) => {
     if (score === null || score === undefined) return "-";
     if (score === 0) return "E";
