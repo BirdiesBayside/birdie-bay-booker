@@ -14,7 +14,8 @@ import {
   Mail,
   Bell,
   Trophy,
-  BarChart3
+  BarChart3,
+  Target
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
