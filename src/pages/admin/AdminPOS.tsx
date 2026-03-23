@@ -94,6 +94,14 @@ interface BayOrderFromNav {
   total: number;
 }
 
+interface LocalCompDataFromNav {
+  teamId: string;
+  competitionId: string;
+  teamName: string;
+  entryFee: number;
+  compName: string;
+}
+
 export default function AdminPOS() {
   const { isAdmin, isLoading } = useAdminAuth();
   const location = useLocation();
@@ -111,6 +119,7 @@ export default function AdminPOS() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [processedNavBooking, setProcessedNavBooking] = useState<string | null>(null);
+  const [localCompTeamId, setLocalCompTeamId] = useState<string | null>(null);
   const [terminalCountdown, setTerminalCountdown] = useState<number | null>(null);
   const [customerBalance, setCustomerBalance] = useState<number>(0);
   const [showCreditDialog, setShowCreditDialog] = useState(false);
@@ -148,7 +157,7 @@ export default function AdminPOS() {
 
   // Handle booking data from navigation (from timetable)
   useEffect(() => {
-    const navState = location.state as { bookingData?: BookingDataFromNav; bayOrderData?: BayOrderFromNav } | null;
+    const navState = location.state as { bookingData?: BookingDataFromNav; bayOrderData?: BayOrderFromNav; localCompData?: LocalCompDataFromNav } | null;
     
     // Handle booking from timetable
     if (navState?.bookingData && processedNavBooking !== navState.bookingData.bookingId) {
@@ -197,6 +206,22 @@ export default function AdminPOS() {
       setCart(cartItems);
       setProcessedNavBooking(orderData.orderId);
       toast.success(`Bay ${orderData.bayNumber} order loaded ($${orderData.total.toFixed(2)})`);
+    }
+
+    // Handle local competition entry fee
+    if (navState?.localCompData && processedNavBooking !== navState.localCompData.teamId) {
+      const compData = navState.localCompData;
+      
+      setCart([{
+        id: `local-comp-${compData.teamId}`,
+        name: `${compData.compName}: ${compData.teamName} entry fee`,
+        price: compData.entryFee,
+        quantity: 1,
+      }]);
+      
+      setLocalCompTeamId(compData.teamId);
+      setProcessedNavBooking(compData.teamId);
+      toast.success(`${compData.teamName} entry fee ($${compData.entryFee}) loaded`);
     }
   }, [location.state, processedNavBooking]);
 
@@ -635,6 +660,15 @@ export default function AdminPOS() {
         .eq('id', selectedBooking.id);
 
       fetchUnpaidBookings();
+    }
+
+    // Mark local comp team as paid if this was for a comp entry fee
+    if (localCompTeamId) {
+      await supabase
+        .from('local_comp_teams')
+        .update({ paid: true })
+        .eq('id', localCompTeamId);
+      setLocalCompTeamId(null);
     }
   };
 

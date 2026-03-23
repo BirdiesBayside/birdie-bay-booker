@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -9,12 +10,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, Check, DollarSign } from "lucide-react";
+import { Plus, Trash2, Check, DollarSign, ShoppingCart } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 
 export function ScoreEntry() {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [selectedCompId, setSelectedCompId] = useState<string>("");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -320,13 +322,41 @@ export function ScoreEntry() {
                           {team.net_score !== null ? team.net_score : "-"}
                         </TableCell>
                         <TableCell className="text-center">
-                          <Checkbox
-                            checked={team.paid}
-                            onCheckedChange={(checked) =>
-                              togglePaidMutation.mutate({ teamId: team.id, paid: !!checked })
-                            }
-                          />
-                          {team.paid && <Check className="h-3 w-3 text-green-500 inline ml-1" />}
+                          <div className="flex items-center justify-center gap-1">
+                            <Checkbox
+                              checked={team.paid}
+                              onCheckedChange={(checked) =>
+                                togglePaidMutation.mutate({ teamId: team.id, paid: !!checked })
+                              }
+                            />
+                            {team.paid ? (
+                              <Check className="h-3 w-3 text-green-500" />
+                            ) : (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                title="Send to POS"
+                                onClick={() => {
+                                  const comp = competitions?.find((c) => c.id === selectedCompId);
+                                  const entryFee = comp?.entry_fee || 10;
+                                  navigate("/admin/pos", {
+                                    state: {
+                                      localCompData: {
+                                        teamId: team.id,
+                                        competitionId: selectedCompId,
+                                        teamName: team.team_name,
+                                        entryFee,
+                                        compName: comp?.name || "Local Comp",
+                                      },
+                                    },
+                                  });
+                                }}
+                              >
+                                <ShoppingCart className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell>
                           <Button
