@@ -323,13 +323,41 @@ export function ScoreEntry() {
                           {team.net_score !== null ? team.net_score : "-"}
                         </TableCell>
                         <TableCell className="text-center">
-                          <Checkbox
-                            checked={team.paid}
-                            onCheckedChange={(checked) =>
-                              togglePaidMutation.mutate({ teamId: team.id, paid: !!checked })
-                            }
-                          />
-                          {team.paid && <Check className="h-3 w-3 text-green-500 inline ml-1" />}
+                          <div className="flex items-center justify-center gap-1">
+                            <Checkbox
+                              checked={team.paid}
+                              onCheckedChange={(checked) =>
+                                togglePaidMutation.mutate({ teamId: team.id, paid: !!checked })
+                              }
+                            />
+                            {team.paid ? (
+                              <Check className="h-3 w-3 text-green-500" />
+                            ) : (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                title="Send to POS"
+                                onClick={() => {
+                                  const comp = competitions?.find((c) => c.id === selectedCompId);
+                                  const entryFee = comp?.entry_fee || 10;
+                                  navigate("/admin/pos", {
+                                    state: {
+                                      localCompData: {
+                                        teamId: team.id,
+                                        competitionId: selectedCompId,
+                                        teamName: team.team_name,
+                                        entryFee,
+                                        compName: comp?.name || "Local Comp",
+                                      },
+                                    },
+                                  });
+                                }}
+                              >
+                                <ShoppingCart className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell>
                           <Button
