@@ -100,6 +100,8 @@ interface LocalCompDataFromNav {
   teamName: string;
   entryFee: number;
   compName: string;
+  playerNumber?: 1 | 2;
+  playerName?: string;
 }
 
 export default function AdminPOS() {
