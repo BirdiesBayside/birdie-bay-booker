@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Calendar, DollarSign, Trophy } from "lucide-react";
+import { Plus, Calendar, DollarSign, Trophy, Trash2 } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 
 export function CompetitionList() {
@@ -64,6 +65,22 @@ export function CompetitionList() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["local-competitions"] });
       toast({ title: "Status updated", duration: 3000 });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      // Delete teams first (FK constraint)
+      await supabase.from("local_comp_teams").delete().eq("competition_id", id);
+      const { error } = await supabase.from("local_competitions").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["local-competitions"] });
+      toast({ title: "Competition deleted", duration: 3000 });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
     },
   });
 
@@ -148,7 +165,7 @@ export function CompetitionList() {
                   </span>
                   <span>Format: 2-Man Ambrose</span>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 items-center">
                   {comp.status === "upcoming" && (
                     <Button size="sm" variant="outline" onClick={() => updateStatusMutation.mutate({ id: comp.id, status: "active" })}>
                       Start Competition
@@ -164,6 +181,27 @@ export function CompetitionList() {
                       Reopen
                     </Button>
                   )}
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete competition?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will permanently delete "{comp.name}" and all registered teams. This cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => deleteMutation.mutate(comp.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                          Delete
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
               </CardContent>
             </Card>
