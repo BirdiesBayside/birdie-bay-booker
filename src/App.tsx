@@ -49,6 +49,8 @@ const AdminMarketing = lazy(() => import("./pages/admin/AdminMarketing"));
 const AdminCustomerImport = lazy(() => import("./pages/admin/AdminCustomerImport"));
 const AdminAnnouncements = lazy(() => import("./pages/admin/AdminAnnouncements"));
 const AdminSGTManager = lazy(() => import("./pages/admin/AdminSGTManager"));
+const AdminLocalComps = lazy(() => import("./pages/admin/AdminLocalComps"));
+const EmbedTVLocalComp = lazy(() => import("./pages/EmbedTVLocalComp"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
