@@ -94,6 +94,14 @@ interface BayOrderFromNav {
   total: number;
 }
 
+interface LocalCompDataFromNav {
+  teamId: string;
+  competitionId: string;
+  teamName: string;
+  entryFee: number;
+  compName: string;
+}
+
 export default function AdminPOS() {
   const { isAdmin, isLoading } = useAdminAuth();
   const location = useLocation();
