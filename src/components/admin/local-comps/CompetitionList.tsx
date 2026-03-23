@@ -165,7 +165,7 @@ export function CompetitionList() {
                   </span>
                   <span>Format: 2-Man Ambrose</span>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 items-center">
                   {comp.status === "upcoming" && (
                     <Button size="sm" variant="outline" onClick={() => updateStatusMutation.mutate({ id: comp.id, status: "active" })}>
                       Start Competition
@@ -181,6 +181,27 @@ export function CompetitionList() {
                       Reopen
                     </Button>
                   )}
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete competition?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will permanently delete "{comp.name}" and all registered teams. This cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => deleteMutation.mutate(comp.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                          Delete
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
               </CardContent>
             </Card>
