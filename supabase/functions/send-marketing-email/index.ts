@@ -241,10 +241,7 @@ async function sendEmailsInBackground(
             </div>
         `;
         
-        const brandedHtml = buildEmailTemplate(personalizedSubject, bodyContent, {
-          text: "Book Now",
-          url: "https://hub.birdiesbayside.com.au/booking"
-        }, unsubscribeUrl);
+        const brandedHtml = buildEmailTemplate(personalizedSubject, bodyContent, undefined, unsubscribeUrl);
 
         return {
           from: "Birdies Bayside <info@birdiesbayside.com.au>",
