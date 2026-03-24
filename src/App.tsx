@@ -206,6 +206,7 @@ const App = () => (
             <Route path="/feedback" element={<Feedback />} />
             <Route path="/feedback/:token" element={<Feedback />} />
             <Route path="/feedback/:token/:quick" element={<Feedback />} />
+            <Route path="/comp-survey" element={<CompSurvey />} />
             {/* Admin Routes */}
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/admin/analytics" element={<AdminAnalytics />} />
