@@ -35,6 +35,7 @@ const BirdiesGuide = lazy(() => import("./pages/BirdiesGuide"));
 const Unsubscribe = lazy(() => import("./pages/Unsubscribe"));
 const BayOrder = lazy(() => import("./pages/BayOrder"));
 const Feedback = lazy(() => import("./pages/Feedback"));
+const CompSurvey = lazy(() => import("./pages/CompSurvey"));
 
 // Admin pages
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
@@ -205,6 +206,7 @@ const App = () => (
             <Route path="/feedback" element={<Feedback />} />
             <Route path="/feedback/:token" element={<Feedback />} />
             <Route path="/feedback/:token/:quick" element={<Feedback />} />
+            <Route path="/comp-survey" element={<CompSurvey />} />
             {/* Admin Routes */}
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/admin/analytics" element={<AdminAnalytics />} />
