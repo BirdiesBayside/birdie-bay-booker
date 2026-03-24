@@ -45,6 +45,7 @@ import {
   Frown,
   Meh,
   Smile,
+  ClipboardList,
 } from "lucide-react";
 import { ReviewApprovals } from "@/components/admin/ReviewApprovals";
 
@@ -550,6 +551,10 @@ export default function AdminMarketing() {
               <MessageSquare className="h-4 w-4" />
               Feedback
             </TabsTrigger>
+            <TabsTrigger value="comp-survey" className="flex items-center gap-2">
+              <ClipboardList className="h-4 w-4" />
+              Comp Survey
+            </TabsTrigger>
           </TabsList>
 
           {/* Campaigns Tab */}
@@ -742,6 +747,9 @@ export default function AdminMarketing() {
 
           {/* Feedback Tab Content */}
           <FeedbackTab activeTab={activeTab} />
+
+          {/* Comp Survey Tab */}
+          <CompSurveyTab activeTab={activeTab} />
         </Tabs>
 
         {/* Composer Dialog */}
