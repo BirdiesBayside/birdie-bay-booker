@@ -26,41 +26,49 @@ export default function ResetPassword() {
   const [linkRequested, setLinkRequested] = useState(false);
 
   useEffect(() => {
+    let isMounted = true;
+    let subscription: { unsubscribe: () => void } | null = null;
+
+    const finishValidation = (isValid: boolean, message?: string | null) => {
+      if (!isMounted) return;
+      setIsValidSession(isValid);
+      setErrorMessage(isValid ? null : message || "Invalid or expired reset link. Please request a new password reset.");
+      setIsValidating(false);
+    };
+
     const handleTokenExchange = async () => {
       setIsValidating(true);
       setErrorMessage(null);
 
       try {
-        // Check for hash fragment (Supabase recovery links use hash)
         const hash = window.location.hash;
         const search = window.location.search;
-        console.log("[RESET] Page loaded. Hash present:", !!hash, "Search:", search);
-        console.log("[RESET] Full URL:", window.location.href);
-        
-        const hashParams = new URLSearchParams(hash.substring(1));
+        const hashParams = new URLSearchParams(hash.startsWith("#") ? hash.slice(1) : hash);
+        const queryParams = new URLSearchParams(search);
+
         const accessToken = hashParams.get("access_token");
         const refreshToken = hashParams.get("refresh_token");
-        const type = hashParams.get("type");
+        const type = hashParams.get("type") || queryParams.get("type");
+        const errorParam = hashParams.get("error") || queryParams.get("error");
+        const errorDescription = hashParams.get("error_description") || queryParams.get("error_description");
 
-        console.log("[RESET] Hash params - type:", type, "has access_token:", !!accessToken, "has refresh_token:", !!refreshToken);
-
-        // Also check query params as fallback
-        const queryParams = new URLSearchParams(search);
-        const errorParam = queryParams.get("error");
-        const errorDescription = queryParams.get("error_description");
+        console.log("[RESET] Page loaded. Full URL:", window.location.href);
+        console.log("[RESET] Recovery params:", {
+          type,
+          hasAccessToken: !!accessToken,
+          hasRefreshToken: !!refreshToken,
+          hasError: !!errorParam,
+        });
 
         if (errorParam) {
-          console.log("[RESET] Error in query params:", errorParam, errorDescription);
-          setErrorMessage(errorDescription || "Invalid or expired link");
-          setIsValidating(false);
+          console.log("[RESET] Recovery error detected:", errorParam, errorDescription);
+          finishValidation(false, errorDescription || "Invalid or expired link");
           return;
         }
 
-        // If we have tokens in the hash with type=recovery, this is a valid recovery flow
         if (accessToken && refreshToken && type === "recovery") {
-          console.log("[RESET] Found recovery tokens in hash, setting session...");
-          // Set the recovery session using tokens from the hash
-          // Do NOT call signOut() first — it revokes the tokens that /verify just created
+          console.log("[RESET] Found recovery tokens in URL hash, setting session...");
+
           const { data, error } = await supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken,
@@ -68,72 +76,61 @@ export default function ResetPassword() {
 
           if (error) {
             console.error("[RESET] Session error:", error.message, error);
-            setErrorMessage("Invalid or expired reset link. Please request a new one.");
-            setIsValidating(false);
+            finishValidation(false, "Invalid or expired reset link. Please request a new one.");
             return;
           }
 
-          console.log("[RESET] Session set successfully, user:", data?.session?.user?.email);
-
-          // Clear the hash from URL to prevent re-processing
-          window.history.replaceState(null, '', window.location.pathname);
-          
-          // Mark that we came from a valid recovery link
+          console.log("[RESET] Session set successfully for:", data?.session?.user?.email);
+          window.history.replaceState(null, "", window.location.pathname);
           sessionStorage.setItem("password_reset_in_progress", "true");
-          setIsValidSession(true);
-          setIsValidating(false);
+          finishValidation(true);
           return;
         }
 
-        // Check if we already have a recovery in progress (came from useAuth redirect)
-        const isRecoveryFlow = sessionStorage.getItem("password_reset_in_progress") === "true";
-        
-        if (isRecoveryFlow) {
-          // We came from the useAuth PASSWORD_RECOVERY redirect
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session) {
-            setIsValidSession(true);
-            setIsValidating(false);
-            return;
-          }
+        const { data: { session: existingSession } } = await supabase.auth.getSession();
+
+        if (existingSession) {
+          console.log("[RESET] Existing session detected on reset page for:", existingSession.user?.email);
+          sessionStorage.setItem("password_reset_in_progress", "true");
+          finishValidation(true);
+          return;
         }
 
-        // Listen for auth state changes that include RECOVERY events
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-          console.log("Auth event during reset:", event);
-          if (event === "PASSWORD_RECOVERY") {
+        const authStateChange = supabase.auth.onAuthStateChange((event, session) => {
+          console.log("[RESET] Auth event during reset:", event, "hasSession:", !!session);
+
+          if ((event === "PASSWORD_RECOVERY" || event === "SIGNED_IN") && session) {
             sessionStorage.setItem("password_reset_in_progress", "true");
-            setIsValidSession(true);
-            setIsValidating(false);
+            finishValidation(true);
           }
         });
 
-        // Give time for the auth state change to fire
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        subscription = authStateChange.data.subscription;
 
-        // Final check for existing session
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (session && sessionStorage.getItem("password_reset_in_progress") === "true") {
-          setIsValidSession(true);
-          setIsValidating(false);
-          subscription.unsubscribe();
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+
+        const { data: { session: finalSession } } = await supabase.auth.getSession();
+
+        if (finalSession) {
+          console.log("[RESET] Session became available after auth event for:", finalSession.user?.email);
+          sessionStorage.setItem("password_reset_in_progress", "true");
+          finishValidation(true);
           return;
         }
 
-        subscription.unsubscribe();
-        
-        // No valid session or token found
-        setErrorMessage("Invalid or expired reset link. Please request a new password reset.");
-        setIsValidating(false);
+        finishValidation(false, "Invalid or expired reset link. Please request a new password reset.");
       } catch (error: any) {
-        console.error("Token exchange error:", error);
-        setErrorMessage("An error occurred. Please try again.");
-        setIsValidating(false);
+        console.error("[RESET] Token exchange error:", error);
+        finishValidation(false, "An error occurred. Please try again.");
       }
     };
 
     handleTokenExchange();
+
+    return () => {
+      isMounted = false;
+      subscription?.unsubscribe();
+    };
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
