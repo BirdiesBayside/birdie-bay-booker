@@ -50,9 +50,8 @@ export default function ResetPassword() {
 
         // If we have tokens in the hash with type=recovery, this is a valid recovery flow
         if (accessToken && refreshToken && type === "recovery") {
-          // First sign out any existing session to avoid conflicts
-          await supabase.auth.signOut();
-          
+          // Set the recovery session using tokens from the hash
+          // Do NOT call signOut() first — it revokes the tokens that /verify just created
           const { error } = await supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken,
