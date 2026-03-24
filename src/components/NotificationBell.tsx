@@ -192,7 +192,13 @@ export function NotificationBell() {
           </DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-              {selectedAnnouncement?.content}
+              {selectedAnnouncement?.content?.split(/(https?:\/\/[^\s]+)/g).map((part, i) =>
+                /^https?:\/\//.test(part) ? (
+                  <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-birdies-orange underline break-all">
+                    {part}
+                  </a>
+                ) : part
+              )}
             </p>
             <p className="text-xs text-muted-foreground">
               {selectedAnnouncement && format(new Date(selectedAnnouncement.created_at), "MMMM d, yyyy 'at' h:mm a")}
