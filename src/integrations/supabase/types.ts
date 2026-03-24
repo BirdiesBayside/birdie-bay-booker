@@ -449,6 +449,36 @@ export type Database = {
           },
         ]
       }
+      comp_survey_responses: {
+        Row: {
+          created_at: string
+          email: string | null
+          id: string
+          name: string | null
+          preferred_day: string | null
+          preferred_entry_fee: string | null
+          preferred_time: string | null
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string | null
+          preferred_day?: string | null
+          preferred_entry_fee?: string | null
+          preferred_time?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string | null
+          preferred_day?: string | null
+          preferred_entry_fee?: string | null
+          preferred_time?: string | null
+        }
+        Relationships: []
+      }
       deposit_transactions: {
         Row: {
           amount: number
