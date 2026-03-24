@@ -184,27 +184,3 @@ serve(async (req) => {
     );
   }
 });
-     if (!emailResponse.ok) {
-       const errorText = await emailResponse.text();
-       console.error("[LEAGUE-WINNER-EMAIL] Resend error:", errorText);
-       return new Response(
-         JSON.stringify({ error: "Failed to send email" }),
-         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-       );
-     }
- 
-     const emailResult = await emailResponse.json();
-     console.log("[LEAGUE-WINNER-EMAIL] Email sent successfully:", emailResult);
- 
-     return new Response(
-       JSON.stringify({ success: true, emailId: emailResult.id }),
-       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-     );
-   } catch (error) {
-     console.error("[LEAGUE-WINNER-EMAIL] Error:", error);
-     return new Response(
-       JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
-       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-     );
-   }
- });

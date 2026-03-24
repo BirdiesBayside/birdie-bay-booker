@@ -321,42 +321,33 @@ serve(async (req) => {
             let htmlContent: string;
 
             if (emailTemplate?.html_content) {
-              htmlContent = replaceTemplateTags(emailTemplate.html_content, templateTags);
+              const bodyContent = replaceTemplateTags(emailTemplate.html_content, templateTags);
               subject = replaceTemplateTags(subject, templateTags);
+              htmlContent = buildEmailTemplate(`Welcome to ${tierName}!`, bodyContent, {
+                text: "Book Now",
+                url: "https://hub.birdiesbayside.com.au/booking"
+              });
             } else {
-              htmlContent = `
-                <!DOCTYPE html>
-                <html>
-                <head>
-                  <meta charset="utf-8">
-                  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                </head>
-                <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-                  <div style="background-color: #1f4c25; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
-                    <h1 style="color: #fff5e4; margin: 0;">Welcome to ${tierName}!</h1>
-                  </div>
-                  <div style="background-color: #fff5e4; padding: 30px; border-radius: 0 0 8px 8px;">
-                    <p>Hi ${firstName},</p>
-                    <p>Congratulations! Your <strong>${tierName}</strong> membership is now active.</p>
-                    
-                    <div style="background-color: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ec622d;">
-                      <p style="margin: 5px 0;"><strong>Membership:</strong> ${tierName}</p>
-                      <p style="margin: 5px 0;"><strong>Weekly Price:</strong> ${weeklyPrice}</p>
-                    </div>
-                    
-                    <p>You now have access to discounted bay rates and exclusive member benefits including the Birdies League!</p>
-                    
-                    <p>Ready to play? Book your next session now!</p>
-                    
-                    <p>See you soon,<br><strong>The Birdies Team</strong></p>
-                  </div>
-                  <div style="text-align: center; padding: 20px; color: #666; font-size: 12px;">
-                    <p>Birdies Bayside Golf Simulators</p>
-                    <p>info@birdiesbayside.com.au</p>
-                  </div>
-                </body>
-                </html>
+              const bodyContent = `
+                <p style="margin:0 0 18px; font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">
+                  Hi ${firstName}, congratulations! Your <strong>${tierName}</strong> membership is now active.
+                </p>
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FFFFFF; border-radius:12px; margin:18px 0; border-left:4px solid #EC622D;">
+                  <tr>
+                    <td style="padding:20px; font-family:Inter, Arial, sans-serif; font-size:15px; color:#1F4C25; text-align:center;">
+                      <p style="margin:5px 0;"><strong>Membership:</strong> ${tierName}</p>
+                      <p style="margin:5px 0;"><strong>Weekly Price:</strong> ${weeklyPrice}</p>
+                    </td>
+                  </tr>
+                </table>
+                <p style="margin:18px 0 0; font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">
+                  You now have access to discounted bay rates and exclusive member benefits including the Birdies League!
+                </p>
               `;
+              htmlContent = buildEmailTemplate(`Welcome to ${tierName}!`, bodyContent, {
+                text: "Book Now",
+                url: "https://hub.birdiesbayside.com.au/booking"
+              });
             }
 
             try {
@@ -492,7 +483,11 @@ serve(async (req) => {
 
           if (finalTemplate?.html_content) {
             subject = replaceTemplateTags(finalTemplate.subject || "Your Birdies Membership", templateTags);
-            htmlContent = replaceTemplateTags(finalTemplate.html_content, templateTags);
+            const bodyContent = replaceTemplateTags(finalTemplate.html_content, templateTags);
+            htmlContent = buildEmailTemplate("Membership Update", bodyContent, {
+              text: "View My Account",
+              url: "https://hub.birdiesbayside.com.au/my-account"
+            });
           } else if (isPaymentFailure) {
             // Payment failure specific default email
             subject = "Payment Failed — Your Membership Has Been Cancelled";
