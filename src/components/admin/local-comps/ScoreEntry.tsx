@@ -253,8 +253,50 @@ export function ScoreEntry() {
                   <DialogTitle>Register Team</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4 pt-4">
+                  {/* Saved teams picker */}
                   <div>
-                    <Label>Team Name (optional)</Label>
+                    <Label>Load Previous Team</Label>
+                    <Popover open={savedTeamOpen} onOpenChange={setSavedTeamOpen}>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className="w-full justify-start gap-2 font-normal text-muted-foreground">
+                          <Search className="h-4 w-4" />
+                          Search saved teams...
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="p-0 w-[--radix-popover-trigger-width]" align="start">
+                        <Command>
+                          <CommandInput placeholder="Search by player or team name..." />
+                          <CommandList>
+                            <CommandEmpty>No saved teams found.</CommandEmpty>
+                            <CommandGroup>
+                              {savedTeams?.map((t, idx) => (
+                                <CommandItem
+                                  key={`${t.player1_name}-${t.player2_name}-${idx}`}
+                                  value={`${t.team_name} ${t.player1_name} ${t.player2_name}`}
+                                  onSelect={() => {
+                                    setTeamName(t.team_name);
+                                    setP1Name(t.player1_name);
+                                    setP1Hcp(String(t.player1_handicap));
+                                    setP2Name(t.player2_name);
+                                    setP2Hcp(String(t.player2_handicap));
+                                    setSavedTeamOpen(false);
+                                  }}
+                                >
+                                  <div className="flex flex-col">
+                                    <span className="font-medium">{t.team_name}</span>
+                                    <span className="text-xs text-muted-foreground">
+                                      {t.player1_name} ({t.player1_handicap}) & {t.player2_name} ({t.player2_handicap})
+                                    </span>
+                                  </div>
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  <div className="relative"><div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div><div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">or enter manually</span></div></div>
                     <Input value={teamName} onChange={(e) => setTeamName(e.target.value)} placeholder={autoTeamName || "Auto-generated from player names"} />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
