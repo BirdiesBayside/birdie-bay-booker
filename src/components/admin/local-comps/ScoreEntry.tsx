@@ -23,11 +23,32 @@ export function ScoreEntry() {
   const queryClient = useQueryClient();
   const [selectedCompId, setSelectedCompId] = useState<string>("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [savedTeamOpen, setSavedTeamOpen] = useState(false);
   const [teamName, setTeamName] = useState("");
   const [p1Name, setP1Name] = useState("");
   const [p1Hcp, setP1Hcp] = useState("");
   const [p2Name, setP2Name] = useState("");
   const [p2Hcp, setP2Hcp] = useState("");
+
+  // Query all past teams for the saved teams picker
+  const { data: savedTeams } = useQuery({
+    queryKey: ["saved-local-comp-teams"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("local_comp_teams")
+        .select("team_name, player1_name, player1_handicap, player2_name, player2_handicap, combined_handicap")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      // Deduplicate by player1+player2 combo
+      const seen = new Set<string>();
+      return (data || []).filter((t) => {
+        const key = `${t.player1_name.toLowerCase()}|${t.player2_name.toLowerCase()}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    },
+  });
 
   const { data: competitions } = useQuery({
     queryKey: ["local-competitions"],
