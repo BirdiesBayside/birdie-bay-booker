@@ -9,10 +9,13 @@ import { Label } from "@/components/ui/label";
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, Check, DollarSign, ShoppingCart } from "lucide-react";
+import { Plus, Trash2, Check, DollarSign, ShoppingCart, Search } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 export function ScoreEntry() {
   const { toast } = useToast();
@@ -20,11 +23,32 @@ export function ScoreEntry() {
   const queryClient = useQueryClient();
   const [selectedCompId, setSelectedCompId] = useState<string>("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [savedTeamOpen, setSavedTeamOpen] = useState(false);
   const [teamName, setTeamName] = useState("");
   const [p1Name, setP1Name] = useState("");
   const [p1Hcp, setP1Hcp] = useState("");
   const [p2Name, setP2Name] = useState("");
   const [p2Hcp, setP2Hcp] = useState("");
+
+  // Query all past teams for the saved teams picker
+  const { data: savedTeams } = useQuery({
+    queryKey: ["saved-local-comp-teams"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("local_comp_teams")
+        .select("team_name, player1_name, player1_handicap, player2_name, player2_handicap, combined_handicap")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      // Deduplicate by player1+player2 combo
+      const seen = new Set<string>();
+      return (data || []).filter((t) => {
+        const key = `${t.player1_name.toLowerCase()}|${t.player2_name.toLowerCase()}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    },
+  });
 
   const { data: competitions } = useQuery({
     queryKey: ["local-competitions"],
@@ -229,6 +253,49 @@ export function ScoreEntry() {
                   <DialogTitle>Register Team</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4 pt-4">
+                  {/* Saved teams picker */}
+                  <div>
+                    <Label>Load Previous Team</Label>
+                    <Popover open={savedTeamOpen} onOpenChange={setSavedTeamOpen}>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className="w-full justify-start gap-2 font-normal text-muted-foreground">
+                          <Search className="h-4 w-4" />
+                          Search saved teams...
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="p-0 w-[--radix-popover-trigger-width]" align="start">
+                        <Command>
+                          <CommandInput placeholder="Search by player or team name..." />
+                          <CommandList>
+                            <CommandEmpty>No saved teams found.</CommandEmpty>
+                            <CommandGroup>
+                              {savedTeams?.map((t, idx) => (
+                                <CommandItem
+                                  key={`${t.player1_name}-${t.player2_name}-${idx}`}
+                                  value={`${t.team_name} ${t.player1_name} ${t.player2_name}`}
+                                  onSelect={() => {
+                                    setTeamName(t.team_name);
+                                    setP1Name(t.player1_name);
+                                    setP1Hcp(String(t.player1_handicap));
+                                    setP2Name(t.player2_name);
+                                    setP2Hcp(String(t.player2_handicap));
+                                    setSavedTeamOpen(false);
+                                  }}
+                                >
+                                  <div className="flex flex-col">
+                                    <span className="font-medium">{t.team_name}</span>
+                                    <span className="text-xs text-muted-foreground">
+                                      {t.player1_name} ({t.player1_handicap}) & {t.player2_name} ({t.player2_handicap})
+                                    </span>
+                                  </div>
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
                   <div>
                     <Label>Team Name (optional)</Label>
                     <Input value={teamName} onChange={(e) => setTeamName(e.target.value)} placeholder={autoTeamName || "Auto-generated from player names"} />
