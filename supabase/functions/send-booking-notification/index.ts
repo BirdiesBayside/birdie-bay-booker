@@ -386,32 +386,33 @@ serve(async (req) => {
               </table>
       ` : '';
 
+      const headingText = isReschedule ? "Booking Rescheduled!" : "Booking Confirmed!";
+      
       // Check if custom template exists (only for confirmation, not reschedule)
       if (!isReschedule && emailTemplate?.html_content) {
-        htmlContent = replaceTemplateTags(emailTemplate.html_content, templateTags);
+        let bodyContent = replaceTemplateTags(emailTemplate.html_content, templateTags);
         // Insert Google Review CTA after "First Time at Birdies?" section
         if (reviewCtaHtml) {
-          // Look for the "First Time at Birdies" section's closing </table> tag
-          const firstTimeIndex = htmlContent.indexOf('First Time at Birdies');
+          const firstTimeIndex = bodyContent.indexOf('First Time at Birdies');
           if (firstTimeIndex !== -1) {
-            // Find the closing </table> after the "First Time" section
-            const afterFirstTime = htmlContent.indexOf('</table>', firstTimeIndex);
+            const afterFirstTime = bodyContent.indexOf('</table>', firstTimeIndex);
             if (afterFirstTime !== -1) {
               const insertAt = afterFirstTime + '</table>'.length;
-              htmlContent = htmlContent.slice(0, insertAt) + reviewCtaHtml + htmlContent.slice(insertAt);
+              bodyContent = bodyContent.slice(0, insertAt) + reviewCtaHtml + bodyContent.slice(insertAt);
             }
           } else {
-            // Fallback: insert before "We look forward" text
-            const lookForwardIndex = htmlContent.indexOf('We look forward');
+            const lookForwardIndex = bodyContent.indexOf('We look forward');
             if (lookForwardIndex !== -1) {
-              htmlContent = htmlContent.slice(0, lookForwardIndex) + reviewCtaHtml + htmlContent.slice(lookForwardIndex);
+              bodyContent = bodyContent.slice(0, lookForwardIndex) + reviewCtaHtml + bodyContent.slice(lookForwardIndex);
             }
           }
         }
-        logStep("Using custom email template", { reviewCtaInjected: !!reviewCtaHtml });
+        htmlContent = buildEmailTemplate(headingText, bodyContent, {
+          text: "View My Bookings",
+          url: "https://hub.birdiesbayside.com.au/my-bookings"
+        });
+        logStep("Using custom email template with wrapper", { reviewCtaInjected: !!reviewCtaHtml });
       } else {
-        // Build body content
-        const headingText = isReschedule ? "Booking Rescheduled!" : "Booking Confirmed!";
         const introText = isReschedule 
           ? `Hi ${profile.first_name}, your golf simulator booking has been successfully rescheduled!`
           : `Hi ${profile.first_name}, your golf simulator booking has been confirmed!`;
@@ -465,11 +466,12 @@ serve(async (req) => {
       subject = emailTemplate?.subject || "Booking Cancelled - Birdies Bayside";
       smsMessage = `Birdies Bayside: Your booking for ${shortDate} ${startTime}-${endTime} has been cancelled. Questions? Contact us.`;
       
+      let bodyContent: string;
       if (emailTemplate?.html_content) {
-        htmlContent = replaceTemplateTags(emailTemplate.html_content, templateTags);
-        logStep("Using custom email template");
+        bodyContent = replaceTemplateTags(emailTemplate.html_content, templateTags);
+        logStep("Using custom email template with wrapper");
       } else {
-        const bodyContent = `
+        bodyContent = `
               <p style="margin:0 0 18px; font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">
                 Hi ${profile.first_name}, your booking has been cancelled.
               </p>
@@ -492,12 +494,11 @@ serve(async (req) => {
                 We hope to see you again soon at Birdies Bayside!
               </p>
         `;
-        
-        htmlContent = buildEmailTemplate("Booking Cancelled", bodyContent, {
-          text: "Book Again",
-          url: "https://hub.birdiesbayside.com.au/booking"
-        });
       }
+      htmlContent = buildEmailTemplate("Booking Cancelled", bodyContent, {
+        text: "Book Again",
+        url: "https://hub.birdiesbayside.com.au/booking"
+      });
     } else {
       throw new Error(`Unknown notification type: ${notification_type}`);
     }

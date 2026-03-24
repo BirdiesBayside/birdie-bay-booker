@@ -202,11 +202,14 @@ serve(async (req) => {
     let htmlContent: string;
 
     if (emailTemplate?.html_content) {
-      htmlContent = replaceTemplateTags(emailTemplate.html_content, templateTags);
+      const bodyContent = replaceTemplateTags(emailTemplate.html_content, templateTags);
       subject = replaceTemplateTags(subject, templateTags);
-      logStep("Using custom email template");
+      htmlContent = buildEmailTemplate("Credit Added!", bodyContent, {
+        text: "Book Now",
+        url: "https://hub.birdiesbayside.com.au/booking"
+      });
+      logStep("Using custom email template with wrapper");
     } else {
-      // Default template with branded design
       const bodyContent = `
               <p style="margin:0 0 18px; font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">
                 Hi ${profile.first_name}, great news! Credit has been added to your Birdies Bayside account.
