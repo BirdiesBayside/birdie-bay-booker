@@ -32,17 +32,25 @@ export default function ResetPassword() {
 
       try {
         // Check for hash fragment (Supabase recovery links use hash)
-        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        const hash = window.location.hash;
+        const search = window.location.search;
+        console.log("[RESET] Page loaded. Hash present:", !!hash, "Search:", search);
+        console.log("[RESET] Full URL:", window.location.href);
+        
+        const hashParams = new URLSearchParams(hash.substring(1));
         const accessToken = hashParams.get("access_token");
         const refreshToken = hashParams.get("refresh_token");
         const type = hashParams.get("type");
 
+        console.log("[RESET] Hash params - type:", type, "has access_token:", !!accessToken, "has refresh_token:", !!refreshToken);
+
         // Also check query params as fallback
-        const queryParams = new URLSearchParams(window.location.search);
+        const queryParams = new URLSearchParams(search);
         const errorParam = queryParams.get("error");
         const errorDescription = queryParams.get("error_description");
 
         if (errorParam) {
+          console.log("[RESET] Error in query params:", errorParam, errorDescription);
           setErrorMessage(errorDescription || "Invalid or expired link");
           setIsValidating(false);
           return;
@@ -50,19 +58,22 @@ export default function ResetPassword() {
 
         // If we have tokens in the hash with type=recovery, this is a valid recovery flow
         if (accessToken && refreshToken && type === "recovery") {
+          console.log("[RESET] Found recovery tokens in hash, setting session...");
           // Set the recovery session using tokens from the hash
           // Do NOT call signOut() first — it revokes the tokens that /verify just created
-          const { error } = await supabase.auth.setSession({
+          const { data, error } = await supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken,
           });
 
           if (error) {
-            console.error("Session error:", error);
+            console.error("[RESET] Session error:", error.message, error);
             setErrorMessage("Invalid or expired reset link. Please request a new one.");
             setIsValidating(false);
             return;
           }
+
+          console.log("[RESET] Session set successfully, user:", data?.session?.user?.email);
 
           // Clear the hash from URL to prevent re-processing
           window.history.replaceState(null, '', window.location.pathname);
