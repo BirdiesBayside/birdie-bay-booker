@@ -50,19 +50,22 @@ export default function ResetPassword() {
 
         // If we have tokens in the hash with type=recovery, this is a valid recovery flow
         if (accessToken && refreshToken && type === "recovery") {
+          console.log("[RESET] Found recovery tokens in hash, setting session...");
           // Set the recovery session using tokens from the hash
           // Do NOT call signOut() first — it revokes the tokens that /verify just created
-          const { error } = await supabase.auth.setSession({
+          const { data, error } = await supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken,
           });
 
           if (error) {
-            console.error("Session error:", error);
+            console.error("[RESET] Session error:", error.message, error);
             setErrorMessage("Invalid or expired reset link. Please request a new one.");
             setIsValidating(false);
             return;
           }
+
+          console.log("[RESET] Session set successfully, user:", data?.session?.user?.email);
 
           // Clear the hash from URL to prevent re-processing
           window.history.replaceState(null, '', window.location.pathname);
