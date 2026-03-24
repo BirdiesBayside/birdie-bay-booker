@@ -119,7 +119,7 @@ export function CompetitionList() {
                 <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
               </div>
               <div>
-                <Label>Entry Fee ($)</Label>
+                <Label>Entry Fee Per Team ($)</Label>
                 <Input type="number" value={entryFee} onChange={(e) => setEntryFee(e.target.value)} min="0" step="5" />
               </div>
               <Button
