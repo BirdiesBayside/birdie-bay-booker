@@ -32,17 +32,25 @@ export default function ResetPassword() {
 
       try {
         // Check for hash fragment (Supabase recovery links use hash)
-        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        const hash = window.location.hash;
+        const search = window.location.search;
+        console.log("[RESET] Page loaded. Hash present:", !!hash, "Search:", search);
+        console.log("[RESET] Full URL:", window.location.href);
+        
+        const hashParams = new URLSearchParams(hash.substring(1));
         const accessToken = hashParams.get("access_token");
         const refreshToken = hashParams.get("refresh_token");
         const type = hashParams.get("type");
 
+        console.log("[RESET] Hash params - type:", type, "has access_token:", !!accessToken, "has refresh_token:", !!refreshToken);
+
         // Also check query params as fallback
-        const queryParams = new URLSearchParams(window.location.search);
+        const queryParams = new URLSearchParams(search);
         const errorParam = queryParams.get("error");
         const errorDescription = queryParams.get("error_description");
 
         if (errorParam) {
+          console.log("[RESET] Error in query params:", errorParam, errorDescription);
           setErrorMessage(errorDescription || "Invalid or expired link");
           setIsValidating(false);
           return;
