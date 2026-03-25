@@ -418,33 +418,29 @@ serve(async (req) => {
           });
         }
 
-        // Already visitor — nothing to do
-        if (profile?.membership_tier === "visitor") {
-          logStep("Already visitor, skipping", { email });
-          return new Response(JSON.stringify({ received: true }), {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-
+        const alreadyVisitor = profile?.membership_tier === "visitor";
         const firstName = profile?.first_name || customer.name?.split(" ")[0] || "there";
         const lastName = profile?.last_name || "";
-        const previousTier = profile?.membership_tier ? TIER_NAMES[profile.membership_tier] || profile.membership_tier : "Member";
+        const previousTier = alreadyVisitor ? "Member" : (profile?.membership_tier ? TIER_NAMES[profile.membership_tier] || profile.membership_tier : "Member");
 
         // Determine if this cancellation was triggered by a payment failure
         const isPaymentFailure = subscription.metadata?.cancellation_reason === "payment_failed";
-        logStep("Resetting membership tier to visitor", { email, previousTier, isPaymentFailure });
+        logStep("Processing subscription deletion", { email, previousTier, isPaymentFailure, alreadyVisitor });
 
-        const { error } = await supabaseAdmin
-          .from("profiles")
-          .update({ membership_tier: "visitor" })
-          .eq("email", email);
+        if (!alreadyVisitor) {
+          const { error } = await supabaseAdmin
+            .from("profiles")
+            .update({ membership_tier: "visitor" })
+            .eq("email", email);
 
-        if (error) {
-          logStep("Error resetting profile", { error: error.message });
-          throw error;
+          if (error) {
+            logStep("Error resetting profile", { error: error.message });
+            throw error;
+          }
+          logStep("Membership tier reset to visitor");
+        } else {
+          logStep("Already visitor (cancelled by admin), proceeding to send email");
         }
-
-        logStep("Membership tier reset to visitor");
 
         // Remove from SGT tour
         await removeFromSGT(supabaseAdmin, email);
