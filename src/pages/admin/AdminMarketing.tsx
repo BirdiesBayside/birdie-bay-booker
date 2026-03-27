@@ -401,6 +401,17 @@ export default function AdminMarketing() {
         recipientQuery = recipientQuery.is("custom_segment", null);
       }
 
+      // Apply booking count filter
+      if (bookingFilter === "0") {
+        recipientQuery = recipientQuery.eq("total_bookings", 0);
+      } else if (bookingFilter === "1-5") {
+        recipientQuery = recipientQuery.gte("total_bookings", 1).lte("total_bookings", 5);
+      } else if (bookingFilter === "6-10") {
+        recipientQuery = recipientQuery.gte("total_bookings", 6).lte("total_bookings", 10);
+      } else if (bookingFilter === "10+") {
+        recipientQuery = recipientQuery.gte("total_bookings", 11);
+      }
+
       const { data: recipients, error: recipientError } = await recipientQuery;
       
       if (recipientError) throw recipientError;
