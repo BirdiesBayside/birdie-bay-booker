@@ -1124,6 +1124,7 @@ export type Database = {
           payment_failed_at: string | null
           phone: string | null
           sgt_user_id: number | null
+          total_bookings: number
           updated_at: string
           user_id: string
         }
@@ -1145,6 +1146,7 @@ export type Database = {
           payment_failed_at?: string | null
           phone?: string | null
           sgt_user_id?: number | null
+          total_bookings?: number
           updated_at?: string
           user_id: string
         }
@@ -1166,6 +1168,7 @@ export type Database = {
           payment_failed_at?: string | null
           phone?: string | null
           sgt_user_id?: number | null
+          total_bookings?: number
           updated_at?: string
           user_id?: string
         }
