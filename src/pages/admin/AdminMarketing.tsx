@@ -291,6 +291,17 @@ export default function AdminMarketing() {
     } else if (segmentFilter === "none") {
       query = query.is("custom_segment", null);
     }
+
+    // Apply booking count filter using total_bookings column
+    if (bookingFilter === "0") {
+      query = query.eq("total_bookings", 0);
+    } else if (bookingFilter === "1-5") {
+      query = query.gte("total_bookings", 1).lte("total_bookings", 5);
+    } else if (bookingFilter === "6-10") {
+      query = query.gte("total_bookings", 6).lte("total_bookings", 10);
+    } else if (bookingFilter === "10+") {
+      query = query.gte("total_bookings", 11);
+    }
     
     const { count, error } = await query;
     
