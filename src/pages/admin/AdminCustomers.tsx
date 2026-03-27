@@ -188,7 +188,7 @@ export default function AdminCustomers() {
   const fetchCustomers = async () => {
     setIsLoading(true);
     
-    // Fetch profiles
+    // Fetch profiles - total_bookings is maintained by a database trigger
     const { data: profilesData, error: profilesError } = await supabase
       .from("profiles")
       .select("*")
@@ -199,34 +199,10 @@ export default function AdminCustomers() {
       return;
     }
 
-    // Fetch booking counts for all users using paginated fetches to avoid 1000-row limit
-    const countMap: Record<string, number> = {};
-    let bookingOffset = 0;
-    const PAGE_SIZE = 1000;
-    let hasMore = true;
-    
-    while (hasMore) {
-      const { data: bookingPage, error: bookingError } = await supabase
-        .from("bookings")
-        .select("user_id")
-        .eq("status", "confirmed")
-        .range(bookingOffset, bookingOffset + PAGE_SIZE - 1);
-      
-      if (bookingError || !bookingPage || bookingPage.length === 0) {
-        hasMore = false;
-      } else {
-        bookingPage.forEach((b) => {
-          countMap[b.user_id] = (countMap[b.user_id] || 0) + 1;
-        });
-        hasMore = bookingPage.length === PAGE_SIZE;
-        bookingOffset += PAGE_SIZE;
-      }
-    }
-
-    // Merge counts into customers
-    const customersWithCounts = profilesData.map((p) => ({
+    // Map total_bookings to booking_count for display
+    const customersWithCounts = profilesData.map((p: any) => ({
       ...p,
-      booking_count: countMap[p.user_id] || 0,
+      booking_count: p.total_bookings || 0,
     }));
 
     setCustomers(customersWithCounts);
