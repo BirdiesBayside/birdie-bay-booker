@@ -182,9 +182,41 @@ export default function Booking() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
       
-      // Use getRateInfo to account for multi-bay peak restriction
-      const rateInfo = getRateInfo(selectedDate, selectedTime, selectedDuration, selectedBayId);
-      const currentHourlyRate = rateInfo.rate;
+      // Fresh DB check for multi-bay peak restriction (prevents race conditions)
+      let currentHourlyRate: number;
+      const dateStr = format(selectedDate, "yyyy-MM-dd");
+      
+      if (customHourlyRate !== null) {
+        currentHourlyRate = customHourlyRate;
+      } else if (["birdie", "eagle"].includes(userMembershipTier) && isPeakTime(selectedDate, selectedTime)) {
+        const startHourCheck = parseInt(selectedTime.split(":")[0]);
+        const startMinuteCheck = parseInt(selectedTime.split(":")[1]);
+        const endHourCheck = startHourCheck + selectedDuration;
+        const endTimeCheck = `${endHourCheck.toString().padStart(2, "0")}:${startMinuteCheck.toString().padStart(2, "0")}`;
+        
+        const { data: existingBookings } = await supabase
+          .from("bookings")
+          .select("id, bay_id, start_time, end_time")
+          .eq("user_id", user.id)
+          .eq("booking_date", dateStr)
+          .in("status", ["confirmed", "pending"])
+          .neq("bay_id", selectedBayId);
+        
+        const hasOverlap = (existingBookings || []).some(b => {
+          const toMin = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+          return toMin(selectedTime) < toMin(b.end_time) && toMin(endTimeCheck) > toMin(b.start_time);
+        });
+        
+        if (hasOverlap) {
+          console.log("[Booking] Multi-bay peak restriction triggered - charging visitor rate");
+          currentHourlyRate = 35; // VISITOR_PEAK_RATE
+        } else {
+          currentHourlyRate = getHourlyRate(userMembershipTier, selectedDate, selectedTime);
+        }
+      } else {
+        currentHourlyRate = getHourlyRate(userMembershipTier, selectedDate, selectedTime);
+      }
+      
       const totalPrice = currentHourlyRate * selectedDuration;
       
       const startHour = parseInt(selectedTime.split(":")[0]);
