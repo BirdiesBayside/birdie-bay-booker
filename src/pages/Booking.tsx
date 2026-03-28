@@ -182,7 +182,9 @@ export default function Booking() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
       
-      const currentHourlyRate = getHourlyRate(userMembershipTier, selectedDate, selectedTime);
+      // Use getRateInfo to account for multi-bay peak restriction
+      const rateInfo = getRateInfo(selectedDate, selectedTime, selectedDuration, selectedBayId);
+      const currentHourlyRate = rateInfo.rate;
       const totalPrice = currentHourlyRate * selectedDuration;
       
       const startHour = parseInt(selectedTime.split(":")[0]);
