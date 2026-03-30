@@ -266,27 +266,20 @@ serve(async (req: Request): Promise<Response> => {
         } else {
           const bodyContent = `
               <p style="margin:0 0 18px; font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">
-                Hi ${profile.first_name}, thanks for being a loyal visitor! 🎉
+                Hi ${profile.first_name}, thanks for being a loyal visitor! You've completed <strong>${totalBookings} visits</strong> to Birdies Bayside and earned a loyalty credit.
               </p>
-              <p style="margin:0 0 18px; font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">
-                You've completed <strong>${totalBookings} visits</strong> to Birdies Bayside and earned a loyalty credit!
-              </p>
-              
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FFFFFF; border-radius:12px; margin:18px 0; border-left:4px solid #EC622D;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#1F4C25; border-radius:12px; margin:18px 0;">
                 <tr>
-                  <td style="padding:20px; font-family:Inter, Arial, sans-serif; text-align:center;">
-                    <p style="margin:5px 0; font-size:14px; color:#1F4C25; opacity:0.8;">Loyalty Credit</p>
-                    <p style="margin:5px 0; font-size:42px; color:#1F4C25; font-family:Anton, Impact, Arial Black, sans-serif;">$${credit_amount.toFixed(2)}</p>
-                    <hr style="border: none; border-top: 1px solid #eee; margin: 15px 0;">
-                    <p style="margin:5px 0; font-size:16px; color:#1F4C25;"><strong>New Balance:</strong> $${newBalance.toFixed(2)}</p>
+                  <td style="padding:30px; text-align:center;">
+                    <p style="margin:0 0 8px; font-family:Inter, Arial, sans-serif; font-size:14px; color:#FFF5E4; opacity:0.9;">Loyalty Credit</p>
+                    <p style="margin:0; font-family:Anton, Impact, Arial Black, sans-serif; font-size:52px; font-weight:bold; color:#EC622D;">$${credit_amount.toFixed(2)}</p>
                   </td>
                 </tr>
               </table>
-              
-              <p style="margin:18px 0 0; font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">
-                Your credit has been automatically added to your account. Use it on your next booking!
+              <p style="margin:18px 0; font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">
+                Your credit has been automatically added to your account — your new balance is <strong>$${newBalance.toFixed(2)}</strong>. Use it on your next booking!
               </p>
-              <p style="margin:12px 0 0; font-family:Inter, Arial, sans-serif; font-size:14px; line-height:1.5; color:#1F4C25; text-align:center; opacity:0.7;">
+              <p style="margin:12px 0 0; font-family:Inter, Arial, sans-serif; font-size:13px; line-height:1.5; color:#1F4C25; text-align:center; opacity:0.7;">
                 Your next loyalty credit will be earned at ${totalBookings + visit_threshold} visits. Keep it up! 💪
               </p>
           `;
