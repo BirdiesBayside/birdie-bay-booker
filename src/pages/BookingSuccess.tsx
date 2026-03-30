@@ -77,6 +77,15 @@ const BookingSuccess = () => {
         if (verifyResult?.status === "confirmed" && verifyResult?.booking) {
           setBooking(verifyResult.booking as BookingDetails);
           setPaymentStatus("confirmed");
+
+          // Check loyalty credit eligibility (fire and forget)
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            supabase.functions.invoke("check-loyalty-credit", {
+              body: { user_id: user.id },
+            }).catch((e) => console.error("Loyalty check failed:", e));
+          }
+
           return;
         }
 

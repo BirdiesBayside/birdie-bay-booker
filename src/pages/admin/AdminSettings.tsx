@@ -29,6 +29,7 @@ import { Switch } from "@/components/ui/switch";
 import { Plus, Pencil, Trash2, Settings, ShoppingCart, Bell, DollarSign, X, Copy, Check, Eye, BarChart3, AlertTriangle, Loader2, GripVertical, ArrowUp, ArrowDown, Coffee, ChevronDown } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { SalesReporting } from "@/components/admin/SalesReporting";
+import { LoyaltyPromoSettings } from "@/components/admin/LoyaltyPromoSettings";
 import { ActivityLog } from "@/components/admin/ActivityLog";
 import { TableServiceSettings } from "@/components/admin/TableServiceSettings";
 import { format } from "date-fns";
@@ -90,6 +91,15 @@ const TEMPLATE_TAGS: Record<string, { tag: string; description: string }[]> = {
     { tag: "{last_name}", description: "Customer's last name" },
     { tag: "{email}", description: "Customer's email address" },
     { tag: "{tier_name}", description: "Previous membership tier name" },
+  ],
+  loyalty_credit: [
+    { tag: "{first_name}", description: "Customer's first name" },
+    { tag: "{last_name}", description: "Customer's last name" },
+    { tag: "{email}", description: "Customer's email address" },
+    { tag: "{credit_amount}", description: "Loyalty credit amount (e.g. $35.00)" },
+    { tag: "{new_balance}", description: "New total credit balance" },
+    { tag: "{total_visits}", description: "Total number of visits/bookings" },
+    { tag: "{next_milestone}", description: "Number of visits for next loyalty credit" },
   ],
 };
 
@@ -994,6 +1004,9 @@ export default function AdminSettings() {
 
           {/* Notifications Settings */}
           <TabsContent value="notifications" className="space-y-4">
+            {/* Loyalty Promo */}
+            <LoyaltyPromoSettings />
+
             <Card>
               <CardHeader>
                 <CardTitle>Email Templates</CardTitle>

@@ -823,6 +823,60 @@ export type Database = {
         }
         Relationships: []
       }
+      loyalty_credits_issued: {
+        Row: {
+          created_at: string
+          credit_amount: number
+          id: string
+          milestone_number: number
+          total_bookings_at_issue: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          credit_amount: number
+          id?: string
+          milestone_number: number
+          total_bookings_at_issue: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          credit_amount?: number
+          id?: string
+          milestone_number?: number
+          total_bookings_at_issue?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
+      loyalty_promo_settings: {
+        Row: {
+          created_at: string
+          credit_amount: number
+          enabled: boolean
+          id: string
+          updated_at: string
+          visit_threshold: number
+        }
+        Insert: {
+          created_at?: string
+          credit_amount?: number
+          enabled?: boolean
+          id?: string
+          updated_at?: string
+          visit_threshold?: number
+        }
+        Update: {
+          created_at?: string
+          credit_amount?: number
+          enabled?: boolean
+          id?: string
+          updated_at?: string
+          visit_threshold?: number
+        }
+        Relationships: []
+      }
       marketing_campaigns: {
         Row: {
           clicks: number | null
