@@ -1247,8 +1247,9 @@ export default function BayController() {
           }
           
           if (command.command === 'manual') {
-            console.log('Switching to MANUAL mode');
+            console.log('Switching to MANUAL mode via command');
             setManualOverride(true);
+            updateControlModeInDb(true);
             toast.success('Switched to MANUAL mode');
             
             // Mark command as executed (mode is synced via real-time from admin)
