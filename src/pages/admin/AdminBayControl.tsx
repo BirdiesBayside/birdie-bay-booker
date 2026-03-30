@@ -345,6 +345,21 @@ export default function AdminBayControl() {
           : s
       ));
 
+      // Also insert a bay_command so the bay controller picks it up reliably
+      // (bay_commands uses INSERT realtime + polling fallback, more reliable than UPDATE events)
+      const { error: cmdError } = await supabase
+        .from("bay_commands")
+        .insert({
+          bay_number: bayNumber,
+          command: setToManual ? 'manual' : 'auto',
+          status: 'pending',
+          created_by: (await supabase.auth.getUser()).data.user?.id || null,
+        });
+      
+      if (cmdError) {
+        console.warn("Failed to insert mode command (bay_devices already updated):", cmdError);
+      }
+
       toast.success(`Bay ${bayNumber} switched to ${setToManual ? "MANUAL" : "AUTO"} mode`);
     } catch (err) {
       console.error("Error updating bay mode:", err);

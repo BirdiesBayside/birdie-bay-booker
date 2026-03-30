@@ -1208,8 +1208,9 @@ export default function BayController() {
 
           // Handle mode commands
           if (command.command === 'auto') {
-            console.log('Switching to AUTO mode');
+            console.log('Switching to AUTO mode via command');
             setManualOverride(false);
+            updateControlModeInDb(false);
             toast.success('Switched to AUTO mode');
             
             // Resume auto control - calculate if plugs should be on using refs
@@ -1246,8 +1247,9 @@ export default function BayController() {
           }
           
           if (command.command === 'manual') {
-            console.log('Switching to MANUAL mode');
+            console.log('Switching to MANUAL mode via command');
             setManualOverride(true);
+            updateControlModeInDb(true);
             toast.success('Switched to MANUAL mode');
             
             // Mark command as executed (mode is synced via real-time from admin)
@@ -1308,6 +1310,7 @@ export default function BayController() {
             if (command.command === 'auto') {
               console.log('Polling: Switching to AUTO mode');
               setManualOverride(false);
+              updateControlModeInDb(false);
               toast.success('Switched to AUTO mode (via polling)');
               
               // Resume auto control
@@ -1345,6 +1348,7 @@ export default function BayController() {
             if (command.command === 'manual') {
               console.log('Polling: Switching to MANUAL mode');
               setManualOverride(true);
+              updateControlModeInDb(true);
               toast.success('Switched to MANUAL mode (via polling)');
               
               await supabase
