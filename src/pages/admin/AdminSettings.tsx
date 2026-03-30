@@ -91,6 +91,15 @@ const TEMPLATE_TAGS: Record<string, { tag: string; description: string }[]> = {
     { tag: "{email}", description: "Customer's email address" },
     { tag: "{tier_name}", description: "Previous membership tier name" },
   ],
+  loyalty_credit: [
+    { tag: "{first_name}", description: "Customer's first name" },
+    { tag: "{last_name}", description: "Customer's last name" },
+    { tag: "{email}", description: "Customer's email address" },
+    { tag: "{credit_amount}", description: "Loyalty credit amount (e.g. $35.00)" },
+    { tag: "{new_balance}", description: "New total credit balance" },
+    { tag: "{total_visits}", description: "Total number of visits/bookings" },
+    { tag: "{next_milestone}", description: "Number of visits for next loyalty credit" },
+  ],
 };
 
 interface EmailTemplateDB {
