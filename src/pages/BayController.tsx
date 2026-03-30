@@ -1310,6 +1310,7 @@ export default function BayController() {
             if (command.command === 'auto') {
               console.log('Polling: Switching to AUTO mode');
               setManualOverride(false);
+              updateControlModeInDb(false);
               toast.success('Switched to AUTO mode (via polling)');
               
               // Resume auto control
