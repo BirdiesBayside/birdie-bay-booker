@@ -362,6 +362,15 @@ export default function Booking() {
         console.error("Failed to send booking notification:", notificationError);
       }
 
+      // Check loyalty credit eligibility (fire and forget)
+      try {
+        await supabase.functions.invoke("check-loyalty-credit", {
+          body: { user_id: user.id },
+        });
+      } catch (loyaltyError) {
+        console.error("Loyalty check failed:", loyaltyError);
+      }
+
       toast({
         title: "Booking confirmed!",
         description: `Your bay is booked for ${format(bookingDate, "PPP")} at ${booking.start_time}.`,
@@ -427,6 +436,12 @@ export default function Booking() {
         title: "Booking confirmed!",
         description: message,
       });
+
+      // Check loyalty credit eligibility (fire and forget)
+      supabase.functions.invoke("check-loyalty-credit", {
+        body: { user_id: user?.id },
+      }).catch((e) => console.error("Loyalty check failed:", e));
+
       navigate("/dashboard");
     } catch (error: any) {
       toast({
@@ -459,6 +474,11 @@ export default function Booking() {
         title: "Booking confirmed!",
         description: `Your bay is booked for ${format(selectedDate, "PPP")} at ${selectedTime}. $${totalPrice.toFixed(2)} deducted from your balance.`,
       });
+
+      // Check loyalty credit eligibility (fire and forget)
+      supabase.functions.invoke("check-loyalty-credit", {
+        body: { user_id: user?.id },
+      }).catch((e) => console.error("Loyalty check failed:", e));
 
       navigate("/dashboard");
     } catch (error: any) {
