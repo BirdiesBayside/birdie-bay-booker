@@ -29,6 +29,7 @@ import { Switch } from "@/components/ui/switch";
 import { Plus, Pencil, Trash2, Settings, ShoppingCart, Bell, DollarSign, X, Copy, Check, Eye, BarChart3, AlertTriangle, Loader2, GripVertical, ArrowUp, ArrowDown, Coffee, ChevronDown } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { SalesReporting } from "@/components/admin/SalesReporting";
+import { LoyaltyPromoSettings } from "@/components/admin/LoyaltyPromoSettings";
 import { ActivityLog } from "@/components/admin/ActivityLog";
 import { TableServiceSettings } from "@/components/admin/TableServiceSettings";
 import { format } from "date-fns";
@@ -1003,6 +1004,9 @@ export default function AdminSettings() {
 
           {/* Notifications Settings */}
           <TabsContent value="notifications" className="space-y-4">
+            {/* Loyalty Promo */}
+            <LoyaltyPromoSettings />
+
             <Card>
               <CardHeader>
                 <CardTitle>Email Templates</CardTitle>
