@@ -1208,8 +1208,9 @@ export default function BayController() {
 
           // Handle mode commands
           if (command.command === 'auto') {
-            console.log('Switching to AUTO mode');
+            console.log('Switching to AUTO mode via command');
             setManualOverride(false);
+            updateControlModeInDb(false);
             toast.success('Switched to AUTO mode');
             
             // Resume auto control - calculate if plugs should be on using refs
