@@ -1348,6 +1348,7 @@ export default function BayController() {
             if (command.command === 'manual') {
               console.log('Polling: Switching to MANUAL mode');
               setManualOverride(true);
+              updateControlModeInDb(true);
               toast.success('Switched to MANUAL mode (via polling)');
               
               await supabase
