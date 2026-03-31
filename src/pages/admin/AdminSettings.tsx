@@ -1004,9 +1004,6 @@ export default function AdminSettings() {
 
           {/* Notifications Settings */}
           <TabsContent value="notifications" className="space-y-4">
-            {/* Loyalty Promo */}
-            <LoyaltyPromoSettings />
-
             <Card>
               <CardHeader>
                 <CardTitle>Email Templates</CardTitle>
