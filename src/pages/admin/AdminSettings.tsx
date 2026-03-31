@@ -26,7 +26,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Pencil, Trash2, Settings, ShoppingCart, Bell, DollarSign, X, Copy, Check, Eye, BarChart3, AlertTriangle, Loader2, GripVertical, ArrowUp, ArrowDown, Coffee, ChevronDown } from "lucide-react";
+import { Plus, Pencil, Trash2, Settings, ShoppingCart, Bell, DollarSign, X, Copy, Check, Eye, BarChart3, AlertTriangle, Loader2, GripVertical, ArrowUp, ArrowDown, Coffee, ChevronDown, Gift } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { SalesReporting } from "@/components/admin/SalesReporting";
 import { LoyaltyPromoSettings } from "@/components/admin/LoyaltyPromoSettings";
@@ -1004,9 +1004,6 @@ export default function AdminSettings() {
 
           {/* Notifications Settings */}
           <TabsContent value="notifications" className="space-y-4">
-            {/* Loyalty Promo */}
-            <LoyaltyPromoSettings />
-
             <Card>
               <CardHeader>
                 <CardTitle>Email Templates</CardTitle>
@@ -1076,6 +1073,29 @@ export default function AdminSettings() {
                 )}
               </CardContent>
             </Card>
+
+            {/* Loyalty Promo - Collapsible */}
+            <Collapsible>
+              <CollapsibleTrigger asChild>
+                <Card className="cursor-pointer hover:bg-muted/30 transition-colors">
+                  <CardHeader className="flex flex-row items-center justify-between">
+                    <div>
+                      <CardTitle className="flex items-center gap-2 text-lg">
+                        <Gift className="h-5 w-5" />
+                        Visitor Loyalty Promo
+                      </CardTitle>
+                      <CardDescription>Reward visitors with credit after booking milestones</CardDescription>
+                    </div>
+                    <ChevronDown className="h-5 w-5 text-muted-foreground transition-transform duration-200 [&[data-state=open]]:rotate-180" />
+                  </CardHeader>
+                </Card>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="mt-2">
+                  <LoyaltyPromoSettings />
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
 
             <Card>
               <CardHeader>
