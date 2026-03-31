@@ -1074,6 +1074,29 @@ export default function AdminSettings() {
               </CardContent>
             </Card>
 
+            {/* Loyalty Promo - Collapsible */}
+            <Collapsible>
+              <CollapsibleTrigger asChild>
+                <Card className="cursor-pointer hover:bg-muted/30 transition-colors">
+                  <CardHeader className="flex flex-row items-center justify-between">
+                    <div>
+                      <CardTitle className="flex items-center gap-2 text-lg">
+                        <Gift className="h-5 w-5" />
+                        Visitor Loyalty Promo
+                      </CardTitle>
+                      <CardDescription>Reward visitors with credit after booking milestones</CardDescription>
+                    </div>
+                    <ChevronDown className="h-5 w-5 text-muted-foreground transition-transform duration-200 [&[data-state=open]]:rotate-180" />
+                  </CardHeader>
+                </Card>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="mt-2">
+                  <LoyaltyPromoSettings />
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+
             <Card>
               <CardHeader>
                 <CardTitle>SMS Settings</CardTitle>
