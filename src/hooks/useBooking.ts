@@ -124,7 +124,7 @@ export function useBooking() {
   const { data: bays = [] } = useQuery({
     queryKey: QUERY_KEYS.BAYS,
     queryFn: fetchBays,
-    staleTime: STALE_TIMES.STATIC,
+    staleTime: STALE_TIMES.SEMI_STATIC,
   });
 
   // Static data - cached for 30 minutes (pricing rarely changes)
