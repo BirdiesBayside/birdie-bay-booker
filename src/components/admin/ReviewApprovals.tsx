@@ -150,6 +150,19 @@ export function ReviewApprovals() {
 
       if (txError) console.error("Failed to log deposit transaction:", txError);
 
+      // Send credit notification email
+      try {
+        await supabase.functions.invoke("send-deposit-notification", {
+          body: {
+            user_id: customer.user_id,
+            amount: 15,
+            new_balance: newBalance,
+          },
+        });
+      } catch (notificationError) {
+        console.error("Failed to send deposit notification:", notificationError);
+      }
+
       toast({
         title: "Review approved",
         description: `$15 credit issued to ${customer.first_name} ${customer.last_name}. New balance: $${newBalance.toFixed(2)}`,
