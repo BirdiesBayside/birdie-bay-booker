@@ -113,6 +113,7 @@ export default function AdminCustomers() {
   const { toast } = useToast();
   
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [totalCount, setTotalCount] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCustomers, setSelectedCustomers] = useState<Set<string>>(new Set());
