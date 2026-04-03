@@ -189,24 +189,37 @@ export default function AdminCustomers() {
   const fetchCustomers = async () => {
     setIsLoading(true);
     
-    // Fetch profiles - total_bookings is maintained by a database trigger
-    const { data: profilesData, error: profilesError } = await supabase
-      .from("profiles")
-      .select("*")
-      .order("last_name");
+    // Fetch all profiles using paginated batching to bypass 1000-row limit
+    let allProfiles: any[] = [];
+    const batchSize = 1000;
+    let from = 0;
+    let hasMore = true;
 
-    if (profilesError || !profilesData) {
-      setIsLoading(false);
-      return;
+    while (hasMore) {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .order("last_name")
+        .range(from, from + batchSize - 1);
+
+      if (error || !data) {
+        setIsLoading(false);
+        return;
+      }
+
+      allProfiles = [...allProfiles, ...data];
+      hasMore = data.length === batchSize;
+      from += batchSize;
     }
 
     // Map total_bookings to booking_count for display
-    const customersWithCounts = profilesData.map((p: any) => ({
+    const customersWithCounts = allProfiles.map((p: any) => ({
       ...p,
       booking_count: p.total_bookings || 0,
     }));
 
     setCustomers(customersWithCounts);
+    setTotalCount(customersWithCounts.length);
     setIsLoading(false);
   };
 
