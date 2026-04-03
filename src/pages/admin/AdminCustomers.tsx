@@ -939,7 +939,7 @@ export default function AdminCustomers() {
               Customers
             </h1>
             <p className="text-muted-foreground text-sm mt-1">
-              {customers.length} total customers
+              {totalCount.toLocaleString()} total customers
             </p>
           </div>
 
