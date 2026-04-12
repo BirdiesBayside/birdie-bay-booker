@@ -6,7 +6,7 @@ export type AnalyticsTimeframe = "today" | "7d" | "30d" | "90d" | "6m" | "12m" |
 
 /** Fetch all rows, paginating in batches of 1000 to bypass PostgREST limit */
 async function fetchAllRows(
-  queryFn: (from: number, to: number) => Promise<{ data: any[] | null; error: any }>
+  queryFn: (from: number, to: number) => any
 ): Promise<any[]> {
   const batchSize = 1000;
   let allRows: any[] = [];
