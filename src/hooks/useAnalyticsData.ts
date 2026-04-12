@@ -4,6 +4,29 @@ import { startOfMonth, subMonths, format, startOfWeek, subWeeks, startOfDay, sub
 
 export type AnalyticsTimeframe = "today" | "7d" | "30d" | "90d" | "6m" | "12m" | "all";
 
+/** Fetch all rows, paginating in batches of 1000 to bypass PostgREST limit */
+async function fetchAllRows(
+  queryFn: (from: number, to: number) => any
+): Promise<any[]> {
+  const batchSize = 1000;
+  let allRows: any[] = [];
+  let from = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const { data, error } = await queryFn(from, from + batchSize - 1);
+    if (error) throw error;
+    if (data) {
+      allRows = [...allRows, ...data];
+      hasMore = data.length === batchSize;
+      from += batchSize;
+    } else {
+      hasMore = false;
+    }
+  }
+  return allRows;
+}
+
 export interface AnalyticsData {
   // Growth metrics
   newCustomersThisWeek: number;
@@ -67,32 +90,39 @@ export function useAnalyticsData(timeframe: AnalyticsTimeframe = "30d") {
       const thisWeekStart = startOfWeek(now, { weekStartsOn: 1 });
       const lastWeekStart = startOfWeek(subWeeks(now, 1), { weekStartsOn: 1 });
 
-      // Fetch all required data in parallel
+      // Fetch all required data in parallel with pagination to bypass 1000-row limit
       const [
-        bookingsData,
-        profilesData,
-        posData,
-        membershipPaymentsData,
+        allBookings,
+        profiles,
+        allPosTransactions,
+        allMembershipPayments,
       ] = await Promise.all([
-        supabase
-          .from("bookings")
-          .select("id, user_id, created_at, booking_date, start_time, end_time, duration_hours, total_price, status")
-          .neq("status", "cancelled"),
-        supabase
-          .from("profiles")
-          .select("user_id, membership_tier, created_at, updated_at"),
-        supabase
-          .from("pos_transactions")
-          .select("id, total, created_at"),
-        supabase
-          .from("membership_payments")
-          .select("id, amount, paid_at, user_id"),
+        fetchAllRows((from, to) =>
+          supabase
+            .from("bookings")
+            .select("id, user_id, created_at, booking_date, start_time, end_time, duration_hours, total_price, status")
+            .neq("status", "cancelled")
+            .range(from, to)
+        ),
+        fetchAllRows((from, to) =>
+          supabase
+            .from("profiles")
+            .select("user_id, membership_tier, created_at, updated_at")
+            .range(from, to)
+        ),
+        fetchAllRows((from, to) =>
+          supabase
+            .from("pos_transactions")
+            .select("id, total, created_at")
+            .range(from, to)
+        ),
+        fetchAllRows((from, to) =>
+          supabase
+            .from("membership_payments")
+            .select("id, amount, paid_at, user_id")
+            .range(from, to)
+        ),
       ]);
-
-      const allBookings = bookingsData.data || [];
-      const profiles = profilesData.data || [];
-      const allPosTransactions = posData.data || [];
-      const allMembershipPayments = membershipPaymentsData.data || [];
 
       // Filter data by timeframe
       const bookings = allBookings.filter(b => new Date(b.created_at) >= rangeStart);
