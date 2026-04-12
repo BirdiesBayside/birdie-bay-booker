@@ -97,26 +97,30 @@ export function useAnalyticsData(timeframe: AnalyticsTimeframe = "30d") {
         allPosTransactions,
         allMembershipPayments,
       ] = await Promise.all([
-        fetchAllRows<any>(() =>
+        fetchAllRows((from, to) =>
           supabase
             .from("bookings")
             .select("id, user_id, created_at, booking_date, start_time, end_time, duration_hours, total_price, status")
             .neq("status", "cancelled")
+            .range(from, to)
         ),
-        fetchAllRows<any>(() =>
+        fetchAllRows((from, to) =>
           supabase
             .from("profiles")
             .select("user_id, membership_tier, created_at, updated_at")
+            .range(from, to)
         ),
-        fetchAllRows<any>(() =>
+        fetchAllRows((from, to) =>
           supabase
             .from("pos_transactions")
             .select("id, total, created_at")
+            .range(from, to)
         ),
-        fetchAllRows<any>(() =>
+        fetchAllRows((from, to) =>
           supabase
             .from("membership_payments")
             .select("id, amount, paid_at, user_id")
+            .range(from, to)
         ),
       ]);
 
