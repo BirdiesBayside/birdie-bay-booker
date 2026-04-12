@@ -4,6 +4,29 @@ import { startOfMonth, subMonths, format, startOfWeek, subWeeks, startOfDay, sub
 
 export type AnalyticsTimeframe = "today" | "7d" | "30d" | "90d" | "6m" | "12m" | "all";
 
+/** Fetch all rows from a table, paginating in batches of 1000 to bypass PostgREST limit */
+async function fetchAllRows<T>(
+  queryBuilder: () => ReturnType<ReturnType<typeof supabase.from>['select']>
+): Promise<T[]> {
+  const batchSize = 1000;
+  let allRows: T[] = [];
+  let from = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const { data, error } = await (queryBuilder() as any).range(from, from + batchSize - 1);
+    if (error) throw error;
+    if (data) {
+      allRows = [...allRows, ...data];
+      hasMore = data.length === batchSize;
+      from += batchSize;
+    } else {
+      hasMore = false;
+    }
+  }
+  return allRows;
+}
+
 export interface AnalyticsData {
   // Growth metrics
   newCustomersThisWeek: number;
