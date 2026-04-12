@@ -90,32 +90,35 @@ export function useAnalyticsData(timeframe: AnalyticsTimeframe = "30d") {
       const thisWeekStart = startOfWeek(now, { weekStartsOn: 1 });
       const lastWeekStart = startOfWeek(subWeeks(now, 1), { weekStartsOn: 1 });
 
-      // Fetch all required data in parallel
+      // Fetch all required data in parallel with pagination to bypass 1000-row limit
       const [
-        bookingsData,
-        profilesData,
-        posData,
-        membershipPaymentsData,
+        allBookings,
+        profiles,
+        allPosTransactions,
+        allMembershipPayments,
       ] = await Promise.all([
-        supabase
-          .from("bookings")
-          .select("id, user_id, created_at, booking_date, start_time, end_time, duration_hours, total_price, status")
-          .neq("status", "cancelled"),
-        supabase
-          .from("profiles")
-          .select("user_id, membership_tier, created_at, updated_at"),
-        supabase
-          .from("pos_transactions")
-          .select("id, total, created_at"),
-        supabase
-          .from("membership_payments")
-          .select("id, amount, paid_at, user_id"),
+        fetchAllRows<any>(() =>
+          supabase
+            .from("bookings")
+            .select("id, user_id, created_at, booking_date, start_time, end_time, duration_hours, total_price, status")
+            .neq("status", "cancelled")
+        ),
+        fetchAllRows<any>(() =>
+          supabase
+            .from("profiles")
+            .select("user_id, membership_tier, created_at, updated_at")
+        ),
+        fetchAllRows<any>(() =>
+          supabase
+            .from("pos_transactions")
+            .select("id, total, created_at")
+        ),
+        fetchAllRows<any>(() =>
+          supabase
+            .from("membership_payments")
+            .select("id, amount, paid_at, user_id")
+        ),
       ]);
-
-      const allBookings = bookingsData.data || [];
-      const profiles = profilesData.data || [];
-      const allPosTransactions = posData.data || [];
-      const allMembershipPayments = membershipPaymentsData.data || [];
 
       // Filter data by timeframe
       const bookings = allBookings.filter(b => new Date(b.created_at) >= rangeStart);
