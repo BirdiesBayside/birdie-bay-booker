@@ -1,0 +1,102 @@
+import { useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Users, UserSearch, Trophy, ArrowLeft } from "lucide-react";
+
+const CompHub = () => {
+  const navigate = useNavigate();
+
+  const tiles = [
+    {
+      title: "Register Team",
+      description: "Sign up your 2-man Ambrose team for the weekly competition.",
+      icon: Users,
+      onClick: () => navigate("/comp/register-team"),
+      accent: true,
+    },
+    {
+      title: "Find a Partner",
+      description: "Looking for a teammate? Find other players who need a partner.",
+      icon: UserSearch,
+      onClick: () => navigate("/comp/find-partner"),
+      accent: false,
+    },
+    {
+      title: "Leaderboards",
+      description: "View scores and standings from past and current competitions.",
+      icon: Trophy,
+      onClick: () => navigate("/comp/leaderboards"),
+      accent: false,
+      comingSoon: true,
+    },
+  ];
+
+  return (
+    <div className="min-h-screen bg-background safe-area-top">
+      <div className="max-w-lg mx-auto p-4 pt-6 space-y-6">
+        <button
+          onClick={() => navigate("/dashboard")}
+          className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Hub
+        </button>
+
+        <div>
+          <h1 className="font-display text-3xl text-primary font-bold">WEEKLY COMP</h1>
+          <p className="text-muted-foreground mt-1">
+            2-Man Ambrose — register, find a partner, and check results.
+          </p>
+        </div>
+
+        <div className="grid gap-4">
+          {tiles.map((tile) => (
+            <div
+              key={tile.title}
+              className={`bg-card rounded-lg p-5 shadow-md border ${
+                tile.accent ? "border-primary/30" : "border-border"
+              } relative`}
+            >
+              {tile.comingSoon && (
+                <div className="absolute top-3 right-3">
+                  <span className="text-xs bg-muted text-muted-foreground px-2 py-1 rounded-full">
+                    Coming Soon
+                  </span>
+                </div>
+              )}
+              <div className="flex items-center gap-3 mb-3">
+                <div
+                  className={`h-10 w-10 rounded-lg flex items-center justify-center ${
+                    tile.accent ? "bg-primary/15" : "bg-accent/10"
+                  }`}
+                >
+                  <tile.icon
+                    className={`h-5 w-5 ${
+                      tile.accent ? "text-primary" : "text-accent"
+                    }`}
+                  />
+                </div>
+                <h2 className="font-semibold text-lg">{tile.title}</h2>
+              </div>
+              <p className="text-muted-foreground mb-4 text-sm">
+                {tile.description}
+              </p>
+              <Button
+                className={`w-full ${
+                  tile.accent
+                    ? "bg-accent text-accent-foreground hover:bg-accent/90"
+                    : "bg-accent text-accent-foreground hover:bg-accent/90"
+                }`}
+                onClick={tile.onClick}
+                disabled={tile.comingSoon}
+              >
+                {tile.title}
+              </Button>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default CompHub;
