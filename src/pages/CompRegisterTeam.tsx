@@ -89,7 +89,7 @@ export default function CompRegisterTeam() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="max-w-md mx-auto p-4 pt-6 space-y-6">
+      <div className="max-w-md mx-auto p-4 pt-6 space-y-6 safe-area-top">
         <button
           onClick={() => navigate("/dashboard")}
           className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
