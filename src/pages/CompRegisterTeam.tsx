@@ -23,10 +23,10 @@ export default function CompRegisterTeam() {
 
     const p1 = player1.trim();
     const p2 = player2.trim();
-    const name = teamName.trim() || `${p1} & ${p2}`;
+    const name = teamName.trim();
 
-    if (!p1 || !p2) {
-      toast.error("Both player names are required");
+    if (!p1 || !p2 || !name) {
+      toast.error("All fields are required");
       return;
     }
 
@@ -132,17 +132,15 @@ export default function CompRegisterTeam() {
                 />
               </div>
               <div>
-                <Label htmlFor="teamName">Team Name (optional)</Label>
+                <Label htmlFor="teamName">Team Name *</Label>
                 <Input
                   id="teamName"
                   value={teamName}
                   onChange={(e) => setTeamName(e.target.value)}
-                  placeholder="Leave blank to auto-generate"
+                  placeholder="e.g. The Eagles"
                   maxLength={100}
+                  required
                 />
-                <p className="text-xs text-muted-foreground mt-1">
-                  If left blank, your team name will be "{player1.trim() || "Player 1"} & {player2.trim() || "Player 2"}"
-                </p>
               </div>
               <Button type="submit" className="w-full" disabled={submitting}>
                 {submitting ? "Registering..." : "Register Team"}
