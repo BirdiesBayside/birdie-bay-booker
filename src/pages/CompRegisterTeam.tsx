@@ -72,7 +72,7 @@ export default function CompRegisterTeam() {
   if (submitted) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-center">
-        <CheckCircle className="h-16 w-16 text-green-500 mb-4" />
+        <CheckCircle className="h-16 w-16 text-primary mb-4" />
         <h1 className="text-2xl font-bold mb-2">Team Registered!</h1>
         <p className="text-muted-foreground mb-6">
           Your team has been submitted. The admin will confirm your handicaps before the comp.
