@@ -46,6 +46,10 @@ export default function AdminLocalComps() {
               <Award className="h-4 w-4" />
               <span className="hidden sm:inline">Results</span>
             </TabsTrigger>
+            <TabsTrigger value="teams" className="gap-2">
+              <Users className="h-4 w-4" />
+              <span className="hidden sm:inline">Teams</span>
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="competitions" className="mt-6">
