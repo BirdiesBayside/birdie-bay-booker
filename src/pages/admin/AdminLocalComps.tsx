@@ -63,6 +63,10 @@ export default function AdminLocalComps() {
           <TabsContent value="results" className="mt-6">
             <CompResults />
           </TabsContent>
+
+          <TabsContent value="teams" className="mt-6">
+            <SavedTeams />
+          </TabsContent>
         </Tabs>
       </div>
     </AdminLayout>
