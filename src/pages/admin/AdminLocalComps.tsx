@@ -4,7 +4,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CompetitionList } from "@/components/admin/local-comps/CompetitionList";
 import { ScoreEntry } from "@/components/admin/local-comps/ScoreEntry";
 import { CompResults } from "@/components/admin/local-comps/CompResults";
-import { Trophy, ClipboardList, Award } from "lucide-react";
+import { SavedTeams } from "@/components/admin/local-comps/SavedTeams";
+import { Trophy, ClipboardList, Award, Users } from "lucide-react";
 
 export default function AdminLocalComps() {
   const { isLoading } = useAdminAuth();
