@@ -704,6 +704,42 @@ export type Database = {
         }
         Relationships: []
       }
+      local_comp_saved_teams: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          player1_handicap: number
+          player1_name: string
+          player2_handicap: number
+          player2_name: string
+          team_name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          player1_handicap?: number
+          player1_name: string
+          player2_handicap?: number
+          player2_name: string
+          team_name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          player1_handicap?: number
+          player1_name?: string
+          player2_handicap?: number
+          player2_name?: string
+          team_name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       local_comp_settings: {
         Row: {
           created_at: string
