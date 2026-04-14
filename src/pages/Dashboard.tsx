@@ -275,6 +275,25 @@ const Dashboard = () => {
               )}
             </div>
 
+            {/* Weekly Comp - Register Team */}
+            <div className="bg-card rounded-lg p-6 shadow-md border border-primary/30">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="h-10 w-10 rounded-lg bg-primary/15 flex items-center justify-center">
+                  <Users className="h-5 w-5 text-primary" />
+                </div>
+                <h2 className="font-semibold text-lg">Weekly Comp</h2>
+              </div>
+              <p className="text-muted-foreground mb-4">
+                Register your 2-man Ambrose team for our weekly in-house competition.
+              </p>
+              <Button 
+                className="w-full bg-accent text-accent-foreground hover:bg-accent/90"
+                onClick={() => navigate("/comp/register-team")}
+              >
+                Register Team
+              </Button>
+            </div>
+
             <div className="bg-card rounded-lg p-6 shadow-md border border-border">
               <div className="flex items-center gap-3 mb-4">
                 <div className="h-10 w-10 rounded-lg bg-accent/10 flex items-center justify-center">
