@@ -36,6 +36,7 @@ const Unsubscribe = lazy(() => import("./pages/Unsubscribe"));
 const BayOrder = lazy(() => import("./pages/BayOrder"));
 const Feedback = lazy(() => import("./pages/Feedback"));
 const CompSurvey = lazy(() => import("./pages/CompSurvey"));
+const CompRegisterTeam = lazy(() => import("./pages/CompRegisterTeam"));
 
 // Admin pages
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
@@ -207,6 +208,7 @@ const App = () => (
             <Route path="/feedback/:token" element={<Feedback />} />
             <Route path="/feedback/:token/:quick" element={<Feedback />} />
             <Route path="/comp-survey" element={<CompSurvey />} />
+            <Route path="/comp/register-team" element={<CompRegisterTeam />} />
             {/* Admin Routes */}
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/admin/analytics" element={<AdminAnalytics />} />
