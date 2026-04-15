@@ -81,7 +81,7 @@ export default function CompRegisterTeam() {
           <Button variant="outline" onClick={() => { setSubmitted(false); setTeamName(""); setPlayer1(""); setPlayer2(""); }}>
             Register Another
           </Button>
-          <Button onClick={() => navigate("/dashboard")}>Back to Hub</Button>
+          <Button onClick={() => navigate("/comp")}>Back to Comp Area</Button>
         </div>
       </div>
     );
