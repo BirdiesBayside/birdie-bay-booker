@@ -38,6 +38,7 @@ const Feedback = lazy(() => import("./pages/Feedback"));
 const CompSurvey = lazy(() => import("./pages/CompSurvey"));
 const CompRegisterTeam = lazy(() => import("./pages/CompRegisterTeam"));
 const CompHub = lazy(() => import("./pages/CompHub"));
+const CompFindPartner = lazy(() => import("./pages/CompFindPartner"));
 
 // Admin pages
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
@@ -210,6 +211,7 @@ const App = () => (
             <Route path="/feedback/:token/:quick" element={<Feedback />} />
             <Route path="/comp-survey" element={<CompSurvey />} />
             <Route path="/comp" element={<CompHub />} />
+            <Route path="/comp/find-partner" element={<CompFindPartner />} />
             <Route path="/comp/register-team" element={<CompRegisterTeam />} />
             {/* Admin Routes */}
             <Route path="/admin" element={<AdminDashboard />} />
