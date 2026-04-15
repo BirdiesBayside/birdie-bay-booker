@@ -13,6 +13,8 @@ interface DepositNotificationRequest {
   user_id: string;
   amount: number;
   new_balance: number;
+  credit_type?: 'google_review' | 'gift_card' | 'loyalty' | 'manual' | 'other';
+  description?: string;
 }
 
 const logStep = (step: string, details?: any) => {
@@ -135,7 +137,7 @@ serve(async (req) => {
       { auth: { persistSession: false } }
     );
 
-    const { user_id, amount, new_balance }: DepositNotificationRequest = await req.json();
+    const { user_id, amount, new_balance, credit_type, description }: DepositNotificationRequest = await req.json();
     logStep("Request received", { user_id, amount, new_balance });
 
     if (!user_id || amount === undefined || new_balance === undefined) {
@@ -210,10 +212,21 @@ serve(async (req) => {
       });
       logStep("Using custom email template with wrapper");
     } else {
+      // Build body content based on credit type
+      let creditReasonText = "";
+      if (credit_type === 'google_review') {
+        creditReasonText = `
+              <p style="margin:18px 0 0; font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">
+                <strong>Thank you for your Google review!</strong> 🌟
+              </p>`;
+      }
+      
       const bodyContent = `
               <p style="margin:0 0 18px; font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">
                 Hi ${profile.first_name}, great news! Credit has been added to your Birdies Bayside account.
               </p>
+              
+              ${creditReasonText}
               
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FFFFFF; border-radius:12px; margin:18px 0; border-left:4px solid #EC622D;">
                 <tr>
