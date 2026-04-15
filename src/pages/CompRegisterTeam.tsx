@@ -91,10 +91,10 @@ export default function CompRegisterTeam() {
     <div className="min-h-screen bg-background">
       <div className="max-w-md mx-auto p-4 pt-6 space-y-6 safe-area-top">
         <button
-          onClick={() => navigate("/dashboard")}
+          onClick={() => navigate("/comp")}
           className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
         >
-          <ArrowLeft className="h-4 w-4" /> Back to Hub
+          <ArrowLeft className="h-4 w-4" /> Back to Comp Area
         </button>
 
         <Card>
