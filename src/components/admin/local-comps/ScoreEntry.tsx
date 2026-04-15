@@ -75,6 +75,13 @@ export function ScoreEntry() {
     },
   });
 
+  // Auto-select latest competition when data loads
+  useEffect(() => {
+    if (competitions && competitions.length > 0 && !selectedCompId) {
+      setSelectedCompId(competitions[0].id);
+    }
+  }, [competitions, selectedCompId]);
+
   const { data: teams, isLoading: teamsLoading } = useQuery({
     queryKey: ["local-comp-teams", selectedCompId],
     queryFn: async () => {
