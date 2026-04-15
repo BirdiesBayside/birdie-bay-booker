@@ -1,13 +1,15 @@
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
-import { LogOut, Calendar, Settings, ClipboardList, Trophy, Lock, ExternalLink, Shield, Users, Info } from "lucide-react";
+import { LogOut, Calendar, Settings, ClipboardList, Trophy, Lock, Users, Info, Megaphone, Plus, Trash2, CalendarDays } from "lucide-react";
 import birdiesLogo from "@/assets/birdies-logo.png";
 import { supabase } from "@/integrations/supabase/client";
 import { NotificationBell } from "@/components/NotificationBell";
 import { QUERY_KEYS, STALE_TIMES } from "@/lib/query-keys";
+import { useToast } from "@/hooks/use-toast";
 
 type MembershipTier = "visitor" | "weekday" | "birdie" | "eagle";
 
@@ -15,10 +17,15 @@ const Dashboard = () => {
   const { user, isAuthenticated, isLoading, signOut } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [membershipTier, setMembershipTier] = useState<MembershipTier>("visitor");
   const [membershipOnHold, setMembershipOnHold] = useState(false);
   const [hasSgtAccount, setHasSgtAccount] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [showEventForm, setShowEventForm] = useState(false);
+  const [newEventTitle, setNewEventTitle] = useState("");
+  const [newEventDesc, setNewEventDesc] = useState("");
+  const [newEventDate, setNewEventDate] = useState("");
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -55,46 +62,76 @@ const Dashboard = () => {
     checkAdminStatus();
   }, [user]);
 
-  // Prefetch booking page data for faster navigation
+  // Prefetch booking page data
   useEffect(() => {
-    // Prefetch bays data (static, rarely changes)
     queryClient.prefetchQuery({
       queryKey: QUERY_KEYS.BAYS,
       queryFn: async () => {
-        const { data } = await supabase
-          .from("bays")
-          .select("*")
-          .eq("is_active", true)
-          .order("bay_number");
+        const { data } = await supabase.from("bays").select("*").eq("is_active", true).order("bay_number");
         return data || [];
       },
       staleTime: STALE_TIMES.STATIC,
     });
-
-    // Prefetch pricing data (static, rarely changes)
     queryClient.prefetchQuery({
       queryKey: QUERY_KEYS.PRICING,
       queryFn: async () => {
-        const { data } = await supabase
-          .from("pricing_config")
-          .select("*")
-          .order("display_order");
+        const { data } = await supabase.from("pricing_config").select("*").order("display_order");
         return data || [];
       },
       staleTime: STALE_TIMES.STATIC,
     });
   }, [queryClient]);
 
+  // Fetch events
+  const { data: events = [] } = useQuery({
+    queryKey: ["whats-on-events"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("whats_on_events")
+        .select("*")
+        .eq("is_active", true)
+        .order("event_date", { ascending: true });
+      return data || [];
+    },
+  });
+
+  const addEvent = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("whats_on_events").insert({
+        title: newEventTitle,
+        description: newEventDesc || null,
+        event_date: newEventDate || null,
+        created_by: user?.id,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["whats-on-events"] });
+      setNewEventTitle("");
+      setNewEventDesc("");
+      setNewEventDate("");
+      setShowEventForm(false);
+      toast({ title: "Event added" });
+    },
+  });
+
+  const removeEvent = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("whats_on_events").update({ is_active: false }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["whats-on-events"] });
+      toast({ title: "Event removed" });
+    },
+  });
+
   const handleSignOut = async () => {
-    // Clear local state first to prevent stale data display
     setMembershipTier("visitor");
     setMembershipOnHold(false);
     setHasSgtAccount(false);
     setIsAdmin(false);
-    
     await signOut();
-    
-    // Force navigation after sign out completes
     navigate("/", { replace: true });
   };
 
@@ -106,9 +143,7 @@ const Dashboard = () => {
     );
   }
 
-  if (!isAuthenticated) {
-    return null;
-  }
+  if (!isAuthenticated) return null;
 
   const firstName = user?.user_metadata?.first_name || "Member";
   const hasLeagueAccess = ["birdie", "eagle"].includes(membershipTier);
@@ -117,15 +152,8 @@ const Dashboard = () => {
     <div className="min-h-screen flex flex-col">
       {/* Header */}
       <header className="bg-primary py-4 px-6 flex items-center justify-between safe-area-top">
-        <img 
-          src={birdiesLogo} 
-          alt="Birdies" 
-          className="h-10 w-auto"
-        />
+        <img src={birdiesLogo} alt="Birdies" className="h-10 w-auto" />
         <div className="flex items-center gap-2 sm:gap-4">
-          <span className="text-primary-foreground/80 text-sm hidden sm:block">
-            Welcome, {firstName}
-          </span>
           <NotificationBell />
           {isAdmin && (
             <Button
@@ -133,228 +161,248 @@ const Dashboard = () => {
               onClick={() => navigate("/admin")}
               className="bg-accent text-accent-foreground hover:bg-accent/90"
             >
-              <Shield className="h-4 w-4 sm:mr-2" />
               <span className="hidden sm:inline">Admin</span>
             </Button>
           )}
           <Button
             variant="ghost"
-            size="sm"
+            size="icon"
             onClick={handleSignOut}
             className="text-primary-foreground hover:bg-primary-foreground/10"
           >
-            <LogOut className="h-4 w-4 sm:mr-2" />
-            <span className="hidden sm:inline">Sign Out</span>
+            <LogOut className="h-4 w-4" />
           </Button>
         </div>
       </header>
 
       {/* Main content */}
-      <main className="flex-1 p-6">
-        <div className="container max-w-4xl mx-auto">
-          <h1 className="font-display text-4xl text-primary mb-8">
+      <main className="flex-1 p-4 sm:p-6">
+        <div className="container max-w-lg mx-auto">
+          <h1 className="font-display text-3xl sm:text-4xl text-primary mb-5">
             WELCOME, {firstName.toUpperCase()}
           </h1>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className={`bg-card rounded-lg p-6 shadow-md border ${membershipOnHold ? "border-amber-300 bg-amber-50/50 dark:bg-amber-950/20" : "border-border"}`}>
-              <div className="flex items-center gap-3 mb-4">
-                <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${membershipOnHold ? "bg-amber-100 dark:bg-amber-900/30" : "bg-accent/10"}`}>
-                  <Calendar className={`h-5 w-5 ${membershipOnHold ? "text-amber-600" : "text-accent"}`} />
-                </div>
-                <h2 className="font-semibold text-lg">Book a Bay</h2>
-              </div>
-              {membershipOnHold ? (
-                <>
-                  <div className="flex items-center gap-2 mb-3 p-2 bg-amber-100 dark:bg-amber-900/40 rounded-lg border border-amber-200 dark:border-amber-800">
-                    <Lock className="h-4 w-4 text-amber-600 shrink-0" />
-                    <p className="text-sm text-amber-800 dark:text-amber-200">
-                      Your membership is currently on hold. Please contact us to reactivate.
-                    </p>
+          <div className="grid grid-cols-1 gap-3">
+            {/* Book a Bay */}
+            {membershipOnHold ? (
+              <div className="bg-card rounded-xl p-4 shadow-sm border border-amber-300 bg-amber-50/50">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-lg bg-amber-100 flex items-center justify-center shrink-0">
+                    <Calendar className="h-5 w-5 text-amber-600" />
                   </div>
-                  <Button 
-                    className="w-full"
-                    variant="secondary"
-                    disabled
-                  >
-                    Booking Unavailable
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <p className="text-muted-foreground mb-4">
-                    Reserve your spot at one of our 6 premium golf simulator bays.
-                  </p>
-                  <Button 
-                    className="w-full bg-accent text-accent-foreground hover:bg-accent/90"
-                    onClick={() => navigate("/booking")}
-                  >
-                    Book Now
-                  </Button>
-                </>
-              )}
-            </div>
+                  <div className="flex-1">
+                    <h2 className="font-semibold text-base">Book a Bay</h2>
+                    <p className="text-xs text-amber-700">Membership on hold</p>
+                  </div>
+                  <Lock className="h-4 w-4 text-amber-500" />
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => navigate("/booking")}
+                className="bg-card rounded-xl p-4 shadow-sm border border-border hover:border-accent/50 hover:shadow-md transition-all text-left active:scale-[0.98]"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
+                    <Calendar className="h-5 w-5 text-accent" />
+                  </div>
+                  <div>
+                    <h2 className="font-semibold text-base">Book a Bay</h2>
+                    <p className="text-xs text-muted-foreground">Reserve your spot at one of our 6 premium golf simulator bays.</p>
+                  </div>
+                </div>
+              </button>
+            )}
 
-            <div className="bg-card rounded-lg p-6 shadow-md border border-border">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="h-10 w-10 rounded-lg bg-accent/10 flex items-center justify-center">
+            {/* My Bookings */}
+            <button
+              onClick={() => navigate("/my-bookings")}
+              className="bg-card rounded-xl p-4 shadow-sm border border-border hover:border-accent/50 hover:shadow-md transition-all text-left active:scale-[0.98]"
+            >
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
                   <ClipboardList className="h-5 w-5 text-accent" />
                 </div>
-                <h2 className="font-semibold text-lg">My Bookings</h2>
+                <div>
+                  <h2 className="font-semibold text-base">My Bookings</h2>
+                  <p className="text-xs text-muted-foreground">View, edit, or cancel your upcoming bay reservations.</p>
+                </div>
               </div>
-              <p className="text-muted-foreground mb-4">
-                View, edit, or cancel your upcoming bay reservations.
-              </p>
-              <Button 
-                className="w-full bg-accent text-accent-foreground hover:bg-accent/90"
-                onClick={() => navigate("/my-bookings")}
-              >
-                View Bookings
-              </Button>
-            </div>
+            </button>
 
-            {/* Birdies League Section */}
-            <div className={`bg-card rounded-lg p-6 shadow-md border relative ${!hasLeagueAccess ? "border-border opacity-60" : "border-league-primary/30"}`}>
-              {/* Info icon - always visible */}
+            {/* Birdies League */}
+            <button
+              onClick={() => hasLeagueAccess ? navigate(hasSgtAccount ? "/league" : "/league/register") : navigate("/membership")}
+              className={`bg-card rounded-xl p-4 shadow-sm border text-left active:scale-[0.98] transition-all relative ${
+                hasLeagueAccess ? "border-league-primary/30 hover:border-league-primary/60 hover:shadow-md" : "border-border opacity-60"
+              }`}
+            >
+              {!hasLeagueAccess && (
+                <div className="absolute top-3 right-3 flex items-center gap-1 text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                  <Lock className="h-3 w-3" />
+                  <span>Members</span>
+                </div>
+              )}
               <a 
                 href="/birdies-guide" 
+                onClick={(e) => e.stopPropagation()}
                 className="absolute top-3 right-3 h-6 w-6 rounded-full bg-muted hover:bg-muted/80 flex items-center justify-center transition-colors"
+                style={!hasLeagueAccess ? { right: "5.5rem" } : {}}
                 title="How to use the simulators"
               >
                 <Info className="h-4 w-4 text-muted-foreground" />
               </a>
-              {!hasLeagueAccess && (
-                <div className="absolute top-3 right-12">
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full">
-                    <Lock className="h-3 w-3" />
-                    <span>Members Only</span>
-                  </div>
-                </div>
-              )}
-              <div className="flex items-center gap-3 mb-4">
-                <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${hasLeagueAccess ? "bg-league-primary/15" : "bg-muted"}`}>
+              <div className="flex items-center gap-3">
+                <div className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 ${hasLeagueAccess ? "bg-league-primary/15" : "bg-muted"}`}>
                   <Trophy className={`h-5 w-5 ${hasLeagueAccess ? "text-league-primary-dark" : "text-muted-foreground"}`} />
                 </div>
-                <h2 className="font-semibold text-lg">Birdies League</h2>
+                <div>
+                  <h2 className="font-semibold text-base">Birdies League</h2>
+                  <p className="text-xs text-muted-foreground">
+                    {hasLeagueAccess ? "Compete in weekly leagues and track your progress." : "Upgrade to Birdie or Eagle to access."}
+                  </p>
+                </div>
               </div>
-              {hasLeagueAccess ? (
-                <>
-                  <p className="text-muted-foreground mb-4">
-                    Compete in weekly leagues and track your progress.
-                  </p>
-                  <div className="flex gap-2">
-                    {!hasSgtAccount && (
-                      <Button 
-                        className="flex-1 bg-league-primary text-league-foreground hover:bg-league-primary-dark"
-                        onClick={() => navigate("/league/register")}
-                      >
-                        Register
-                      </Button>
-                    )}
-                    <Button 
-                      className={`${hasSgtAccount ? 'w-full' : 'flex-1'} bg-league-primary text-league-foreground hover:bg-league-primary-dark`}
-                      onClick={() => navigate("/league")}
-                    >
-                      View League
-                    </Button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <p className="text-muted-foreground mb-4">
-                    Upgrade to Birdie or Eagle membership to access the league.
-                  </p>
-                  <Button 
-                    className="w-full"
-                    variant="secondary"
-                    onClick={() => navigate("/membership")}
-                  >
-                    View Memberships
-                  </Button>
-                </>
-              )}
-            </div>
+            </button>
 
             {/* Weekly Comp */}
-            <div className="bg-card rounded-lg p-6 shadow-md border border-primary/30">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="h-10 w-10 rounded-lg bg-primary/15 flex items-center justify-center">
+            <button
+              onClick={() => navigate("/comp")}
+              className="bg-card rounded-xl p-4 shadow-sm border border-primary/30 hover:border-primary/60 hover:shadow-md transition-all text-left active:scale-[0.98]"
+            >
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
                   <Users className="h-5 w-5 text-primary" />
                 </div>
-                <h2 className="font-semibold text-lg">Weekly Comp</h2>
+                <div>
+                  <h2 className="font-semibold text-base">Weekly Comp</h2>
+                  <p className="text-xs text-muted-foreground">Register your team, find a partner, and check leaderboards.</p>
+                </div>
               </div>
-              <p className="text-muted-foreground mb-4">
-                Register your team, find a partner, and check leaderboards.
-              </p>
-              <Button 
-                className="w-full bg-accent text-accent-foreground hover:bg-accent/90"
-                onClick={() => navigate("/comp")}
-              >
-                Comp Area
-              </Button>
+            </button>
+
+            {/* What's On */}
+            <div className="bg-card rounded-xl p-4 shadow-sm border border-accent/30">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="h-10 w-10 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
+                  <Megaphone className="h-5 w-5 text-accent" />
+                </div>
+                <h2 className="font-semibold text-base flex-1">What's On</h2>
+                {isAdmin && (
+                  <button
+                    onClick={() => setShowEventForm(!showEventForm)}
+                    className="h-7 w-7 rounded-full bg-accent/10 hover:bg-accent/20 flex items-center justify-center transition-colors"
+                  >
+                    <Plus className="h-4 w-4 text-accent" />
+                  </button>
+                )}
+              </div>
+
+              {/* Admin add form */}
+              {isAdmin && showEventForm && (
+                <div className="mb-3 p-3 bg-muted/50 rounded-lg space-y-2">
+                  <Input
+                    placeholder="Event title"
+                    value={newEventTitle}
+                    onChange={(e) => setNewEventTitle(e.target.value)}
+                    className="h-9 text-sm"
+                  />
+                  <Input
+                    placeholder="Description (optional)"
+                    value={newEventDesc}
+                    onChange={(e) => setNewEventDesc(e.target.value)}
+                    className="h-9 text-sm"
+                  />
+                  <Input
+                    type="date"
+                    value={newEventDate}
+                    onChange={(e) => setNewEventDate(e.target.value)}
+                    className="h-9 text-sm"
+                  />
+                  <Button
+                    size="sm"
+                    className="w-full bg-accent text-accent-foreground hover:bg-accent/90"
+                    disabled={!newEventTitle.trim() || addEvent.isPending}
+                    onClick={() => addEvent.mutate()}
+                  >
+                    Add Event
+                  </Button>
+                </div>
+              )}
+
+              {events.length === 0 ? (
+                <p className="text-xs text-muted-foreground ml-[52px]">No upcoming events right now.</p>
+              ) : (
+                <div className="space-y-2 ml-[52px]">
+                  {events.map((event: any) => (
+                    <div key={event.id} className="flex items-start gap-2 group">
+                      <div className="flex-1">
+                        <p className="text-sm font-medium leading-tight">{event.title}</p>
+                        {event.description && (
+                          <p className="text-xs text-muted-foreground">{event.description}</p>
+                        )}
+                        {event.event_date && (
+                          <p className="text-xs text-accent font-medium flex items-center gap-1 mt-0.5">
+                            <CalendarDays className="h-3 w-3" />
+                            {new Date(event.event_date + "T00:00:00").toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" })}
+                          </p>
+                        )}
+                      </div>
+                      {isAdmin && (
+                        <button
+                          onClick={() => removeEvent.mutate(event.id)}
+                          className="opacity-0 group-hover:opacity-100 h-6 w-6 rounded flex items-center justify-center hover:bg-destructive/10 transition-all shrink-0"
+                        >
+                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
-            <div className="bg-card rounded-lg p-6 shadow-md border border-border">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="h-10 w-10 rounded-lg bg-accent/10 flex items-center justify-center">
+            {/* My Account */}
+            <button
+              onClick={() => navigate("/my-account")}
+              className="bg-card rounded-xl p-4 shadow-sm border border-border hover:border-accent/50 hover:shadow-md transition-all text-left active:scale-[0.98]"
+            >
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
                   <Settings className="h-5 w-5 text-accent" />
                 </div>
-                <h2 className="font-semibold text-lg">My Account</h2>
+                <div>
+                  <h2 className="font-semibold text-base">My Account</h2>
+                  <p className="text-xs text-muted-foreground">Manage membership, payment methods, and settings.</p>
+                </div>
               </div>
-              <p className="text-muted-foreground mb-4">
-                Manage membership, payment methods, and account settings.
-              </p>
-              <Button 
-                className="w-full bg-accent text-accent-foreground hover:bg-accent/90"
-                onClick={() => navigate("/my-account")}
-              >
-                Account Settings
-              </Button>
-            </div>
+            </button>
 
-            {/* Birdies Clubhouse Section */}
-            <div className={`bg-card rounded-lg p-6 shadow-md border relative md:col-span-2 ${membershipTier === "visitor" ? "border-border opacity-60" : "border-primary/30"}`}>
+            {/* Birdies Clubhouse */}
+            <button
+              onClick={() => membershipTier !== "visitor" ? navigate("/clubhouse") : navigate("/membership")}
+              className={`bg-card rounded-xl p-4 shadow-sm border text-left active:scale-[0.98] transition-all relative ${
+                membershipTier !== "visitor" ? "border-primary/30 hover:border-primary/60 hover:shadow-md" : "border-border opacity-60"
+              }`}
+            >
               {membershipTier === "visitor" && (
-                <div className="absolute top-3 right-3">
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full">
-                    <Lock className="h-3 w-3" />
-                    <span>Members Only</span>
-                  </div>
+                <div className="absolute top-3 right-3 flex items-center gap-1 text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                  <Lock className="h-3 w-3" />
+                  <span>Members</span>
                 </div>
               )}
-              <div className="flex items-center gap-3 mb-4">
-                <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${membershipTier !== "visitor" ? "bg-primary/15" : "bg-muted"}`}>
+              <div className="flex items-center gap-3">
+                <div className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 ${membershipTier !== "visitor" ? "bg-primary/15" : "bg-muted"}`}>
                   <Users className={`h-5 w-5 ${membershipTier !== "visitor" ? "text-primary" : "text-muted-foreground"}`} />
                 </div>
-                <h2 className="font-semibold text-lg">Birdies Clubhouse</h2>
+                <div>
+                  <h2 className="font-semibold text-base">Birdies Clubhouse</h2>
+                  <p className="text-xs text-muted-foreground">
+                    {membershipTier !== "visitor" ? "Connect with fellow members and stay updated." : "Upgrade to access the community."}
+                  </p>
+                </div>
               </div>
-              {membershipTier !== "visitor" ? (
-                <>
-                  <p className="text-muted-foreground mb-4">
-                    Connect with fellow members, share your experiences, and stay updated on community news.
-                  </p>
-                  <Button 
-                    className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
-                    onClick={() => navigate("/clubhouse")}
-                  >
-                    Enter Clubhouse
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <p className="text-muted-foreground mb-4">
-                    Upgrade to any membership tier to access the Birdies Clubhouse community.
-                  </p>
-                  <Button 
-                    className="w-full"
-                    variant="secondary"
-                    onClick={() => navigate("/membership")}
-                  >
-                    View Memberships
-                  </Button>
-                </>
-              )}
-            </div>
+            </button>
           </div>
         </div>
       </main>
