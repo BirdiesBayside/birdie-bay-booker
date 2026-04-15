@@ -120,21 +120,24 @@ export default function EmbedLocalCompLeaderboard() {
               <SelectValue placeholder="Select competition" />
             </SelectTrigger>
             <SelectContent>
-              {competitions.map((c) => (
-                <SelectItem key={c.id} value={c.id}>
-                  <div className="flex items-center gap-2">
-                    <span>{c.name}</span>
-                    <span className="text-muted-foreground text-xs">
-                      ({format(new Date(c.date + "T00:00:00"), "dd MMM")})
-                    </span>
-                    {competitions[0].id === c.id && (
-                      <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-[hsl(18,84%,55%)] text-white rounded">
-                        LATEST
+              {competitions.map((c) => {
+                const wk = getWeekNumber(c.id);
+                return (
+                  <SelectItem key={c.id} value={c.id}>
+                    <div className="flex items-center gap-2">
+                      <span>Week {wk} — {c.name}</span>
+                      <span className="text-muted-foreground text-xs">
+                        ({format(new Date(c.date + "T00:00:00"), "dd MMM")})
                       </span>
-                    )}
-                  </div>
-                </SelectItem>
-              ))}
+                      {competitions[0].id === c.id && (
+                        <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-[hsl(18,84%,55%)] text-white rounded">
+                          LATEST
+                        </span>
+                      )}
+                    </div>
+                  </SelectItem>
+                );
+              })}
             </SelectContent>
           </Select>
         )}
