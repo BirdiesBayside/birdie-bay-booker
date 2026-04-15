@@ -211,6 +211,7 @@ const App = () => (
             <Route path="/feedback/:token/:quick" element={<Feedback />} />
             <Route path="/comp-survey" element={<CompSurvey />} />
             <Route path="/comp" element={<CompHub />} />
+            <Route path="/comp/find-partner" element={<CompFindPartner />} />
             <Route path="/comp/register-team" element={<CompRegisterTeam />} />
             {/* Admin Routes */}
             <Route path="/admin" element={<AdminDashboard />} />
