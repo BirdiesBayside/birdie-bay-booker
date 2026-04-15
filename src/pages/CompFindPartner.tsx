@@ -29,6 +29,23 @@ const CompFindPartner = () => {
   const [contact, setContact] = useState("");
   const [handicap, setHandicap] = useState("");
 
+  // Prefill name and contact from profile
+  useEffect(() => {
+    if (!user) return;
+    const fetchProfile = async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("first_name, last_name, phone, email")
+        .eq("user_id", user.id)
+        .single();
+      if (data) {
+        setName(`${data.first_name} ${data.last_name}`.trim());
+        setContact(data.phone || data.email || "");
+      }
+    };
+    fetchProfile();
+  }, [user]);
+
   const fetchListings = async () => {
     const { data, error } = await supabase
       .from("comp_partner_board")
