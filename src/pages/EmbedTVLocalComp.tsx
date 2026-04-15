@@ -3,25 +3,29 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Trophy } from "lucide-react";
 import { format } from "date-fns";
+import birdiesLogo from "@/assets/birdies-b-orange.png";
 
 export default function EmbedTVLocalComp() {
-  // Auto-refresh every 30 seconds
-  const { data: competition } = useQuery({
-    queryKey: ["tv-local-comp-active"],
+  // Fetch all completed/active comps to determine week number
+  const { data: allComps } = useQuery({
+    queryKey: ["tv-local-comp-all"],
     queryFn: async () => {
-      // Get most recent active or completed comp
       const { data, error } = await supabase
         .from("local_competitions")
         .select("*")
         .in("status", ["active", "completed"])
-        .order("date", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .order("date", { ascending: true });
       if (error) throw error;
       return data;
     },
     refetchInterval: 30000,
   });
+
+  // Latest comp is the one to display
+  const competition = allComps?.[allComps.length - 1] ?? null;
+  const weekNumber = allComps && competition
+    ? allComps.findIndex((c) => c.id === competition.id) + 1
+    : null;
 
   const { data: teams } = useQuery({
     queryKey: ["tv-local-comp-teams", competition?.id],
@@ -42,9 +46,7 @@ export default function EmbedTVLocalComp() {
     if (!competition?.id) return;
     const channel = supabase
       .channel("tv-local-comp")
-      .on("postgres_changes", { event: "*", schema: "public", table: "local_comp_teams", filter: `competition_id=eq.${competition.id}` }, () => {
-        // Will trigger refetch via queryClient
-      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "local_comp_teams", filter: `competition_id=eq.${competition.id}` }, () => {})
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [competition?.id]);
@@ -69,22 +71,34 @@ export default function EmbedTVLocalComp() {
   }
 
   return (
-    <div className="min-h-screen bg-[#1a1a2e] text-white p-8">
+    <div className="min-h-screen bg-[hsl(37,100%,95%)] p-8 flex flex-col">
       {/* Header */}
-      <div className="text-center mb-8">
-        <h1 className="text-5xl font-bold text-[hsl(18,84%,55%)] tracking-tight" style={{ fontFamily: "'Anton', sans-serif" }}>
-          {competition.name}
-        </h1>
-        <p className="text-xl text-white/60 mt-2">
-          {format(new Date(competition.date + "T00:00:00"), "EEEE dd MMMM yyyy")} · 2-Man Ambrose
-        </p>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-6">
+          <img src={birdiesLogo} alt="Birdies" className="h-16" />
+          <div>
+            <h1 className="font-bold text-4xl text-[hsl(128,42%,21%)] tracking-tight">
+              AMBROSE COMP
+            </h1>
+            <p className="text-xl text-[hsl(128,20%,40%)]">
+              {format(new Date(competition.date + "T00:00:00"), "EEEE dd MMMM yyyy")} · 2-Man Ambrose · ${competition.entry_fee} entry
+            </p>
+          </div>
+        </div>
+        <div className="text-right">
+          {weekNumber && (
+            <div className="px-6 py-3 bg-[hsl(18,84%,55%)] text-white rounded-lg text-xl font-bold">
+              WEEK {weekNumber}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Leaderboard */}
-      <div className="max-w-4xl mx-auto">
+      <div className="flex-1 bg-white rounded-2xl border-2 border-[hsl(128,20%,85%)] overflow-hidden shadow-lg">
         {/* Header Row */}
-        <div className="grid grid-cols-12 gap-2 px-4 py-3 text-sm uppercase tracking-wider text-white/40 border-b border-white/10">
-          <div className="col-span-1 text-center">Pos</div>
+        <div className="grid grid-cols-12 gap-2 px-6 py-4 bg-[hsl(128,42%,21%)] text-xl font-bold text-white">
+          <div className="col-span-1 text-center">#</div>
           <div className="col-span-4">Team</div>
           <div className="col-span-3">Players</div>
           <div className="col-span-1 text-center">HCP</div>
@@ -92,42 +106,50 @@ export default function EmbedTVLocalComp() {
           <div className="col-span-2 text-center">Net</div>
         </div>
 
-        {sortedTeams.map((team, idx) => {
-          const isWinner = idx === 0 && team.net_score !== null && competition.status === "completed";
-          return (
-            <div
-              key={team.id}
-              className={`grid grid-cols-12 gap-2 px-4 py-4 items-center border-b border-white/5 ${
-                isWinner ? "bg-[hsl(18,84%,55%)]/10 border-[hsl(18,84%,55%)]/20" : idx % 2 === 0 ? "bg-white/[0.02]" : ""
-              }`}
-            >
-              <div className="col-span-1 text-center text-2xl font-bold">
-                {isWinner ? <Trophy className="h-7 w-7 text-yellow-400 mx-auto" /> : (
-                  <span className="text-white/50">{team.position || idx + 1}</span>
-                )}
+        <div className="divide-y divide-[hsl(128,20%,85%)]">
+          {sortedTeams.map((team, idx) => {
+            const pos = team.position || idx + 1;
+            const isWinner = idx === 0 && team.net_score !== null && competition.status === "completed";
+            return (
+              <div
+                key={team.id}
+                className={`grid grid-cols-12 gap-2 px-6 py-4 items-center ${
+                  isWinner ? "bg-[hsl(37,100%,97%)]" : ""
+                }`}
+              >
+                <div className="col-span-1 text-center text-2xl font-bold">
+                  {isWinner ? <Trophy className="h-7 w-7 text-yellow-400 mx-auto" /> : (
+                    <span className={pos <= 3 ? "text-[hsl(128,42%,21%)]" : "text-[hsl(128,20%,40%)]"}>{pos}</span>
+                  )}
+                </div>
+                <div className="col-span-4">
+                  <span className={`text-xl font-bold ${isWinner ? "text-[hsl(18,84%,55%)]" : "text-[hsl(128,42%,21%)]"}`}>
+                    {team.team_name}
+                  </span>
+                </div>
+                <div className="col-span-3 text-[hsl(128,20%,40%)] text-sm">
+                  {team.player1_name} & {team.player2_name}
+                </div>
+                <div className="col-span-1 text-center text-[hsl(128,20%,40%)]">
+                  {team.combined_handicap.toFixed(1)}
+                </div>
+                <div className="col-span-1 text-center text-lg text-[hsl(128,42%,21%)]">
+                  {team.gross_score ?? "-"}
+                </div>
+                <div className="col-span-2 text-center">
+                  <span className={`text-2xl font-bold ${isWinner ? "text-[hsl(18,84%,55%)]" : "text-[hsl(142,71%,45%)]"}`}>
+                    {team.net_score !== null ? team.net_score : "-"}
+                  </span>
+                </div>
               </div>
-              <div className="col-span-4">
-                <span className={`text-xl font-bold ${isWinner ? "text-[hsl(18,84%,55%)]" : ""}`}>
-                  {team.team_name}
-                </span>
-              </div>
-              <div className="col-span-3 text-white/60 text-sm">
-                {team.player1_name} & {team.player2_name}
-              </div>
-              <div className="col-span-1 text-center text-white/40">
-                {team.combined_handicap.toFixed(1)}
-              </div>
-              <div className="col-span-1 text-center text-lg">
-                {team.gross_score ?? "-"}
-              </div>
-              <div className="col-span-2 text-center">
-                <span className={`text-2xl font-bold ${isWinner ? "text-[hsl(18,84%,55%)]" : "text-[hsl(142,71%,45%)]"}`}>
-                  {team.net_score !== null ? team.net_score : "-"}
-                </span>
-              </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="mt-4 text-center text-lg text-[hsl(128,20%,40%)]">
+        Live updates · Powered by Birdies League Hub
       </div>
     </div>
   );
