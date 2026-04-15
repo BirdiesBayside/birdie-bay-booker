@@ -30,23 +30,35 @@ export function ScoreEntry() {
   const [p2Name, setP2Name] = useState("");
   const [p2Hcp, setP2Hcp] = useState("");
 
-  // Query all past teams for the saved teams picker
+  // Query saved teams + past comp teams for the picker
   const { data: savedTeams } = useQuery({
     queryKey: ["saved-local-comp-teams"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("local_comp_teams")
-        .select("team_name, player1_name, player1_handicap, player2_name, player2_handicap, combined_handicap")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      // Deduplicate by player1+player2 combo
+      // Fetch from both saved teams (customer registrations) and past comp entries
+      const [savedRes, pastRes] = await Promise.all([
+        supabase
+          .from("local_comp_saved_teams")
+          .select("team_name, player1_name, player1_handicap, player2_name, player2_handicap")
+          .eq("is_active", true)
+          .order("team_name", { ascending: true }),
+        supabase
+          .from("local_comp_teams")
+          .select("team_name, player1_name, player1_handicap, player2_name, player2_handicap")
+          .order("created_at", { ascending: false }),
+      ]);
+      if (savedRes.error) throw savedRes.error;
+      if (pastRes.error) throw pastRes.error;
+
+      // Merge and deduplicate by player1+player2 combo, saved teams take priority
       const seen = new Set<string>();
-      return (data || []).filter((t) => {
+      const all: typeof savedRes.data = [];
+      for (const t of [...(savedRes.data || []), ...(pastRes.data || [])]) {
         const key = `${t.player1_name.toLowerCase()}|${t.player2_name.toLowerCase()}`;
-        if (seen.has(key)) return false;
+        if (seen.has(key)) continue;
         seen.add(key);
-        return true;
-      });
+        all.push(t);
+      }
+      return all;
     },
   });
 
