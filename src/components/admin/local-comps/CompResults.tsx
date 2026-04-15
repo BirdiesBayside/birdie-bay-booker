@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,6 +22,13 @@ export function CompResults() {
       return data;
     },
   });
+
+  // Auto-select latest competition when data loads
+  useEffect(() => {
+    if (competitions && competitions.length > 0 && !selectedCompId) {
+      setSelectedCompId(competitions[0].id);
+    }
+  }, [competitions, selectedCompId]);
 
   const { data: teams } = useQuery({
     queryKey: ["local-comp-teams-results", selectedCompId],
