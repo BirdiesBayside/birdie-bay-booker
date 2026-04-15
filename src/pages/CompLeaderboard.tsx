@@ -17,19 +17,27 @@ export default function CompLeaderboard() {
   const navigate = useNavigate();
   const [selectedCompId, setSelectedCompId] = useState<string>("");
 
-  // Fetch all competitions (completed + active, most recent first)
-  const { data: competitions, isLoading: compsLoading } = useQuery({
+  // Fetch all competitions (completed + active, oldest first for week numbering)
+  const { data: competitionsAsc, isLoading: compsLoading } = useQuery({
     queryKey: ["comp-leaderboard-comps"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("local_competitions")
         .select("*")
         .in("status", ["active", "completed"])
-        .order("date", { ascending: false });
+        .order("date", { ascending: true });
       if (error) throw error;
       return data;
     },
   });
+
+  // Reverse for display (most recent first) but keep asc order for week numbering
+  const competitions = competitionsAsc ? [...competitionsAsc].reverse() : undefined;
+  const getWeekNumber = (compId: string) => {
+    if (!competitionsAsc) return null;
+    const idx = competitionsAsc.findIndex((c) => c.id === compId);
+    return idx >= 0 ? idx + 1 : null;
+  };
 
   // Auto-select latest competition
   useEffect(() => {
@@ -100,21 +108,24 @@ export default function CompLeaderboard() {
               <SelectValue placeholder="Select competition" />
             </SelectTrigger>
             <SelectContent>
-              {competitions.map((c) => (
-                <SelectItem key={c.id} value={c.id}>
-                  <div className="flex items-center gap-2">
-                    <span>{c.name}</span>
-                    <span className="text-muted-foreground text-xs">
-                      ({format(new Date(c.date + "T00:00:00"), "dd MMM yyyy")})
-                    </span>
-                    {competitions[0].id === c.id && (
-                      <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-accent text-accent-foreground rounded">
-                        LATEST
+              {competitions.map((c) => {
+                const wk = getWeekNumber(c.id);
+                return (
+                  <SelectItem key={c.id} value={c.id}>
+                    <div className="flex items-center gap-2">
+                      <span>Week {wk} — {c.name}</span>
+                      <span className="text-muted-foreground text-xs">
+                        ({format(new Date(c.date + "T00:00:00"), "dd MMM yyyy")})
                       </span>
-                    )}
-                  </div>
-                </SelectItem>
-              ))}
+                      {competitions[0].id === c.id && (
+                        <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-accent text-accent-foreground rounded">
+                          LATEST
+                        </span>
+                      )}
+                    </div>
+                  </SelectItem>
+                );
+              })}
             </SelectContent>
           </Select>
         )}
@@ -122,6 +133,9 @@ export default function CompLeaderboard() {
         {/* Competition Info */}
         {selectedComp && (
           <div className="text-center py-2">
+            <div className="inline-block px-2 py-0.5 bg-accent text-accent-foreground text-xs font-bold rounded mb-1">
+              WEEK {getWeekNumber(selectedComp.id)}
+            </div>
             <p className="text-sm text-muted-foreground">
               {format(new Date(selectedComp.date + "T00:00:00"), "EEEE dd MMMM yyyy")} · 2-Man Ambrose · ${selectedComp.entry_fee} entry
             </p>
