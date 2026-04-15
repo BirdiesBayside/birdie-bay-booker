@@ -429,6 +429,31 @@ export function ScoreEntry() {
                               </Badge>
                             ) : (
                               <div className="flex flex-col gap-1">
+                                {!team.player1_paid && !team.player2_paid && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 text-xs gap-1 border-primary/30 text-primary"
+                                    onClick={() => {
+                                      const comp = competitions?.find((c) => c.id === selectedCompId);
+                                      const fullFee = comp?.entry_fee || 10;
+                                      navigate("/admin/pos", {
+                                        state: {
+                                          localCompData: {
+                                            teamId: team.id,
+                                            competitionId: selectedCompId,
+                                            teamName: team.team_name,
+                                            entryFee: fullFee,
+                                            compName: comp?.name || "Local Comp",
+                                          },
+                                        },
+                                      });
+                                    }}
+                                  >
+                                    <ShoppingCart className="h-3 w-3" />
+                                    Both
+                                  </Button>
+                                )}
                                 {!team.player1_paid ? (
                                   <Button
                                     variant="outline"
