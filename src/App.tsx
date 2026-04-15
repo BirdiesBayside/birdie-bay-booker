@@ -38,6 +38,7 @@ const Feedback = lazy(() => import("./pages/Feedback"));
 const CompSurvey = lazy(() => import("./pages/CompSurvey"));
 const CompRegisterTeam = lazy(() => import("./pages/CompRegisterTeam"));
 const CompHub = lazy(() => import("./pages/CompHub"));
+const CompFindPartner = lazy(() => import("./pages/CompFindPartner"));
 
 // Admin pages
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
