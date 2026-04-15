@@ -131,10 +131,14 @@ const CompFindPartner = () => {
 
         <div>
           <h1 className="font-display text-3xl text-primary font-bold">FIND A PARTNER</h1>
-          <p className="text-muted-foreground mt-1">
-            Need a teammate for the 2-Man Ambrose? Add yourself to the board or
-            reach out to someone below.
-          </p>
+        </div>
+
+        {/* How it works */}
+        <div className="bg-muted/50 border border-border rounded-lg p-4 text-sm text-muted-foreground space-y-1">
+          <p className="font-semibold text-foreground text-xs uppercase tracking-wide mb-2">How it works</p>
+          <p>1. Add yourself to the board if you need a partner.</p>
+          <p>2. Browse available players and reach out to lock in a team.</p>
+          <p>3. Register your team, book a bay, and remove yourself from the board.</p>
         </div>
 
         {/* My listing or add button */}
