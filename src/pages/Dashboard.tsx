@@ -165,6 +165,7 @@ const Dashboard = () => {
               onClick={() => navigate("/admin")}
               className="bg-accent text-accent-foreground hover:bg-accent/90"
             >
+              <Settings className="h-4 w-4 sm:hidden" />
               <span className="hidden sm:inline">Admin</span>
             </Button>
           )}
