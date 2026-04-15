@@ -16,20 +16,27 @@ import birdiesB from "@/assets/birdies-b-icon.png";
 export default function EmbedLocalCompLeaderboard() {
   const [selectedCompId, setSelectedCompId] = useState<string>("");
 
-  // Fetch all competitions (completed + active, most recent first)
-  const { data: competitions, isLoading: compsLoading } = useQuery({
+  // Fetch all competitions (oldest first for week numbering)
+  const { data: competitionsAsc, isLoading: compsLoading } = useQuery({
     queryKey: ["embed-local-comp-comps"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("local_competitions")
         .select("*")
         .in("status", ["active", "completed"])
-        .order("date", { ascending: false });
+        .order("date", { ascending: true });
       if (error) throw error;
       return data;
     },
     refetchInterval: 30000,
   });
+
+  const competitions = competitionsAsc ? [...competitionsAsc].reverse() : undefined;
+  const getWeekNumber = (compId: string) => {
+    if (!competitionsAsc) return null;
+    const idx = competitionsAsc.findIndex((c) => c.id === compId);
+    return idx >= 0 ? idx + 1 : null;
+  };
 
   // Auto-select latest competition
   useEffect(() => {
