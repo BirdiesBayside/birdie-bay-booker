@@ -449,6 +449,39 @@ export type Database = {
           },
         ]
       }
+      comp_partner_board: {
+        Row: {
+          contact_info: string
+          created_at: string
+          handicap: number | null
+          id: string
+          is_active: boolean
+          player_name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          contact_info: string
+          created_at?: string
+          handicap?: number | null
+          id?: string
+          is_active?: boolean
+          player_name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          contact_info?: string
+          created_at?: string
+          handicap?: number | null
+          id?: string
+          is_active?: boolean
+          player_name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       comp_survey_responses: {
         Row: {
           created_at: string
