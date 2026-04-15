@@ -21,12 +21,11 @@ const CompHub = () => {
       accent: false,
     },
     {
-      title: "Leaderboards",
+      title: "Leaderboard",
       description: "View scores and standings from past and current competitions.",
       icon: Trophy,
-      onClick: () => navigate("/comp/leaderboards"),
+      onClick: () => navigate("/comp/leaderboard"),
       accent: false,
-      comingSoon: true,
     },
   ];
 
