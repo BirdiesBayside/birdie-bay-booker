@@ -157,6 +157,7 @@ export function ReviewApprovals() {
             user_id: customer.user_id,
             amount: 15,
             new_balance: newBalance,
+            credit_type: 'google_review',
           },
         });
       } catch (notificationError) {
