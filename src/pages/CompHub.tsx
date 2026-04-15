@@ -21,12 +21,11 @@ const CompHub = () => {
       accent: false,
     },
     {
-      title: "Leaderboards",
+      title: "Leaderboard",
       description: "View scores and standings from past and current competitions.",
       icon: Trophy,
-      onClick: () => navigate("/comp/leaderboards"),
+      onClick: () => navigate("/comp/leaderboard"),
       accent: false,
-      comingSoon: true,
     },
   ];
 
@@ -56,13 +55,6 @@ const CompHub = () => {
                 tile.accent ? "border-primary/30" : "border-border"
               } relative`}
             >
-              {tile.comingSoon && (
-                <div className="absolute top-3 right-3">
-                  <span className="text-xs bg-muted text-muted-foreground px-2 py-1 rounded-full">
-                    Coming Soon
-                  </span>
-                </div>
-              )}
               <div className="flex items-center gap-3 mb-3">
                 <div
                   className={`h-10 w-10 rounded-lg flex items-center justify-center ${
@@ -87,7 +79,6 @@ const CompHub = () => {
                     : "bg-accent text-accent-foreground hover:bg-accent/90"
                 }`}
                 onClick={tile.onClick}
-                disabled={tile.comingSoon}
               >
                 {tile.title}
               </Button>
