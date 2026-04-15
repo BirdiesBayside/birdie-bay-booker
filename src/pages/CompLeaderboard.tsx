@@ -133,6 +133,9 @@ export default function CompLeaderboard() {
         {/* Competition Info */}
         {selectedComp && (
           <div className="text-center py-2">
+            <div className="inline-block px-2 py-0.5 bg-accent text-accent-foreground text-xs font-bold rounded mb-1">
+              WEEK {getWeekNumber(selectedComp.id)}
+            </div>
             <p className="text-sm text-muted-foreground">
               {format(new Date(selectedComp.date + "T00:00:00"), "EEEE dd MMMM yyyy")} · 2-Man Ambrose · ${selectedComp.entry_fee} entry
             </p>
