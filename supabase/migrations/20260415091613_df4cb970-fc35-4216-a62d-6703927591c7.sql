@@ -1,0 +1,1 @@
+ALTER TABLE public.whats_on_events ADD COLUMN is_recurring BOOLEAN NOT NULL DEFAULT false;

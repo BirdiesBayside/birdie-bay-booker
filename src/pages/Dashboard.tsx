@@ -10,6 +10,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { NotificationBell } from "@/components/NotificationBell";
 import { QUERY_KEYS, STALE_TIMES } from "@/lib/query-keys";
 import { useToast } from "@/hooks/use-toast";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 type MembershipTier = "visitor" | "weekday" | "birdie" | "eagle";
 
@@ -22,10 +25,12 @@ const Dashboard = () => {
   const [membershipOnHold, setMembershipOnHold] = useState(false);
   const [hasSgtAccount, setHasSgtAccount] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [whatsOnOpen, setWhatsOnOpen] = useState(false);
   const [showEventForm, setShowEventForm] = useState(false);
   const [newEventTitle, setNewEventTitle] = useState("");
   const [newEventDesc, setNewEventDesc] = useState("");
   const [newEventDate, setNewEventDate] = useState("");
+  const [newEventRecurring, setNewEventRecurring] = useState(false);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -62,7 +67,6 @@ const Dashboard = () => {
     checkAdminStatus();
   }, [user]);
 
-  // Prefetch booking page data
   useEffect(() => {
     queryClient.prefetchQuery({
       queryKey: QUERY_KEYS.BAYS,
@@ -82,7 +86,6 @@ const Dashboard = () => {
     });
   }, [queryClient]);
 
-  // Fetch events
   const { data: events = [] } = useQuery({
     queryKey: ["whats-on-events"],
     queryFn: async () => {
@@ -90,7 +93,7 @@ const Dashboard = () => {
         .from("whats_on_events")
         .select("*")
         .eq("is_active", true)
-        .order("event_date", { ascending: true });
+        .order("event_date", { ascending: true, nullsFirst: false });
       return data || [];
     },
   });
@@ -100,7 +103,8 @@ const Dashboard = () => {
       const { error } = await supabase.from("whats_on_events").insert({
         title: newEventTitle,
         description: newEventDesc || null,
-        event_date: newEventDate || null,
+        event_date: newEventRecurring ? null : (newEventDate || null),
+        is_recurring: newEventRecurring,
         created_by: user?.id,
       });
       if (error) throw error;
@@ -110,6 +114,7 @@ const Dashboard = () => {
       setNewEventTitle("");
       setNewEventDesc("");
       setNewEventDate("");
+      setNewEventRecurring(false);
       setShowEventForm(false);
       toast({ title: "Event added" });
     },
@@ -150,7 +155,6 @@ const Dashboard = () => {
 
   return (
     <div className="min-h-screen flex flex-col">
-      {/* Header */}
       <header className="bg-primary py-4 px-6 flex items-center justify-between safe-area-top">
         <img src={birdiesLogo} alt="Birdies" className="h-10 w-auto" />
         <div className="flex items-center gap-2 sm:gap-4">
@@ -175,7 +179,6 @@ const Dashboard = () => {
         </div>
       </header>
 
-      {/* Main content */}
       <main className="flex-1 p-4 sm:p-6">
         <div className="container max-w-lg mx-auto">
           <h1 className="font-display text-3xl sm:text-4xl text-primary mb-5">
@@ -206,10 +209,7 @@ const Dashboard = () => {
                   <div className="h-10 w-10 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
                     <Calendar className="h-5 w-5 text-accent" />
                   </div>
-                  <div>
-                    <h2 className="font-semibold text-base">Book a Bay</h2>
-                    <p className="text-xs text-muted-foreground">Reserve your spot at one of our 6 premium golf simulator bays.</p>
-                  </div>
+                  <h2 className="font-semibold text-base">Book a Bay</h2>
                 </div>
               </button>
             )}
@@ -223,10 +223,7 @@ const Dashboard = () => {
                 <div className="h-10 w-10 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
                   <ClipboardList className="h-5 w-5 text-accent" />
                 </div>
-                <div>
-                  <h2 className="font-semibold text-base">My Bookings</h2>
-                  <p className="text-xs text-muted-foreground">View, edit, or cancel your upcoming bay reservations.</p>
-                </div>
+                <h2 className="font-semibold text-base">My Bookings</h2>
               </div>
             </button>
 
@@ -256,12 +253,7 @@ const Dashboard = () => {
                 <div className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 ${hasLeagueAccess ? "bg-league-primary/15" : "bg-muted"}`}>
                   <Trophy className={`h-5 w-5 ${hasLeagueAccess ? "text-league-primary-dark" : "text-muted-foreground"}`} />
                 </div>
-                <div>
-                  <h2 className="font-semibold text-base">Birdies League</h2>
-                  <p className="text-xs text-muted-foreground">
-                    {hasLeagueAccess ? "Compete in weekly leagues and track your progress." : "Upgrade to Birdie or Eagle to access."}
-                  </p>
-                </div>
+                <h2 className="font-semibold text-base">Birdies League</h2>
               </div>
             </button>
 
@@ -274,93 +266,22 @@ const Dashboard = () => {
                 <div className="h-10 w-10 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
                   <Users className="h-5 w-5 text-primary" />
                 </div>
-                <div>
-                  <h2 className="font-semibold text-base">Weekly Comp</h2>
-                  <p className="text-xs text-muted-foreground">Register your team, find a partner, and check leaderboards.</p>
-                </div>
+                <h2 className="font-semibold text-base">Weekly Comp</h2>
               </div>
             </button>
 
             {/* What's On */}
-            <div className="bg-card rounded-xl p-4 shadow-sm border border-accent/30">
-              <div className="flex items-center gap-3 mb-2">
+            <button
+              onClick={() => setWhatsOnOpen(true)}
+              className="bg-card rounded-xl p-4 shadow-sm border border-accent/30 hover:border-accent/60 hover:shadow-md transition-all text-left active:scale-[0.98]"
+            >
+              <div className="flex items-center gap-3">
                 <div className="h-10 w-10 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
                   <Megaphone className="h-5 w-5 text-accent" />
                 </div>
-                <h2 className="font-semibold text-base flex-1">What's On</h2>
-                {isAdmin && (
-                  <button
-                    onClick={() => setShowEventForm(!showEventForm)}
-                    className="h-7 w-7 rounded-full bg-accent/10 hover:bg-accent/20 flex items-center justify-center transition-colors"
-                  >
-                    <Plus className="h-4 w-4 text-accent" />
-                  </button>
-                )}
+                <h2 className="font-semibold text-base">What's On</h2>
               </div>
-
-              {/* Admin add form */}
-              {isAdmin && showEventForm && (
-                <div className="mb-3 p-3 bg-muted/50 rounded-lg space-y-2">
-                  <Input
-                    placeholder="Event title"
-                    value={newEventTitle}
-                    onChange={(e) => setNewEventTitle(e.target.value)}
-                    className="h-9 text-sm"
-                  />
-                  <Input
-                    placeholder="Description (optional)"
-                    value={newEventDesc}
-                    onChange={(e) => setNewEventDesc(e.target.value)}
-                    className="h-9 text-sm"
-                  />
-                  <Input
-                    type="date"
-                    value={newEventDate}
-                    onChange={(e) => setNewEventDate(e.target.value)}
-                    className="h-9 text-sm"
-                  />
-                  <Button
-                    size="sm"
-                    className="w-full bg-accent text-accent-foreground hover:bg-accent/90"
-                    disabled={!newEventTitle.trim() || addEvent.isPending}
-                    onClick={() => addEvent.mutate()}
-                  >
-                    Add Event
-                  </Button>
-                </div>
-              )}
-
-              {events.length === 0 ? (
-                <p className="text-xs text-muted-foreground ml-[52px]">No upcoming events right now.</p>
-              ) : (
-                <div className="space-y-2 ml-[52px]">
-                  {events.map((event: any) => (
-                    <div key={event.id} className="flex items-start gap-2 group">
-                      <div className="flex-1">
-                        <p className="text-sm font-medium leading-tight">{event.title}</p>
-                        {event.description && (
-                          <p className="text-xs text-muted-foreground">{event.description}</p>
-                        )}
-                        {event.event_date && (
-                          <p className="text-xs text-accent font-medium flex items-center gap-1 mt-0.5">
-                            <CalendarDays className="h-3 w-3" />
-                            {new Date(event.event_date + "T00:00:00").toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" })}
-                          </p>
-                        )}
-                      </div>
-                      {isAdmin && (
-                        <button
-                          onClick={() => removeEvent.mutate(event.id)}
-                          className="opacity-0 group-hover:opacity-100 h-6 w-6 rounded flex items-center justify-center hover:bg-destructive/10 transition-all shrink-0"
-                        >
-                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            </button>
 
             {/* My Account */}
             <button
@@ -371,10 +292,7 @@ const Dashboard = () => {
                 <div className="h-10 w-10 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
                   <Settings className="h-5 w-5 text-accent" />
                 </div>
-                <div>
-                  <h2 className="font-semibold text-base">My Account</h2>
-                  <p className="text-xs text-muted-foreground">Manage membership, payment methods, and settings.</p>
-                </div>
+                <h2 className="font-semibold text-base">My Account</h2>
               </div>
             </button>
 
@@ -395,19 +313,110 @@ const Dashboard = () => {
                 <div className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 ${membershipTier !== "visitor" ? "bg-primary/15" : "bg-muted"}`}>
                   <Users className={`h-5 w-5 ${membershipTier !== "visitor" ? "text-primary" : "text-muted-foreground"}`} />
                 </div>
-                <div>
-                  <h2 className="font-semibold text-base">Birdies Clubhouse</h2>
-                  <p className="text-xs text-muted-foreground">
-                    {membershipTier !== "visitor" ? "Connect with fellow members and stay updated." : "Upgrade to access the community."}
-                  </p>
-                </div>
+                <h2 className="font-semibold text-base">Birdies Clubhouse</h2>
               </div>
             </button>
           </div>
         </div>
       </main>
 
-      {/* Footer */}
+      {/* What's On Sheet */}
+      <Sheet open={whatsOnOpen} onOpenChange={setWhatsOnOpen}>
+        <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto rounded-t-2xl">
+          <SheetHeader className="flex flex-row items-center justify-between pr-2">
+            <SheetTitle className="flex items-center gap-2">
+              <Megaphone className="h-5 w-5 text-accent" />
+              What's On
+            </SheetTitle>
+            {isAdmin && (
+              <button
+                onClick={() => setShowEventForm(!showEventForm)}
+                className="h-8 w-8 rounded-full bg-accent/10 hover:bg-accent/20 flex items-center justify-center transition-colors"
+              >
+                <Plus className="h-4 w-4 text-accent" />
+              </button>
+            )}
+          </SheetHeader>
+
+          <div className="mt-4 space-y-3">
+            {/* Admin add form */}
+            {isAdmin && showEventForm && (
+              <div className="p-3 bg-muted/50 rounded-lg space-y-2">
+                <Input
+                  placeholder="Event title"
+                  value={newEventTitle}
+                  onChange={(e) => setNewEventTitle(e.target.value)}
+                  className="h-9 text-sm"
+                />
+                <Input
+                  placeholder="Description (optional)"
+                  value={newEventDesc}
+                  onChange={(e) => setNewEventDesc(e.target.value)}
+                  className="h-9 text-sm"
+                />
+                <div className="flex items-center gap-3">
+                  <Label htmlFor="recurring" className="text-sm">Recurring</Label>
+                  <Switch
+                    id="recurring"
+                    checked={newEventRecurring}
+                    onCheckedChange={setNewEventRecurring}
+                  />
+                </div>
+                {!newEventRecurring && (
+                  <Input
+                    type="date"
+                    value={newEventDate}
+                    onChange={(e) => setNewEventDate(e.target.value)}
+                    className="h-9 text-sm"
+                  />
+                )}
+                <Button
+                  size="sm"
+                  className="w-full bg-accent text-accent-foreground hover:bg-accent/90"
+                  disabled={!newEventTitle.trim() || addEvent.isPending}
+                  onClick={() => addEvent.mutate()}
+                >
+                  Add Event
+                </Button>
+              </div>
+            )}
+
+            {events.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-6">No upcoming events right now.</p>
+            ) : (
+              events.map((event: any) => (
+                <div key={event.id} className="flex items-start gap-3 p-3 bg-card rounded-lg border border-border group">
+                  <div className="h-9 w-9 rounded-lg bg-accent/10 flex items-center justify-center shrink-0 mt-0.5">
+                    <CalendarDays className="h-4 w-4 text-accent" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold leading-tight">{event.title}</p>
+                    {event.description && (
+                      <p className="text-xs text-muted-foreground mt-0.5">{event.description}</p>
+                    )}
+                    {event.is_recurring ? (
+                      <p className="text-xs text-accent font-medium mt-1">Recurring</p>
+                    ) : event.event_date ? (
+                      <p className="text-xs text-accent font-medium mt-1">
+                        {new Date(event.event_date + "T00:00:00").toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" })}
+                      </p>
+                    ) : null}
+                  </div>
+                  {isAdmin && (
+                    <button
+                      onClick={() => removeEvent.mutate(event.id)}
+                      className="opacity-0 group-hover:opacity-100 h-7 w-7 rounded flex items-center justify-center hover:bg-destructive/10 transition-all shrink-0"
+                    >
+                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                    </button>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
+
       <footer className="bg-primary py-4 px-6 text-center">
         <p className="text-primary-foreground/60 text-sm">
           © {new Date().getFullYear()} Birdies. All rights reserved.

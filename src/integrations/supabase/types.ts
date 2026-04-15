@@ -1985,6 +1985,7 @@ export type Database = {
           event_date: string | null
           id: string
           is_active: boolean
+          is_recurring: boolean
           title: string
           updated_at: string
         }
@@ -1995,6 +1996,7 @@ export type Database = {
           event_date?: string | null
           id?: string
           is_active?: boolean
+          is_recurring?: boolean
           title: string
           updated_at?: string
         }
@@ -2005,6 +2007,7 @@ export type Database = {
           event_date?: string | null
           id?: string
           is_active?: boolean
+          is_recurring?: boolean
           title?: string
           updated_at?: string
         }
