@@ -84,7 +84,7 @@ const fetchUserProfile = async () => {
 
   const { data } = await supabase
     .from("profiles")
-    .select("membership_tier, custom_hourly_rate, deposit_balance")
+    .select("membership_tier, custom_hourly_rate, deposit_balance, custom_segment")
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -93,6 +93,7 @@ const fetchUserProfile = async () => {
     membershipTier: data?.membership_tier || "visitor",
     customHourlyRate: data?.custom_hourly_rate ?? null,
     depositBalance: Number(data?.deposit_balance) || 0,
+    customSegment: data?.custom_segment ?? null,
   };
 };
 
@@ -152,6 +153,7 @@ export function useBooking() {
   const userMembershipTier = userProfile?.membershipTier || "visitor";
   const customHourlyRate = userProfile?.customHourlyRate ?? null;
   const depositBalance = userProfile?.depositBalance || 0;
+  const customSegment = userProfile?.customSegment ?? null;
 
   // Memoized fetch function to avoid recreating on every render
   const fetchBookingsForDateInternal = useCallback(async (dateStr: string) => {
@@ -310,7 +312,7 @@ export function useBooking() {
     }
     
     // Calculate rate based on tier, date, and time
-    return calculateHourlyRate(tier, date, startTime, tierPricing);
+    return calculateHourlyRate(tier, date, startTime, tierPricing, { segment: customSegment });
   };
 
   /**
@@ -550,11 +552,11 @@ export function useBooking() {
         actualHourlyRate = FALLBACK_PRICING.visitor; // $35 peak visitor rate
       } else {
         // No conflict: use member rate
-        actualHourlyRate = calculateHourlyRate(userMembershipTier, date, startTime, tierPricing);
+        actualHourlyRate = calculateHourlyRate(userMembershipTier, date, startTime, tierPricing, { segment: customSegment });
       }
     } else {
       // All other cases: use standard rate calculation
-      actualHourlyRate = calculateHourlyRate(userMembershipTier, date, startTime, tierPricing);
+      actualHourlyRate = calculateHourlyRate(userMembershipTier, date, startTime, tierPricing, { segment: customSegment });
     }
     
     const totalPrice = actualHourlyRate * durationHours;
