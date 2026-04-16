@@ -552,11 +552,11 @@ export function useBooking() {
         actualHourlyRate = FALLBACK_PRICING.visitor; // $35 peak visitor rate
       } else {
         // No conflict: use member rate
-        actualHourlyRate = calculateHourlyRate(userMembershipTier, date, startTime, tierPricing);
+        actualHourlyRate = calculateHourlyRate(userMembershipTier, date, startTime, tierPricing, { segment: customSegment });
       }
     } else {
       // All other cases: use standard rate calculation
-      actualHourlyRate = calculateHourlyRate(userMembershipTier, date, startTime, tierPricing);
+      actualHourlyRate = calculateHourlyRate(userMembershipTier, date, startTime, tierPricing, { segment: customSegment });
     }
     
     const totalPrice = actualHourlyRate * durationHours;
