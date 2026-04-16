@@ -40,6 +40,7 @@ interface Profile {
   phone: string | null;
   membership_tier: string;
   custom_hourly_rate: number | null;
+  custom_segment: string | null;
 }
 
 interface AddBookingDialogProps {
@@ -240,7 +241,8 @@ export function AddBookingDialog({
       selectedCustomer.membership_tier,
       bookingDate,
       startTime,
-      tierRates
+      tierRates,
+      { segment: selectedCustomer.custom_segment }
     );
   };
 
