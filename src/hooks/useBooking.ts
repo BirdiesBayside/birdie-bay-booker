@@ -153,6 +153,7 @@ export function useBooking() {
   const userMembershipTier = userProfile?.membershipTier || "visitor";
   const customHourlyRate = userProfile?.customHourlyRate ?? null;
   const depositBalance = userProfile?.depositBalance || 0;
+  const customSegment = userProfile?.customSegment ?? null;
 
   // Memoized fetch function to avoid recreating on every render
   const fetchBookingsForDateInternal = useCallback(async (dateStr: string) => {
@@ -311,7 +312,7 @@ export function useBooking() {
     }
     
     // Calculate rate based on tier, date, and time
-    return calculateHourlyRate(tier, date, startTime, tierPricing);
+    return calculateHourlyRate(tier, date, startTime, tierPricing, { segment: customSegment });
   };
 
   /**
