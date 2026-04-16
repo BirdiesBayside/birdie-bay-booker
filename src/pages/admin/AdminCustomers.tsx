@@ -690,6 +690,42 @@ export default function AdminCustomers() {
     setIsTogglingCustomBilling(false);
   };
 
+  // Toggle staff segment for a customer
+  const toggleStaffSegment = async (customer: Customer) => {
+    try {
+      const isStaff = customer.custom_segment === "staff";
+      const newSegment = isStaff ? null : "staff";
+
+      const { error } = await supabase
+        .from("profiles")
+        .update({ custom_segment: newSegment })
+        .eq("id", customer.id);
+
+      if (error) throw error;
+
+      toast({
+        title: isStaff ? "Staff access removed" : "Staff access granted",
+        description: isStaff
+          ? `${customer.first_name} no longer has free off-peak play.`
+          : `${customer.first_name} now gets free play during off-peak hours.`,
+        duration: 4000,
+      });
+
+      setCustomers(prev =>
+        prev.map(c =>
+          c.id === customer.id ? { ...c, custom_segment: newSegment } : c
+        )
+      );
+
+      if (selectedCustomer?.id === customer.id) {
+        setSelectedCustomer({ ...selectedCustomer, custom_segment: newSegment });
+      }
+    } catch (error: any) {
+      console.error("Error toggling staff segment:", error);
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  };
+
   // Toggle membership hold for a customer
   const toggleMembershipHold = async (customer: Customer) => {
     setIsTogglingHold(true);
