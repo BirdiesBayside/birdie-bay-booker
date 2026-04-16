@@ -85,6 +85,7 @@ interface Customer {
   created_at: string;
   booking_count?: number;
   custom_billing?: boolean;
+  custom_segment?: string | null;
   membership_on_hold?: boolean;
 }
 
@@ -1338,6 +1339,23 @@ export default function AdminCustomers() {
                     checked={selectedCustomer.custom_billing || false}
                     onCheckedChange={() => toggleCustomBilling(selectedCustomer)}
                     disabled={isTogglingCustomBilling}
+                  />
+                </div>
+
+                {/* Staff Toggle */}
+                <div className="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <Shield className="h-5 w-5 text-blue-600 shrink-0" />
+                    <div>
+                      <div className="text-sm font-medium">Staff Account</div>
+                      <div className="text-xs text-muted-foreground">
+                        Free play during off-peak hours
+                      </div>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={selectedCustomer.custom_segment === "staff"}
+                    onCheckedChange={() => toggleStaffSegment(selectedCustomer)}
                   />
                 </div>
 
