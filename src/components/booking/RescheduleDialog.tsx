@@ -126,7 +126,7 @@ export const RescheduleDialog = ({
 
     const { data, error } = await supabase
       .from("profiles")
-      .select("membership_tier, custom_hourly_rate, deposit_balance")
+      .select("membership_tier, custom_hourly_rate, deposit_balance, custom_segment")
       .eq("user_id", user.id)
       .single();
 
@@ -264,7 +264,8 @@ export const RescheduleDialog = ({
       userProfile.membership_tier,
       selectedDate,
       selectedTime,
-      pricingConfig
+      pricingConfig,
+      { segment: userProfile.custom_segment }
     );
 
     return {
