@@ -84,7 +84,7 @@ const fetchUserProfile = async () => {
 
   const { data } = await supabase
     .from("profiles")
-    .select("membership_tier, custom_hourly_rate, deposit_balance")
+    .select("membership_tier, custom_hourly_rate, deposit_balance, custom_segment")
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -93,6 +93,7 @@ const fetchUserProfile = async () => {
     membershipTier: data?.membership_tier || "visitor",
     customHourlyRate: data?.custom_hourly_rate ?? null,
     depositBalance: Number(data?.deposit_balance) || 0,
+    customSegment: data?.custom_segment ?? null,
   };
 };
 

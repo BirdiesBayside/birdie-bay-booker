@@ -57,9 +57,15 @@ export function calculateHourlyRate(
   tier: string,
   date: Date,
   startTime: string,
-  tierPricing: Record<string, number>
+  tierPricing: Record<string, number>,
+  options?: { segment?: string | null }
 ): number {
   const isPeak = isPeakTime(date, startTime);
+  
+  // Staff get free play during off-peak, full visitor rate during peak
+  if (options?.segment === "staff") {
+    return isPeak ? VISITOR_PEAK_RATE : 0;
+  }
   
   switch (tier.toLowerCase()) {
     case "visitor":
