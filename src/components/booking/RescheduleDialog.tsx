@@ -47,6 +47,7 @@ interface UserProfile {
   membership_tier: string;
   custom_hourly_rate: number | null;
   deposit_balance: number;
+  custom_segment: string | null;
 }
 
 interface RescheduleDialogProps {
