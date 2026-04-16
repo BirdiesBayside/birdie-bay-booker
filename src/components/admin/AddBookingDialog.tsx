@@ -191,7 +191,7 @@ export function AddBookingDialog({
     // Fetch more results and filter client-side for full name matching
     const { data, error } = await supabase
       .from("profiles")
-      .select("user_id, first_name, last_name, email, phone, membership_tier, custom_hourly_rate")
+      .select("user_id, first_name, last_name, email, phone, membership_tier, custom_hourly_rate, custom_segment")
       .or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%,email.ilike.%${search}%`)
       .order("first_name")
       .limit(50);
