@@ -83,6 +83,7 @@ interface Booking {
     email: string;
     phone: string | null;
     membership_tier: string;
+    total_bookings?: number;
   };
 }
 
@@ -260,7 +261,7 @@ export default function AdminTimetable() {
         const userIds = [...new Set(data.map(b => b.user_id))];
         const { data: profiles } = await supabase
           .from("profiles")
-          .select("user_id, first_name, last_name, email, phone, membership_tier")
+          .select("user_id, first_name, last_name, email, phone, membership_tier, total_bookings")
           .in("user_id", userIds);
 
         const profileMap = new Map((profiles || []).map(p => [p.user_id, p]));
@@ -802,12 +803,22 @@ export default function AdminTimetable() {
                                       : "bg-red-400"
                                 }`} title={booking.status === 'pending' ? "Processing Payment" : isBookingPaid(booking) ? "Paid" : "Unpaid"} />
                                 
-                                <p className={`text-[10px] font-medium truncate leading-tight pr-4 ${
+                                <p className={`text-[10px] font-medium truncate leading-tight pr-4 flex items-center gap-1 ${
                                   booking.status === 'pending' ? "text-white" : "text-primary-foreground"
                                 }`}>
-                                  {booking.status === 'pending' 
-                                    ? `${booking.profile?.first_name || 'Processing'} ${booking.profile?.last_name || '...'}` 
-                                    : `${booking.profile?.first_name} ${booking.profile?.last_name}`}
+                                  {(booking.profile?.total_bookings ?? 0) <= 1 && (
+                                    <span
+                                      title="First ever booking"
+                                      className="inline-flex shrink-0 items-center justify-center w-3.5 h-3.5 rounded-full bg-accent text-accent-foreground text-[8px] font-bold leading-none"
+                                    >
+                                      1
+                                    </span>
+                                  )}
+                                  <span className="truncate">
+                                    {booking.status === 'pending' 
+                                      ? `${booking.profile?.first_name || 'Processing'} ${booking.profile?.last_name || '...'}` 
+                                      : `${booking.profile?.first_name} ${booking.profile?.last_name}`}
+                                  </span>
                                 </p>
                                 <p className={`text-[9px] truncate leading-tight ${
                                   booking.status === 'pending' ? "text-white/70" : "text-primary-foreground/70"
