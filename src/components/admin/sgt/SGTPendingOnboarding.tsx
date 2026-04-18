@@ -99,6 +99,7 @@ export function SGTPendingOnboarding() {
         .maybeSingle();
 
       // Add member to all active tours with custom HCP
+      // onboarding_hcp is the locked starting handicap used for first 6 rounds
       for (const tour of activeTours) {
         const { error: insertError } = await supabase
           .from("sgt_tour_members")
@@ -107,6 +108,7 @@ export function SGTPendingOnboarding() {
             tour_id: tour.tour_id,
             user_name: memberInfo?.user_name || null,
             custom_hcp: customHcp,
+            onboarding_hcp: customHcp,
             updated_at: new Date().toISOString(),
           }, {
             onConflict: "user_id,tour_id",

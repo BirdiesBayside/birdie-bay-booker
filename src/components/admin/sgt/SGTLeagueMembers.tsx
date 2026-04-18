@@ -5,8 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Users, Search, Pencil, Check, X, Loader2, Info } from "lucide-react";
+import { Users, Search, Pencil, Check, X, Loader2, Info, Lock } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -26,10 +28,14 @@ interface LeagueMember {
   user_id: number;
   user_name: string | null;
   email: string | null;
-  hcp_index: number | null;  // Combo HCP from SGT
-  custom_hcp: number | null;  // Manual override
+  hcp_index: number | null;
+  custom_hcp: number | null;
+  onboarding_hcp: number | null;
   rounds_played: number;
 }
+
+const ROUNDS_REQUIRED = 6;
+const BEST_ROUNDS = 3;
 
 export function SGTLeagueMembers() {
   const { toast } = useToast();
@@ -38,49 +44,72 @@ export function SGTLeagueMembers() {
   const [editingMemberId, setEditingMemberId] = useState<number | null>(null);
   const [editHandicapValue, setEditHandicapValue] = useState<string>("");
 
-  // Fetch all onboarded members with their round counts
+  // Global handicap settings
+  const { data: settings } = useQuery({
+    queryKey: ["sgt-handicap-settings"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("sgt_handicap_settings")
+        .select("*")
+        .eq("id", "global")
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const useCustomEnabled = settings?.use_custom_hcp ?? false;
+
+  const toggleSettingMutation = useMutation({
+    mutationFn: async (enabled: boolean) => {
+      const { error } = await supabase
+        .from("sgt_handicap_settings")
+        .update({ use_custom_hcp: enabled, updated_at: new Date().toISOString() })
+        .eq("id", "global");
+      if (error) throw error;
+      return enabled;
+    },
+    onSuccess: (enabled) => {
+      queryClient.invalidateQueries({ queryKey: ["sgt-handicap-settings"] });
+      toast({
+        title: enabled ? "Custom HCP enabled" : "SGT HCP enabled",
+        description: enabled
+          ? "Players will use Birdies custom handicap (best 3 of last 6 rounds)."
+          : "Players will use SGT's Combo HCP. Onboarding lock is bypassed.",
+      });
+    },
+  });
+
   const { data: members, isLoading } = useQuery({
     queryKey: ["sgt-league-members"],
     queryFn: async () => {
-      // Get all tour members (onboarded)
       const { data: tourMembers, error: tmError } = await supabase
         .from("sgt_tour_members")
-        .select("user_id, user_name, hcp_index, custom_hcp");
+        .select("user_id, user_name, hcp_index, custom_hcp, onboarding_hcp");
 
       if (tmError) throw tmError;
 
-      // Get profile emails for matching
       const { data: profiles } = await supabase
         .from("profiles")
         .select("sgt_user_id, email")
         .not("sgt_user_id", "is", null);
-      
+
       const sgtIdToEmail = new Map(
         (profiles || []).map(p => [p.sgt_user_id, p.email])
       );
 
-      // Get round counts from scorecards (player_id is the correct column)
       const { data: scorecards } = await supabase
         .from("sgt_scorecards")
-        .select("player_id");
+        .select("player_id, total_gross")
+        .not("total_gross", "is", null);
 
       const roundCounts = new Map<number, number>();
       (scorecards || []).forEach(sc => {
         roundCounts.set(sc.player_id, (roundCounts.get(sc.player_id) || 0) + 1);
       });
 
-      // Dedupe by user_id (a member might be in multiple tours)
-      // Sort by updated_at DESC so we get the most recently updated record first
-      const sortedMembers = (tourMembers || []).sort((a, b) => {
-        // We don't have updated_at in the select, so just process in order
-        return 0;
-      });
-
       const memberMap = new Map<number, LeagueMember>();
-      sortedMembers.forEach(tm => {
-        // Only use the FIRST occurrence of each user_id
-        // Since all tour_members for a user should have the same custom_hcp
-        // (we update all records when saving), just take the first one
+      (tourMembers || []).forEach(tm => {
         if (!memberMap.has(tm.user_id)) {
           memberMap.set(tm.user_id, {
             user_id: tm.user_id,
@@ -88,26 +117,23 @@ export function SGTLeagueMembers() {
             email: sgtIdToEmail.get(tm.user_id) || null,
             hcp_index: tm.hcp_index,
             custom_hcp: tm.custom_hcp,
+            onboarding_hcp: tm.onboarding_hcp,
             rounds_played: roundCounts.get(tm.user_id) || 0,
           });
         }
       });
 
-      return Array.from(memberMap.values()).sort((a, b) => 
+      return Array.from(memberMap.values()).sort((a, b) =>
         (a.user_name || "").localeCompare(b.user_name || "")
       );
     },
   });
 
-  // Mutation to update a member's custom handicap
   const updateHcpMutation = useMutation({
     mutationFn: async ({ userId, customHcp }: { userId: number; customHcp: number | null }) => {
-      console.log(`[SGT-UPDATE-HCP] Setting custom HCP for user ${userId} to ${customHcp}`);
-
-      // Update all tour_members records for this user
       const { error } = await supabase
         .from("sgt_tour_members")
-        .update({ 
+        .update({
           custom_hcp: customHcp,
           updated_at: new Date().toISOString(),
         })
@@ -120,11 +146,11 @@ export function SGTLeagueMembers() {
       queryClient.invalidateQueries({ queryKey: ["sgt-league-members"] });
       setEditingMemberId(null);
       setEditHandicapValue("");
-      toast({ 
+      toast({
         title: "Handicap updated",
-        description: data.customHcp !== null 
+        description: data.customHcp !== null
           ? `Custom handicap set to ${data.customHcp.toFixed(1)}`
-          : "Custom handicap cleared - will use Combo HCP",
+          : "Custom handicap cleared",
       });
     },
     onError: (error) => {
@@ -138,23 +164,19 @@ export function SGTLeagueMembers() {
 
   const handleSaveHcp = (userId: number) => {
     const value = editHandicapValue.trim();
-    
-    // Allow empty to clear custom HCP
     if (value === "") {
       updateHcpMutation.mutate({ userId, customHcp: null });
       return;
     }
-
     const hcp = parseFloat(value);
     if (isNaN(hcp) || hcp < -36 || hcp > 36) {
       toast({
         title: "Invalid handicap",
-        description: "Please enter a handicap between -36 and 36, or leave empty to use Combo HCP",
+        description: "Please enter a handicap between -36 and 36",
         variant: "destructive",
       });
       return;
     }
-
     updateHcpMutation.mutate({ userId, customHcp: hcp });
   };
 
@@ -174,17 +196,6 @@ export function SGTLeagueMembers() {
       m.email?.toLowerCase().includes(query);
   });
 
-  // Determine which HCP is active for a member
-  // Custom HCP ALWAYS overrides Combo HCP when set (allows manual adjustments for struggling players)
-  const getActiveHcp = (member: LeagueMember): { value: number | null; isCustom: boolean } => {
-    // If custom HCP is set, it ALWAYS takes precedence
-    if (member.custom_hcp !== null) {
-      return { value: member.custom_hcp, isCustom: true };
-    }
-    // Otherwise use Combo HCP
-    return { value: member.hcp_index, isCustom: false };
-  };
-
   const formatHcp = (value: number | null) => {
     if (value === null) return "—";
     return value >= 0 ? `+${value.toFixed(1)}` : value.toFixed(1);
@@ -192,6 +203,51 @@ export function SGTLeagueMembers() {
 
   return (
     <div className="space-y-6">
+      {/* Global Handicap Mode Toggle */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div className="space-y-1 flex-1 min-w-[240px]">
+              <div className="flex items-center gap-2">
+                <Label htmlFor="hcp-mode-toggle" className="text-base font-semibold">
+                  {useCustomEnabled ? "Use Birdies Custom HCP" : "Use SGT Combo HCP"}
+                </Label>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger>
+                      <Info className="h-4 w-4 text-muted-foreground" />
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-sm">
+                      <p className="font-semibold mb-1">Birdies Custom HCP</p>
+                      <p className="text-xs">
+                        Auto-calculated weekly using the <strong>best 3 of the last 6 rounds</strong>.
+                        New members are <strong>locked to their onboarding handicap for 6 rounds</strong>
+                        (~3 weeks of league play) before auto-recalc kicks in.
+                      </p>
+                      <p className="font-semibold mt-2 mb-1">SGT Combo HCP</p>
+                      <p className="text-xs">
+                        Uses SGT's calculated handicap for all players. Onboarding lock is ignored.
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                {useCustomEnabled
+                  ? `Best ${BEST_ROUNDS} of last ${ROUNDS_REQUIRED} rounds. New members locked for ${ROUNDS_REQUIRED} rounds.`
+                  : "All players will use SGT's combo handicap during auto-registration."}
+              </p>
+            </div>
+            <Switch
+              id="hcp-mode-toggle"
+              checked={useCustomEnabled}
+              onCheckedChange={(checked) => toggleSettingMutation.mutate(checked)}
+              disabled={toggleSettingMutation.isPending}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -204,11 +260,12 @@ export function SGTLeagueMembers() {
             </Badge>
           </div>
           <CardDescription>
-            Manage member handicaps. <strong>Custom HCP always overrides Combo HCP</strong> when set — use this to help players whose handicap isn't quite right.
+            {useCustomEnabled
+              ? "Custom HCP overrides Combo HCP. Locked members show their onboarding HCP until 6 rounds played."
+              : "Toggle 'Use Birdies Custom HCP' above to enable auto-recalc and manual overrides."}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Search */}
           <div className="max-w-xs">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -232,42 +289,17 @@ export function SGTLeagueMembers() {
                   <TableRow>
                     <TableHead>Name</TableHead>
                     <TableHead className="text-center">SGT ID</TableHead>
-                    <TableHead className="text-center">
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger className="flex items-center gap-1 justify-center w-full">
-                            Combo HCP
-                            <Info className="h-3 w-3 text-muted-foreground" />
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            SGT's calculated handicap based on recent rounds
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </TableHead>
-                    <TableHead className="text-center">
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger className="flex items-center gap-1 justify-center w-full">
-                            Custom HCP
-                            <Info className="h-3 w-3 text-muted-foreground" />
-                          </TooltipTrigger>
-                          <TooltipContent className="max-w-xs">
-                            <p><strong>Always overrides Combo HCP when set.</strong></p>
-                            <p className="text-xs mt-1">Clear to use SGT's Combo HCP instead.</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </TableHead>
+                    <TableHead className="text-center">Combo HCP</TableHead>
+                    <TableHead className="text-center">Custom HCP</TableHead>
                     <TableHead className="text-center">Rounds</TableHead>
                     <TableHead className="text-center w-24">Edit</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                {filteredMembers.map((member) => {
-                    const activeHcp = getActiveHcp(member);
+                  {filteredMembers.map((member) => {
                     const isEditing = editingMemberId === member.user_id;
                     const usingCustom = member.custom_hcp !== null;
+                    const isLocked = useCustomEnabled && member.rounds_played < ROUNDS_REQUIRED;
 
                     return (
                       <TableRow key={member.user_id}>
@@ -305,17 +337,35 @@ export function SGTLeagueMembers() {
                               }}
                             />
                           ) : (
-                            <span className={usingCustom ? "font-semibold text-green-600 dark:text-green-400" : "text-muted-foreground"}>
-                              {formatHcp(member.custom_hcp)}
-                            </span>
+                            <div className="flex items-center justify-center gap-1.5">
+                              <span className={usingCustom ? "font-semibold text-primary" : "text-muted-foreground"}>
+                                {formatHcp(member.custom_hcp)}
+                              </span>
+                              {isLocked && usingCustom && (
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger>
+                                      <Lock className="h-3 w-3 text-amber-500" />
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      Locked to onboarding HCP until {ROUNDS_REQUIRED} rounds played
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              )}
+                            </div>
                           )}
                         </TableCell>
                         <TableCell className="text-center">
-                          <Badge 
-                            variant={member.rounds_played >= 4 ? "default" : "secondary"}
-                          >
-                            {member.rounds_played}
-                          </Badge>
+                          {isLocked ? (
+                            <Badge variant="secondary" className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
+                              {member.rounds_played}/{ROUNDS_REQUIRED}
+                            </Badge>
+                          ) : (
+                            <Badge variant={member.rounds_played >= ROUNDS_REQUIRED ? "default" : "secondary"}>
+                              {member.rounds_played}
+                            </Badge>
+                          )}
                         </TableCell>
                         <TableCell className="text-center">
                           {isEditing ? (
@@ -361,7 +411,6 @@ export function SGTLeagueMembers() {
             <div className="text-center py-8 text-muted-foreground">
               <Users className="h-8 w-8 mx-auto mb-2 opacity-50" />
               <p>No members found</p>
-              <p className="text-sm">Members appear here after being onboarded</p>
             </div>
           )}
         </CardContent>
