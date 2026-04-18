@@ -284,10 +284,18 @@ serve(async (req) => {
 
       // Get the custom handicap for this tour
       const customHcp = tourHcpMap.get(tourId);
-      
-      // Custom HCP ALWAYS overrides Combo HCP when set
-      // This allows admins to manually adjust handicaps for players who are struggling
-      const useCustomCap = customHcp !== null && customHcp !== undefined;
+
+      // Check global toggle: if "Use Custom HCP" is OFF, use SGT Combo HCP for everyone
+      // (ignore custom_hcp entirely, including the onboarding lock)
+      const { data: hcpSettings } = await supabaseClient
+        .from("sgt_handicap_settings")
+        .select("use_custom_hcp")
+        .eq("id", "global")
+        .maybeSingle();
+      const customHcpGloballyEnabled = hcpSettings?.use_custom_hcp ?? false;
+
+      // Custom HCP is used only if globally enabled AND set on this tour member
+      const useCustomCap = customHcpGloballyEnabled && customHcp !== null && customHcp !== undefined;
 
       if (useCustomCap) {
         console.log(`[SGT-AUTO-REG] Using custom handicap ${customHcp} for user ${sgt_user_id} in tour ${tourId}`);

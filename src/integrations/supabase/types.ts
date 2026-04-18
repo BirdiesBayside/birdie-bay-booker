@@ -1405,6 +1405,33 @@ export type Database = {
         }
         Relationships: []
       }
+      sgt_handicap_settings: {
+        Row: {
+          best_rounds_count: number
+          created_at: string
+          id: string
+          rounds_required: number
+          updated_at: string
+          use_custom_hcp: boolean
+        }
+        Insert: {
+          best_rounds_count?: number
+          created_at?: string
+          id?: string
+          rounds_required?: number
+          updated_at?: string
+          use_custom_hcp?: boolean
+        }
+        Update: {
+          best_rounds_count?: number
+          created_at?: string
+          id?: string
+          rounds_required?: number
+          updated_at?: string
+          use_custom_hcp?: boolean
+        }
+        Relationships: []
+      }
       sgt_members: {
         Row: {
           created_at: string
@@ -1656,6 +1683,7 @@ export type Database = {
           custom_hcp: number | null
           hcp_index: number | null
           id: string
+          onboarding_hcp: number | null
           tour_id: number
           updated_at: string
           user_id: number
@@ -1666,6 +1694,7 @@ export type Database = {
           custom_hcp?: number | null
           hcp_index?: number | null
           id?: string
+          onboarding_hcp?: number | null
           tour_id: number
           updated_at?: string
           user_id: number
@@ -1676,6 +1705,7 @@ export type Database = {
           custom_hcp?: number | null
           hcp_index?: number | null
           id?: string
+          onboarding_hcp?: number | null
           tour_id?: number
           updated_at?: string
           user_id?: number
