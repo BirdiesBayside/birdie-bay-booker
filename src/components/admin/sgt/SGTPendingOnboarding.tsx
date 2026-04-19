@@ -172,9 +172,11 @@ export function SGTPendingOnboarding() {
         <AlertCircle className="h-4 w-4" />
         <AlertTitle>How Onboarding Works</AlertTitle>
         <AlertDescription>
-          New league members appear here until you set their initial handicap. Once set, 
+          New league members appear here until you set their initial handicap. Once set,
           they're automatically added to all active tours and registered for open tournaments.
-          After 4 completed rounds, the system automatically switches them to SGT's Combo HCP.
+          Their onboarding handicap is locked for the first 6 rounds (~3 weeks), after which
+          the Birdies Custom HCP auto-recalculates weekly using the best 3 of their last 6 rounds.</replace>
+</invoke>
         </AlertDescription>
       </Alert>
 
