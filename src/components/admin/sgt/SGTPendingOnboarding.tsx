@@ -175,8 +175,7 @@ export function SGTPendingOnboarding() {
           New league members appear here until you set their initial handicap. Once set,
           they're automatically added to all active tours and registered for open tournaments.
           Their onboarding handicap is locked for the first 6 rounds (~3 weeks), after which
-          the Birdies Custom HCP auto-recalculates weekly using the best 3 of their last 6 rounds.</replace>
-</invoke>
+          the Birdies Custom HCP auto-recalculates weekly using the best 3 of their last 6 rounds.
         </AlertDescription>
       </Alert>
 
