@@ -214,6 +214,14 @@ serve(async (req) => {
         
         const sgtUserName = sgtMember?.user_name;
         
+        // Check global custom HCP toggle
+        const { data: hcpSettings } = await supabase
+          .from("sgt_handicap_settings")
+          .select("use_custom_hcp")
+          .eq("id", "global")
+          .maybeSingle();
+        const useCustomHcp = hcpSettings?.use_custom_hcp === true;
+
         // Get tour memberships with handicap info
         const { data: tourMemberships, error: tmError } = await supabase
           .from("sgt_tour_members")
@@ -224,10 +232,16 @@ serve(async (req) => {
         
         const activeTourMemberships = tourMemberships?.filter(tm => tm.sgt_tours?.active === 1) || [];
         
+        // Effective handicap: when toggle is ON, prefer custom_hcp (falls back to hcp_index if null)
+        const effectiveHcp = (tm: { hcp_index?: number | null; custom_hcp?: number | null }) =>
+          useCustomHcp
+            ? (tm.custom_hcp ?? tm.hcp_index ?? 0)
+            : (tm.hcp_index ?? 0);
+
         const tours = activeTourMemberships.map(tm => ({
           tourId: tm.tour_id,
           tourName: tm.sgt_tours?.name,
-          handicap: tm.hcp_index || 0,
+          handicap: effectiveHcp(tm),
           customHandicap: tm.custom_hcp || 0,
         }));
         
