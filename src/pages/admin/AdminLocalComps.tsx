@@ -5,7 +5,8 @@ import { CompetitionList } from "@/components/admin/local-comps/CompetitionList"
 import { ScoreEntry } from "@/components/admin/local-comps/ScoreEntry";
 import { CompResults } from "@/components/admin/local-comps/CompResults";
 import { SavedTeams } from "@/components/admin/local-comps/SavedTeams";
-import { Trophy, ClipboardList, Award, Users } from "lucide-react";
+import { HandicapCalculator } from "@/components/admin/local-comps/HandicapCalculator";
+import { Trophy, ClipboardList, Award, Users, Calculator } from "lucide-react";
 
 export default function AdminLocalComps() {
   const { isLoading } = useAdminAuth();
@@ -50,6 +51,10 @@ export default function AdminLocalComps() {
               <Users className="h-4 w-4" />
               <span className="hidden sm:inline">Teams</span>
             </TabsTrigger>
+            <TabsTrigger value="hcp-calc" className="gap-2">
+              <Calculator className="h-4 w-4" />
+              <span className="hidden sm:inline">HCP Calc</span>
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="competitions" className="mt-6">
@@ -66,6 +71,10 @@ export default function AdminLocalComps() {
 
           <TabsContent value="teams" className="mt-6">
             <SavedTeams />
+          </TabsContent>
+
+          <TabsContent value="hcp-calc" className="mt-6">
+            <HandicapCalculator />
           </TabsContent>
         </Tabs>
       </div>

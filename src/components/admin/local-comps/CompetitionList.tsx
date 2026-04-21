@@ -7,10 +7,25 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Calendar, DollarSign, Trophy, Trash2 } from "lucide-react";
+import { Plus, Calendar, DollarSign, Trophy, Trash2, MapPin, ChevronDown, ChevronUp, Settings2 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
+import { CourseSelector } from "@/components/admin/sgt/CourseSelector";
+
+const TEES_OPTIONS = ["Black", "Blue", "White", "Yellow", "Green", "Red", "Junior", "Par3"] as const;
+const PINS_OPTIONS = ["Thursday", "Friday", "Saturday", "Sunday"] as const;
+const WIND_OPTIONS = ["Calm", "Breezy", "Gusty"] as const;
+const FIRMNESS_OPTIONS = ["Soft", "Normal", "Hard", "Firm", "Links"] as const;
+const GREEN_SPEEDS = [8, 9, 10, 11, 12, 13];
 
 export function CompetitionList() {
   const { toast } = useToast();
@@ -19,6 +34,15 @@ export function CompetitionList() {
   const [name, setName] = useState("");
   const [date, setDate] = useState("");
   const [entryFee, setEntryFee] = useState("10");
+  const [courseSetupOpen, setCourseSetupOpen] = useState(false);
+  const [courseId, setCourseId] = useState<number | undefined>();
+  const [courseName, setCourseName] = useState<string | null>(null);
+  const [tees, setTees] = useState<string>("White");
+  const [greenSpeed, setGreenSpeed] = useState<number>(11);
+  const [greenFirmness, setGreenFirmness] = useState<string>("Normal");
+  const [fairwayFirmness, setFairwayFirmness] = useState<string>("Normal");
+  const [pins, setPins] = useState<string>("Thursday");
+  const [wind, setWind] = useState<string>("Calm");
 
   const { data: competitions, isLoading } = useQuery({
     queryKey: ["local-competitions"],
@@ -32,22 +56,43 @@ export function CompetitionList() {
     },
   });
 
+  const resetForm = () => {
+    setName("");
+    setDate("");
+    setEntryFee("10");
+    setCourseSetupOpen(false);
+    setCourseId(undefined);
+    setCourseName(null);
+    setTees("White");
+    setGreenSpeed(11);
+    setGreenFirmness("Normal");
+    setFairwayFirmness("Normal");
+    setPins("Thursday");
+    setWind("Calm");
+  };
+
   const createMutation = useMutation({
     mutationFn: async () => {
       const { error } = await supabase.from("local_competitions").insert({
         name,
         date,
         entry_fee: parseFloat(entryFee),
-      });
+        course_id: courseId ?? null,
+        course_name: courseName,
+        tees,
+        green_speed: greenSpeed,
+        green_firmness: greenFirmness,
+        fairway_firmness: fairwayFirmness,
+        pins,
+        wind,
+      } as any);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["local-competitions"] });
       toast({ title: "Competition created", duration: 3000 });
       setDialogOpen(false);
-      setName("");
-      setDate("");
-      setEntryFee("10");
+      resetForm();
     },
     onError: (err: any) => {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -70,7 +115,6 @@ export function CompetitionList() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      // Delete teams first (FK constraint)
       await supabase.from("local_comp_teams").delete().eq("competition_id", id);
       const { error } = await supabase.from("local_competitions").delete().eq("id", id);
       if (error) throw error;
@@ -101,11 +145,11 @@ export function CompetitionList() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">Competitions</h2>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) resetForm(); }}>
           <DialogTrigger asChild>
             <Button className="gap-2"><Plus className="h-4 w-4" /> New Competition</Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Create Competition</DialogTitle>
             </DialogHeader>
@@ -122,6 +166,94 @@ export function CompetitionList() {
                 <Label>Entry Fee Per Team ($)</Label>
                 <Input type="number" value={entryFee} onChange={(e) => setEntryFee(e.target.value)} min="0" step="5" />
               </div>
+
+              <Collapsible open={courseSetupOpen} onOpenChange={setCourseSetupOpen}>
+                <CollapsibleTrigger asChild>
+                  <Button variant="outline" type="button" className="w-full justify-between">
+                    <span className="flex items-center gap-2">
+                      <Settings2 className="h-4 w-4" />
+                      Course Setup
+                      {courseName && (
+                        <Badge variant="secondary" className="ml-2 font-normal">
+                          {courseName} • {tees}
+                        </Badge>
+                      )}
+                    </span>
+                    {courseSetupOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="space-y-4 mt-4 p-4 border rounded-lg bg-muted/30">
+                  <div>
+                    <Label>Course</Label>
+                    <CourseSelector
+                      value={courseId}
+                      onSelect={(id, course) => {
+                        setCourseId(id);
+                        setCourseName(course.name);
+                      }}
+                      placeholder="Search and select a course..."
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label>Tees</Label>
+                      <Select value={tees} onValueChange={setTees}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {TEES_OPTIONS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>Green Speed (Stimp)</Label>
+                      <Select value={greenSpeed.toString()} onValueChange={(v) => setGreenSpeed(parseInt(v))}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {GREEN_SPEEDS.map(s => <SelectItem key={s} value={s.toString()}>{s}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>Green Firmness</Label>
+                      <Select value={greenFirmness} onValueChange={setGreenFirmness}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {FIRMNESS_OPTIONS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>Fairway Firmness</Label>
+                      <Select value={fairwayFirmness} onValueChange={setFairwayFirmness}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {FIRMNESS_OPTIONS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>Pin Positions</Label>
+                      <Select value={pins} onValueChange={setPins}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {PINS_OPTIONS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>Wind</Label>
+                      <Select value={wind} onValueChange={setWind}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {WIND_OPTIONS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+
               <Button
                 className="w-full"
                 onClick={() => createMutation.mutate()}
@@ -143,7 +275,7 @@ export function CompetitionList() {
         </Card>
       ) : (
         <div className="grid gap-4">
-          {competitions.map((comp) => (
+          {competitions.map((comp: any) => (
             <Card key={comp.id}>
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
@@ -154,7 +286,7 @@ export function CompetitionList() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="flex items-center gap-6 text-sm text-muted-foreground mb-4">
+                <div className="flex items-center gap-6 text-sm text-muted-foreground mb-2 flex-wrap">
                   <span className="flex items-center gap-1.5">
                     <Calendar className="h-4 w-4" />
                     {format(new Date(comp.date + "T00:00:00"), "EEE dd MMM yyyy")}
@@ -165,6 +297,18 @@ export function CompetitionList() {
                   </span>
                   <span>Format: 2-Man Ambrose</span>
                 </div>
+                {comp.course_name && (
+                  <div className="flex items-center gap-1.5 text-sm text-muted-foreground mb-4 flex-wrap">
+                    <MapPin className="h-4 w-4" />
+                    <span>{comp.course_name}</span>
+                    <span className="opacity-60">•</span>
+                    <span>{comp.tees} tees</span>
+                    <span className="opacity-60">•</span>
+                    <span>Stimp {comp.green_speed}</span>
+                    <span className="opacity-60">•</span>
+                    <span>{comp.wind}</span>
+                  </div>
+                )}
                 <div className="flex gap-2 items-center">
                   {comp.status === "upcoming" && (
                     <Button size="sm" variant="outline" onClick={() => updateStatusMutation.mutate({ id: comp.id, status: "active" })}>
