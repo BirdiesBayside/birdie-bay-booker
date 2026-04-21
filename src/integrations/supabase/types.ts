@@ -861,34 +861,58 @@ export type Database = {
       }
       local_competitions: {
         Row: {
+          course_id: number | null
+          course_name: string | null
           created_at: string
           created_by: string | null
           date: string
           entry_fee: number
+          fairway_firmness: string | null
           format: string
+          green_firmness: string | null
+          green_speed: number | null
           id: string
           name: string
+          pins: string | null
           status: string
+          tees: string | null
+          wind: string | null
         }
         Insert: {
+          course_id?: number | null
+          course_name?: string | null
           created_at?: string
           created_by?: string | null
           date: string
           entry_fee?: number
+          fairway_firmness?: string | null
           format?: string
+          green_firmness?: string | null
+          green_speed?: number | null
           id?: string
           name: string
+          pins?: string | null
           status?: string
+          tees?: string | null
+          wind?: string | null
         }
         Update: {
+          course_id?: number | null
+          course_name?: string | null
           created_at?: string
           created_by?: string | null
           date?: string
           entry_fee?: number
+          fairway_firmness?: string | null
           format?: string
+          green_firmness?: string | null
+          green_speed?: number | null
           id?: string
           name?: string
+          pins?: string | null
           status?: string
+          tees?: string | null
+          wind?: string | null
         }
         Relationships: []
       }
