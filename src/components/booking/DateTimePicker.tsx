@@ -112,6 +112,9 @@ export function DateTimePicker({
   onPlayersChange,
 }: DateTimePickerProps) {
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [compPromptOpen, setCompPromptOpen] = useState(false);
+  const [compLocked, setCompLocked] = useState(false);
+  const [pendingCompTime, setPendingCompTime] = useState<string | null>(null);
 
   // Set default time when date changes
   useEffect(() => {
@@ -124,12 +127,41 @@ export function DateTimePicker({
         onTimeChange(`${OPENING_HOUR.toString().padStart(2, "0")}:00`);
       }
     }
+    // Reset comp lock when date changes
+    setCompLocked(false);
   }, [selectedDate]);
 
   const handleDateSelect = (date: Date | undefined) => {
     onDateChange(date);
     setCalendarOpen(false);
   };
+
+  // Intercept time changes to prompt for Wednesday comp night
+  const handleTimeSelect = (time: string) => {
+    if (!compLocked && isInCompWindow(selectedDate, time)) {
+      setPendingCompTime(time);
+      setCompPromptOpen(true);
+      return;
+    }
+    onTimeChange(time);
+  };
+
+  const handleCompYes = () => {
+    setCompLocked(true);
+    setCompPromptOpen(false);
+    setPendingCompTime(null);
+    // Lock to 5pm start, 2hr, 2 players
+    onTimeChange(COMP_LOCKED_TIME);
+    onDurationChange(COMP_LOCKED_DURATION);
+    onPlayersChange(COMP_LOCKED_PLAYERS);
+  };
+
+  const handleCompNo = () => {
+    setCompPromptOpen(false);
+    if (pendingCompTime) onTimeChange(pendingCompTime);
+    setPendingCompTime(null);
+  };
+
   // Filter out time slots that would extend past closing or are in the past for today
   const getAvailableTimeSlots = () => {
     const now = new Date();
