@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { format, isToday } from "date-fns";
-import { CalendarIcon, Clock } from "lucide-react";
+import { CalendarIcon, Clock, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -16,6 +16,33 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+
+// Wednesday Ambrose comp window (Brisbane time): 5:00pm – 7:00pm
+// Customers selecting a slot in this window are prompted to confirm comp entry.
+const COMP_DAY = 3; // Wednesday
+const COMP_START_MIN = 17 * 60; // 5:00pm
+const COMP_END_MIN = 19 * 60;   // 7:00pm
+const COMP_LOCKED_DURATION = 2;
+const COMP_LOCKED_PLAYERS = 2;
+const COMP_LOCKED_TIME = "17:00";
+
+const isInCompWindow = (date: Date | undefined, time: string | undefined) => {
+  if (!date || !time) return false;
+  if (date.getDay() !== COMP_DAY) return false;
+  const [h, m] = time.split(":").map(Number);
+  const mins = h * 60 + m;
+  return mins >= COMP_START_MIN && mins < COMP_END_MIN;
+};
 
 interface DateTimePickerProps {
   selectedDate: Date | undefined;
