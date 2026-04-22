@@ -298,15 +298,19 @@ export function CompetitionList() {
                   <span>Format: 2-Man Ambrose</span>
                 </div>
                 {comp.course_name && (
-                  <div className="flex items-center gap-1.5 text-sm text-muted-foreground mb-4 flex-wrap">
-                    <MapPin className="h-4 w-4" />
-                    <span>{comp.course_name}</span>
-                    <span className="opacity-60">•</span>
-                    <span>{comp.tees} tees</span>
-                    <span className="opacity-60">•</span>
-                    <span>Stimp {comp.green_speed}</span>
-                    <span className="opacity-60">•</span>
-                    <span>{comp.wind}</span>
+                  <div className="mb-4 p-3 rounded-lg border bg-muted/30 space-y-2">
+                    <div className="flex items-center gap-1.5 text-sm font-medium">
+                      <MapPin className="h-4 w-4 text-primary" />
+                      <span>{comp.course_name}</span>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
+                      <div><span className="opacity-70">Tees:</span> <span className="font-medium text-foreground">{comp.tees ?? '—'}</span></div>
+                      <div><span className="opacity-70">Pins:</span> <span className="font-medium text-foreground">{comp.pins ?? '—'}</span></div>
+                      <div><span className="opacity-70">Wind:</span> <span className="font-medium text-foreground">{comp.wind ?? '—'}</span></div>
+                      <div><span className="opacity-70">Green Speed:</span> <span className="font-medium text-foreground">Stimp {comp.green_speed ?? '—'}</span></div>
+                      <div><span className="opacity-70">Green Firmness:</span> <span className="font-medium text-foreground">{comp.green_firmness ?? '—'}</span></div>
+                      <div><span className="opacity-70">Fairway Firmness:</span> <span className="font-medium text-foreground">{comp.fairway_firmness ?? '—'}</span></div>
+                    </div>
                   </div>
                 )}
                 <div className="flex gap-2 items-center">
