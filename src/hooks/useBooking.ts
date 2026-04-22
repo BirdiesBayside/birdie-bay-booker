@@ -489,7 +489,8 @@ export function useBooking() {
     playerCount: number = 1,
     paymentMethod: PaymentMethod = "card",
     newPaymentMethodId?: string,
-    partialBalanceAmount?: number
+    partialBalanceAmount?: number,
+    notes?: string
   ): Promise<{ booking: any; requiresCheckout?: boolean; checkoutUrl?: string }> => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
@@ -638,6 +639,7 @@ export function useBooking() {
         player_count: playerCount,
         payment_method: isFreeBooking ? "free" : (paymentMethod === "balance" ? "balance" : (balanceDeduction > 0 ? "partial" : "pending")),
         status: shouldAutoConfirm ? "confirmed" : "pending",
+        notes: notes ?? null,
       })
       .select()
       .single();

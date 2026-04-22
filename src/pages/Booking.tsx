@@ -63,6 +63,9 @@ export default function Booking() {
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<"balance" | "card">("card");
   const [usePartialBalance, setUsePartialBalance] = useState(false);
   const [pendingBookingId, setPendingBookingId] = useState<string | null>(null);
+  const [playingComp, setPlayingComp] = useState(false);
+
+  const COMP_NOTE = "[COMP] Wednesday Ambrose";
 
   const PARTIAL_BALANCE_KEY = "bb:partialBalanceAmount";
 
@@ -233,6 +236,7 @@ export default function Booking() {
           player_count: selectedPlayers,
           payment_method: "pending",
           status: "pending",
+          notes: playingComp ? COMP_NOTE : null,
         })
         .select()
         .single();
@@ -407,7 +411,8 @@ export default function Booking() {
         selectedPlayers, 
         paymentMethod,
         undefined, // No new payment method ID - we use saved card
-        partialAmount
+        partialAmount,
+        playingComp ? COMP_NOTE : undefined
       );
       
       // If charge-booking returned a checkout URL (no saved card), redirect there
@@ -466,7 +471,10 @@ export default function Booking() {
         selectedTime,
         selectedDuration,
         selectedPlayers,
-        "balance" // Pay entirely with balance
+        "balance", // Pay entirely with balance
+        undefined,
+        undefined,
+        playingComp ? COMP_NOTE : undefined
       );
 
       const totalPrice = hourlyRate * selectedDuration;
@@ -592,6 +600,7 @@ export default function Booking() {
               onTimeChange={handleTimeChange}
               onDurationChange={handleDurationChange}
               onPlayersChange={handlePlayersChange}
+              onCompChange={setPlayingComp}
             />
           </CardContent>
         </Card>
