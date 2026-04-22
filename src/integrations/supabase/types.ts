@@ -743,8 +743,10 @@ export type Database = {
           id: string
           is_active: boolean
           player1_handicap: number
+          player1_local_hcp: number
           player1_name: string
           player2_handicap: number
+          player2_local_hcp: number
           player2_name: string
           team_name: string
           updated_at: string
@@ -754,8 +756,10 @@ export type Database = {
           id?: string
           is_active?: boolean
           player1_handicap?: number
+          player1_local_hcp?: number
           player1_name: string
           player2_handicap?: number
+          player2_local_hcp?: number
           player2_name: string
           team_name: string
           updated_at?: string
@@ -765,8 +769,10 @@ export type Database = {
           id?: string
           is_active?: boolean
           player1_handicap?: number
+          player1_local_hcp?: number
           player1_name?: string
           player2_handicap?: number
+          player2_local_hcp?: number
           player2_name?: string
           team_name?: string
           updated_at?: string
@@ -918,6 +924,56 @@ export type Database = {
           wind?: string | null
         }
         Relationships: []
+      }
+      local_hcp_adjustments: {
+        Row: {
+          competition_id: string | null
+          competition_name: string | null
+          created_at: string
+          delta: number
+          hcp_after: number | null
+          hcp_before: number | null
+          id: string
+          player_name: string
+          player_name_normalized: string
+          position: number | null
+          reason: string
+        }
+        Insert: {
+          competition_id?: string | null
+          competition_name?: string | null
+          created_at?: string
+          delta: number
+          hcp_after?: number | null
+          hcp_before?: number | null
+          id?: string
+          player_name: string
+          player_name_normalized: string
+          position?: number | null
+          reason: string
+        }
+        Update: {
+          competition_id?: string | null
+          competition_name?: string | null
+          created_at?: string
+          delta?: number
+          hcp_after?: number | null
+          hcp_before?: number | null
+          id?: string
+          player_name?: string
+          player_name_normalized?: string
+          position?: number | null
+          reason?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "local_hcp_adjustments_competition_id_fkey"
+            columns: ["competition_id"]
+            isOneToOne: false
+            referencedRelation: "local_competitions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       loyalty_credits_issued: {
         Row: {

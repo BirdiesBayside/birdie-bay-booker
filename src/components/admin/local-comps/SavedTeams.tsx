@@ -14,8 +14,10 @@ interface SavedTeam {
   team_name: string;
   player1_name: string;
   player1_handicap: number;
+  player1_local_hcp: number;
   player2_name: string;
   player2_handicap: number;
+  player2_local_hcp: number;
   is_active: boolean;
 }
 
@@ -192,10 +194,16 @@ export function SavedTeams() {
                   </div>
                 </div>
                 <div className="text-sm text-muted-foreground space-y-1">
-                  <p>{team.player1_name} — HCP {team.player1_handicap}</p>
-                  <p>{team.player2_name} — HCP {team.player2_handicap}</p>
+                  <p>
+                    {team.player1_name} — Local HCP <span className="font-semibold text-foreground">{team.player1_local_hcp.toFixed(1)}</span>
+                    <span className="text-xs opacity-60"> (base {team.player1_handicap})</span>
+                  </p>
+                  <p>
+                    {team.player2_name} — Local HCP <span className="font-semibold text-foreground">{team.player2_local_hcp.toFixed(1)}</span>
+                    <span className="text-xs opacity-60"> (base {team.player2_handicap})</span>
+                  </p>
                   <p className="text-xs font-medium">
-                    Combined: {((team.player1_handicap + team.player2_handicap) / 4).toFixed(1)}
+                    Combined Local: {((team.player1_local_hcp + team.player2_local_hcp) / 4).toFixed(2)}
                   </p>
                 </div>
               </CardContent>
