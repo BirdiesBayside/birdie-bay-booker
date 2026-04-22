@@ -234,20 +234,32 @@ export function DateTimePicker({
 
       {/* Comp lock badge */}
       {compLocked && (
-        <div className="flex items-center gap-2 rounded-md border border-primary/30 bg-primary/10 p-3 text-sm">
-          <Trophy className="h-4 w-4 text-primary" />
-          <div className="flex-1">
-            <p className="font-medium text-foreground">Wednesday Ambrose Comp</p>
-            <p className="text-xs text-muted-foreground">Tee off 5pm – 7pm • 2 hours • 2 players</p>
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 rounded-md border border-primary/30 bg-primary/10 p-3 text-sm">
+            <Trophy className="h-4 w-4 text-primary" />
+            <div className="flex-1">
+              <p className="font-medium text-foreground">Wednesday Ambrose Comp</p>
+              <p className="text-xs text-muted-foreground">Tee off 5pm – 7pm • 2 hours • 2 players</p>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setCompLocked(false)}
+              className="h-7 text-xs"
+            >
+              Cancel
+            </Button>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setCompLocked(false)}
-            className="h-7 text-xs"
+          <Link
+            to="/comp-hub"
+            className="flex items-center justify-between gap-2 rounded-md border border-accent/40 bg-accent/10 p-3 text-sm transition-colors hover:bg-accent/20"
           >
-            Cancel
-          </Button>
+            <div className="flex-1">
+              <p className="font-medium text-foreground">Don't forget to register your team</p>
+              <p className="text-xs text-muted-foreground">After booking, head to the Weekly Comp section to enter</p>
+            </div>
+            <ArrowRight className="h-4 w-4 text-accent-foreground shrink-0" />
+          </Link>
         </div>
       )}
 
