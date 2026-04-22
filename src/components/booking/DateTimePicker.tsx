@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { format, isToday } from "date-fns";
-import { CalendarIcon, Clock } from "lucide-react";
+import { CalendarIcon, Clock, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -16,6 +16,33 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+
+// Wednesday Ambrose comp window (Brisbane time): 5:00pm – 7:00pm
+// Customers selecting a slot in this window are prompted to confirm comp entry.
+const COMP_DAY = 3; // Wednesday
+const COMP_START_MIN = 17 * 60; // 5:00pm
+const COMP_END_MIN = 19 * 60;   // 7:00pm
+const COMP_LOCKED_DURATION = 2;
+const COMP_LOCKED_PLAYERS = 2;
+const COMP_LOCKED_TIME = "17:00";
+
+const isInCompWindow = (date: Date | undefined, time: string | undefined) => {
+  if (!date || !time) return false;
+  if (date.getDay() !== COMP_DAY) return false;
+  const [h, m] = time.split(":").map(Number);
+  const mins = h * 60 + m;
+  return mins >= COMP_START_MIN && mins < COMP_END_MIN;
+};
 
 interface DateTimePickerProps {
   selectedDate: Date | undefined;
@@ -85,6 +112,9 @@ export function DateTimePicker({
   onPlayersChange,
 }: DateTimePickerProps) {
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [compPromptOpen, setCompPromptOpen] = useState(false);
+  const [compLocked, setCompLocked] = useState(false);
+  const [pendingCompTime, setPendingCompTime] = useState<string | null>(null);
 
   // Set default time when date changes
   useEffect(() => {
@@ -97,12 +127,41 @@ export function DateTimePicker({
         onTimeChange(`${OPENING_HOUR.toString().padStart(2, "0")}:00`);
       }
     }
+    // Reset comp lock when date changes
+    setCompLocked(false);
   }, [selectedDate]);
 
   const handleDateSelect = (date: Date | undefined) => {
     onDateChange(date);
     setCalendarOpen(false);
   };
+
+  // Intercept time changes to prompt for Wednesday comp night
+  const handleTimeSelect = (time: string) => {
+    if (!compLocked && isInCompWindow(selectedDate, time)) {
+      setPendingCompTime(time);
+      setCompPromptOpen(true);
+      return;
+    }
+    onTimeChange(time);
+  };
+
+  const handleCompYes = () => {
+    setCompLocked(true);
+    setCompPromptOpen(false);
+    setPendingCompTime(null);
+    // Lock to 5pm start, 2hr, 2 players
+    onTimeChange(COMP_LOCKED_TIME);
+    onDurationChange(COMP_LOCKED_DURATION);
+    onPlayersChange(COMP_LOCKED_PLAYERS);
+  };
+
+  const handleCompNo = () => {
+    setCompPromptOpen(false);
+    if (pendingCompTime) onTimeChange(pendingCompTime);
+    setPendingCompTime(null);
+  };
+
   // Filter out time slots that would extend past closing or are in the past for today
   const getAvailableTimeSlots = () => {
     const now = new Date();
@@ -168,10 +227,29 @@ export function DateTimePicker({
         </Popover>
       </div>
 
+      {/* Comp lock badge */}
+      {compLocked && (
+        <div className="flex items-center gap-2 rounded-md border border-primary/30 bg-primary/10 p-3 text-sm">
+          <Trophy className="h-4 w-4 text-primary" />
+          <div className="flex-1">
+            <p className="font-medium text-foreground">Wednesday Ambrose Comp</p>
+            <p className="text-xs text-muted-foreground">Locked to 5pm – 7pm, 2 players</p>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setCompLocked(false)}
+            className="h-7 text-xs"
+          >
+            Cancel
+          </Button>
+        </div>
+      )}
+
       {/* Time Selector */}
       <div className="space-y-2">
         <label className="text-sm font-medium text-foreground">Start Time</label>
-        <Select value={selectedTime} onValueChange={onTimeChange}>
+        <Select value={selectedTime} onValueChange={handleTimeSelect} disabled={compLocked}>
           <SelectTrigger className="w-full">
             <Clock className="mr-2 h-4 w-4" />
             <SelectValue placeholder="Select time" />
@@ -192,6 +270,7 @@ export function DateTimePicker({
         <Select
           value={selectedDuration.toString()}
           onValueChange={(value) => onDurationChange(parseInt(value))}
+          disabled={compLocked}
         >
           <SelectTrigger className="w-full">
             <SelectValue placeholder="Select duration" />
@@ -212,6 +291,7 @@ export function DateTimePicker({
         <Select
           value={selectedPlayers.toString()}
           onValueChange={(value) => onPlayersChange(parseInt(value))}
+          disabled={compLocked}
         >
           <SelectTrigger className="w-full">
             <SelectValue placeholder="Select players" />
@@ -225,6 +305,27 @@ export function DateTimePicker({
           </SelectContent>
         </Select>
       </div>
+
+      {/* Wednesday Ambrose Comp prompt */}
+      <AlertDialog open={compPromptOpen} onOpenChange={setCompPromptOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Trophy className="h-5 w-5 text-primary" />
+              Playing in the Wednesday Ambrose Comp?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Our weekly 2-Man Ambrose comp tees off Wednesdays from 5pm – 7pm.
+              If you're playing in the comp, we'll set your booking to a 2-hour
+              session at 5pm for 2 players.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleCompNo}>No, just a session</AlertDialogCancel>
+            <AlertDialogAction onClick={handleCompYes}>Yes, I'm in the comp</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
