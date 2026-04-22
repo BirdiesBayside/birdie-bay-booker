@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, Check, DollarSign, ShoppingCart, Search } from "lucide-react";
+import { Plus, Trash2, Check, DollarSign, ShoppingCart, Search, RefreshCw } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -355,6 +355,17 @@ export function ScoreEntry() {
                 </div>
               </DialogContent>
             </Dialog>
+
+            <Button
+              variant="outline"
+              onClick={() => {
+                queryClient.invalidateQueries({ queryKey: ["local-comp-teams", selectedCompId] });
+                toast({ title: "Refreshed", duration: 2000 });
+              }}
+              className="gap-2"
+            >
+              <RefreshCw className="h-4 w-4" /> Refresh
+            </Button>
 
             {sortedTeams.length > 0 && (
               <Button variant="outline" onClick={() => calculatePositionsMutation.mutate()} disabled={calculatePositionsMutation.isPending}>
