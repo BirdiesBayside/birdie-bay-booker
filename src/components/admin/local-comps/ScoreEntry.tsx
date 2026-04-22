@@ -38,7 +38,7 @@ export function ScoreEntry() {
       const [savedRes, pastRes] = await Promise.all([
         supabase
           .from("local_comp_saved_teams")
-          .select("team_name, player1_name, player1_handicap, player2_name, player2_handicap")
+          .select("team_name, player1_name, player1_handicap, player1_local_hcp, player2_name, player2_handicap, player2_local_hcp")
           .eq("is_active", true)
           .order("team_name", { ascending: true }),
         supabase
@@ -49,10 +49,23 @@ export function ScoreEntry() {
       if (savedRes.error) throw savedRes.error;
       if (pastRes.error) throw pastRes.error;
 
-      // Merge and deduplicate by player1+player2 combo, saved teams take priority
+      // Normalize: saved teams use local_hcp, past comp teams use raw handicap as fallback
       const seen = new Set<string>();
-      const all: typeof savedRes.data = [];
-      for (const t of [...(savedRes.data || []), ...(pastRes.data || [])]) {
+      const all: Array<{
+        team_name: string;
+        player1_name: string;
+        player1_handicap: number;
+        player2_name: string;
+        player2_handicap: number;
+      }> = [];
+      const savedNormalized = (savedRes.data || []).map((t) => ({
+        team_name: t.team_name,
+        player1_name: t.player1_name,
+        player1_handicap: t.player1_local_hcp ?? t.player1_handicap,
+        player2_name: t.player2_name,
+        player2_handicap: t.player2_local_hcp ?? t.player2_handicap,
+      }));
+      for (const t of [...savedNormalized, ...(pastRes.data || [])]) {
         const key = `${t.player1_name.toLowerCase()}|${t.player2_name.toLowerCase()}`;
         if (seen.has(key)) continue;
         seen.add(key);
