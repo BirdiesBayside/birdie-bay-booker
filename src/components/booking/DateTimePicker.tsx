@@ -53,6 +53,7 @@ interface DateTimePickerProps {
   onTimeChange: (time: string) => void;
   onDurationChange: (duration: number) => void;
   onPlayersChange: (players: number) => void;
+  onCompChange?: (playingComp: boolean) => void;
 }
 
 const OPENING_HOUR = 5;  // 5am
@@ -110,6 +111,7 @@ export function DateTimePicker({
   onTimeChange,
   onDurationChange,
   onPlayersChange,
+  onCompChange,
 }: DateTimePickerProps) {
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [compPromptOpen, setCompPromptOpen] = useState(false);
@@ -129,6 +131,7 @@ export function DateTimePicker({
     }
     // Reset comp lock when date changes
     setCompLocked(false);
+    onCompChange?.(false);
   }, [selectedDate]);
 
   const handleDateSelect = (date: Date | undefined) => {
@@ -148,6 +151,7 @@ export function DateTimePicker({
 
   const handleCompYes = () => {
     setCompLocked(true);
+    onCompChange?.(true);
     setCompPromptOpen(false);
     // Keep the user's chosen 5–7pm tee-off time, lock duration + players
     if (pendingCompTime) onTimeChange(pendingCompTime);
@@ -158,6 +162,7 @@ export function DateTimePicker({
 
   const handleCompNo = () => {
     setCompPromptOpen(false);
+    onCompChange?.(false);
     if (pendingCompTime) onTimeChange(pendingCompTime);
     setPendingCompTime(null);
   };
@@ -244,7 +249,7 @@ export function DateTimePicker({
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setCompLocked(false)}
+              onClick={() => { setCompLocked(false); onCompChange?.(false); }}
               className="h-7 text-xs"
             >
               Cancel
