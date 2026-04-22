@@ -227,10 +227,29 @@ export function DateTimePicker({
         </Popover>
       </div>
 
+      {/* Comp lock badge */}
+      {compLocked && (
+        <div className="flex items-center gap-2 rounded-md border border-primary/30 bg-primary/10 p-3 text-sm">
+          <Trophy className="h-4 w-4 text-primary" />
+          <div className="flex-1">
+            <p className="font-medium text-foreground">Wednesday Ambrose Comp</p>
+            <p className="text-xs text-muted-foreground">Locked to 5pm – 7pm, 2 players</p>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setCompLocked(false)}
+            className="h-7 text-xs"
+          >
+            Cancel
+          </Button>
+        </div>
+      )}
+
       {/* Time Selector */}
       <div className="space-y-2">
         <label className="text-sm font-medium text-foreground">Start Time</label>
-        <Select value={selectedTime} onValueChange={onTimeChange}>
+        <Select value={selectedTime} onValueChange={handleTimeSelect} disabled={compLocked}>
           <SelectTrigger className="w-full">
             <Clock className="mr-2 h-4 w-4" />
             <SelectValue placeholder="Select time" />
@@ -251,6 +270,7 @@ export function DateTimePicker({
         <Select
           value={selectedDuration.toString()}
           onValueChange={(value) => onDurationChange(parseInt(value))}
+          disabled={compLocked}
         >
           <SelectTrigger className="w-full">
             <SelectValue placeholder="Select duration" />
@@ -271,6 +291,7 @@ export function DateTimePicker({
         <Select
           value={selectedPlayers.toString()}
           onValueChange={(value) => onPlayersChange(parseInt(value))}
+          disabled={compLocked}
         >
           <SelectTrigger className="w-full">
             <SelectValue placeholder="Select players" />
@@ -284,6 +305,27 @@ export function DateTimePicker({
           </SelectContent>
         </Select>
       </div>
+
+      {/* Wednesday Ambrose Comp prompt */}
+      <AlertDialog open={compPromptOpen} onOpenChange={setCompPromptOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Trophy className="h-5 w-5 text-primary" />
+              Playing in the Wednesday Ambrose Comp?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Our weekly 2-Man Ambrose comp tees off Wednesdays from 5pm – 7pm.
+              If you're playing in the comp, we'll set your booking to a 2-hour
+              session at 5pm for 2 players.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleCompNo}>No, just a session</AlertDialogCancel>
+            <AlertDialogAction onClick={handleCompYes}>Yes, I'm in the comp</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
