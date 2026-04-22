@@ -14,8 +14,10 @@ interface SavedTeam {
   team_name: string;
   player1_name: string;
   player1_handicap: number;
+  player1_local_hcp: number;
   player2_name: string;
   player2_handicap: number;
+  player2_local_hcp: number;
   is_active: boolean;
 }
 
