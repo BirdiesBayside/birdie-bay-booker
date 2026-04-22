@@ -33,6 +33,7 @@ export function CompetitionList() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [name, setName] = useState("");
   const [date, setDate] = useState("");
+  const [startTime, setStartTime] = useState("");
   const [entryFee, setEntryFee] = useState("10");
   const [courseSetupOpen, setCourseSetupOpen] = useState(false);
   const [courseId, setCourseId] = useState<number | undefined>();
@@ -59,6 +60,7 @@ export function CompetitionList() {
   const resetForm = () => {
     setName("");
     setDate("");
+    setStartTime("");
     setEntryFee("10");
     setCourseSetupOpen(false);
     setCourseId(undefined);
@@ -76,6 +78,7 @@ export function CompetitionList() {
       const { error } = await supabase.from("local_competitions").insert({
         name,
         date,
+        start_time: startTime || null,
         entry_fee: parseFloat(entryFee),
         course_id: courseId ?? null,
         course_name: courseName,
@@ -158,9 +161,15 @@ export function CompetitionList() {
                 <Label>Name</Label>
                 <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Wednesday Night Ambrose" />
               </div>
-              <div>
-                <Label>Date</Label>
-                <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Date</Label>
+                  <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+                </div>
+                <div>
+                  <Label>Start Time</Label>
+                  <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+                </div>
               </div>
               <div>
                 <Label>Entry Fee Per Team ($)</Label>
@@ -290,6 +299,7 @@ export function CompetitionList() {
                   <span className="flex items-center gap-1.5">
                     <Calendar className="h-4 w-4" />
                     {format(new Date(comp.date + "T00:00:00"), "EEE dd MMM yyyy")}
+                    {comp.start_time && ` • ${comp.start_time.slice(0, 5)}`}
                   </span>
                   <span className="flex items-center gap-1.5">
                     <DollarSign className="h-4 w-4" />

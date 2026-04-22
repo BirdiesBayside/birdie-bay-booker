@@ -1,0 +1,1 @@
+ALTER TABLE public.local_competitions ADD COLUMN start_time time without time zone;
