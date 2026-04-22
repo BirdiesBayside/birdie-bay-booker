@@ -814,6 +814,14 @@ export default function AdminTimetable() {
                                       1
                                     </span>
                                   )}
+                                  {booking.notes?.includes("[COMP]") && (
+                                    <span
+                                      title="Playing in Wednesday Ambrose Comp"
+                                      className="inline-flex shrink-0 items-center justify-center w-3.5 h-3.5 rounded-full bg-primary text-primary-foreground text-[8px] font-bold leading-none ring-1 ring-primary-foreground/30"
+                                    >
+                                      C
+                                    </span>
+                                  )}
                                   <span className="truncate">
                                     {booking.status === 'pending' 
                                       ? `${booking.profile?.first_name || 'Processing'} ${booking.profile?.last_name || '...'}` 
