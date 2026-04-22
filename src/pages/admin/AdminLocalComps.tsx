@@ -56,6 +56,10 @@ export default function AdminLocalComps() {
               <Calculator className="h-4 w-4" />
               <span className="hidden sm:inline">HCP Calc</span>
             </TabsTrigger>
+            <TabsTrigger value="adjustments" className="gap-2">
+              <History className="h-4 w-4" />
+              <span className="hidden sm:inline">Adjustments</span>
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="competitions" className="mt-6">
@@ -76,6 +80,10 @@ export default function AdminLocalComps() {
 
           <TabsContent value="hcp-calc" className="mt-6">
             <HandicapCalculator />
+          </TabsContent>
+
+          <TabsContent value="adjustments" className="mt-6">
+            <HcpAdjustments />
           </TabsContent>
         </Tabs>
       </div>
