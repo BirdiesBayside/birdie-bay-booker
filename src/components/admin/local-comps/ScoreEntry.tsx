@@ -356,6 +356,17 @@ export function ScoreEntry() {
               </DialogContent>
             </Dialog>
 
+            <Button
+              variant="outline"
+              onClick={() => {
+                queryClient.invalidateQueries({ queryKey: ["local-comp-teams", selectedCompId] });
+                toast({ title: "Refreshed", duration: 2000 });
+              }}
+              className="gap-2"
+            >
+              <RefreshCw className="h-4 w-4" /> Refresh
+            </Button>
+
             {sortedTeams.length > 0 && (
               <Button variant="outline" onClick={() => calculatePositionsMutation.mutate()} disabled={calculatePositionsMutation.isPending}>
                 Calculate Positions
