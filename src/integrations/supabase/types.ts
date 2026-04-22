@@ -874,6 +874,7 @@ export type Database = {
           id: string
           name: string
           pins: string | null
+          start_time: string | null
           status: string
           tees: string | null
           wind: string | null
@@ -892,6 +893,7 @@ export type Database = {
           id?: string
           name: string
           pins?: string | null
+          start_time?: string | null
           status?: string
           tees?: string | null
           wind?: string | null
@@ -910,6 +912,7 @@ export type Database = {
           id?: string
           name?: string
           pins?: string | null
+          start_time?: string | null
           status?: string
           tees?: string | null
           wind?: string | null
