@@ -108,24 +108,21 @@ export default function CompLeaderboard() {
               <SelectValue placeholder="Select competition" />
             </SelectTrigger>
             <SelectContent>
-              {competitions.map((c) => {
-                const wk = getWeekNumber(c.id);
-                return (
-                  <SelectItem key={c.id} value={c.id}>
-                    <div className="flex items-center gap-2">
-                      <span>Week {wk} — {c.name}</span>
-                      <span className="text-muted-foreground text-xs">
-                        ({format(new Date(c.date + "T00:00:00"), "dd MMM yyyy")})
+              {competitions.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  <div className="flex items-center gap-2">
+                    <span>{c.name}</span>
+                    <span className="text-muted-foreground text-xs">
+                      ({format(new Date(c.date + "T00:00:00"), "dd MMM yyyy")})
+                    </span>
+                    {competitions[0].id === c.id && (
+                      <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-accent text-accent-foreground rounded">
+                        LATEST
                       </span>
-                      {competitions[0].id === c.id && (
-                        <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-accent text-accent-foreground rounded">
-                          LATEST
-                        </span>
-                      )}
-                    </div>
-                  </SelectItem>
-                );
-              })}
+                    )}
+                  </div>
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         )}
