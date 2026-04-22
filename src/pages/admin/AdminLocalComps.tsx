@@ -6,7 +6,8 @@ import { ScoreEntry } from "@/components/admin/local-comps/ScoreEntry";
 import { CompResults } from "@/components/admin/local-comps/CompResults";
 import { SavedTeams } from "@/components/admin/local-comps/SavedTeams";
 import { HandicapCalculator } from "@/components/admin/local-comps/HandicapCalculator";
-import { Trophy, ClipboardList, Award, Users, Calculator } from "lucide-react";
+import { HcpAdjustments } from "@/components/admin/local-comps/HcpAdjustments";
+import { Trophy, ClipboardList, Award, Users, Calculator, History } from "lucide-react";
 
 export default function AdminLocalComps() {
   const { isLoading } = useAdminAuth();
