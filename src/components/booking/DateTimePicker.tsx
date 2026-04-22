@@ -34,7 +34,6 @@ const COMP_START_MIN = 17 * 60; // 5:00pm
 const COMP_END_MIN = 19 * 60;   // 7:00pm
 const COMP_LOCKED_DURATION = 2;
 const COMP_LOCKED_PLAYERS = 2;
-const COMP_LOCKED_TIME = "17:00";
 
 const isInCompWindow = (date: Date | undefined, time: string | undefined) => {
   if (!date || !time) return false;
@@ -149,9 +148,9 @@ export function DateTimePicker({
   const handleCompYes = () => {
     setCompLocked(true);
     setCompPromptOpen(false);
+    // Keep the user's chosen 5–7pm tee-off time, lock duration + players
+    if (pendingCompTime) onTimeChange(pendingCompTime);
     setPendingCompTime(null);
-    // Lock to 5pm start, 2hr, 2 players
-    onTimeChange(COMP_LOCKED_TIME);
     onDurationChange(COMP_LOCKED_DURATION);
     onPlayersChange(COMP_LOCKED_PLAYERS);
   };
@@ -177,6 +176,11 @@ export function DateTimePicker({
 
       // End time cannot exceed closing time (accounting for minutes)
       if (endMinutes > closingMinutes) return false;
+
+      // When comp-locked, only show 5:00–7:00pm tee-off slots
+      if (compLocked) {
+        if (startMinutes < COMP_START_MIN || startMinutes > COMP_END_MIN) return false;
+      }
 
       // If today, filter out past times
       if (selectedDate && isToday(selectedDate)) {
@@ -233,7 +237,7 @@ export function DateTimePicker({
           <Trophy className="h-4 w-4 text-primary" />
           <div className="flex-1">
             <p className="font-medium text-foreground">Wednesday Ambrose Comp</p>
-            <p className="text-xs text-muted-foreground">Locked to 5pm – 7pm, 2 players</p>
+            <p className="text-xs text-muted-foreground">Tee off 5pm – 7pm • 2 hours • 2 players</p>
           </div>
           <Button
             variant="ghost"
@@ -249,7 +253,7 @@ export function DateTimePicker({
       {/* Time Selector */}
       <div className="space-y-2">
         <label className="text-sm font-medium text-foreground">Start Time</label>
-        <Select value={selectedTime} onValueChange={handleTimeSelect} disabled={compLocked}>
+        <Select value={selectedTime} onValueChange={handleTimeSelect}>
           <SelectTrigger className="w-full">
             <Clock className="mr-2 h-4 w-4" />
             <SelectValue placeholder="Select time" />
@@ -316,8 +320,8 @@ export function DateTimePicker({
             </AlertDialogTitle>
             <AlertDialogDescription>
               Our weekly 2-Man Ambrose comp tees off Wednesdays from 5pm – 7pm.
-              If you're playing in the comp, we'll set your booking to a 2-hour
-              session at 5pm for 2 players.
+              You can tee off at your chosen time — we'll lock your booking to
+              a 2-hour session for 2 players.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
