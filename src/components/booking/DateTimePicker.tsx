@@ -251,7 +251,7 @@ export function DateTimePicker({
             </Button>
           </div>
           <Link
-            to="/comp-hub"
+            to="/comp"
             className="flex items-center justify-between gap-2 rounded-md border border-accent/40 bg-accent/10 p-3 text-sm transition-colors hover:bg-accent/20"
           >
             <div className="flex-1">
