@@ -41,7 +41,13 @@ serve(async (req) => {
     // which helps avoid mail scanners burning the token before the customer clicks it.
     const rawSiteUrl = Deno.env.get("SITE_URL") || "https://hub.birdiesbayside.com.au";
     const siteUrl = /^https?:\/\//i.test(rawSiteUrl) ? rawSiteUrl.replace(/\/$/, "") : `https://${rawSiteUrl.replace(/^\/+/, "").replace(/\/$/, "")}`;
-    const redirectDestination = new URL((redirectUrl || "/reset-password").trim() || "/reset-password", `${siteUrl}/`);
+    const siteOrigin = new URL(`${siteUrl}/`).origin;
+    const requestedRedirect = (redirectUrl || "/reset-password").trim() || "/reset-password";
+    const requestedUrl = new URL(requestedRedirect, `${siteOrigin}/`);
+    const redirectDestination = new URL(
+      `${requestedUrl.pathname}${requestedUrl.search}${requestedUrl.hash}` || "/reset-password",
+      `${siteOrigin}/`
+    );
     
     const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
       type: "recovery",
