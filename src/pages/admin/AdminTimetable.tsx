@@ -817,7 +817,7 @@ export default function AdminTimetable() {
                                   {booking.notes?.includes("[COMP]") && (
                                     <span
                                       title="Playing in Wednesday Ambrose Comp"
-                                      className="inline-flex shrink-0 items-center justify-center w-3.5 h-3.5 rounded-full bg-primary text-primary-foreground text-[8px] font-bold leading-none ring-1 ring-primary-foreground/30"
+                                      className="inline-flex shrink-0 items-center justify-center w-3.5 h-3.5 rounded-full bg-accent text-accent-foreground text-[8px] font-bold leading-none ring-1 ring-accent-foreground/30"
                                     >
                                       C
                                     </span>
