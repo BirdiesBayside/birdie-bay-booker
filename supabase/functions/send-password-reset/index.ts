@@ -36,16 +36,24 @@ serve(async (req) => {
 
     logStep("Generating password reset link", { email });
 
-    // Generate a password recovery link using Supabase Admin API
-    // Use the SITE_URL environment variable or fall back to the published URL
+    // Generate a password recovery link using the auth admin API.
+    // We email a safe app URL carrying the token hash instead of the one-time verify link,
+    // which helps avoid mail scanners burning the token before the customer clicks it.
     const rawSiteUrl = Deno.env.get("SITE_URL") || "https://hub.birdiesbayside.com.au";
     const siteUrl = /^https?:\/\//i.test(rawSiteUrl) ? rawSiteUrl.replace(/\/$/, "") : `https://${rawSiteUrl.replace(/^\/+/, "").replace(/\/$/, "")}`;
+    const siteOrigin = new URL(`${siteUrl}/`).origin;
+    const requestedRedirect = (redirectUrl || "/reset-password").trim() || "/reset-password";
+    const requestedUrl = new URL(requestedRedirect, `${siteOrigin}/`);
+    const redirectDestination = new URL(
+      `${requestedUrl.pathname}${requestedUrl.search}${requestedUrl.hash}` || "/reset-password",
+      `${siteOrigin}/`
+    );
     
     const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
       type: "recovery",
       email: email,
       options: {
-        redirectTo: redirectUrl || `${siteUrl}/reset-password`,
+        redirectTo: redirectDestination.toString(),
       },
     });
 
@@ -56,8 +64,11 @@ serve(async (req) => {
 
     logStep("Link generated successfully");
 
-    // The action link from Supabase
-    const resetLink = linkData.properties.action_link;
+    const resetUrl = new URL(redirectDestination.toString());
+    resetUrl.searchParams.set("token_hash", linkData.properties.hashed_token);
+    resetUrl.searchParams.set("type", "recovery");
+
+    const resetLink = resetUrl.toString();
     const name = firstName || "there";
 
     // Build branded email matching other Birdies emails
