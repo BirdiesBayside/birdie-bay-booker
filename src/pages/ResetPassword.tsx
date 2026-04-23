@@ -48,6 +48,7 @@ export default function ResetPassword() {
 
         const accessToken = hashParams.get("access_token");
         const refreshToken = hashParams.get("refresh_token");
+        const tokenHash = queryParams.get("token_hash") || hashParams.get("token_hash");
         const type = hashParams.get("type") || queryParams.get("type");
         const errorParam = hashParams.get("error") || queryParams.get("error");
         const errorDescription = hashParams.get("error_description") || queryParams.get("error_description");
@@ -57,6 +58,7 @@ export default function ResetPassword() {
           type,
           hasAccessToken: !!accessToken,
           hasRefreshToken: !!refreshToken,
+          hasTokenHash: !!tokenHash,
           hasError: !!errorParam,
         });
 
@@ -81,6 +83,27 @@ export default function ResetPassword() {
           }
 
           console.log("[RESET] Session set successfully for:", data?.session?.user?.email);
+          window.history.replaceState(null, "", window.location.pathname);
+          sessionStorage.setItem("password_reset_in_progress", "true");
+          finishValidation(true);
+          return;
+        }
+
+        if (tokenHash && type === "recovery") {
+          console.log("[RESET] Found recovery token hash in URL, verifying OTP...");
+
+          const { data, error } = await supabase.auth.verifyOtp({
+            token_hash: tokenHash,
+            type: "recovery",
+          });
+
+          if (error) {
+            console.error("[RESET] Token hash verification error:", error.message, error);
+            finishValidation(false, "Invalid or expired reset link. Please request a new one.");
+            return;
+          }
+
+          console.log("[RESET] Token hash verified for:", data?.user?.email);
           window.history.replaceState(null, "", window.location.pathname);
           sessionStorage.setItem("password_reset_in_progress", "true");
           finishValidation(true);
