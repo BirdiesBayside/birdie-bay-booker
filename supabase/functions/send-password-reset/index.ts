@@ -65,8 +65,16 @@ serve(async (req) => {
     logStep("Link generated successfully");
 
     const resetUrl = new URL(redirectDestination.toString());
-    resetUrl.searchParams.set("token_hash", linkData.properties.hashed_token);
     resetUrl.searchParams.set("type", "recovery");
+    resetUrl.searchParams.set("email", email);
+
+    if (linkData.properties.email_otp) {
+      resetUrl.searchParams.set("token", linkData.properties.email_otp);
+    }
+
+    if (linkData.properties.hashed_token) {
+      resetUrl.searchParams.set("token_hash", linkData.properties.hashed_token);
+    }
 
     const resetLink = resetUrl.toString();
     const name = firstName || "there";

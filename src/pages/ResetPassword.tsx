@@ -49,6 +49,8 @@ export default function ResetPassword() {
         const accessToken = hashParams.get("access_token");
         const refreshToken = hashParams.get("refresh_token");
         const tokenHash = queryParams.get("token_hash") || hashParams.get("token_hash");
+        const emailParam = queryParams.get("email") || hashParams.get("email");
+        const otpToken = queryParams.get("token") || hashParams.get("token") || queryParams.get("email_otp") || hashParams.get("email_otp");
         const type = hashParams.get("type") || queryParams.get("type");
         const errorParam = hashParams.get("error") || queryParams.get("error");
         const errorDescription = hashParams.get("error_description") || queryParams.get("error_description");
@@ -58,6 +60,8 @@ export default function ResetPassword() {
           type,
           hasAccessToken: !!accessToken,
           hasRefreshToken: !!refreshToken,
+          hasEmail: !!emailParam,
+          hasOtpToken: !!otpToken,
           hasTokenHash: !!tokenHash,
           hasError: !!errorParam,
         });
@@ -87,6 +91,26 @@ export default function ResetPassword() {
           sessionStorage.setItem("password_reset_in_progress", "true");
           finishValidation(true);
           return;
+        }
+
+        if (emailParam && otpToken && type === "recovery") {
+          console.log("[RESET] Found recovery OTP in URL, verifying email OTP...");
+
+          const { data, error } = await supabase.auth.verifyOtp({
+            email: emailParam,
+            token: otpToken,
+            type: "recovery",
+          });
+
+          if (error) {
+            console.error("[RESET] Email OTP verification error:", error.message, error);
+          } else {
+            console.log("[RESET] Email OTP verified for:", data?.user?.email);
+            window.history.replaceState(null, "", window.location.pathname);
+            sessionStorage.setItem("password_reset_in_progress", "true");
+            finishValidation(true);
+            return;
+          }
         }
 
         if (tokenHash && type === "recovery") {
@@ -224,7 +248,10 @@ export default function ResetPassword() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ email: resetEmail }),
+        body: JSON.stringify({
+          email: resetEmail,
+          redirectUrl: `${window.location.origin}/reset-password`,
+        }),
       });
 
       const data = await response.json();
