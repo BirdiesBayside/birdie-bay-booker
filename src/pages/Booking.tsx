@@ -48,6 +48,7 @@ export default function Booking() {
     getHourlyRate,
     getRateInfo,
     checkMultiBayRestriction,
+    getHolidaySurchargeForDate,
     fetchBookingsForDate,
     checkBayAvailability,
     createBooking,
@@ -211,7 +212,10 @@ export default function Booking() {
         
         if (hasOverlap) {
           console.log("[Booking] Multi-bay peak restriction triggered - charging visitor rate $35/hr");
-          currentHourlyRate = 35; // VISITOR_PEAK_RATE
+          const holidaySurcharge = getHolidaySurchargeForDate(selectedDate);
+          currentHourlyRate = holidaySurcharge > 0
+            ? Math.round(35 * (1 + holidaySurcharge / 100) * 100) / 100
+            : 35; // VISITOR_PEAK_RATE
         }
       }
       
