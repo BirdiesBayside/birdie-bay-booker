@@ -9,6 +9,7 @@ export const QUERY_KEYS = {
   BOOKINGS: (date?: string) => ['bookings', date] as const,
   USER_PROFILE: (userId?: string) => ['user-profile', userId] as const,
   SAVED_CARD: ['saved-card'] as const,
+  PUBLIC_HOLIDAYS: ['public-holidays'] as const,
   
   // Admin
   ADMIN_BAYS: ['admin', 'bays'] as const,
