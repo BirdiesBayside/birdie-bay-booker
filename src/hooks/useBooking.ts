@@ -184,6 +184,23 @@ export function useBooking() {
   const depositBalance = userProfile?.depositBalance || 0;
   const customSegment = userProfile?.customSegment ?? null;
 
+  /**
+   * Get the public holiday surcharge percentage for a given date (0 if none).
+   */
+  const getHolidaySurchargeForDate = useCallback((date: Date | string): number => {
+    const key = typeof date === "string" ? date : formatLocalDateKey(date);
+    const holiday = publicHolidays.find(h => h.holiday_date === key);
+    return holiday ? Number(holiday.surcharge_percent) : 0;
+  }, [publicHolidays]);
+
+  /**
+   * Get the public holiday object for a given date (null if none).
+   */
+  const getHolidayForDate = useCallback((date: Date | string): PublicHoliday | null => {
+    const key = typeof date === "string" ? date : formatLocalDateKey(date);
+    return publicHolidays.find(h => h.holiday_date === key) ?? null;
+  }, [publicHolidays]);
+
   // Memoized fetch function to avoid recreating on every render
   const fetchBookingsForDateInternal = useCallback(async (dateStr: string) => {
     setIsLoading(true);
