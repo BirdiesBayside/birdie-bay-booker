@@ -105,10 +105,15 @@ export default function CompRegisterTeam() {
             </CardTitle>
             <CardDescription>
               Sign up your 2-man Ambrose team for the weekly competition. Handicaps will be confirmed by the admin.
-              <span className="mt-2 block font-medium text-foreground">You only need to register your team once — once you're in, you're locked in for every week's comp.</span>
             </CardDescription>
           </CardHeader>
           <CardContent>
+            <div className="mb-5 rounded-lg border-2 border-primary/30 bg-primary/10 p-4 flex gap-3">
+              <CheckCircle className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
+              <p className="text-sm font-semibold text-foreground leading-snug">
+                Register your team <span className="underline">once</span> — you're locked in for every week's comp after that.
+              </p>
+            </div>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <Label htmlFor="player1">Player 1 Full Name *</Label>
