@@ -58,36 +58,55 @@ export function calculateHourlyRate(
   date: Date,
   startTime: string,
   tierPricing: Record<string, number>,
-  options?: { segment?: string | null }
+  options?: { segment?: string | null; holidaySurchargePercent?: number }
 ): number {
   const isPeak = isPeakTime(date, startTime);
   
+  let baseRate: number;
+
   // Staff get free play during off-peak, full visitor rate during peak
   if (options?.segment === "staff") {
-    return isPeak ? VISITOR_PEAK_RATE : 0;
+    baseRate = isPeak ? VISITOR_PEAK_RATE : 0;
+  } else {
+    switch (tier.toLowerCase()) {
+      case "visitor":
+        baseRate = isPeak ? VISITOR_PEAK_RATE : VISITOR_OFF_PEAK_RATE;
+        break;
+      case "weekday":
+        // Weekday members pay their rate for off-peak weekday slots
+        // Otherwise they pay visitor peak rate
+        baseRate = isWeekdayMemberTime(date, startTime) 
+          ? (tierPricing.weekday || 10) 
+          : VISITOR_PEAK_RATE;
+        break;
+      case "birdie":
+        baseRate = tierPricing.birdie || 10;
+        break;
+      case "eagle":
+        baseRate = tierPricing.eagle || 8;
+        break;
+      default:
+        // Unknown tier defaults to peak visitor rate
+        baseRate = VISITOR_PEAK_RATE;
+    }
   }
-  
-  switch (tier.toLowerCase()) {
-    case "visitor":
-      return isPeak ? VISITOR_PEAK_RATE : VISITOR_OFF_PEAK_RATE;
-    
-    case "weekday":
-      // Weekday members pay their rate for off-peak weekday slots
-      // Otherwise they pay visitor peak rate
-      return isWeekdayMemberTime(date, startTime) 
-        ? (tierPricing.weekday || 10) 
-        : VISITOR_PEAK_RATE;
-    
-    case "birdie":
-      return tierPricing.birdie || 10;
-    
-    case "eagle":
-      return tierPricing.eagle || 8;
-    
-    default:
-      // Unknown tier defaults to peak visitor rate
-      return VISITOR_PEAK_RATE;
+
+  // Apply public holiday surcharge if applicable. Free play stays free.
+  const surcharge = options?.holidaySurchargePercent ?? 0;
+  if (surcharge > 0 && baseRate > 0) {
+    return Math.round((baseRate * (1 + surcharge / 100)) * 100) / 100;
   }
+  return baseRate;
+}
+
+/**
+ * Format a Date as YYYY-MM-DD using local time (matches DB date column format).
+ */
+export function formatLocalDateKey(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 }
 
 /**
