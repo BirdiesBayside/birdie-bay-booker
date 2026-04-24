@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Trophy } from "lucide-react";
@@ -21,8 +21,31 @@ export default function EmbedTVLocalComp() {
     refetchInterval: 30000,
   });
 
-  // Latest comp is the one to display
-  const competition = allComps?.[allComps.length - 1] ?? null;
+  // Fetch which comps actually have scores entered
+  const { data: compsWithScores } = useQuery({
+    queryKey: ["tv-local-comp-with-scores"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("local_comp_teams")
+        .select("competition_id, gross_score")
+        .not("gross_score", "is", null);
+      if (error) throw error;
+      return new Set((data ?? []).map((t) => t.competition_id));
+    },
+    refetchInterval: 30000,
+  });
+
+  // Pick the latest comp that has scores; fall back to the most recent comp overall
+  const competition = useMemo(() => {
+    if (!allComps || allComps.length === 0) return null;
+    if (compsWithScores && compsWithScores.size > 0) {
+      for (let i = allComps.length - 1; i >= 0; i--) {
+        if (compsWithScores.has(allComps[i].id)) return allComps[i];
+      }
+    }
+    return allComps[allComps.length - 1];
+  }, [allComps, compsWithScores]);
+
   const weekNumber = allComps && competition
     ? allComps.findIndex((c) => c.id === competition.id) + 1
     : null;
