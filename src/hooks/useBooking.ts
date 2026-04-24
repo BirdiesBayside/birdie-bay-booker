@@ -163,6 +163,9 @@ export function useBooking() {
     queryFn: fetchPublicHolidays,
     staleTime: STALE_TIMES.STATIC,
   });
+
+  // User data - cached for 5 minutes
+  const { data: userProfile } = useQuery({
     queryKey: QUERY_KEYS.USER_PROFILE(),
     queryFn: fetchUserProfile,
     staleTime: STALE_TIMES.SEMI_STATIC,
