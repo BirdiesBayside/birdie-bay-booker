@@ -157,8 +157,12 @@ export function useBooking() {
     staleTime: STALE_TIMES.STATIC,
   });
 
-  // User data - cached for 5 minutes
-  const { data: userProfile } = useQuery({
+  // Public holidays - cached for 30 minutes
+  const { data: publicHolidays = [] } = useQuery({
+    queryKey: QUERY_KEYS.PUBLIC_HOLIDAYS,
+    queryFn: fetchPublicHolidays,
+    staleTime: STALE_TIMES.STATIC,
+  });
     queryKey: QUERY_KEYS.USER_PROFILE(),
     queryFn: fetchUserProfile,
     staleTime: STALE_TIMES.SEMI_STATIC,
