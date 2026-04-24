@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
-import { calculateHourlyRate, isPeakTime, isWeekdayMemberTime } from "@/lib/pricing-utils";
+import { calculateHourlyRate, isPeakTime, isWeekdayMemberTime, formatLocalDateKey } from "@/lib/pricing-utils";
 import { Capacitor } from "@capacitor/core";
 import { QUERY_KEYS, STALE_TIMES } from "@/lib/query-keys";
 export interface Bay {
@@ -76,6 +76,28 @@ const fetchPricing = async (): Promise<Record<string, number>> => {
     pricing[p.tier] = Number(p.hourly_rate);
   });
   return pricing;
+};
+
+export interface PublicHoliday {
+  id: string;
+  holiday_date: string; // YYYY-MM-DD
+  name: string;
+  surcharge_percent: number;
+}
+
+const fetchPublicHolidays = async (): Promise<PublicHoliday[]> => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayStr = formatLocalDateKey(today);
+  const { data, error } = await supabase
+    .from("public_holidays")
+    .select("id, holiday_date, name, surcharge_percent")
+    .gte("holiday_date", todayStr);
+  if (error) throw error;
+  return (data || []).map((h: any) => ({
+    ...h,
+    surcharge_percent: Number(h.surcharge_percent),
+  }));
 };
 
 const fetchUserProfile = async () => {
