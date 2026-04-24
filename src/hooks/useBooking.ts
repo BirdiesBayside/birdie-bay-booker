@@ -357,8 +357,13 @@ export function useBooking() {
       return tierPricing[tier] || FALLBACK_PRICING[tier] || FALLBACK_PRICING.visitor;
     }
     
+    const holidaySurchargePercent = getHolidaySurchargeForDate(date);
+    
     // Calculate rate based on tier, date, and time
-    return calculateHourlyRate(tier, date, startTime, tierPricing, { segment: customSegment });
+    return calculateHourlyRate(tier, date, startTime, tierPricing, { 
+      segment: customSegment, 
+      holidaySurchargePercent,
+    });
   };
 
   /**
@@ -426,19 +431,24 @@ export function useBooking() {
     startTime: string, 
     durationHours: number = 1, 
     bayId?: string
-  ): { rate: number; isPeak: boolean; isRestricted: boolean; isMultiBayRestricted: boolean } => {
+  ): { rate: number; isPeak: boolean; isRestricted: boolean; isMultiBayRestricted: boolean; isHoliday: boolean; holidayName: string | null; surchargePercent: number } => {
     const isPeak = isPeakTime(date, startTime);
     const isWeekdayRestricted = userMembershipTier === "weekday" && !isWeekdayMemberTime(date, startTime);
+    const holiday = getHolidayForDate(date);
+    const surchargePercent = holiday ? Number(holiday.surcharge_percent) : 0;
     
     // Check multi-bay restriction for Birdie/Eagle members
     const isMultiBayRestricted = bayId 
       ? checkMultiBayRestriction(date, startTime, durationHours, bayId)
       : false;
     
-    // If multi-bay restricted, rate becomes visitor peak rate
+    // If multi-bay restricted, rate becomes visitor peak rate (then surcharge applied on top)
     let rate: number;
     if (isMultiBayRestricted) {
-      rate = FALLBACK_PRICING.visitor; // $35 peak visitor rate
+      const baseRate = FALLBACK_PRICING.visitor; // $35 peak visitor rate
+      rate = surchargePercent > 0 
+        ? Math.round(baseRate * (1 + surchargePercent / 100) * 100) / 100
+        : baseRate;
     } else {
       rate = getHourlyRate(userMembershipTier, date, startTime);
     }
@@ -447,7 +457,10 @@ export function useBooking() {
       rate, 
       isPeak, 
       isRestricted: isWeekdayRestricted, 
-      isMultiBayRestricted 
+      isMultiBayRestricted,
+      isHoliday: !!holiday,
+      holidayName: holiday?.name ?? null,
+      surchargePercent,
     };
   };
 
