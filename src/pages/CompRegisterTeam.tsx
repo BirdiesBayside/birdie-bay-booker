@@ -105,6 +105,7 @@ export default function CompRegisterTeam() {
             </CardTitle>
             <CardDescription>
               Sign up your 2-man Ambrose team for the weekly competition. Handicaps will be confirmed by the admin.
+              <span className="mt-2 block font-medium text-foreground">You only need to register your team once — once you're in, you're locked in for every week's comp.</span>
             </CardDescription>
           </CardHeader>
           <CardContent>
