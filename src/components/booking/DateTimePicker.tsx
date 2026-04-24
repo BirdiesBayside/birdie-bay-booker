@@ -261,7 +261,7 @@ export function DateTimePicker({
           >
             <div className="flex-1">
               <p className="font-medium text-foreground">Don't forget to register your team</p>
-              <p className="text-xs text-muted-foreground">After booking, head to the Weekly Comp section to enter</p>
+              <p className="text-xs text-muted-foreground">Only register once — your team carries over to every week's comp</p>
             </div>
             <ArrowRight className="h-4 w-4 text-accent-foreground shrink-0" />
           </Link>

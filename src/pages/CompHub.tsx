@@ -8,7 +8,7 @@ const CompHub = () => {
   const tiles = [
     {
       title: "Register Team",
-      description: "Sign up your 2-man Ambrose team for the weekly competition.",
+      description: "Sign up your 2-man Ambrose team — only register once and you're locked in for every weekly comp.",
       icon: Users,
       onClick: () => navigate("/comp/register-team"),
       accent: true,
