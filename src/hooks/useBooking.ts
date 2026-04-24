@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
-import { calculateHourlyRate, isPeakTime, isWeekdayMemberTime } from "@/lib/pricing-utils";
+import { calculateHourlyRate, isPeakTime, isWeekdayMemberTime, formatLocalDateKey } from "@/lib/pricing-utils";
 import { Capacitor } from "@capacitor/core";
 import { QUERY_KEYS, STALE_TIMES } from "@/lib/query-keys";
 export interface Bay {
@@ -78,6 +78,28 @@ const fetchPricing = async (): Promise<Record<string, number>> => {
   return pricing;
 };
 
+export interface PublicHoliday {
+  id: string;
+  holiday_date: string; // YYYY-MM-DD
+  name: string;
+  surcharge_percent: number;
+}
+
+const fetchPublicHolidays = async (): Promise<PublicHoliday[]> => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayStr = formatLocalDateKey(today);
+  const { data, error } = await supabase
+    .from("public_holidays")
+    .select("id, holiday_date, name, surcharge_percent")
+    .gte("holiday_date", todayStr);
+  if (error) throw error;
+  return (data || []).map((h: any) => ({
+    ...h,
+    surcharge_percent: Number(h.surcharge_percent),
+  }));
+};
+
 const fetchUserProfile = async () => {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
@@ -135,6 +157,13 @@ export function useBooking() {
     staleTime: STALE_TIMES.STATIC,
   });
 
+  // Public holidays - cached for 30 minutes
+  const { data: publicHolidays = [] } = useQuery({
+    queryKey: QUERY_KEYS.PUBLIC_HOLIDAYS,
+    queryFn: fetchPublicHolidays,
+    staleTime: STALE_TIMES.STATIC,
+  });
+
   // User data - cached for 5 minutes
   const { data: userProfile } = useQuery({
     queryKey: QUERY_KEYS.USER_PROFILE(),
@@ -154,6 +183,23 @@ export function useBooking() {
   const customHourlyRate = userProfile?.customHourlyRate ?? null;
   const depositBalance = userProfile?.depositBalance || 0;
   const customSegment = userProfile?.customSegment ?? null;
+
+  /**
+   * Get the public holiday surcharge percentage for a given date (0 if none).
+   */
+  const getHolidaySurchargeForDate = useCallback((date: Date | string): number => {
+    const key = typeof date === "string" ? date : formatLocalDateKey(date);
+    const holiday = publicHolidays.find(h => h.holiday_date === key);
+    return holiday ? Number(holiday.surcharge_percent) : 0;
+  }, [publicHolidays]);
+
+  /**
+   * Get the public holiday object for a given date (null if none).
+   */
+  const getHolidayForDate = useCallback((date: Date | string): PublicHoliday | null => {
+    const key = typeof date === "string" ? date : formatLocalDateKey(date);
+    return publicHolidays.find(h => h.holiday_date === key) ?? null;
+  }, [publicHolidays]);
 
   // Memoized fetch function to avoid recreating on every render
   const fetchBookingsForDateInternal = useCallback(async (dateStr: string) => {
@@ -311,8 +357,13 @@ export function useBooking() {
       return tierPricing[tier] || FALLBACK_PRICING[tier] || FALLBACK_PRICING.visitor;
     }
     
+    const holidaySurchargePercent = getHolidaySurchargeForDate(date);
+    
     // Calculate rate based on tier, date, and time
-    return calculateHourlyRate(tier, date, startTime, tierPricing, { segment: customSegment });
+    return calculateHourlyRate(tier, date, startTime, tierPricing, { 
+      segment: customSegment, 
+      holidaySurchargePercent,
+    });
   };
 
   /**
@@ -380,19 +431,24 @@ export function useBooking() {
     startTime: string, 
     durationHours: number = 1, 
     bayId?: string
-  ): { rate: number; isPeak: boolean; isRestricted: boolean; isMultiBayRestricted: boolean } => {
+  ): { rate: number; isPeak: boolean; isRestricted: boolean; isMultiBayRestricted: boolean; isHoliday: boolean; holidayName: string | null; surchargePercent: number } => {
     const isPeak = isPeakTime(date, startTime);
     const isWeekdayRestricted = userMembershipTier === "weekday" && !isWeekdayMemberTime(date, startTime);
+    const holiday = getHolidayForDate(date);
+    const surchargePercent = holiday ? Number(holiday.surcharge_percent) : 0;
     
     // Check multi-bay restriction for Birdie/Eagle members
     const isMultiBayRestricted = bayId 
       ? checkMultiBayRestriction(date, startTime, durationHours, bayId)
       : false;
     
-    // If multi-bay restricted, rate becomes visitor peak rate
+    // If multi-bay restricted, rate becomes visitor peak rate (then surcharge applied on top)
     let rate: number;
     if (isMultiBayRestricted) {
-      rate = FALLBACK_PRICING.visitor; // $35 peak visitor rate
+      const baseRate = FALLBACK_PRICING.visitor; // $35 peak visitor rate
+      rate = surchargePercent > 0 
+        ? Math.round(baseRate * (1 + surchargePercent / 100) * 100) / 100
+        : baseRate;
     } else {
       rate = getHourlyRate(userMembershipTier, date, startTime);
     }
@@ -401,7 +457,10 @@ export function useBooking() {
       rate, 
       isPeak, 
       isRestricted: isWeekdayRestricted, 
-      isMultiBayRestricted 
+      isMultiBayRestricted,
+      isHoliday: !!holiday,
+      holidayName: holiday?.name ?? null,
+      surchargePercent,
     };
   };
 
@@ -547,17 +606,22 @@ export function useBooking() {
         timesOverlap(startTime, endTime, booking.start_time, booking.end_time)
       );
       
+      const holidaySurchargePercent = getHolidaySurchargeForDate(date);
       if (hasOverlappingBooking) {
-        // Multi-bay during peak: charge visitor rate instead of member rate
+        // Multi-bay during peak: charge visitor rate instead of member rate (+ holiday surcharge if any)
         console.log("[useBooking] Multi-bay peak restriction triggered - charging visitor rate");
-        actualHourlyRate = FALLBACK_PRICING.visitor; // $35 peak visitor rate
+        const baseRate = FALLBACK_PRICING.visitor; // $35 peak visitor rate
+        actualHourlyRate = holidaySurchargePercent > 0
+          ? Math.round(baseRate * (1 + holidaySurchargePercent / 100) * 100) / 100
+          : baseRate;
       } else {
-        // No conflict: use member rate
-        actualHourlyRate = calculateHourlyRate(userMembershipTier, date, startTime, tierPricing, { segment: customSegment });
+        // No conflict: use member rate (with holiday surcharge if applicable)
+        actualHourlyRate = calculateHourlyRate(userMembershipTier, date, startTime, tierPricing, { segment: customSegment, holidaySurchargePercent });
       }
     } else {
-      // All other cases: use standard rate calculation
-      actualHourlyRate = calculateHourlyRate(userMembershipTier, date, startTime, tierPricing, { segment: customSegment });
+      // All other cases: use standard rate calculation (with holiday surcharge if applicable)
+      const holidaySurchargePercent = getHolidaySurchargeForDate(date);
+      actualHourlyRate = calculateHourlyRate(userMembershipTier, date, startTime, tierPricing, { segment: customSegment, holidaySurchargePercent });
     }
     
     const totalPrice = actualHourlyRate * durationHours;
@@ -734,6 +798,9 @@ export function useBooking() {
     getRateInfo,
     canWeekdayMemberBook,
     checkMultiBayRestriction,
+    publicHolidays,
+    getHolidaySurchargeForDate,
+    getHolidayForDate,
     fetchBookingsForDate,
     checkBayAvailability,
     createBooking,

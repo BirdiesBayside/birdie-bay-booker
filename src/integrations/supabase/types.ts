@@ -1380,6 +1380,36 @@ export type Database = {
         }
         Relationships: []
       }
+      public_holidays: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          holiday_date: string
+          id: string
+          name: string
+          surcharge_percent: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          holiday_date: string
+          id?: string
+          name: string
+          surcharge_percent?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          holiday_date?: string
+          id?: string
+          name?: string
+          surcharge_percent?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       push_tokens: {
         Row: {
           created_at: string

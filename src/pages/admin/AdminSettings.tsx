@@ -32,6 +32,7 @@ import { SalesReporting } from "@/components/admin/SalesReporting";
 import { LoyaltyPromoSettings } from "@/components/admin/LoyaltyPromoSettings";
 import { ActivityLog } from "@/components/admin/ActivityLog";
 import { TableServiceSettings } from "@/components/admin/TableServiceSettings";
+import { PublicHolidaysSection } from "@/components/admin/PublicHolidaysSection";
 import { format } from "date-fns";
 
 // Template types and their available placeholder tags
@@ -861,6 +862,8 @@ export default function AdminSettings() {
 
           {/* Pricing Settings */}
           <TabsContent value="pricing" className="space-y-4">
+
+            <PublicHolidaysSection />
 
             {/* Dynamic Pricing (Customer Overrides) */}
             <Card>

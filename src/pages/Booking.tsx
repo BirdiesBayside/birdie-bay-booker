@@ -48,6 +48,7 @@ export default function Booking() {
     getHourlyRate,
     getRateInfo,
     checkMultiBayRestriction,
+    getHolidaySurchargeForDate,
     fetchBookingsForDate,
     checkBayAvailability,
     createBooking,
@@ -211,7 +212,10 @@ export default function Booking() {
         
         if (hasOverlap) {
           console.log("[Booking] Multi-bay peak restriction triggered - charging visitor rate $35/hr");
-          currentHourlyRate = 35; // VISITOR_PEAK_RATE
+          const holidaySurcharge = getHolidaySurchargeForDate(selectedDate);
+          currentHourlyRate = holidaySurcharge > 0
+            ? Math.round(35 * (1 + holidaySurcharge / 100) * 100) / 100
+            : 35; // VISITOR_PEAK_RATE
         }
       }
       
@@ -585,7 +589,17 @@ export default function Booking() {
           </div>
         )}
 
-        {/* Date & Time Selection */}
+        {/* Public holiday surcharge notice */}
+        {rateInfo?.isHoliday && (
+          <div className="flex items-start gap-2 p-3 bg-primary/10 border-2 border-primary/30 rounded-lg text-sm text-foreground">
+            <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5 text-primary" />
+            <div>
+              <strong>Public Holiday Surcharge.</strong>{" "}
+              {rateInfo.holidayName ? `${rateInfo.holidayName} — ` : ""}
+              A {rateInfo.surchargePercent}% surcharge applies to all bookings on this day.
+            </div>
+          </div>
+        )}
         <Card>
           <CardHeader>
             <CardTitle className="font-display text-xl">When would you like to play?</CardTitle>
