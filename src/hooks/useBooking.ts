@@ -606,17 +606,22 @@ export function useBooking() {
         timesOverlap(startTime, endTime, booking.start_time, booking.end_time)
       );
       
+      const holidaySurchargePercent = getHolidaySurchargeForDate(date);
       if (hasOverlappingBooking) {
-        // Multi-bay during peak: charge visitor rate instead of member rate
+        // Multi-bay during peak: charge visitor rate instead of member rate (+ holiday surcharge if any)
         console.log("[useBooking] Multi-bay peak restriction triggered - charging visitor rate");
-        actualHourlyRate = FALLBACK_PRICING.visitor; // $35 peak visitor rate
+        const baseRate = FALLBACK_PRICING.visitor; // $35 peak visitor rate
+        actualHourlyRate = holidaySurchargePercent > 0
+          ? Math.round(baseRate * (1 + holidaySurchargePercent / 100) * 100) / 100
+          : baseRate;
       } else {
-        // No conflict: use member rate
-        actualHourlyRate = calculateHourlyRate(userMembershipTier, date, startTime, tierPricing, { segment: customSegment });
+        // No conflict: use member rate (with holiday surcharge if applicable)
+        actualHourlyRate = calculateHourlyRate(userMembershipTier, date, startTime, tierPricing, { segment: customSegment, holidaySurchargePercent });
       }
     } else {
-      // All other cases: use standard rate calculation
-      actualHourlyRate = calculateHourlyRate(userMembershipTier, date, startTime, tierPricing, { segment: customSegment });
+      // All other cases: use standard rate calculation (with holiday surcharge if applicable)
+      const holidaySurchargePercent = getHolidaySurchargeForDate(date);
+      actualHourlyRate = calculateHourlyRate(userMembershipTier, date, startTime, tierPricing, { segment: customSegment, holidaySurchargePercent });
     }
     
     const totalPrice = actualHourlyRate * durationHours;
