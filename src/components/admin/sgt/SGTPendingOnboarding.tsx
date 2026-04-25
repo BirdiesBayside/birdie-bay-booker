@@ -98,36 +98,40 @@ export function SGTPendingOnboarding() {
         .eq("user_id", sgtUserId)
         .maybeSingle();
 
-      // Add member to all active tours with custom HCP
+      // Add member to all active tours with custom HCP in parallel
       // onboarding_hcp is the locked starting handicap used for first 6 rounds
-      for (const tour of activeTours) {
-        const { error: insertError } = await supabase
-          .from("sgt_tour_members")
-          .upsert({
-            user_id: sgtUserId,
-            tour_id: tour.tour_id,
-            user_name: memberInfo?.user_name || null,
-            custom_hcp: customHcp,
-            onboarding_hcp: customHcp,
-            updated_at: new Date().toISOString(),
-          }, {
-            onConflict: "user_id,tour_id",
-          });
+      const upsertResults = await Promise.all(
+        activeTours.map((tour) =>
+          supabase
+            .from("sgt_tour_members")
+            .upsert({
+              user_id: sgtUserId,
+              tour_id: tour.tour_id,
+              user_name: memberInfo?.user_name || null,
+              custom_hcp: customHcp,
+              onboarding_hcp: customHcp,
+              updated_at: new Date().toISOString(),
+            }, {
+              onConflict: "user_id,tour_id",
+            })
+            .then((res) => ({ tour, error: res.error }))
+        )
+      );
 
-        if (insertError) {
-          console.error(`Failed to add to tour ${tour.name}:`, insertError);
-          throw insertError;
-        }
+      const failed = upsertResults.find((r) => r.error);
+      if (failed) {
+        console.error(`Failed to add to tour ${failed.tour.name}:`, failed.error);
+        throw failed.error;
       }
 
-      // Trigger the auto-registration edge function to register for tournaments
-      const { error: autoRegError } = await supabase.functions.invoke("sgt-auto-register", {
-        body: { sgt_user_id: sgtUserId },
-      });
-
-      if (autoRegError) {
-        console.error("Auto-registration failed:", autoRegError);
-      }
+      // Fire-and-forget the auto-registration edge function — it can take a while
+      // because it hits the external SGT API for every open tournament. No need
+      // to block the admin UI on it.
+      supabase.functions
+        .invoke("sgt-auto-register", { body: { sgt_user_id: sgtUserId } })
+        .then(({ error }) => {
+          if (error) console.error("Auto-registration failed:", error);
+        });
 
       return { sgtUserId, tourCount: activeTours.length };
     },
