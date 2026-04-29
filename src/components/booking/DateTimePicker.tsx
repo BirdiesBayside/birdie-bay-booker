@@ -337,7 +337,7 @@ export function DateTimePicker({
               Playing in the Wednesday Ambrose Comp?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Our weekly 2-Man Ambrose comp tees off Wednesdays from 5pm – 7pm.
+              Our weekly 2-Man Ambrose comp tees off Wednesdays from 5pm – 8pm.
               You can tee off at your chosen time — we'll lock your booking to
               a 2-hour session for 2 players.
             </AlertDialogDescription>
