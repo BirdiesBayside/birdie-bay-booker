@@ -32,7 +32,7 @@ import {
 // Customers selecting a slot in this window are prompted to confirm comp entry.
 const COMP_DAY = 3; // Wednesday
 const COMP_START_MIN = 17 * 60; // 5:00pm
-const COMP_END_MIN = 19 * 60;   // 7:00pm
+const COMP_END_MIN = 20 * 60;   // 8:00pm
 const COMP_LOCKED_DURATION = 2;
 const COMP_LOCKED_PLAYERS = 2;
 
