@@ -36,8 +36,8 @@ export function HcpAdjustments() {
       <div>
         <h2 className="text-xl font-display font-bold text-foreground">Handicap Adjustments</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Auto-applied when a competition is marked completed. Winning team: −2 strokes each. Last team: +2 strokes each.
-          Changes sync across every saved team containing that player (case-insensitive name match).
+          Auto-applied when a competition is marked completed. Winning team: −2 strokes each (or −4 if they won the previous comp too).
+          Last team: +2 strokes each. Changes sync across every saved team containing that player (case-insensitive name match).
         </p>
       </div>
 
