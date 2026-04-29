@@ -104,15 +104,54 @@ export function CompetitionList() {
 
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      // When marking completed, compute & persist positions first so the
+      // Winner's Tax trigger has positions to act on.
+      if (status === "completed") {
+        const { data: teams, error: teamsErr } = await supabase
+          .from("local_comp_teams")
+          .select("id, gross_score, net_score")
+          .eq("competition_id", id);
+        if (teamsErr) throw teamsErr;
+
+        const scored = (teams ?? []).filter(
+          (t) => t.net_score !== null && t.net_score !== undefined
+        );
+        if (scored.length === 0) {
+          throw new Error("Cannot mark completed: no team scores entered yet.");
+        }
+
+        const sorted = [...scored].sort((a: any, b: any) => {
+          if (a.net_score === b.net_score) {
+            return (a.gross_score ?? 999) - (b.gross_score ?? 999);
+          }
+          return a.net_score - b.net_score;
+        });
+
+        for (let i = 0; i < sorted.length; i++) {
+          const { error: posErr } = await supabase
+            .from("local_comp_teams")
+            .update({ position: i + 1 })
+            .eq("id", (sorted[i] as any).id);
+          if (posErr) throw posErr;
+        }
+      }
+
       const { error } = await supabase
         .from("local_competitions")
         .update({ status })
         .eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_d, vars) => {
       queryClient.invalidateQueries({ queryKey: ["local-competitions"] });
-      toast({ title: "Status updated", duration: 3000 });
+      queryClient.invalidateQueries({ queryKey: ["local-hcp-adjustments"] });
+      toast({
+        title: vars.status === "completed" ? "Completed & handicaps adjusted" : "Status updated",
+        duration: 3000,
+      });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
     },
   });
 
