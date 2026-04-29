@@ -32,7 +32,7 @@ import {
 // Customers selecting a slot in this window are prompted to confirm comp entry.
 const COMP_DAY = 3; // Wednesday
 const COMP_START_MIN = 17 * 60; // 5:00pm
-const COMP_END_MIN = 19 * 60;   // 7:00pm
+const COMP_END_MIN = 20 * 60;   // 8:00pm
 const COMP_LOCKED_DURATION = 2;
 const COMP_LOCKED_PLAYERS = 2;
 
@@ -244,7 +244,7 @@ export function DateTimePicker({
             <Trophy className="h-4 w-4 text-primary" />
             <div className="flex-1">
               <p className="font-medium text-foreground">Wednesday Ambrose Comp</p>
-              <p className="text-xs text-muted-foreground">Tee off 5pm – 7pm • 2 hours • 2 players</p>
+              <p className="text-xs text-muted-foreground">Tee off 5pm – 8pm • 2 hours • 2 players</p>
             </div>
             <Button
               variant="ghost"
@@ -337,7 +337,7 @@ export function DateTimePicker({
               Playing in the Wednesday Ambrose Comp?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Our weekly 2-Man Ambrose comp tees off Wednesdays from 5pm – 7pm.
+              Our weekly 2-Man Ambrose comp tees off Wednesdays from 5pm – 8pm.
               You can tee off at your chosen time — we'll lock your booking to
               a 2-hour session for 2 players.
             </AlertDialogDescription>
