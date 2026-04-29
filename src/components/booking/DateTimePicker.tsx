@@ -244,7 +244,7 @@ export function DateTimePicker({
             <Trophy className="h-4 w-4 text-primary" />
             <div className="flex-1">
               <p className="font-medium text-foreground">Wednesday Ambrose Comp</p>
-              <p className="text-xs text-muted-foreground">Tee off 5pm – 7pm • 2 hours • 2 players</p>
+              <p className="text-xs text-muted-foreground">Tee off 5pm – 8pm • 2 hours • 2 players</p>
             </div>
             <Button
               variant="ghost"
