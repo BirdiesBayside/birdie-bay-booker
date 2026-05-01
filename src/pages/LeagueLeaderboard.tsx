@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
+import { getCurrentBlockLabel } from "@/lib/league-block";
 
 interface MonthlyStanding {
   id: string;
@@ -63,8 +64,7 @@ export default function LeagueLeaderboard() {
     
     async function fetchMonthlyStandings() {
       setMonthlyLoading(true);
-      const now = new Date();
-      const monthStr = now.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+      const monthStr = getCurrentBlockLabel();
       
       const { data, error } = await supabase
         .from("sgt_monthly_standings")
@@ -144,7 +144,7 @@ export default function LeagueLeaderboard() {
     ? tournaments.filter(t => t.tour_id === activeTour.tour_id)
     : tournaments;
 
-  const currentMonth = new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  const currentMonth = getCurrentBlockLabel();
 
   return (
     <LeagueLayout>

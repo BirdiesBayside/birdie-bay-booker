@@ -3,7 +3,7 @@ import { Trophy, Medal, Award, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import birdiesLogo from "@/assets/birdies-b-orange.png";
-import { format } from "date-fns";
+import { getCurrentBlockLabel } from "@/lib/league-block";
 
 interface MonthlyStanding {
   player_id: number;
@@ -26,9 +26,8 @@ export default function EmbedTVStandings() {
 
   const loadData = async () => {
     try {
-      // Get the current month in format "Month YYYY"
-      const now = new Date();
-      const monthStr = format(now, "MMMM yyyy");
+      // Use the current 4-week block label (e.g. "May 2026").
+      const monthStr = getCurrentBlockLabel();
       setCurrentMonth(monthStr);
 
       // Get active tour

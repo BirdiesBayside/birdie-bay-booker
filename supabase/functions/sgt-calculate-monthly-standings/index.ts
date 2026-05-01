@@ -1,4 +1,4 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -19,6 +19,65 @@ function getPoints(position: number): number {
 
 // Minimum completed rounds to qualify for the monthly leaderboard
 const MIN_ROUNDS = 2;
+
+// =========================================================
+// 4-week block model (mirrors src/lib/league-block.ts).
+// Anchor: Sunday 2026-03-01 = start of Block 0.
+// Each block = 4 consecutive weekly Sunday tournaments.
+// Label = month containing the block's MIDPOINT Sunday
+//   (block start + 1 week). When the resulting label
+//   collides with the previous block's label (happens once
+//   per year, on May), suffix with " (Late)".
+// =========================================================
+const ANCHOR_MS = Date.UTC(2026, 2, 1); // 2026-03-01 (Sunday)
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const MS_PER_WEEK = 7 * MS_PER_DAY;
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+function parseDateOnlyUTC(input: string): Date {
+  const [y, m, d] = input.slice(0, 10).split("-").map(Number);
+  return new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1));
+}
+
+function snapToSunday(d: Date): Date {
+  return new Date(d.getTime() - d.getUTCDay() * MS_PER_DAY);
+}
+
+function getBlockIndex(startDate: string): number | null {
+  const sunday = snapToSunday(parseDateOnlyUTC(startDate));
+  const diff = sunday.getTime() - ANCHOR_MS;
+  if (diff < 0) return null;
+  return Math.floor(Math.floor(diff / MS_PER_WEEK) / 4);
+}
+
+function rawBlockLabel(blockIndex: number): string {
+  const mid = new Date(ANCHOR_MS + blockIndex * 4 * MS_PER_WEEK + MS_PER_WEEK);
+  return `${MONTH_NAMES[mid.getUTCMonth()]} ${mid.getUTCFullYear()}`;
+}
+
+function getBlockLabel(blockIndex: number): string {
+  const cur = rawBlockLabel(blockIndex);
+  if (blockIndex > 0 && rawBlockLabel(blockIndex - 1) === cur) {
+    return `${cur} (Late)`;
+  }
+  return cur;
+}
+
+// Legacy calendar-month label, used for back-compat with tournaments that
+// pre-date the block model (i.e. before 2026-03-01).
+function legacyMonthLabel(startDate: string): string {
+  const d = parseDateOnlyUTC(startDate);
+  return `${MONTH_NAMES[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+}
+
+function labelForTournament(startDate: string): string {
+  const idx = getBlockIndex(startDate);
+  if (idx === null) return legacyMonthLabel(startDate);
+  return getBlockLabel(idx);
+}
 
 interface TournamentData {
   tournament_id: number;
@@ -96,12 +155,14 @@ Deno.serve(async (req) => {
 
   try {
     let targetMonth: string | null = null;
+    let force = false;
     try {
       const body = await req.json();
       targetMonth = body?.month || null;
+      force = body?.force === true;
     } catch { /* no body */ }
 
-    console.log(`[MONTHLY-STANDINGS] Starting calculation${targetMonth ? ` for ${targetMonth}` : ""}...`);
+    console.log(`[MONTHLY-STANDINGS] Starting calculation${targetMonth ? ` for ${targetMonth}` : ""}${force ? " (FORCE)" : ""}...`);
 
     // Get active tour
     const { data: activeTour, error: tourError } = await supabase
@@ -126,17 +187,27 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Group tournaments by month
+    // Lookup which months already have an awarded prize — these are
+    // historical and must NEVER be recomputed (would corrupt records).
+    const { data: awardedRows } = await supabase
+      .from("sgt_monthly_awards")
+      .select("month")
+      .eq("tour_id", activeTour.tour_id);
+    const awardedMonths = new Set((awardedRows ?? []).map(r => r.month));
+
+    // Group tournaments by 4-week block label
     const tournamentsByMonth = new Map<string, TournamentData[]>();
     for (const t of tournaments as TournamentData[]) {
       if (!t.start_date) continue;
-      const monthYear = new Date(t.start_date).toLocaleDateString("en-US", { month: "long", year: "numeric" });
-      if (targetMonth && monthYear !== targetMonth) continue;
-      if (!tournamentsByMonth.has(monthYear)) tournamentsByMonth.set(monthYear, []);
-      tournamentsByMonth.get(monthYear)!.push(t);
+      const label = labelForTournament(t.start_date);
+      if (targetMonth && label !== targetMonth) continue;
+      // Skip already-awarded blocks unless explicitly forced or specifically targeted.
+      if (!force && !targetMonth && awardedMonths.has(label)) continue;
+      if (!tournamentsByMonth.has(label)) tournamentsByMonth.set(label, []);
+      tournamentsByMonth.get(label)!.push(t);
     }
 
-    console.log(`[MONTHLY-STANDINGS] ${tournamentsByMonth.size} months to process`);
+    console.log(`[MONTHLY-STANDINGS] ${tournamentsByMonth.size} blocks to process (skipped ${awardedMonths.size} awarded)`);
     let totalRecords = 0;
 
     for (const [month, monthTournaments] of tournamentsByMonth) {
@@ -152,10 +223,6 @@ Deno.serve(async (req) => {
       if (scErr) { console.error(`[MONTHLY-STANDINGS] Scorecard error for ${month}:`, scErr); continue; }
       if (!scorecards || scorecards.length === 0) { console.log(`[MONTHLY-STANDINGS] No scorecards for ${month}`); continue; }
 
-      // ---- Step 1: For each tournament, rank players by net and gross to_par ----
-      // We need to compute finish positions per tournament ourselves from scorecards,
-      // using the same logic as the weekly leaderboard (sum of round to_par values, only 18-hole complete rounds).
-
       // Group scorecards: tournament -> player -> rounds
       const tournamentPlayerRounds = new Map<number, Map<number, ScorecardRow[]>>();
       for (const sc of scorecards as ScorecardRow[]) {
@@ -165,7 +232,6 @@ Deno.serve(async (req) => {
         playerMap.get(sc.player_id)!.push(sc);
       }
 
-      // For each tournament, compute net/gross rankings
       interface TournamentResult {
         playerId: number;
         playerName: string;
@@ -174,7 +240,6 @@ Deno.serve(async (req) => {
         completedRounds: number;
       }
 
-      // Points accumulated per player across the month
       const playerMonthlyData = new Map<number, {
         playerName: string;
         netPoints: number;
@@ -197,21 +262,15 @@ Deno.serve(async (req) => {
           let completedRounds = 0;
 
           for (const rd of rounds) {
-            // Check if this round is a full 18 holes
             const netHoles = countCompletedHoles(rd.hole_data as Record<string, unknown> | null, "net");
             const isComplete = netHoles === 18;
             if (!isComplete) continue;
 
             completedRounds++;
-            if (rd.to_par_net !== null) {
-              totalNet = (totalNet ?? 0) + rd.to_par_net;
-            }
-            if (rd.to_par_gross !== null) {
-              totalGross = (totalGross ?? 0) + rd.to_par_gross;
-            }
+            if (rd.to_par_net !== null) totalNet = (totalNet ?? 0) + rd.to_par_net;
+            if (rd.to_par_gross !== null) totalGross = (totalGross ?? 0) + rd.to_par_gross;
           }
 
-          // Must have at least 1 completed round to count
           if (completedRounds === 0) continue;
 
           results.push({
@@ -225,15 +284,11 @@ Deno.serve(async (req) => {
 
         if (results.length === 0) continue;
 
-        // Rank by net
         const netRanked = [...results].filter(r => r.totalNet !== null)
           .sort((a, b) => a.totalNet! - b.totalNet!);
-
-        // Rank by gross
         const grossRanked = [...results].filter(r => r.totalGross !== null)
           .sort((a, b) => a.totalGross! - b.totalGross!);
 
-        // Award points
         for (const r of results) {
           if (!playerMonthlyData.has(r.playerId)) {
             playerMonthlyData.set(r.playerId, {
@@ -250,30 +305,24 @@ Deno.serve(async (req) => {
           pd.tournamentsPlayed++;
           pd.totalCompletedRounds += r.completedRounds;
 
-          // Net position & points
           const netPos = netRanked.findIndex(x => x.playerId === r.playerId) + 1;
           if (netPos > 0) pd.netPoints += getPoints(netPos);
 
-          // Gross position & points
           const grossPos = grossRanked.findIndex(x => x.playerId === r.playerId) + 1;
           if (grossPos > 0) pd.grossPoints += getPoints(grossPos);
 
-          // Track best to-par scores
           if (r.totalNet !== null) pd.bestNet = Math.min(pd.bestNet, r.totalNet);
           if (r.totalGross !== null) pd.bestGross = Math.min(pd.bestGross, r.totalGross);
         }
       }
 
-      // Filter by minimum rounds requirement
       const qualified = Array.from(playerMonthlyData.entries())
         .filter(([, d]) => d.totalCompletedRounds >= MIN_ROUNDS);
 
-      // Sort by net points descending for net_position
       const netSorted = [...qualified].sort((a, b) => b[1].netPoints - a[1].netPoints);
       const grossSorted = [...qualified].sort((a, b) => b[1].grossPoints - a[1].grossPoints);
 
-      // Upsert standings
-      // First, delete old standings for this month/tour so removed players don't linger
+      // Replace standings for this block label
       await supabase
         .from("sgt_monthly_standings")
         .delete()
@@ -291,7 +340,7 @@ Deno.serve(async (req) => {
             month,
             player_id: playerId,
             player_name: data.playerName,
-            total_net_score: data.netPoints,   // repurposed: now stores net points total for legacy column
+            total_net_score: data.netPoints,
             total_gross_score: data.grossPoints,
             monthly_net_points: data.netPoints,
             monthly_gross_points: data.grossPoints,

@@ -10,7 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { Trophy, Award, Calendar, DollarSign, Mail, CheckCircle2, Clock, User, ChevronDown, ChevronUp, Send } from "lucide-react";
-import { format, subMonths } from "date-fns";
+import { format } from "date-fns";
+import { getRecentBlockLabels } from "@/lib/league-block";
 import {
   Select,
   SelectContent,
@@ -433,17 +434,10 @@ export function SGTWinners() {
     return score > 0 ? `+${score}` : `${score}`;
   };
 
-  // Generate month options starting from February 2026 (when monthly prizes started)
-  const monthOptions = Array.from({ length: 6 }, (_, i) => {
-    const date = subMonths(new Date(), i);
-    return format(date, "MMMM yyyy");
-  }).filter(month => {
-    // Only include February 2026 and onwards
-    const [monthName, year] = month.split(" ");
-    if (parseInt(year) > 2026) return true;
-    if (parseInt(year) === 2026 && monthName !== "January") return true;
-    return false;
-  });
+  // Block-label options for the manual approval dropdown when no
+  // pending months exist. Uses the 4-week block model (anchored to
+  // 2026-03-01). Shows the last 6 blocks, newest first.
+  const monthOptions = getRecentBlockLabels(6);
 
   return (
     <div className="space-y-6">

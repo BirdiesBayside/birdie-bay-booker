@@ -62,10 +62,25 @@ const MONTH_NAMES = [
   "July", "August", "September", "October", "November", "December",
 ];
 
-/** "May 2026" — month containing the block's midpoint Sunday. */
-export function getBlockLabel(blockIndex: number): string {
+function rawBlockLabel(blockIndex: number): string {
   const mid = getBlockMidpoint(blockIndex);
   return `${MONTH_NAMES[mid.getUTCMonth()]} ${mid.getUTCFullYear()}`;
+}
+
+/**
+ * "May 2026" — month containing the block's midpoint Sunday.
+ *
+ * Because there are 13 blocks per year and only 12 months, exactly one
+ * label per year would otherwise duplicate the previous block's label.
+ * When that happens we suffix it with " (Late)" so each block is unique.
+ * (With our anchor this lands on May every year.)
+ */
+export function getBlockLabel(blockIndex: number): string {
+  const cur = rawBlockLabel(blockIndex);
+  if (blockIndex > 0 && rawBlockLabel(blockIndex - 1) === cur) {
+    return `${cur} (Late)`;
+  }
+  return cur;
 }
 
 /** Convenience: block label for a given tournament start date. */
