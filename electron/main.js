@@ -1632,8 +1632,14 @@ async function closeApps(appNames) {
 
   // Processes we MUST keep alive: this Electron app, Windows shell, system services, and our own deps.
   // Matched case-insensitively against ProcessName (no .exe).
+  // CRITICAL: derive our own process name from the running binary so a productName change
+  // (e.g. "Birdies Bay Controller.exe") can never accidentally suicide the controller.
+  const ownProcessName = path.basename(process.execPath, '.exe'); // e.g. "Birdies Bay Controller"
   const PROTECTED = [
-    'BayController', 'electron',                 // this app
+    ownProcessName,                              // THIS RUNNING BINARY (whatever it's named)
+    'Birdies Bay Controller', 'BirdiesBayController',
+    'BayController', 'Bay Controller',
+    'electron', 'Electron',                      // dev mode
     'explorer', 'dwm', 'sihost', 'fontdrvhost',  // Windows shell
     'ctfmon', 'ShellExperienceHost', 'StartMenuExperienceHost',
     'SearchHost', 'SearchApp', 'RuntimeBroker', 'ApplicationFrameHost',
@@ -1645,7 +1651,8 @@ async function closeApps(appNames) {
     'nvcontainer', 'NVDisplay.Container',        // GPU drivers (closing breaks display)
   ];
   const protectedSet = new Set(PROTECTED.map(n => n.toLowerCase()));
-  const protectedList = PROTECTED.map(n => `'${n}'`).join(',');
+  // PowerShell -contains is case-sensitive; lowercase both sides for safe matching.
+  const protectedList = [...protectedSet].map(n => `'${n.replace(/'/g, "''")}'`).join(',');
 
   // PowerShell: kill every process that has a visible main window AND isn't whitelisted.
   // This catches Protee (any version/name), GSPro, browsers, anything the customer left open.
@@ -1653,7 +1660,7 @@ async function closeApps(appNames) {
     $protected = @(${protectedList});
     Get-Process |
       Where-Object { $_.MainWindowHandle -ne 0 -and $_.MainWindowTitle -ne '' } |
-      Where-Object { $protected -notcontains $_.ProcessName } |
+      Where-Object { $protected -notcontains $_.ProcessName.ToLower() } |
       ForEach-Object {
         try {
           Write-Output ("KILL " + $_.ProcessName + " [" + $_.Id + "] " + $_.MainWindowTitle);
@@ -1701,7 +1708,7 @@ async function closeApps(appNames) {
       $protected = @(${protectedList});
       Get-Process |
         Where-Object { $_.MainWindowHandle -ne 0 -and $_.MainWindowTitle -ne '' } |
-        Where-Object { $protected -notcontains $_.ProcessName } |
+        Where-Object { $protected -notcontains $_.ProcessName.ToLower() } |
         ForEach-Object { Write-Output ($_.ProcessName + "|" + $_.Id) }
     `.replace(/\s+/g, ' ').trim();
     const { stdout } = await execAsync(`powershell -NoProfile -Command "${verifyScript.replace(/"/g, '\\"')}"`, { timeout: 5000 });
