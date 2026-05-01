@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { Trophy, Award, Calendar, DollarSign, Mail, CheckCircle2, Clock, User, ChevronDown, ChevronUp, Send } from "lucide-react";
-import { format, subMonths } from "date-fns";
+import { format } from "date-fns";
 import { getRecentBlockLabels } from "@/lib/league-block";
 import {
   Select,
