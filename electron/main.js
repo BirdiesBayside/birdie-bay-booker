@@ -1708,7 +1708,7 @@ async function closeApps(appNames) {
       $protected = @(${protectedList});
       Get-Process |
         Where-Object { $_.MainWindowHandle -ne 0 -and $_.MainWindowTitle -ne '' } |
-        Where-Object { $protected -notcontains $_.ProcessName } |
+        Where-Object { $protected -notcontains $_.ProcessName.ToLower() } |
         ForEach-Object { Write-Output ($_.ProcessName + "|" + $_.Id) }
     `.replace(/\s+/g, ' ').trim();
     const { stdout } = await execAsync(`powershell -NoProfile -Command "${verifyScript.replace(/"/g, '\\"')}"`, { timeout: 5000 });
