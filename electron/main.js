@@ -1623,68 +1623,104 @@ async function checkProcesses() {
   }
 }
 
-// Close GSPRO, Protee Labs, and ProTee United VX -- with post-kill verification
+// Close ALL user-facing apps (anything with a visible window) before powering off bay.
+// Whitelists Bay Controller itself + core Windows shell/system processes so the PC stays usable.
 async function closeApps(appNames) {
   const results = [];
-  
-  console.log('=== CLOSING APPS ===');
-  
-  // Known process names for our apps - include many variations
-  const processesToKill = [
-    'GSPro.exe',
-    'GSPRO.exe', 
-    'GSProLauncher.exe',
-    'gspro.exe',
-    'Protee Labs.exe',
-    'ProteeLabs.exe',
-    'protee labs.exe',
-    'proteelabs.exe',
-    // ProTee United VX - try many name variations
-    'ProTee United VX.exe',
-    'ProTeeUnitedVX.exe',
-    'United VX.exe',
-    'UnitedVX.exe',
-    'unitedvx.exe',
-    'ProTee_United_VX.exe',
-    'ProTeeUnited.exe',
-    'proteeunited.exe',
-    'protee united vx.exe'
+
+  console.log('=== CLOSING ALL USER APPS ===');
+
+  // Processes we MUST keep alive: this Electron app, Windows shell, system services, and our own deps.
+  // Matched case-insensitively against ProcessName (no .exe).
+  const PROTECTED = [
+    'BayController', 'electron',                 // this app
+    'explorer', 'dwm', 'sihost', 'fontdrvhost',  // Windows shell
+    'ctfmon', 'ShellExperienceHost', 'StartMenuExperienceHost',
+    'SearchHost', 'SearchApp', 'RuntimeBroker', 'ApplicationFrameHost',
+    'TextInputHost', 'LockApp', 'UserOOBEBroker',
+    'svchost', 'csrss', 'wininit', 'winlogon', 'lsass', 'services',
+    'smss', 'spoolsv', 'taskhostw', 'conhost', 'audiodg', 'WmiPrvSE',
+    'SecurityHealthService', 'SecurityHealthSystray', 'MsMpEng', 'NisSrv',
+    'cmd', 'powershell', 'pwsh',                 // in case we're invoked via shell
+    'nvcontainer', 'NVDisplay.Container',        // GPU drivers (closing breaks display)
   ];
-  
-  for (const processName of processesToKill) {
+  const protectedSet = new Set(PROTECTED.map(n => n.toLowerCase()));
+  const protectedList = PROTECTED.map(n => `'${n}'`).join(',');
+
+  // PowerShell: kill every process that has a visible main window AND isn't whitelisted.
+  // This catches Protee (any version/name), GSPro, browsers, anything the customer left open.
+  const psScript = `
+    $protected = @(${protectedList});
+    Get-Process |
+      Where-Object { $_.MainWindowHandle -ne 0 -and $_.MainWindowTitle -ne '' } |
+      Where-Object { $protected -notcontains $_.ProcessName } |
+      ForEach-Object {
+        try {
+          Write-Output ("KILL " + $_.ProcessName + " [" + $_.Id + "] " + $_.MainWindowTitle);
+          Stop-Process -Id $_.Id -Force -ErrorAction Stop;
+        } catch {
+          Write-Output ("FAIL " + $_.ProcessName + ": " + $_.Exception.Message);
+        }
+      }
+  `.replace(/\s+/g, ' ').trim();
+
+  try {
+    const { stdout } = await execAsync(`powershell -NoProfile -Command "${psScript.replace(/"/g, '\\"')}"`, { timeout: 10000 });
+    const lines = stdout.split('\n').map(l => l.trim()).filter(Boolean);
+    for (const line of lines) {
+      console.log(`  ${line}`);
+      if (line.startsWith('KILL ')) results.push({ app: line.slice(5), status: 'closed' });
+      else if (line.startsWith('FAIL ')) results.push({ app: line.slice(5), status: 'failed' });
+    }
+    console.log(`Killed ${results.filter(r => r.status === 'closed').length} windowed app(s)`);
+  } catch (error) {
+    console.error('Bulk window-process kill failed:', error.message);
+  }
+
+  // Belt-and-braces: also explicitly kill known simulator processes by name in case
+  // they run windowless background helpers (launchers, update services, etc).
+  const namedKills = [
+    'GSPro.exe', 'GSProLauncher.exe',
+    'Protee Labs.exe', 'ProteeLabs.exe',
+    'ProTee United VX.exe', 'ProTeeUnitedVX.exe',
+  ];
+  for (const processName of namedKills) {
     try {
       await execAsync(`taskkill /IM "${processName}" /F`, { timeout: 5000 });
-      console.log(`Closed: ${processName}`);
-      results.push({ app: processName, status: 'closed' });
-    } catch (error) {
-      // Process not running - that's fine
-      console.log(`${processName}: not running or already closed`);
+      console.log(`Closed (by name): ${processName}`);
+    } catch {
+      // not running - fine
     }
   }
-  
-  // Also try to close any window with "United" in the title using PowerShell
+
+  // POST-KILL VERIFICATION: confirm no user-facing windows remain (besides Bay Controller).
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  let stillRunning = [];
   try {
-    await execAsync(`powershell -command "Get-Process | Where-Object {$_.MainWindowTitle -like '*United*'} | Stop-Process -Force"`, { timeout: 5000 });
-    console.log('Closed windows with United in title');
-    results.push({ app: 'United*', status: 'closed' });
-  } catch (error) {
-    console.log('No United windows found or already closed');
+    const verifyScript = `
+      $protected = @(${protectedList});
+      Get-Process |
+        Where-Object { $_.MainWindowHandle -ne 0 -and $_.MainWindowTitle -ne '' } |
+        Where-Object { $protected -notcontains $_.ProcessName } |
+        ForEach-Object { Write-Output ($_.ProcessName + "|" + $_.Id) }
+    `.replace(/\s+/g, ' ').trim();
+    const { stdout } = await execAsync(`powershell -NoProfile -Command "${verifyScript.replace(/"/g, '\\"')}"`, { timeout: 5000 });
+    stillRunning = stdout.split('\n').map(l => l.trim()).filter(Boolean).map(l => {
+      const [name, pid] = l.split('|');
+      return { name, pid: parseInt(pid) };
+    });
+  } catch {
+    // verification failed - assume clean
   }
-  
-  // POST-KILL VERIFICATION: Check if main processes are actually dead
-  console.log('=== POST-KILL VERIFICATION ===');
-  await new Promise(resolve => setTimeout(resolve, 1000)); // Brief pause for OS to clean up
-  const verification = await checkProcesses();
-  const stillRunning = verification.processes || [];
-  
+
   if (stillRunning.length > 0) {
-    console.warn(`STILL RUNNING after kill: ${stillRunning.map(p => `${p.name} (PID ${p.pid})`).join(', ')}`);
+    console.warn(`STILL RUNNING after bulk kill: ${stillRunning.map(p => `${p.name} (PID ${p.pid})`).join(', ')}`);
   } else {
-    console.log('All simulator processes confirmed dead');
+    console.log('All user-facing apps confirmed closed');
   }
-  
+
   const allDead = stillRunning.length === 0;
-  console.log(`=== CLOSE APPS COMPLETE (verified: ${allDead ? 'ALL DEAD' : 'SOME STILL ALIVE'}) ===`);
+  console.log(`=== CLOSE APPS COMPLETE (${allDead ? 'CLEAN' : 'SOME STILL ALIVE'}) ===`);
   return { success: allDead, results, stillRunning };
 }
 
