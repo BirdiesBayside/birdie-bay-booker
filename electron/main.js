@@ -1660,7 +1660,7 @@ async function closeApps(appNames) {
     $protected = @(${protectedList});
     Get-Process |
       Where-Object { $_.MainWindowHandle -ne 0 -and $_.MainWindowTitle -ne '' } |
-      Where-Object { $protected -notcontains $_.ProcessName } |
+      Where-Object { $protected -notcontains $_.ProcessName.ToLower() } |
       ForEach-Object {
         try {
           Write-Output ("KILL " + $_.ProcessName + " [" + $_.Id + "] " + $_.MainWindowTitle);
