@@ -123,3 +123,6 @@ verify_jwt = false
 
 [functions.openclaw-mcp]
 verify_jwt = false
+
+[functions.send-payment-retry-warning]
+verify_jwt = false

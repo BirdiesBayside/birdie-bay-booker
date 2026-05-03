@@ -600,29 +600,28 @@ serve(async (req) => {
     }
 
     // ─── INVOICE PAYMENT FAILED ───
-    // IMMEDIATE CANCELLATION: Cancel the subscription right away.
-    // The customer.subscription.deleted event will handle downgrade + email.
+    // Soft-retry policy:
+    //   attempt_count === 1 → send friendly heads-up, let Stripe Smart Retries handle it
+    //   attempt_count >= 2  → cancel sub + void invoice (existing destructive flow)
     if (event.type === "invoice.payment_failed") {
       const invoice = event.data.object as Stripe.Invoice;
       const customerId = invoice.customer as string;
-      
-      // Support both old and new Stripe API structure for subscription ID
+      const attemptCount = (invoice as any).attempt_count ?? 1;
+
       let subscriptionId = invoice.subscription as string | null;
       if (!subscriptionId && (invoice as any).parent?.subscription_details?.subscription) {
         subscriptionId = (invoice as any).parent.subscription_details.subscription;
       }
 
-      logStep("Payment failed", { invoiceId: invoice.id, subscriptionId });
+      logStep("Payment failed", { invoiceId: invoice.id, subscriptionId, attemptCount });
 
-      // Only process subscription invoices
       if (subscriptionId) {
-        // Skip if subscription is paused (membership on hold)
         try {
           const subscription = await stripe.subscriptions.retrieve(subscriptionId);
           if (subscription.pause_collection) {
-            logStep("Subscription is paused (membership on hold), skipping", { 
-              subscriptionId, 
-              pauseBehavior: subscription.pause_collection.behavior 
+            logStep("Subscription is paused (membership on hold), skipping", {
+              subscriptionId,
+              pauseBehavior: subscription.pause_collection.behavior,
             });
             return new Response(JSON.stringify({ received: true }), {
               headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -641,11 +640,11 @@ serve(async (req) => {
         }
 
         const email = customer.email;
+        let firstName = "";
         if (email) {
-          // Check custom billing
           const { data: profile } = await supabaseAdmin
             .from("profiles")
-            .select("custom_billing")
+            .select("custom_billing, first_name")
             .eq("email", email)
             .maybeSingle();
 
@@ -655,21 +654,38 @@ serve(async (req) => {
               headers: { ...corsHeaders, "Content-Type": "application/json" },
             });
           }
+          firstName = profile?.first_name ?? "";
         }
 
-        // Tag the subscription so the deleted handler knows this was a payment failure
-        // THEN cancel — this triggers customer.subscription.deleted
+        // First failure: heads-up email only, let Stripe retry
+        if (attemptCount < 2) {
+          if (email) {
+            try {
+              const amountDollars = (invoice.amount_due ?? 0) / 100;
+              await supabaseAdmin.functions.invoke("send-payment-retry-warning", {
+                body: { email, first_name: firstName, amount: amountDollars },
+              });
+              logStep("First-failure heads-up email sent", { email, amount: amountDollars });
+            } catch (emailErr) {
+              logStep("Failed to send heads-up email (non-blocking)", { error: emailErr });
+            }
+          }
+          return new Response(JSON.stringify({ received: true, action: "soft_retry" }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        // Second+ failure: cancel + void
         try {
           await stripe.subscriptions.update(subscriptionId, {
             metadata: { cancellation_reason: "payment_failed" },
           });
           await stripe.subscriptions.cancel(subscriptionId);
-          logStep("Subscription immediately cancelled due to payment failure", { subscriptionId });
+          logStep("Subscription cancelled after retry failure", { subscriptionId, attemptCount });
         } catch (cancelError) {
           logStep("Failed to cancel subscription", { error: cancelError });
         }
 
-        // Void the failed invoice to clean up
         try {
           await stripe.invoices.voidInvoice(invoice.id);
           logStep("Failed invoice voided", { invoiceId: invoice.id });
