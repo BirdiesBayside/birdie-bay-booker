@@ -264,6 +264,12 @@ export function SavedTeams() {
               <p className="text-xs text-muted-foreground mb-3">
                 Each player has one handicap used across every team they're in. Edit here to update everywhere.
               </p>
+              <Input
+                placeholder="Search player by name..."
+                value={playerSearch}
+                onChange={(e) => setPlayerSearch(e.target.value)}
+                className="mb-3 max-w-sm"
+              />
               {playersLoading ? (
                 <div className="flex justify-center py-8">
                   <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
