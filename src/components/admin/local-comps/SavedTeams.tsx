@@ -30,6 +30,7 @@ const norm = (s: string) => (s || "").trim().toLowerCase();
 export function SavedTeams() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
+  const [playersOpen, setPlayersOpen] = useState(false);
 
   // ---------------- Players ----------------
   const [playerDialogOpen, setPlayerDialogOpen] = useState(false);
