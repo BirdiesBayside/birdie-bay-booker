@@ -233,6 +233,50 @@ export function ScoreEntry() {
     },
   });
 
+  // Refresh handicaps for already-registered teams in this comp from saved teams' current local HCP
+  const refreshHcpsMutation = useMutation({
+    mutationFn: async () => {
+      if (!teams || !savedTeams) return { updated: 0, skipped: 0 };
+      let updated = 0;
+      let skipped = 0;
+      const norm = (s: string) => s.trim().toLowerCase();
+      for (const team of teams) {
+        const saved = savedTeams.find((s) =>
+          (norm(s.player1_name) === norm(team.player1_name) && norm(s.player2_name) === norm(team.player2_name)) ||
+          (norm(s.player1_name) === norm(team.player2_name) && norm(s.player2_name) === norm(team.player1_name))
+        );
+        if (!saved) { skipped++; continue; }
+        const p1Local = norm(saved.player1_name) === norm(team.player1_name) ? saved.player1_local_hcp : saved.player2_local_hcp;
+        const p2Local = norm(saved.player1_name) === norm(team.player1_name) ? saved.player2_local_hcp : saved.player1_local_hcp;
+        const combined = (p1Local + p2Local) / 4;
+        const netScore = team.gross_score !== null ? team.gross_score - Math.floor(combined) : null;
+        const { error } = await supabase
+          .from("local_comp_teams")
+          .update({
+            player1_handicap: p1Local,
+            player2_handicap: p2Local,
+            combined_handicap: combined,
+            net_score: netScore,
+          })
+          .eq("id", team.id);
+        if (error) throw error;
+        updated++;
+      }
+      return { updated, skipped };
+    },
+    onSuccess: ({ updated, skipped }) => {
+      queryClient.invalidateQueries({ queryKey: ["local-comp-teams", selectedCompId] });
+      toast({
+        title: "Handicaps refreshed",
+        description: `${updated} team(s) updated from Saved Teams${skipped ? `, ${skipped} not found` : ""}.`,
+        duration: 4000,
+      });
+    },
+    onError: (err: any) => {
+      toast({ title: "Refresh failed", description: err.message, variant: "destructive" });
+    },
+  });
+
   // Sort teams: by net_score ascending (nulls last)
   const sortedTeams = useMemo(() => {
     if (!teams) return [];
