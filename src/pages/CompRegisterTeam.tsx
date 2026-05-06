@@ -54,7 +54,8 @@ export default function CompRegisterTeam() {
       return;
     }
 
-    const { error } = await supabase.from("local_comp_saved_teams").insert({
+    // Insert team
+    const { error: teamError } = await supabase.from("local_comp_saved_teams").insert({
       team_name: name,
       player1_name: p1,
       player2_name: p2,
@@ -62,14 +63,27 @@ export default function CompRegisterTeam() {
       player2_handicap: 0,
     });
 
-    setSubmitting(false);
-
-    if (error) {
+    if (teamError) {
+      setSubmitting(false);
       toast.error("Failed to register team. Please try again.");
-      console.error(error);
+      console.error(teamError);
       return;
     }
 
+    // Upsert players (default 0 hcp — staff sets it later). Ignore duplicates.
+    for (const playerName of [p1, p2]) {
+      await supabase
+        .from("local_comp_players")
+        .insert({
+          name: playerName,
+          name_normalized: playerName.toLowerCase(),
+          handicap: 0,
+        })
+        .then(() => null)
+        .catch(() => null);
+    }
+
+    setSubmitting(false);
     setSubmitted(true);
   }
 
