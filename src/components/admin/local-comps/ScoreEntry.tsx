@@ -55,7 +55,7 @@ export function ScoreEntry() {
 
   // Saved teams (roster only — handicaps come from players table).
   const { data: savedTeams } = useQuery({
-    queryKey: ["saved-local-comp-teams"],
+    queryKey: ["local-comp-saved-teams"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("local_comp_saved_teams")
