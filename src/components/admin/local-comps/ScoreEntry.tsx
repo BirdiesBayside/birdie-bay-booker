@@ -30,35 +30,53 @@ export function ScoreEntry() {
   const [p2Name, setP2Name] = useState("");
   const [p2Hcp, setP2Hcp] = useState("");
 
-  // Query saved teams ONLY — single source of truth for current local handicaps.
-  // (Previously merged with local_comp_teams which caused stale base-handicaps to be loaded.)
+  // Players table — single source of truth for handicaps.
+  const { data: players } = useQuery({
+    queryKey: ["local-comp-players"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("local_comp_players")
+        .select("name, name_normalized, handicap");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const playerHcpMap = useMemo(() => {
+    const m = new Map<string, number>();
+    (players || []).forEach((p: any) => m.set(p.name_normalized, Number(p.handicap) || 0));
+    return m;
+  }, [players]);
+
+  const getPlayerHcp = useCallback(
+    (name: string) => playerHcpMap.get((name || "").trim().toLowerCase()) ?? 0,
+    [playerHcpMap]
+  );
+
+  // Saved teams (roster only — handicaps come from players table).
   const { data: savedTeams } = useQuery({
     queryKey: ["saved-local-comp-teams"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("local_comp_saved_teams")
-        .select("team_name, player1_name, player1_handicap, player1_local_hcp, player2_name, player2_handicap, player2_local_hcp")
+        .select("team_name, player1_name, player2_name")
         .eq("is_active", true)
         .order("team_name", { ascending: true });
       if (error) throw error;
       return (data || []).map((t) => ({
         team_name: t.team_name,
         player1_name: t.player1_name,
-        player1_base_hcp: Number(t.player1_handicap) || 0,
-        player1_local_hcp: Number(t.player1_local_hcp ?? t.player1_handicap) || 0,
         player2_name: t.player2_name,
-        player2_base_hcp: Number(t.player2_handicap) || 0,
-        player2_local_hcp: Number(t.player2_local_hcp ?? t.player2_handicap) || 0,
       }));
     },
   });
 
-  // Realtime: refresh saved teams when the winner's-tax trigger updates local hcps
+  // Realtime: refresh when player handicaps change (Winner's Tax, manual edits)
   useEffect(() => {
     const channel = supabase
-      .channel('saved-teams-watch')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'local_comp_saved_teams' }, () => {
-        queryClient.invalidateQueries({ queryKey: ["saved-local-comp-teams"] });
+      .channel('players-watch')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'local_comp_players' }, () => {
+        queryClient.invalidateQueries({ queryKey: ["local-comp-players"] });
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
