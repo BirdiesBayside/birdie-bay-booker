@@ -297,16 +297,24 @@ export function ScoreEntry() {
                                   onSelect={() => {
                                     setTeamName(t.team_name);
                                     setP1Name(t.player1_name);
-                                    setP1Hcp(String(t.player1_handicap));
+                                    setP1Hcp(String(t.player1_local_hcp));
                                     setP2Name(t.player2_name);
-                                    setP2Hcp(String(t.player2_handicap));
+                                    setP2Hcp(String(t.player2_local_hcp));
                                     setSavedTeamOpen(false);
                                   }}
                                 >
                                   <div className="flex flex-col">
                                     <span className="font-medium">{t.team_name}</span>
                                     <span className="text-xs text-muted-foreground">
-                                      {t.player1_name} ({t.player1_handicap}) & {t.player2_name} ({t.player2_handicap})
+                                      {t.player1_name} — Local <strong className="text-foreground">{t.player1_local_hcp.toFixed(1)}</strong>
+                                      {t.player1_local_hcp !== t.player1_base_hcp && (
+                                        <span className="opacity-60"> (base {t.player1_base_hcp})</span>
+                                      )}
+                                      {" & "}
+                                      {t.player2_name} — Local <strong className="text-foreground">{t.player2_local_hcp.toFixed(1)}</strong>
+                                      {t.player2_local_hcp !== t.player2_base_hcp && (
+                                        <span className="opacity-60"> (base {t.player2_base_hcp})</span>
+                                      )}
                                     </span>
                                   </div>
                                 </CommandItem>
