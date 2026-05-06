@@ -220,11 +220,6 @@ export function ScoreEntry() {
       queryClient.invalidateQueries({ queryKey: ["local-comp-teams", selectedCompId] });
     },
   });
-      if (res?.syncedFromSaved) {
-        toast({ title: "Handicaps synced", description: "Updated from Saved Teams.", duration: 2500 });
-      }
-    },
-  });
 
   // Remove togglePaidMutation - paid status is now managed via POS
   const deleteTeamMutation = useMutation({
