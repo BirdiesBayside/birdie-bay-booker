@@ -30,50 +30,39 @@ export function ScoreEntry() {
   const [p2Name, setP2Name] = useState("");
   const [p2Hcp, setP2Hcp] = useState("");
 
-  // Query saved teams + past comp teams for the picker
+  // Query saved teams ONLY — single source of truth for current local handicaps.
+  // (Previously merged with local_comp_teams which caused stale base-handicaps to be loaded.)
   const { data: savedTeams } = useQuery({
     queryKey: ["saved-local-comp-teams"],
     queryFn: async () => {
-      // Fetch from both saved teams (customer registrations) and past comp entries
-      const [savedRes, pastRes] = await Promise.all([
-        supabase
-          .from("local_comp_saved_teams")
-          .select("team_name, player1_name, player1_handicap, player1_local_hcp, player2_name, player2_handicap, player2_local_hcp")
-          .eq("is_active", true)
-          .order("team_name", { ascending: true }),
-        supabase
-          .from("local_comp_teams")
-          .select("team_name, player1_name, player1_handicap, player2_name, player2_handicap")
-          .order("created_at", { ascending: false }),
-      ]);
-      if (savedRes.error) throw savedRes.error;
-      if (pastRes.error) throw pastRes.error;
-
-      // Normalize: saved teams use local_hcp, past comp teams use raw handicap as fallback
-      const seen = new Set<string>();
-      const all: Array<{
-        team_name: string;
-        player1_name: string;
-        player1_handicap: number;
-        player2_name: string;
-        player2_handicap: number;
-      }> = [];
-      const savedNormalized = (savedRes.data || []).map((t) => ({
+      const { data, error } = await supabase
+        .from("local_comp_saved_teams")
+        .select("team_name, player1_name, player1_handicap, player1_local_hcp, player2_name, player2_handicap, player2_local_hcp")
+        .eq("is_active", true)
+        .order("team_name", { ascending: true });
+      if (error) throw error;
+      return (data || []).map((t) => ({
         team_name: t.team_name,
         player1_name: t.player1_name,
-        player1_handicap: t.player1_local_hcp ?? t.player1_handicap,
+        player1_base_hcp: Number(t.player1_handicap) || 0,
+        player1_local_hcp: Number(t.player1_local_hcp ?? t.player1_handicap) || 0,
         player2_name: t.player2_name,
-        player2_handicap: t.player2_local_hcp ?? t.player2_handicap,
+        player2_base_hcp: Number(t.player2_handicap) || 0,
+        player2_local_hcp: Number(t.player2_local_hcp ?? t.player2_handicap) || 0,
       }));
-      for (const t of [...savedNormalized, ...(pastRes.data || [])]) {
-        const key = `${t.player1_name.toLowerCase()}|${t.player2_name.toLowerCase()}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        all.push(t);
-      }
-      return all;
     },
   });
+
+  // Realtime: refresh saved teams when the winner's-tax trigger updates local hcps
+  useEffect(() => {
+    const channel = supabase
+      .channel('saved-teams-watch')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'local_comp_saved_teams' }, () => {
+        queryClient.invalidateQueries({ queryKey: ["saved-local-comp-teams"] });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [queryClient]);
 
   const { data: competitions } = useQuery({
     queryKey: ["local-competitions"],
@@ -244,6 +233,50 @@ export function ScoreEntry() {
     },
   });
 
+  // Refresh handicaps for already-registered teams in this comp from saved teams' current local HCP
+  const refreshHcpsMutation = useMutation({
+    mutationFn: async () => {
+      if (!teams || !savedTeams) return { updated: 0, skipped: 0 };
+      let updated = 0;
+      let skipped = 0;
+      const norm = (s: string) => s.trim().toLowerCase();
+      for (const team of teams) {
+        const saved = savedTeams.find((s) =>
+          (norm(s.player1_name) === norm(team.player1_name) && norm(s.player2_name) === norm(team.player2_name)) ||
+          (norm(s.player1_name) === norm(team.player2_name) && norm(s.player2_name) === norm(team.player1_name))
+        );
+        if (!saved) { skipped++; continue; }
+        const p1Local = norm(saved.player1_name) === norm(team.player1_name) ? saved.player1_local_hcp : saved.player2_local_hcp;
+        const p2Local = norm(saved.player1_name) === norm(team.player1_name) ? saved.player2_local_hcp : saved.player1_local_hcp;
+        const combined = (p1Local + p2Local) / 4;
+        const netScore = team.gross_score !== null ? team.gross_score - Math.floor(combined) : null;
+        const { error } = await supabase
+          .from("local_comp_teams")
+          .update({
+            player1_handicap: p1Local,
+            player2_handicap: p2Local,
+            combined_handicap: combined,
+            net_score: netScore,
+          })
+          .eq("id", team.id);
+        if (error) throw error;
+        updated++;
+      }
+      return { updated, skipped };
+    },
+    onSuccess: ({ updated, skipped }) => {
+      queryClient.invalidateQueries({ queryKey: ["local-comp-teams", selectedCompId] });
+      toast({
+        title: "Handicaps refreshed",
+        description: `${updated} team(s) updated from Saved Teams${skipped ? `, ${skipped} not found` : ""}.`,
+        duration: 4000,
+      });
+    },
+    onError: (err: any) => {
+      toast({ title: "Refresh failed", description: err.message, variant: "destructive" });
+    },
+  });
+
   // Sort teams: by net_score ascending (nulls last)
   const sortedTeams = useMemo(() => {
     if (!teams) return [];
@@ -308,16 +341,24 @@ export function ScoreEntry() {
                                   onSelect={() => {
                                     setTeamName(t.team_name);
                                     setP1Name(t.player1_name);
-                                    setP1Hcp(String(t.player1_handicap));
+                                    setP1Hcp(String(t.player1_local_hcp));
                                     setP2Name(t.player2_name);
-                                    setP2Hcp(String(t.player2_handicap));
+                                    setP2Hcp(String(t.player2_local_hcp));
                                     setSavedTeamOpen(false);
                                   }}
                                 >
                                   <div className="flex flex-col">
                                     <span className="font-medium">{t.team_name}</span>
                                     <span className="text-xs text-muted-foreground">
-                                      {t.player1_name} ({t.player1_handicap}) & {t.player2_name} ({t.player2_handicap})
+                                      {t.player1_name} — Local <strong className="text-foreground">{t.player1_local_hcp.toFixed(1)}</strong>
+                                      {t.player1_local_hcp !== t.player1_base_hcp && (
+                                        <span className="opacity-60"> (base {t.player1_base_hcp})</span>
+                                      )}
+                                      {" & "}
+                                      {t.player2_name} — Local <strong className="text-foreground">{t.player2_local_hcp.toFixed(1)}</strong>
+                                      {t.player2_local_hcp !== t.player2_base_hcp && (
+                                        <span className="opacity-60"> (base {t.player2_base_hcp})</span>
+                                      )}
                                     </span>
                                   </div>
                                 </CommandItem>
@@ -381,9 +422,21 @@ export function ScoreEntry() {
             </Button>
 
             {sortedTeams.length > 0 && (
-              <Button variant="outline" onClick={() => calculatePositionsMutation.mutate()} disabled={calculatePositionsMutation.isPending}>
-                Calculate Positions
-              </Button>
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => refreshHcpsMutation.mutate()}
+                  disabled={refreshHcpsMutation.isPending}
+                  className="gap-2"
+                  title="Pull each team's current Local HCP from Saved Teams and recalculate combined handicap + net score"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  {refreshHcpsMutation.isPending ? "Refreshing..." : "Refresh HCPs from Saved"}
+                </Button>
+                <Button variant="outline" onClick={() => calculatePositionsMutation.mutate()} disabled={calculatePositionsMutation.isPending}>
+                  Calculate Positions
+                </Button>
+              </>
             )}
           </>
         )}
