@@ -141,7 +141,7 @@ export function SavedTeams() {
   }, [players]);
 
   const filteredPlayers = players.filter((p) =>
-    p.name.toLowerCase().includes(search.toLowerCase())
+    p.name.toLowerCase().includes(playerSearch.toLowerCase())
   );
   const filteredTeams = teams.filter(
     (t) =>
