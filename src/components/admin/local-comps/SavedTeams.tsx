@@ -276,7 +276,7 @@ export function SavedTeams() {
                 </div>
               ) : filteredPlayers.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-6 text-center">
-                  {search ? "No players match." : "No players yet."}
+                  {playerSearch ? "No players match." : "No players yet."}
                 </p>
               ) : (
                 <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
