@@ -70,17 +70,19 @@ export default function CompRegisterTeam() {
       return;
     }
 
-    // Upsert players (default 0 hcp — staff sets it later). Ignore duplicates.
+    // Upsert players (default 0 hcp — staff sets it later). Ignore duplicate-key errors.
     for (const playerName of [p1, p2]) {
-      await supabase
+      const { error: playerErr } = await supabase
         .from("local_comp_players")
         .insert({
           name: playerName,
           name_normalized: playerName.toLowerCase(),
           handicap: 0,
-        })
-        .then(() => null)
-        .catch(() => null);
+        });
+      // Ignore unique violation (player already exists) — keep their existing hcp.
+      if (playerErr && !playerErr.message.toLowerCase().includes("duplicate")) {
+        console.warn("Player insert warning:", playerErr.message);
+      }
     }
 
     setSubmitting(false);
