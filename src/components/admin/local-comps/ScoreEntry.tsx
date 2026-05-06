@@ -311,9 +311,10 @@ export function ScoreEntry() {
     },
     onSuccess: ({ updated, skipped }) => {
       queryClient.invalidateQueries({ queryKey: ["local-comp-teams", selectedCompId] });
+      queryClient.invalidateQueries({ queryKey: ["local-comp-players"] });
       toast({
         title: "Handicaps refreshed",
-        description: `${updated} team(s) updated from Saved Teams${skipped ? `, ${skipped} not found` : ""}.`,
+        description: `${updated} team(s) updated from Players${skipped ? `, ${skipped} not found` : ""}.`,
         duration: 4000,
       });
     },
