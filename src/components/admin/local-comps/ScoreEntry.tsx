@@ -267,18 +267,18 @@ export function ScoreEntry() {
   // Refresh handicaps for already-registered teams in this comp from saved teams' current local HCP
   const refreshHcpsMutation = useMutation({
     mutationFn: async () => {
-      if (!teams || !savedTeams) return { updated: 0, skipped: 0 };
+      if (!teams) return { updated: 0, skipped: 0 };
       let updated = 0;
       let skipped = 0;
-      const norm = (s: string) => s.trim().toLowerCase();
       for (const team of teams) {
-        const saved = savedTeams.find((s) =>
-          (norm(s.player1_name) === norm(team.player1_name) && norm(s.player2_name) === norm(team.player2_name)) ||
-          (norm(s.player1_name) === norm(team.player2_name) && norm(s.player2_name) === norm(team.player1_name))
-        );
-        if (!saved) { skipped++; continue; }
-        const p1Local = norm(saved.player1_name) === norm(team.player1_name) ? saved.player1_local_hcp : saved.player2_local_hcp;
-        const p2Local = norm(saved.player1_name) === norm(team.player1_name) ? saved.player2_local_hcp : saved.player1_local_hcp;
+        const key1 = (team.player1_name || "").trim().toLowerCase();
+        const key2 = (team.player2_name || "").trim().toLowerCase();
+        if (!playerHcpMap.has(key1) || !playerHcpMap.has(key2)) {
+          skipped++;
+          continue;
+        }
+        const p1Local = getPlayerHcp(team.player1_name);
+        const p2Local = getPlayerHcp(team.player2_name);
         const combined = (p1Local + p2Local) / 4;
         const netScore = team.gross_score !== null ? team.gross_score - Math.floor(combined) : null;
         const { error } = await supabase
