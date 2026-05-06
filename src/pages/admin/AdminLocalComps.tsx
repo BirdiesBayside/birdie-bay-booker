@@ -8,9 +8,11 @@ import { SavedTeams } from "@/components/admin/local-comps/SavedTeams";
 import { HandicapCalculator } from "@/components/admin/local-comps/HandicapCalculator";
 import { HcpAdjustments } from "@/components/admin/local-comps/HcpAdjustments";
 import { Trophy, ClipboardList, Award, Users, Calculator, History } from "lucide-react";
+import { useLocalCompRealtime } from "@/hooks/useLocalCompRealtime";
 
 export default function AdminLocalComps() {
   const { isLoading } = useAdminAuth();
+  useLocalCompRealtime();
 
   if (isLoading) {
     return (
