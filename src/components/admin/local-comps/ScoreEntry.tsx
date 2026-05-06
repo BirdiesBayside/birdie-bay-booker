@@ -422,9 +422,21 @@ export function ScoreEntry() {
             </Button>
 
             {sortedTeams.length > 0 && (
-              <Button variant="outline" onClick={() => calculatePositionsMutation.mutate()} disabled={calculatePositionsMutation.isPending}>
-                Calculate Positions
-              </Button>
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => refreshHcpsMutation.mutate()}
+                  disabled={refreshHcpsMutation.isPending}
+                  className="gap-2"
+                  title="Pull each team's current Local HCP from Saved Teams and recalculate combined handicap + net score"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  {refreshHcpsMutation.isPending ? "Refreshing..." : "Refresh HCPs from Saved"}
+                </Button>
+                <Button variant="outline" onClick={() => calculatePositionsMutation.mutate()} disabled={calculatePositionsMutation.isPending}>
+                  Calculate Positions
+                </Button>
+              </>
             )}
           </>
         )}
