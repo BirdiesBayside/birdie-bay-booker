@@ -365,35 +365,33 @@ export function ScoreEntry() {
                           <CommandList>
                             <CommandEmpty>No saved teams found.</CommandEmpty>
                             <CommandGroup>
-                              {savedTeams?.map((t, idx) => (
-                                <CommandItem
-                                  key={`${t.player1_name}-${t.player2_name}-${idx}`}
-                                  value={`${t.team_name} ${t.player1_name} ${t.player2_name}`}
-                                  onSelect={() => {
-                                    setTeamName(t.team_name);
-                                    setP1Name(t.player1_name);
-                                    setP1Hcp(String(t.player1_local_hcp));
-                                    setP2Name(t.player2_name);
-                                    setP2Hcp(String(t.player2_local_hcp));
-                                    setSavedTeamOpen(false);
-                                  }}
-                                >
-                                  <div className="flex flex-col">
-                                    <span className="font-medium">{t.team_name}</span>
-                                    <span className="text-xs text-muted-foreground">
-                                      {t.player1_name} — Local <strong className="text-foreground">{t.player1_local_hcp.toFixed(1)}</strong>
-                                      {t.player1_local_hcp !== t.player1_base_hcp && (
-                                        <span className="opacity-60"> (base {t.player1_base_hcp})</span>
-                                      )}
-                                      {" & "}
-                                      {t.player2_name} — Local <strong className="text-foreground">{t.player2_local_hcp.toFixed(1)}</strong>
-                                      {t.player2_local_hcp !== t.player2_base_hcp && (
-                                        <span className="opacity-60"> (base {t.player2_base_hcp})</span>
-                                      )}
-                                    </span>
-                                  </div>
-                                </CommandItem>
-                              ))}
+                              {savedTeams?.map((t, idx) => {
+                                const h1 = getPlayerHcp(t.player1_name);
+                                const h2 = getPlayerHcp(t.player2_name);
+                                return (
+                                  <CommandItem
+                                    key={`${t.player1_name}-${t.player2_name}-${idx}`}
+                                    value={`${t.team_name} ${t.player1_name} ${t.player2_name}`}
+                                    onSelect={() => {
+                                      setTeamName(t.team_name);
+                                      setP1Name(t.player1_name);
+                                      setP1Hcp(String(h1));
+                                      setP2Name(t.player2_name);
+                                      setP2Hcp(String(h2));
+                                      setSavedTeamOpen(false);
+                                    }}
+                                  >
+                                    <div className="flex flex-col">
+                                      <span className="font-medium">{t.team_name}</span>
+                                      <span className="text-xs text-muted-foreground">
+                                        {t.player1_name} — HCP <strong className="text-foreground">{h1.toFixed(1)}</strong>
+                                        {" & "}
+                                        {t.player2_name} — HCP <strong className="text-foreground">{h2.toFixed(1)}</strong>
+                                      </span>
+                                    </div>
+                                  </CommandItem>
+                                );
+                              })}
                             </CommandGroup>
                           </CommandList>
                         </Command>
