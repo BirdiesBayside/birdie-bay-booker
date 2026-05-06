@@ -264,21 +264,35 @@ export function ScoreEntry() {
     },
   });
 
-  // Refresh handicaps for already-registered teams in this comp from saved teams' current local HCP
+  // Refresh handicaps for already-registered teams in this comp from the players table.
+  // Always re-fetches the latest player handicaps from DB to avoid stale React Query cache.
   const refreshHcpsMutation = useMutation({
     mutationFn: async () => {
       if (!teams) return { updated: 0, skipped: 0 };
+
+      // Fetch fresh player handicaps directly from DB (don't trust cached map)
+      const { data: freshPlayers, error: pErr } = await supabase
+        .from("local_comp_players")
+        .select("name_normalized, handicap");
+      if (pErr) throw pErr;
+      const freshMap = new Map<string, number>();
+      (freshPlayers || []).forEach((p: any) =>
+        freshMap.set(p.name_normalized, Number(p.handicap) || 0)
+      );
+      const lookup = (name: string) =>
+        freshMap.get((name || "").trim().toLowerCase()) ?? 0;
+
       let updated = 0;
       let skipped = 0;
       for (const team of teams) {
         const key1 = (team.player1_name || "").trim().toLowerCase();
         const key2 = (team.player2_name || "").trim().toLowerCase();
-        if (!playerHcpMap.has(key1) || !playerHcpMap.has(key2)) {
+        if (!freshMap.has(key1) || !freshMap.has(key2)) {
           skipped++;
           continue;
         }
-        const p1Local = getPlayerHcp(team.player1_name);
-        const p2Local = getPlayerHcp(team.player2_name);
+        const p1Local = lookup(team.player1_name);
+        const p2Local = lookup(team.player2_name);
         const combined = (p1Local + p2Local) / 4;
         const netScore = team.gross_score !== null ? team.gross_score - Math.floor(combined) : null;
         const { error } = await supabase
