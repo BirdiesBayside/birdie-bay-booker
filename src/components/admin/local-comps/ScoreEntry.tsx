@@ -178,15 +178,71 @@ export function ScoreEntry() {
     mutationFn: async ({ teamId, grossScore }: { teamId: string; grossScore: number | null }) => {
       const team = teams?.find((t) => t.id === teamId);
       if (!team) return;
-      const netScore = grossScore !== null ? grossScore - Math.floor(team.combined_handicap) : null;
+
+      // Auto-sync handicaps from Saved Teams whenever a score is entered.
+      // This guarantees the team's HCP reflects any Winner's Tax adjustments
+      // that happened since the team was registered.
+      const norm = (s: string) => (s || "").trim().toLowerCase();
+      let p1Hcp = Number(team.player1_handicap) || 0;
+      let p2Hcp = Number(team.player2_handicap) || 0;
+      let combined = Number(team.combined_handicap) || 0;
+      let syncedFromSaved = false;
+
+      if (grossScore !== null) {
+        // Look for an exact saved-team match on the player pair (order-insensitive)
+        const { data: savedMatches } = await supabase
+          .from("local_comp_saved_teams")
+          .select("id, team_name, player1_name, player1_handicap, player1_local_hcp, player2_name, player2_handicap, player2_local_hcp");
+
+        const saved = (savedMatches || []).find((s: any) =>
+          (norm(s.player1_name) === norm(team.player1_name) && norm(s.player2_name) === norm(team.player2_name)) ||
+          (norm(s.player1_name) === norm(team.player2_name) && norm(s.player2_name) === norm(team.player1_name))
+        );
+
+        if (saved) {
+          // Apply latest local HCPs to this team (mapping player order correctly)
+          const p1IsSavedP1 = norm(saved.player1_name) === norm(team.player1_name);
+          p1Hcp = Number(p1IsSavedP1 ? saved.player1_local_hcp : saved.player2_local_hcp) || 0;
+          p2Hcp = Number(p1IsSavedP1 ? saved.player2_local_hcp : saved.player1_local_hcp) || 0;
+          combined = (p1Hcp + p2Hcp) / 4;
+          syncedFromSaved = true;
+        } else if (team.player1_name && team.player2_name) {
+          // No saved team yet — create one so future adjustments track this pair
+          await supabase.from("local_comp_saved_teams").insert({
+            team_name: team.team_name || `${team.player1_name} & ${team.player2_name}`,
+            player1_name: team.player1_name,
+            player1_handicap: p1Hcp,
+            player1_local_hcp: p1Hcp,
+            player2_name: team.player2_name,
+            player2_handicap: p2Hcp,
+            player2_local_hcp: p2Hcp,
+          });
+        }
+      }
+
+      const netScore = grossScore !== null ? grossScore - Math.floor(combined) : null;
+
+      const updatePayload: Record<string, any> = { gross_score: grossScore, net_score: netScore };
+      if (syncedFromSaved) {
+        updatePayload.player1_handicap = p1Hcp;
+        updatePayload.player2_handicap = p2Hcp;
+        updatePayload.combined_handicap = combined;
+      }
+
       const { error } = await supabase
         .from("local_comp_teams")
-        .update({ gross_score: grossScore, net_score: netScore })
+        .update(updatePayload)
         .eq("id", teamId);
       if (error) throw error;
+
+      return { syncedFromSaved };
     },
-    onSuccess: () => {
+    onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ["local-comp-teams", selectedCompId] });
+      queryClient.invalidateQueries({ queryKey: ["saved-local-comp-teams"] });
+      if (res?.syncedFromSaved) {
+        toast({ title: "Handicaps synced", description: "Updated from Saved Teams.", duration: 2500 });
+      }
     },
   });
 
