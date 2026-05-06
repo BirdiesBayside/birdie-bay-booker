@@ -30,6 +30,7 @@ const norm = (s: string) => (s || "").trim().toLowerCase();
 export function SavedTeams() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
+  const [playerSearch, setPlayerSearch] = useState("");
   const [playersOpen, setPlayersOpen] = useState(false);
 
   // ---------------- Players ----------------
@@ -140,7 +141,7 @@ export function SavedTeams() {
   }, [players]);
 
   const filteredPlayers = players.filter((p) =>
-    p.name.toLowerCase().includes(search.toLowerCase())
+    p.name.toLowerCase().includes(playerSearch.toLowerCase())
   );
   const filteredTeams = teams.filter(
     (t) =>
@@ -152,7 +153,7 @@ export function SavedTeams() {
   return (
     <div className="space-y-6">
       <Input
-        placeholder="Search players or teams..."
+        placeholder="Search teams..."
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         className="max-w-sm"
@@ -263,13 +264,19 @@ export function SavedTeams() {
               <p className="text-xs text-muted-foreground mb-3">
                 Each player has one handicap used across every team they're in. Edit here to update everywhere.
               </p>
+              <Input
+                placeholder="Search player by name..."
+                value={playerSearch}
+                onChange={(e) => setPlayerSearch(e.target.value)}
+                className="mb-3 max-w-sm"
+              />
               {playersLoading ? (
                 <div className="flex justify-center py-8">
                   <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
                 </div>
               ) : filteredPlayers.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-6 text-center">
-                  {search ? "No players match." : "No players yet."}
+                  {playerSearch ? "No players match." : "No players yet."}
                 </p>
               ) : (
                 <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
