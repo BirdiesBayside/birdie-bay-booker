@@ -30,35 +30,53 @@ export function ScoreEntry() {
   const [p2Name, setP2Name] = useState("");
   const [p2Hcp, setP2Hcp] = useState("");
 
-  // Query saved teams ONLY — single source of truth for current local handicaps.
-  // (Previously merged with local_comp_teams which caused stale base-handicaps to be loaded.)
+  // Players table — single source of truth for handicaps.
+  const { data: players } = useQuery({
+    queryKey: ["local-comp-players"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("local_comp_players")
+        .select("name, name_normalized, handicap");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const playerHcpMap = useMemo(() => {
+    const m = new Map<string, number>();
+    (players || []).forEach((p: any) => m.set(p.name_normalized, Number(p.handicap) || 0));
+    return m;
+  }, [players]);
+
+  const getPlayerHcp = useCallback(
+    (name: string) => playerHcpMap.get((name || "").trim().toLowerCase()) ?? 0,
+    [playerHcpMap]
+  );
+
+  // Saved teams (roster only — handicaps come from players table).
   const { data: savedTeams } = useQuery({
     queryKey: ["saved-local-comp-teams"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("local_comp_saved_teams")
-        .select("team_name, player1_name, player1_handicap, player1_local_hcp, player2_name, player2_handicap, player2_local_hcp")
+        .select("team_name, player1_name, player2_name")
         .eq("is_active", true)
         .order("team_name", { ascending: true });
       if (error) throw error;
       return (data || []).map((t) => ({
         team_name: t.team_name,
         player1_name: t.player1_name,
-        player1_base_hcp: Number(t.player1_handicap) || 0,
-        player1_local_hcp: Number(t.player1_local_hcp ?? t.player1_handicap) || 0,
         player2_name: t.player2_name,
-        player2_base_hcp: Number(t.player2_handicap) || 0,
-        player2_local_hcp: Number(t.player2_local_hcp ?? t.player2_handicap) || 0,
       }));
     },
   });
 
-  // Realtime: refresh saved teams when the winner's-tax trigger updates local hcps
+  // Realtime: refresh when player handicaps change (Winner's Tax, manual edits)
   useEffect(() => {
     const channel = supabase
-      .channel('saved-teams-watch')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'local_comp_saved_teams' }, () => {
-        queryClient.invalidateQueries({ queryKey: ["saved-local-comp-teams"] });
+      .channel('players-watch')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'local_comp_players' }, () => {
+        queryClient.invalidateQueries({ queryKey: ["local-comp-players"] });
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
@@ -179,70 +197,27 @@ export function ScoreEntry() {
       const team = teams?.find((t) => t.id === teamId);
       if (!team) return;
 
-      // Auto-sync handicaps from Saved Teams whenever a score is entered.
-      // This guarantees the team's HCP reflects any Winner's Tax adjustments
-      // that happened since the team was registered.
-      const norm = (s: string) => (s || "").trim().toLowerCase();
-      let p1Hcp = Number(team.player1_handicap) || 0;
-      let p2Hcp = Number(team.player2_handicap) || 0;
-      let combined = Number(team.combined_handicap) || 0;
-      let syncedFromSaved = false;
-
-      if (grossScore !== null) {
-        // Look for an exact saved-team match on the player pair (order-insensitive)
-        const { data: savedMatches } = await supabase
-          .from("local_comp_saved_teams")
-          .select("id, team_name, player1_name, player1_handicap, player1_local_hcp, player2_name, player2_handicap, player2_local_hcp");
-
-        const saved = (savedMatches || []).find((s: any) =>
-          (norm(s.player1_name) === norm(team.player1_name) && norm(s.player2_name) === norm(team.player2_name)) ||
-          (norm(s.player1_name) === norm(team.player2_name) && norm(s.player2_name) === norm(team.player1_name))
-        );
-
-        if (saved) {
-          // Apply latest local HCPs to this team (mapping player order correctly)
-          const p1IsSavedP1 = norm(saved.player1_name) === norm(team.player1_name);
-          p1Hcp = Number(p1IsSavedP1 ? saved.player1_local_hcp : saved.player2_local_hcp) || 0;
-          p2Hcp = Number(p1IsSavedP1 ? saved.player2_local_hcp : saved.player1_local_hcp) || 0;
-          combined = (p1Hcp + p2Hcp) / 4;
-          syncedFromSaved = true;
-        } else if (team.player1_name && team.player2_name) {
-          // No saved team yet — create one so future adjustments track this pair
-          await supabase.from("local_comp_saved_teams").insert({
-            team_name: team.team_name || `${team.player1_name} & ${team.player2_name}`,
-            player1_name: team.player1_name,
-            player1_handicap: p1Hcp,
-            player1_local_hcp: p1Hcp,
-            player2_name: team.player2_name,
-            player2_handicap: p2Hcp,
-            player2_local_hcp: p2Hcp,
-          });
-        }
-      }
+      // Always sync handicaps from the players table (single source of truth).
+      const p1Hcp = getPlayerHcp(team.player1_name);
+      const p2Hcp = getPlayerHcp(team.player2_name);
+      const combined = (p1Hcp + p2Hcp) / 4;
 
       const netScore = grossScore !== null ? grossScore - Math.floor(combined) : null;
 
-      const updatePayload: Record<string, any> = { gross_score: grossScore, net_score: netScore };
-      if (syncedFromSaved) {
-        updatePayload.player1_handicap = p1Hcp;
-        updatePayload.player2_handicap = p2Hcp;
-        updatePayload.combined_handicap = combined;
-      }
-
       const { error } = await supabase
         .from("local_comp_teams")
-        .update(updatePayload)
+        .update({
+          gross_score: grossScore,
+          net_score: netScore,
+          player1_handicap: p1Hcp,
+          player2_handicap: p2Hcp,
+          combined_handicap: combined,
+        })
         .eq("id", teamId);
       if (error) throw error;
-
-      return { syncedFromSaved };
     },
-    onSuccess: (res) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["local-comp-teams", selectedCompId] });
-      queryClient.invalidateQueries({ queryKey: ["saved-local-comp-teams"] });
-      if (res?.syncedFromSaved) {
-        toast({ title: "Handicaps synced", description: "Updated from Saved Teams.", duration: 2500 });
-      }
     },
   });
 
@@ -292,18 +267,18 @@ export function ScoreEntry() {
   // Refresh handicaps for already-registered teams in this comp from saved teams' current local HCP
   const refreshHcpsMutation = useMutation({
     mutationFn: async () => {
-      if (!teams || !savedTeams) return { updated: 0, skipped: 0 };
+      if (!teams) return { updated: 0, skipped: 0 };
       let updated = 0;
       let skipped = 0;
-      const norm = (s: string) => s.trim().toLowerCase();
       for (const team of teams) {
-        const saved = savedTeams.find((s) =>
-          (norm(s.player1_name) === norm(team.player1_name) && norm(s.player2_name) === norm(team.player2_name)) ||
-          (norm(s.player1_name) === norm(team.player2_name) && norm(s.player2_name) === norm(team.player1_name))
-        );
-        if (!saved) { skipped++; continue; }
-        const p1Local = norm(saved.player1_name) === norm(team.player1_name) ? saved.player1_local_hcp : saved.player2_local_hcp;
-        const p2Local = norm(saved.player1_name) === norm(team.player1_name) ? saved.player2_local_hcp : saved.player1_local_hcp;
+        const key1 = (team.player1_name || "").trim().toLowerCase();
+        const key2 = (team.player2_name || "").trim().toLowerCase();
+        if (!playerHcpMap.has(key1) || !playerHcpMap.has(key2)) {
+          skipped++;
+          continue;
+        }
+        const p1Local = getPlayerHcp(team.player1_name);
+        const p2Local = getPlayerHcp(team.player2_name);
         const combined = (p1Local + p2Local) / 4;
         const netScore = team.gross_score !== null ? team.gross_score - Math.floor(combined) : null;
         const { error } = await supabase
@@ -390,35 +365,33 @@ export function ScoreEntry() {
                           <CommandList>
                             <CommandEmpty>No saved teams found.</CommandEmpty>
                             <CommandGroup>
-                              {savedTeams?.map((t, idx) => (
-                                <CommandItem
-                                  key={`${t.player1_name}-${t.player2_name}-${idx}`}
-                                  value={`${t.team_name} ${t.player1_name} ${t.player2_name}`}
-                                  onSelect={() => {
-                                    setTeamName(t.team_name);
-                                    setP1Name(t.player1_name);
-                                    setP1Hcp(String(t.player1_local_hcp));
-                                    setP2Name(t.player2_name);
-                                    setP2Hcp(String(t.player2_local_hcp));
-                                    setSavedTeamOpen(false);
-                                  }}
-                                >
-                                  <div className="flex flex-col">
-                                    <span className="font-medium">{t.team_name}</span>
-                                    <span className="text-xs text-muted-foreground">
-                                      {t.player1_name} — Local <strong className="text-foreground">{t.player1_local_hcp.toFixed(1)}</strong>
-                                      {t.player1_local_hcp !== t.player1_base_hcp && (
-                                        <span className="opacity-60"> (base {t.player1_base_hcp})</span>
-                                      )}
-                                      {" & "}
-                                      {t.player2_name} — Local <strong className="text-foreground">{t.player2_local_hcp.toFixed(1)}</strong>
-                                      {t.player2_local_hcp !== t.player2_base_hcp && (
-                                        <span className="opacity-60"> (base {t.player2_base_hcp})</span>
-                                      )}
-                                    </span>
-                                  </div>
-                                </CommandItem>
-                              ))}
+                              {savedTeams?.map((t, idx) => {
+                                const h1 = getPlayerHcp(t.player1_name);
+                                const h2 = getPlayerHcp(t.player2_name);
+                                return (
+                                  <CommandItem
+                                    key={`${t.player1_name}-${t.player2_name}-${idx}`}
+                                    value={`${t.team_name} ${t.player1_name} ${t.player2_name}`}
+                                    onSelect={() => {
+                                      setTeamName(t.team_name);
+                                      setP1Name(t.player1_name);
+                                      setP1Hcp(String(h1));
+                                      setP2Name(t.player2_name);
+                                      setP2Hcp(String(h2));
+                                      setSavedTeamOpen(false);
+                                    }}
+                                  >
+                                    <div className="flex flex-col">
+                                      <span className="font-medium">{t.team_name}</span>
+                                      <span className="text-xs text-muted-foreground">
+                                        {t.player1_name} — HCP <strong className="text-foreground">{h1.toFixed(1)}</strong>
+                                        {" & "}
+                                        {t.player2_name} — HCP <strong className="text-foreground">{h2.toFixed(1)}</strong>
+                                      </span>
+                                    </div>
+                                  </CommandItem>
+                                );
+                              })}
                             </CommandGroup>
                           </CommandList>
                         </Command>

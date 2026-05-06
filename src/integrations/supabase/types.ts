@@ -737,6 +737,33 @@ export type Database = {
         }
         Relationships: []
       }
+      local_comp_players: {
+        Row: {
+          created_at: string
+          handicap: number
+          id: string
+          name: string
+          name_normalized: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          handicap?: number
+          id?: string
+          name: string
+          name_normalized: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          handicap?: number
+          id?: string
+          name?: string
+          name_normalized?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       local_comp_saved_teams: {
         Row: {
           created_at: string
