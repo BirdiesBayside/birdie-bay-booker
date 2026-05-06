@@ -31,6 +31,29 @@ export default function CompRegisterTeam() {
     }
 
     setSubmitting(true);
+
+    // Duplicate check — same two player names (order-insensitive, case-insensitive)
+    const p1Lower = p1.toLowerCase();
+    const p2Lower = p2.toLowerCase();
+    const { data: existing } = await supabase
+      .from("local_comp_saved_teams")
+      .select("team_name, player1_name, player2_name");
+
+    const duplicate = (existing || []).find((t) => {
+      const a = (t.player1_name || "").trim().toLowerCase();
+      const b = (t.player2_name || "").trim().toLowerCase();
+      return (a === p1Lower && b === p2Lower) || (a === p2Lower && b === p1Lower);
+    });
+
+    if (duplicate) {
+      setSubmitting(false);
+      toast.error(
+        `This team is already registered as "${duplicate.team_name}". You're locked in — no need to register again!`,
+        { duration: 6000 }
+      );
+      return;
+    }
+
     const { error } = await supabase.from("local_comp_saved_teams").insert({
       team_name: name,
       player1_name: p1,
