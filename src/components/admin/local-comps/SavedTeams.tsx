@@ -6,8 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Users, User } from "lucide-react";
+import { Plus, Pencil, Trash2, Users, User, ChevronDown } from "lucide-react";
 
 interface Player {
   id: string;
@@ -29,6 +30,7 @@ const norm = (s: string) => (s || "").trim().toLowerCase();
 export function SavedTeams() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
+  const [playersOpen, setPlayersOpen] = useState(false);
 
   // ---------------- Players ----------------
   const [playerDialogOpen, setPlayerDialogOpen] = useState(false);
@@ -156,61 +158,7 @@ export function SavedTeams() {
         className="max-w-sm"
       />
 
-      {/* PLAYERS — single source of truth for handicaps */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <User className="h-5 w-5" /> Players ({players.length})
-          </CardTitle>
-          <Button onClick={openCreatePlayer} size="sm" className="gap-2">
-            <Plus className="h-4 w-4" /> Add Player
-          </Button>
-        </CardHeader>
-        <CardContent>
-          <p className="text-xs text-muted-foreground mb-3">
-            Each player has one handicap used across every team they're in. Edit here to update everywhere.
-          </p>
-          {playersLoading ? (
-            <div className="flex justify-center py-8">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
-            </div>
-          ) : filteredPlayers.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-6 text-center">
-              {search ? "No players match." : "No players yet."}
-            </p>
-          ) : (
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {filteredPlayers.map((p) => (
-                <div
-                  key={p.id}
-                  className="flex items-center justify-between rounded-md border p-3 bg-card"
-                >
-                  <div>
-                    <p className="font-medium text-foreground">{p.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      HCP <span className="font-semibold text-foreground">{p.handicap.toFixed(1)}</span>
-                    </p>
-                  </div>
-                  <div className="flex gap-1">
-                    <Button variant="ghost" size="icon" onClick={() => openEditPlayer(p)}>
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => {
-                        if (confirm(`Remove player "${p.name}"?`)) deletePlayerMutation.mutate(p.id);
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* TEAMS first — used most often */}
 
       {/* TEAMS — read-only pairings */}
       <Card>
@@ -285,6 +233,78 @@ export function SavedTeams() {
             </div>
           )}
         </CardContent>
+      </Card>
+
+      {/* PLAYERS — collapsible, single source of truth for handicaps */}
+      <Card>
+        <Collapsible open={playersOpen} onOpenChange={setPlayersOpen}>
+          <CollapsibleTrigger asChild>
+            <CardHeader className="flex flex-row items-center justify-between cursor-pointer hover:bg-muted/40 transition-colors">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <User className="h-5 w-5" /> Players ({players.length})
+                <ChevronDown
+                  className={`h-4 w-4 transition-transform ${playersOpen ? "rotate-180" : ""}`}
+                />
+              </CardTitle>
+              <Button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openCreatePlayer();
+                }}
+                size="sm"
+                className="gap-2"
+              >
+                <Plus className="h-4 w-4" /> Add Player
+              </Button>
+            </CardHeader>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <CardContent>
+              <p className="text-xs text-muted-foreground mb-3">
+                Each player has one handicap used across every team they're in. Edit here to update everywhere.
+              </p>
+              {playersLoading ? (
+                <div className="flex justify-center py-8">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
+                </div>
+              ) : filteredPlayers.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-6 text-center">
+                  {search ? "No players match." : "No players yet."}
+                </p>
+              ) : (
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {filteredPlayers.map((p) => (
+                    <div
+                      key={p.id}
+                      className="flex items-center justify-between rounded-md border p-3 bg-card"
+                    >
+                      <div>
+                        <p className="font-medium text-foreground">{p.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          HCP <span className="font-semibold text-foreground">{p.handicap.toFixed(1)}</span>
+                        </p>
+                      </div>
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="icon" onClick={() => openEditPlayer(p)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            if (confirm(`Remove player "${p.name}"?`)) deletePlayerMutation.mutate(p.id);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </CollapsibleContent>
+        </Collapsible>
       </Card>
 
       {/* Player edit dialog */}
