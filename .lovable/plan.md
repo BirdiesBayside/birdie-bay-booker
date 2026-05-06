@@ -1,76 +1,54 @@
+## Problem
 
+The Winner's Tax adjustment system **is working correctly** — the database shows:
+- Bailey Cathro: 9 → 7 → 3 (won twice, −2 then −4)
+- Joel Critchell: 30 → 28 → 24 (won twice, −2 then −4)
+- Mick O'Connor: 24 → 26 (last place +2)
+- Caris Corfius: 36 → 38 (last place +2)
 
-## Local Competition Manager — Implementation Plan
+So `local_comp_saved_teams.player1_local_hcp` / `player2_local_hcp` are being updated each week.
 
-### Overview
-A new "Local Comps" section in the admin portal to manage weekly in-house Ambrose tournaments, with entry fee tracking, score entry with handicap calculations, winner selection, and public-facing leaderboard displays.
+**But the comp results table shows the wrong handicaps** because of two bugs in `ScoreEntry.tsx`:
 
----
+### Bug 1 — "Load Previous Team" picker pulls stale data
+The saved-teams query (lines 38–73) merges results from `local_comp_saved_teams` AND from past `local_comp_teams` (raw entries). When the same team exists in both sources, the dedupe keeps **whichever appears first**, but the past comp entries contain the original base handicaps from previous weeks, not the updated local hcp.
 
-### Database Tables (3 new tables)
+Result: if a team appears in both lists, the picker often loads the old static handicap from a past entry instead of the updated `local_hcp` from saved teams.
 
-**`local_competitions`** — one row per weekly comp
-- id, name, date, format (default "2-man-ambrose"), entry_fee, status (upcoming/active/completed), created_at, created_by
+### Bug 2 — Picker uses `player1_handicap` field as the loaded value
+Even when it does pick from `saved` (line 64–66), it normalizes `player1_local_hcp ?? player1_handicap`. That part is fine. But the field shown in the dropdown subtitle (line 320) shows `t.player1_handicap` which is the normalized local-hcp — that's actually OK.
 
-**`local_comp_teams`** — teams registered for a comp
-- id, competition_id (FK), team_name, player1_name, player1_handicap, player2_name, player2_handicap, combined_handicap (auto-calculated: (p1+p2)/4), gross_score, net_score (gross - combined_handicap), paid (boolean, default false), position, created_at
+The real failure is Bug 1: past comp entries are mixed in and win the dedupe, so old base handicaps get loaded. Looking at Week 2 results:
+- Bailey Cathro shown as **7** (his post-Week-1 local hcp ✓ — coincidence: matched saved teams)
+- Joel Critchell shown as **28** (his post-Week-1 local hcp ✓)
+- But "Tree Dweller's" Jarrod Milloy & Reece Taylor still **23/23** — they were never adjusted, fine
+- Karl Robinson **20** vs Brodie Robinson **36** — Brodie's saved record shows local_hcp 20, but past comp had 20, so loaded 20... but in Week 2 he shows 36? That's the *base* hcp, meaning the saved-team picker pulled from past comp entries OR the team was entered manually.
 
-**`local_comp_settings`** — global config
-- id, default_entry_fee, default_format, created_at, updated_at
+Either way, the picker behaviour is unreliable and admin has no visual indicator showing whether the loaded handicap is the latest adjusted local HCP.
 
-All tables get admin-only RLS + public SELECT on competitions/teams for the TV/embed displays.
+## Fix
 
----
+### 1. Saved teams picker — only use `local_comp_saved_teams`
+Drop the merge with `local_comp_teams`. The saved teams table is the source of truth for current handicaps. If a team isn't saved yet, admin can save it once and it will track adjustments going forward.
 
-### Admin Portal Changes
+### 2. Show "Local HCP" badge in the picker
+Update each row in the picker dropdown to display:
+> Bailey Cathro (Local HCP **3.0**, base 9) & Joel Critchell (Local HCP **24.0**, base 30)
 
-1. **New nav item** — "Local Comps" with a trophy/target icon, added to the sidebar in `AdminLayout.tsx` between SGT Manager and Analytics
+So the admin can see at a glance the adjusted handicap being loaded.
 
-2. **New page `src/pages/admin/AdminLocalComps.tsx`** — tabbed layout (following SGT Manager pattern) with:
-   - **Competitions tab** — list of comps, create new comp dialog (name, date, entry fee), status badges
-   - **Score Entry tab** — select active comp, register teams (2 player names + handicaps), auto-calculate combined handicap ((p1+p2)/4), enter gross score, auto-calculate net score, mark as paid (checkbox), live leaderboard sorted by net score
-   - **Results tab** — final leaderboard for completed comps, winner highlight, ability to mark comp as completed
+### 3. Auto-refresh local_comp_saved_teams query when comp completes
+Invalidate the `saved-local-comp-teams` query key whenever a competition's status flips to `completed` (the trigger updates handicaps). Done via realtime subscription on `local_comp_saved_teams`.
 
-3. **Team registration form** — Player 1 name + handicap, Player 2 name + handicap, team name (optional, auto-generated from player names). Combined handicap calculated and displayed in real-time.
+### 4. Add a "Refresh Handicaps from Saved Teams" button on the Score Entry table
+For comps that were created before adjustments ran, allow admin to one-click re-pull the current local HCP from `local_comp_saved_teams` for every registered team in the active comp, recompute combined_handicap and net_score. This fixes already-entered teams without re-registering.
 
-4. **Payment tracking** — Simple paid/unpaid toggle per team with a visual indicator (green tick). No Stripe integration needed — just a manual checkbox for cash collection on the night.
+### 5. Visual indicator in the Score Entry table HCP column
+Show a small "↓2" or "↑2" delta badge next to the team handicap if it differs from the saved team's current local HCP, so admins notice mismatches.
 
-5. **Score entry** — Single gross score input per team. Net score auto-calculated as `gross - floor(combined_handicap)`. Leaderboard auto-sorts by net score ascending.
+## Files to change
+- `src/components/admin/local-comps/ScoreEntry.tsx` — fix picker query, add HCP labels, add refresh button + mutation, add delta indicator
+- No DB changes needed (trigger already works correctly)
 
----
-
-### Public Displays
-
-1. **TV Embed — `src/pages/EmbedTVLocalComp.tsx`** at route `/embed/tv-local-comp`
-   - Follows existing TV embed styling (orange/green Birdies branding, large text)
-   - Shows active/most recent comp name, date, and leaderboard
-   - Auto-refreshes every 30 seconds
-   - Displays: Position, Team Name, Players, Gross, Net, with winner highlighted
-
-2. **Birdies Hub leaderboard** — New section on the League Hub or Dashboard showing latest local comp results (read-only for members)
-
----
-
-### Route & Navigation Additions
-
-- Admin route: `/admin/local-comps` → `AdminLocalComps`
-- TV embed route: `/embed/tv-local-comp` → `EmbedTVLocalComp`
-- Sidebar nav item in `AdminLayout.tsx`
-- Lazy imports in `App.tsx`
-
----
-
-### Technical Details
-
-- **Handicap formula**: Combined handicap = (Player 1 HCP + Player 2 HCP) / 4, stored as decimal, applied as floor for net calculation
-- **Scoring**: Net = Gross - floor(combined handicap)
-- **Winner**: Lowest net score wins; ties broken by lowest gross
-- **Database**: 3 migrations for the new tables with RLS policies
-- **No edge functions needed** initially — all logic is client-side with direct Supabase queries
-- **Realtime**: Enable realtime on `local_comp_teams` for live TV leaderboard updates
-
-### Files to Create/Modify
-- **Create**: `src/pages/admin/AdminLocalComps.tsx`, `src/components/admin/local-comps/CompetitionList.tsx`, `src/components/admin/local-comps/ScoreEntry.tsx`, `src/components/admin/local-comps/CompResults.tsx`, `src/pages/EmbedTVLocalComp.tsx`
-- **Modify**: `src/App.tsx` (routes), `src/components/admin/AdminLayout.tsx` (nav item)
-- **Database**: 3 migration files for new tables + RLS + realtime publication
-
+## Out of scope
+- Historical results (Week 1, Week 2) will not be retroactively rewritten — they show what was actually played with at the time. Going forward, registrations will use the current local HCP.
