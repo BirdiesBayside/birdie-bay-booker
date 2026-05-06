@@ -30,50 +30,39 @@ export function ScoreEntry() {
   const [p2Name, setP2Name] = useState("");
   const [p2Hcp, setP2Hcp] = useState("");
 
-  // Query saved teams + past comp teams for the picker
+  // Query saved teams ONLY — single source of truth for current local handicaps.
+  // (Previously merged with local_comp_teams which caused stale base-handicaps to be loaded.)
   const { data: savedTeams } = useQuery({
     queryKey: ["saved-local-comp-teams"],
     queryFn: async () => {
-      // Fetch from both saved teams (customer registrations) and past comp entries
-      const [savedRes, pastRes] = await Promise.all([
-        supabase
-          .from("local_comp_saved_teams")
-          .select("team_name, player1_name, player1_handicap, player1_local_hcp, player2_name, player2_handicap, player2_local_hcp")
-          .eq("is_active", true)
-          .order("team_name", { ascending: true }),
-        supabase
-          .from("local_comp_teams")
-          .select("team_name, player1_name, player1_handicap, player2_name, player2_handicap")
-          .order("created_at", { ascending: false }),
-      ]);
-      if (savedRes.error) throw savedRes.error;
-      if (pastRes.error) throw pastRes.error;
-
-      // Normalize: saved teams use local_hcp, past comp teams use raw handicap as fallback
-      const seen = new Set<string>();
-      const all: Array<{
-        team_name: string;
-        player1_name: string;
-        player1_handicap: number;
-        player2_name: string;
-        player2_handicap: number;
-      }> = [];
-      const savedNormalized = (savedRes.data || []).map((t) => ({
+      const { data, error } = await supabase
+        .from("local_comp_saved_teams")
+        .select("team_name, player1_name, player1_handicap, player1_local_hcp, player2_name, player2_handicap, player2_local_hcp")
+        .eq("is_active", true)
+        .order("team_name", { ascending: true });
+      if (error) throw error;
+      return (data || []).map((t) => ({
         team_name: t.team_name,
         player1_name: t.player1_name,
-        player1_handicap: t.player1_local_hcp ?? t.player1_handicap,
+        player1_base_hcp: Number(t.player1_handicap) || 0,
+        player1_local_hcp: Number(t.player1_local_hcp ?? t.player1_handicap) || 0,
         player2_name: t.player2_name,
-        player2_handicap: t.player2_local_hcp ?? t.player2_handicap,
+        player2_base_hcp: Number(t.player2_handicap) || 0,
+        player2_local_hcp: Number(t.player2_local_hcp ?? t.player2_handicap) || 0,
       }));
-      for (const t of [...savedNormalized, ...(pastRes.data || [])]) {
-        const key = `${t.player1_name.toLowerCase()}|${t.player2_name.toLowerCase()}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        all.push(t);
-      }
-      return all;
     },
   });
+
+  // Realtime: refresh saved teams when the winner's-tax trigger updates local hcps
+  useEffect(() => {
+    const channel = supabase
+      .channel('saved-teams-watch')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'local_comp_saved_teams' }, () => {
+        queryClient.invalidateQueries({ queryKey: ["saved-local-comp-teams"] });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [queryClient]);
 
   const { data: competitions } = useQuery({
     queryKey: ["local-competitions"],
