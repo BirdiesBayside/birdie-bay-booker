@@ -153,7 +153,7 @@ export function SavedTeams() {
   return (
     <div className="space-y-6">
       <Input
-        placeholder="Search players or teams..."
+        placeholder="Search teams..."
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         className="max-w-sm"
