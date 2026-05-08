@@ -284,23 +284,6 @@
 
 <section class="card" data-section="8" hidden>
   <span class="card-num">08</span>
-  <h2>Bay automation</h2>
-  <p class="hint">Birdies powers each bay on 3 minutes before a booking starts and powers off when it ends, using TP-Link Tapo smart plugs and a small Electron app per bay PC.</p>
-  <div class="row">
-    <div><label>Smart plug model</label><input name="auto_plug" type="text" placeholder="e.g. Tapo P100" /></div>
-    <div><label>Sim software per bay</label><input name="auto_sim" type="text" placeholder="GSPro, TGC2019…" /></div>
-  </div>
-  <div class="row">
-    <div><label>Monitor count per bay</label><input name="auto_monitors" type="number" /></div>
-    <div><label>Pre-start lead time (mins)</label><input name="auto_lead" type="number" placeholder="3" /></div>
-  </div>
-  <label>House rules to display in the welcome window</label>
-  <div class="hint">4 short rules. Birdies shows things like "Indoor swing syndrome — keep it controlled".</div>
-  <textarea name="auto_rules" rows="5"></textarea>
-</section>
-
-<section class="card" data-section="9" hidden>
-  <span class="card-num">09</span>
   <h2>Competitions &amp; league</h2>
   <div class="checks">
     <label><input type="checkbox" name="comp_sgt" /> Run an SGT-style weekly tournament</label>
@@ -312,33 +295,37 @@
   <textarea name="comp_prizes" placeholder="e.g. Weekly winner $40 credit, Monthly winner $100…"></textarea>
 </section>
 
-<section class="card" data-section="10" hidden>
-  <span class="card-num">10</span>
+<section class="card" data-section="9" hidden>
+  <span class="card-num">09</span>
   <h2>Communications</h2>
+  <label>Which customer notification channels do you want?</label>
   <div class="checks">
-    <label><input type="checkbox" name="comm_resend" /> Resend account ready (transactional email)</label>
-    <label><input type="checkbox" name="comm_sms" /> Want SMS notifications</label>
-    <label><input type="checkbox" name="comm_push" /> Want push notifications (mobile app)</label>
-    <label><input type="checkbox" name="comm_marketing" /> Want marketing email broadcasts</label>
+    <label><input type="checkbox" name="comm_email" /> Email</label>
+    <label><input type="checkbox" name="comm_sms" /> SMS</label>
   </div>
   <label>Marketing email frequency</label>
   <input name="comm_freq" type="text" placeholder="weekly, fortnightly, ad-hoc…" />
 </section>
 
-<section class="card" data-section="11" hidden>
-  <span class="card-num">11</span>
+<section class="card" data-section="10" hidden>
+  <span class="card-num">10</span>
   <h2>Access control</h2>
+  <p class="hint">If you have a boom gate, smart lock, or door entry system you'd like tied to bookings.</p>
+  <label>Entry code style</label>
   <div class="checks">
-    <label><input type="checkbox" name="acc_gate" /> Boom gate / door automation needed</label>
+    <label><input type="radio" name="acc_code_style" value="per_booking" /> Unique code per booking</label>
+    <label><input type="radio" name="acc_code_style" value="daily" /> Daily rotating code</label>
+    <label><input type="radio" name="acc_code_style" value="static" /> Static / shared code</label>
+    <label><input type="radio" name="acc_code_style" value="none" /> Not needed</label>
   </div>
   <div class="row">
-    <div><label>Provider</label><input name="acc_provider" type="text" placeholder="Noke, Salto, custom…" /></div>
+    <div><label>Provider (if known)</label><input name="acc_provider" type="text" placeholder="Noke, Salto, custom…" /></div>
     <div><label>After-hours window</label><input name="acc_window" type="text" placeholder="e.g. before 7am or after 5pm" /></div>
   </div>
 </section>
 
-<section class="card" data-section="12" hidden>
-  <span class="card-num">12</span>
+<section class="card" data-section="11" hidden>
+  <span class="card-num">11</span>
   <h2>POS / Food &amp; beverage</h2>
   <div class="checks">
     <label><input type="checkbox" name="pos_qr" /> QR ordering from the bay</label>
@@ -349,19 +336,18 @@
   <input name="pos_recon_time" type="text" placeholder="e.g. 3:00am local" />
 </section>
 
-<section class="card" data-section="13" hidden>
-  <span class="card-num">13</span>
+<section class="card" data-section="12" hidden>
+  <span class="card-num">12</span>
   <h2>Mobile app</h2>
+  <label>Which branded mobile apps do you want?</label>
   <div class="checks">
-    <label><input type="checkbox" name="app_ios" /> Branded iOS app</label>
-    <label><input type="checkbox" name="app_android" /> Branded Android app</label>
-    <label><input type="checkbox" name="app_dev_apple" /> Apple Developer account ready</label>
-    <label><input type="checkbox" name="app_dev_google" /> Google Play account ready</label>
+    <label><input type="checkbox" name="app_ios" /> iOS</label>
+    <label><input type="checkbox" name="app_android" /> Android</label>
   </div>
 </section>
 
-<section class="card" data-section="14" hidden>
-  <span class="card-num">14</span>
+<section class="card" data-section="13" hidden>
+  <span class="card-num">13</span>
   <h2>Content &amp; policies</h2>
   <div class="row">
     <div><label>Terms &amp; conditions URL</label><input name="content_tcs" type="url" /></div>
@@ -371,8 +357,8 @@
   <textarea name="content_about"></textarea>
 </section>
 
-<section class="card" data-section="15" hidden>
-  <span class="card-num">15</span>
+<section class="card" data-section="14" hidden>
+  <span class="card-num">14</span>
   <h2>Anything else</h2>
   <textarea name="extra" rows="5" placeholder="Custom features, integrations, dreams, dealbreakers…"></textarea>
 </section>
