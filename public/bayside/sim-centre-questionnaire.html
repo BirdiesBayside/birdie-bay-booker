@@ -233,14 +233,13 @@
 <section class="card" data-section="5" hidden>
   <span class="card-num">05</span>
   <h2>Membership model</h2>
-  <p class="hint">Birdies runs four tiers (Visitor, Weekday, Birdie, Eagle). Tell us how yours should look.</p>
-  <label>How many tiers do you want?</label>
-  <input name="mem_tier_count" type="number" min="1" max="6" />
-  <label>Describe each tier</label>
-  <div class="hint">For each: name · weekly (or monthly) price · hourly rate · restrictions · perks · league access? Use one line per tier.</div>
-  <textarea name="mem_tiers" rows="6"></textarea>
-  <label>Anything members get that visitors don't?</label>
-  <textarea name="mem_perks"></textarea>
+  <p class="hint">Tell us how your memberships should work — tiers, fees, what's included, and any rules around when members can play.</p>
+  <label>Describe each membership tier</label>
+  <div class="hint">Include the name, weekly or monthly fee, what's included (e.g. unlimited play, X hours, member hourly rate), restrictions, and any perks. One tier per paragraph or line.</div>
+  <textarea name="mem_tiers" rows="8"></textarea>
+  <label>How do membership fees work?</label>
+  <div class="hint">Weekly direct debit, monthly subscription, annual upfront, etc. Note any free trials, hold/pause rules, or cancellation terms.</div>
+  <textarea name="mem_fee_model" rows="3"></textarea>
 </section>
 
 <section class="card" data-section="6" hidden>
