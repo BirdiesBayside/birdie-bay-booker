@@ -569,6 +569,48 @@
     alert('Copied to clipboard');
   };
 
+  // ---- Brand guide PDF upload ----
+  const BUCKET = 'sim-centre-brand-guides';
+  const STORAGE_URL = SUPABASE_URL + '/storage/v1/object/' + BUCKET + '/';
+  const brandFileEl = document.getElementById('brandGuideFile');
+  const brandStatusEl = document.getElementById('brandGuideStatus');
+  function setBrandStatus(msg, ok){
+    brandStatusEl.textContent = msg;
+    brandStatusEl.style.color = ok === false ? '#b00020' : (ok ? 'var(--green)' : 'var(--muted)');
+  }
+  brandFileEl.addEventListener('change', async () => {
+    const file = brandFileEl.files[0];
+    if (!file) return;
+    if (file.type !== 'application/pdf') { setBrandStatus('Please upload a PDF.', false); return; }
+    if (file.size > 25 * 1024 * 1024) { setBrandStatus('Max 25MB.', false); return; }
+    // Need a submission row first so we can attach the URL
+    if (!submissionId) {
+      const ok = await saveProgress({ section: current });
+      if (!ok) { setBrandStatus('Could not save — try again.', false); return; }
+    }
+    setBrandStatus('Uploading…');
+    const path = submissionId + '/' + Date.now() + '-' + file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
+    const upRes = await fetch(STORAGE_URL + encodeURI(path), {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_ANON,
+        'Authorization': 'Bearer ' + SUPABASE_ANON,
+        'Content-Type': 'application/pdf',
+        'x-upsert': 'true'
+      },
+      body: file
+    });
+    if (!upRes.ok) { setBrandStatus('Upload failed.', false); return; }
+    const publicUrl = SUPABASE_URL + '/storage/v1/object/public/' + BUCKET + '/' + encodeURI(path);
+    // Patch submission with brand_guide_url
+    await fetch(REST + '?id=eq.' + encodeURIComponent(submissionId), {
+      method: 'PATCH',
+      headers: HEADERS_BASE,
+      body: JSON.stringify({ brand_guide_url: publicUrl })
+    });
+    setBrandStatus('Uploaded ✓ ' + file.name, true);
+  });
+
   // ---- Init ----
   (async function init(){
     showSection(1);
