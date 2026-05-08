@@ -73,6 +73,7 @@ interface Customer {
   first_name: string;
   last_name: string;
   email: string;
+  phone?: string | null;
   deposit_balance?: number;
 }
 
@@ -291,7 +292,7 @@ export default function AdminPOS() {
   const fetchCustomers = async () => {
     const { data, error } = await supabase
       .from('profiles')
-      .select('user_id, first_name, last_name, email, deposit_balance')
+      .select('user_id, first_name, last_name, email, phone, deposit_balance')
       .order('first_name', { ascending: true });
 
     if (error) {
