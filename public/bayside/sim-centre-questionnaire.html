@@ -509,8 +509,14 @@
       }
       const row = rows[0];
       applyData(row.data || {});
+      if (row.brand_guide_url) {
+        const el = document.getElementById('brandGuideStatus');
+        if (el) {
+          el.innerHTML = 'Current upload: <a href="'+row.brand_guide_url+'" target="_blank" rel="noopener">view PDF</a>';
+          el.style.color = 'var(--green)';
+        }
+      }
       if (row.completed_at) {
-        // Show resume option but keep them on last section
         showSection(row.current_section || total);
       } else {
         showSection(row.current_section || 1);
