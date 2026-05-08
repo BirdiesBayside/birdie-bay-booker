@@ -180,35 +180,45 @@ export function AddBookingDialog({
 
   const fetchCustomers = async (search?: string) => {
     // Only fetch if there's a search term of at least 2 characters
-    if (!search || search.length < 2) {
+    if (!search || search.trim().length < 2) {
       setCustomers([]);
       setIsLoadingCustomers(false);
       return;
     }
-    
+
     setIsLoadingCustomers(true);
-    
-    // Fetch more results and filter client-side for full name matching
-    const { data, error } = await supabase
+
+    // Split into tokens so multi-word queries like "Paul Gale" match
+    // first name in one column and last name in another.
+    const tokens = search.trim().toLowerCase().split(/\s+/).filter(Boolean);
+
+    let query = supabase
       .from("profiles")
-      .select("user_id, first_name, last_name, email, phone, membership_tier, custom_hourly_rate, custom_segment")
-      .or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%,email.ilike.%${search}%`)
-      .order("first_name")
-      .limit(50);
-    
-    if (!error && data) {
-      // Additional client-side filtering to support full name search
-      const searchLower = search.toLowerCase();
-      const filtered = data.filter(customer => {
-        const fullName = `${customer.first_name || ''} ${customer.last_name || ''}`.toLowerCase();
-        return fullName.includes(searchLower) ||
-          customer.first_name?.toLowerCase().includes(searchLower) ||
-          customer.last_name?.toLowerCase().includes(searchLower) ||
-          customer.email?.toLowerCase().includes(searchLower);
-      }).slice(0, 10);
-      setCustomers(filtered);
+      .select("user_id, first_name, last_name, email, phone, membership_tier, custom_hourly_rate, custom_segment");
+
+    // Each token must match somewhere (first_name, last_name, email, or phone)
+    for (const token of tokens) {
+      const safe = token.replace(/[%,()]/g, "");
+      query = query.or(
+        `first_name.ilike.%${safe}%,last_name.ilike.%${safe}%,email.ilike.%${safe}%,phone.ilike.%${safe}%`
+      );
     }
-    
+
+    const { data, error } = await query.order("first_name").limit(50);
+
+    if (!error && data) {
+      // Rank: prefer matches where the joined "first last" contains the full query
+      const fullQuery = tokens.join(" ");
+      const ranked = [...data].sort((a, b) => {
+        const aFull = `${a.first_name || ""} ${a.last_name || ""}`.toLowerCase();
+        const bFull = `${b.first_name || ""} ${b.last_name || ""}`.toLowerCase();
+        const aHit = aFull.includes(fullQuery) ? 0 : 1;
+        const bHit = bFull.includes(fullQuery) ? 0 : 1;
+        return aHit - bHit;
+      });
+      setCustomers(ranked.slice(0, 25));
+    }
+
     setIsLoadingCustomers(false);
   };
 

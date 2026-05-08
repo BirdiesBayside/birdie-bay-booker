@@ -226,17 +226,19 @@ export default function AdminCustomers() {
 
   const filteredCustomers = useMemo(() => {
     return customers.filter(customer => {
-      // Search filter
-      if (searchQuery) {
-        const query = searchQuery.toLowerCase();
+      // Search filter — tokenized so "paul gale" matches first+last across columns
+      if (searchQuery && searchQuery.trim()) {
+        const tokens = searchQuery.trim().toLowerCase().split(/\s+/).filter(Boolean);
         const fullName = `${customer.first_name || ''} ${customer.last_name || ''}`.toLowerCase();
-        const matchesSearch = 
-          fullName.includes(query) ||
-          customer.first_name?.toLowerCase().includes(query) ||
-          customer.last_name?.toLowerCase().includes(query) ||
-          customer.email?.toLowerCase().includes(query) ||
-          customer.phone?.includes(query);
-        if (!matchesSearch) return false;
+        const fields = [
+          fullName,
+          (customer.first_name || '').toLowerCase(),
+          (customer.last_name || '').toLowerCase(),
+          (customer.email || '').toLowerCase(),
+          (customer.phone || '').toLowerCase(),
+        ];
+        const allMatch = tokens.every(t => fields.some(f => f.includes(t)));
+        if (!allMatch) return false;
       }
 
       // Tier filter
