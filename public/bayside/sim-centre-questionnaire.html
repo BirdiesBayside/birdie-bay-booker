@@ -147,22 +147,24 @@
   <h2>Business basics</h2>
   <div class="row">
     <div><label class="req">Trading name</label><input name="biz_trading" type="text" required /></div>
-    <div><label>Legal entity name</label><input name="biz_legal" type="text" /></div>
+    <div><label class="req">Legal entity name</label><input name="biz_legal" type="text" required /></div>
   </div>
   <div class="row">
-    <div><label>ABN / company number</label><input name="biz_abn" type="text" /></div>
-    <div><label>Website</label><input name="biz_website" type="url" placeholder="https://" /></div>
+    <div><label class="req">ABN / company number</label><input name="biz_abn" type="text" required /></div>
+    <div><label class="req">Website</label><input name="biz_website" type="url" placeholder="https://" required /></div>
   </div>
   <div class="row">
     <div><label class="req">Primary contact name</label><input name="contact_name" type="text" required /></div>
-    <div><label>Role / title</label><input name="contact_role" type="text" /></div>
+    <div><label class="req">Role / title</label><input name="contact_role" type="text" required /></div>
   </div>
   <div class="row">
     <div><label class="req">Email</label><input name="contact_email" type="email" required /></div>
     <div><label class="req">Phone</label><input name="contact_phone" type="tel" required /></div>
   </div>
-  <label>Social handles (Instagram, Facebook, TikTok)</label>
-  <textarea name="biz_socials"></textarea>
+  <div class="row">
+    <div><label class="req">Instagram URL</label><input name="biz_instagram" type="url" placeholder="https://instagram.com/…" required /></div>
+    <div><label class="req">Facebook URL</label><input name="biz_facebook" type="url" placeholder="https://facebook.com/…" required /></div>
+  </div>
 </section>
 
 <section class="card" data-section="2" hidden>
@@ -181,16 +183,8 @@
   <label>Opening hours (per day)</label>
   <div class="hint">Format: Mon 8:00–22:00, Tue 8:00–22:00, etc.</div>
   <textarea name="loc_hours"></textarea>
-  <label>Public holidays observed</label>
-  <div class="hint">Which holidays do you close, run reduced hours, or apply a surcharge?</div>
-  <textarea name="loc_holidays"></textarea>
   <label>Bay numbering scheme</label>
   <input name="bay_naming" type="text" placeholder="e.g. Bay 1–6, or named (Augusta, Pebble…)" />
-  <label>Simulator hardware per bay</label>
-  <div class="hint">Brand &amp; model. e.g. GSPro + Uneekor EYE XO, Trackman 4, etc.</div>
-  <textarea name="sim_hardware"></textarea>
-  <label>TV / projector layout</label>
-  <textarea name="display_layout" placeholder="Single screen, dual screen, projector + TV scoreboard…"></textarea>
   <label>On-site facilities</label>
   <div class="checks">
     <label><input type="checkbox" name="fac_bar" /> Bar</label>
@@ -213,8 +207,10 @@
     <div><label>Heading font</label><input name="brand_heading_font" type="text" /></div>
     <div><label>Body font</label><input name="brand_body_font" type="text" /></div>
   </div>
-  <label>Logo files</label>
-  <div class="hint">Email these separately to Bayside Golf — SVG preferred, plus a PNG version for dark backgrounds.</div>
+  <label>Brand guide / brand kit (PDF)</label>
+  <div class="hint">Upload your brand guide PDF if you have one. You can still fill in the colour and font fields above so we have everything in one place.</div>
+  <input type="file" id="brandGuideFile" accept="application/pdf" />
+  <div id="brandGuideStatus" class="hint" style="margin-top:6px"></div>
   <label>Tone of voice</label>
   <textarea name="brand_tone" placeholder="e.g. friendly, premium, irreverent…"></textarea>
 </section>
@@ -237,33 +233,36 @@
 <section class="card" data-section="5" hidden>
   <span class="card-num">05</span>
   <h2>Membership model</h2>
-  <p class="hint">Birdies runs four tiers (Visitor, Weekday, Birdie, Eagle). Tell us how yours should look.</p>
-  <label>How many tiers do you want?</label>
-  <input name="mem_tier_count" type="number" min="1" max="6" />
-  <label>Describe each tier</label>
-  <div class="hint">For each: name · weekly (or monthly) price · hourly rate · restrictions · perks · league access? Use one line per tier.</div>
-  <textarea name="mem_tiers" rows="6"></textarea>
-  <label>Anything members get that visitors don't?</label>
-  <textarea name="mem_perks"></textarea>
+  <p class="hint">Tell us how your memberships should work — tiers, fees, what's included, and any rules around when members can play.</p>
+  <label>Describe each membership tier</label>
+  <div class="hint">Include the name, weekly or monthly fee, what's included (e.g. unlimited play, X hours, member hourly rate), restrictions, and any perks. One tier per paragraph or line.</div>
+  <textarea name="mem_tiers" rows="8"></textarea>
+  <label>How do membership fees work?</label>
+  <div class="hint">Weekly direct debit, monthly subscription, annual upfront, etc. Note any free trials, hold/pause rules, or cancellation terms.</div>
+  <textarea name="mem_fee_model" rows="3"></textarea>
 </section>
 
 <section class="card" data-section="6" hidden>
   <span class="card-num">06</span>
-  <h2>Pricing &amp; rules</h2>
+  <h2>Pricing &amp; booking rules</h2>
+  <p class="hint">Describe pricing in your own words — flat hourly, peak/off-peak, unlimited member play, packages, anything goes.</p>
+  <label>Visitor / casual pricing</label>
+  <textarea name="price_visitor" rows="4" placeholder="e.g. $35/hr peak, $25/hr off-peak. Peak = Fri–Sun all day + Mon–Thu after 4pm."></textarea>
+  <label>Member pricing (if different to memberships above)</label>
+  <textarea name="price_member" rows="3" placeholder="e.g. $10/hr anytime, or unlimited included in membership."></textarea>
+  <label>Public holiday surcharge</label>
+  <input name="price_holiday" type="text" placeholder="e.g. +20% on public holidays, or none" />
+  <label>Booking timeslot length</label>
+  <div class="checks">
+    <label><input type="radio" name="price_slot_len" value="30" /> 30-minute slots</label>
+    <label><input type="radio" name="price_slot_len" value="60" /> 1-hour slots</label>
+  </div>
   <div class="row">
-    <div><label>Visitor — peak hourly</label><input name="price_peak" type="number" step="0.01" /></div>
-    <div><label>Visitor — off-peak hourly</label><input name="price_off" type="number" step="0.01" /></div>
+    <div><label>Minimum booking length</label><input name="price_min" type="text" placeholder="e.g. 1 hour" /></div>
+    <div><label>Maximum booking length</label><input name="price_max" type="text" placeholder="e.g. 4 hours" /></div>
   </div>
-  <label>Peak vs off-peak definition</label>
-  <div class="hint">e.g. Peak = Fri–Sun all day + Mon–Thu 4pm onwards. Off-peak = everything else.</div>
-  <textarea name="price_peak_def"></textarea>
-  <div class="row-3">
-    <div><label>Public holiday surcharge %</label><input name="price_holiday_pct" type="number" step="1" /></div>
-    <div><label>Min booking (minutes)</label><input name="price_min_mins" type="number" /></div>
-    <div><label>Max booking (minutes)</label><input name="price_max_mins" type="number" /></div>
-  </div>
-  <label>Booking increments</label>
-  <input name="price_increments" type="text" placeholder="e.g. 30 min slots, 1/2/3/4 hour bookings" />
+  <label>Anything else about pricing or booking rules?</label>
+  <textarea name="price_notes"></textarea>
 </section>
 
 <section class="card" data-section="7" hidden>
@@ -285,23 +284,6 @@
 
 <section class="card" data-section="8" hidden>
   <span class="card-num">08</span>
-  <h2>Bay automation</h2>
-  <p class="hint">Birdies powers each bay on 3 minutes before a booking starts and powers off when it ends, using TP-Link Tapo smart plugs and a small Electron app per bay PC.</p>
-  <div class="row">
-    <div><label>Smart plug model</label><input name="auto_plug" type="text" placeholder="e.g. Tapo P100" /></div>
-    <div><label>Sim software per bay</label><input name="auto_sim" type="text" placeholder="GSPro, TGC2019…" /></div>
-  </div>
-  <div class="row">
-    <div><label>Monitor count per bay</label><input name="auto_monitors" type="number" /></div>
-    <div><label>Pre-start lead time (mins)</label><input name="auto_lead" type="number" placeholder="3" /></div>
-  </div>
-  <label>House rules to display in the welcome window</label>
-  <div class="hint">4 short rules. Birdies shows things like "Indoor swing syndrome — keep it controlled".</div>
-  <textarea name="auto_rules" rows="5"></textarea>
-</section>
-
-<section class="card" data-section="9" hidden>
-  <span class="card-num">09</span>
   <h2>Competitions &amp; league</h2>
   <div class="checks">
     <label><input type="checkbox" name="comp_sgt" /> Run an SGT-style weekly tournament</label>
@@ -313,33 +295,37 @@
   <textarea name="comp_prizes" placeholder="e.g. Weekly winner $40 credit, Monthly winner $100…"></textarea>
 </section>
 
-<section class="card" data-section="10" hidden>
-  <span class="card-num">10</span>
+<section class="card" data-section="9" hidden>
+  <span class="card-num">09</span>
   <h2>Communications</h2>
+  <label>Which customer notification channels do you want?</label>
   <div class="checks">
-    <label><input type="checkbox" name="comm_resend" /> Resend account ready (transactional email)</label>
-    <label><input type="checkbox" name="comm_sms" /> Want SMS notifications</label>
-    <label><input type="checkbox" name="comm_push" /> Want push notifications (mobile app)</label>
-    <label><input type="checkbox" name="comm_marketing" /> Want marketing email broadcasts</label>
+    <label><input type="checkbox" name="comm_email" /> Email</label>
+    <label><input type="checkbox" name="comm_sms" /> SMS</label>
   </div>
   <label>Marketing email frequency</label>
   <input name="comm_freq" type="text" placeholder="weekly, fortnightly, ad-hoc…" />
 </section>
 
-<section class="card" data-section="11" hidden>
-  <span class="card-num">11</span>
+<section class="card" data-section="10" hidden>
+  <span class="card-num">10</span>
   <h2>Access control</h2>
+  <p class="hint">If you have a boom gate, smart lock, or door entry system you'd like tied to bookings.</p>
+  <label>Entry code style</label>
   <div class="checks">
-    <label><input type="checkbox" name="acc_gate" /> Boom gate / door automation needed</label>
+    <label><input type="radio" name="acc_code_style" value="per_booking" /> Unique code per booking</label>
+    <label><input type="radio" name="acc_code_style" value="daily" /> Daily rotating code</label>
+    <label><input type="radio" name="acc_code_style" value="static" /> Static / shared code</label>
+    <label><input type="radio" name="acc_code_style" value="none" /> Not needed</label>
   </div>
   <div class="row">
-    <div><label>Provider</label><input name="acc_provider" type="text" placeholder="Noke, Salto, custom…" /></div>
+    <div><label>Provider (if known)</label><input name="acc_provider" type="text" placeholder="Noke, Salto, custom…" /></div>
     <div><label>After-hours window</label><input name="acc_window" type="text" placeholder="e.g. before 7am or after 5pm" /></div>
   </div>
 </section>
 
-<section class="card" data-section="12" hidden>
-  <span class="card-num">12</span>
+<section class="card" data-section="11" hidden>
+  <span class="card-num">11</span>
   <h2>POS / Food &amp; beverage</h2>
   <div class="checks">
     <label><input type="checkbox" name="pos_qr" /> QR ordering from the bay</label>
@@ -350,19 +336,18 @@
   <input name="pos_recon_time" type="text" placeholder="e.g. 3:00am local" />
 </section>
 
-<section class="card" data-section="13" hidden>
-  <span class="card-num">13</span>
+<section class="card" data-section="12" hidden>
+  <span class="card-num">12</span>
   <h2>Mobile app</h2>
+  <label>Which branded mobile apps do you want?</label>
   <div class="checks">
-    <label><input type="checkbox" name="app_ios" /> Branded iOS app</label>
-    <label><input type="checkbox" name="app_android" /> Branded Android app</label>
-    <label><input type="checkbox" name="app_dev_apple" /> Apple Developer account ready</label>
-    <label><input type="checkbox" name="app_dev_google" /> Google Play account ready</label>
+    <label><input type="checkbox" name="app_ios" /> iOS</label>
+    <label><input type="checkbox" name="app_android" /> Android</label>
   </div>
 </section>
 
-<section class="card" data-section="14" hidden>
-  <span class="card-num">14</span>
+<section class="card" data-section="13" hidden>
+  <span class="card-num">13</span>
   <h2>Content &amp; policies</h2>
   <div class="row">
     <div><label>Terms &amp; conditions URL</label><input name="content_tcs" type="url" /></div>
@@ -372,8 +357,8 @@
   <textarea name="content_about"></textarea>
 </section>
 
-<section class="card" data-section="15" hidden>
-  <span class="card-num">15</span>
+<section class="card" data-section="14" hidden>
+  <span class="card-num">14</span>
   <h2>Anything else</h2>
   <textarea name="extra" rows="5" placeholder="Custom features, integrations, dreams, dealbreakers…"></textarea>
 </section>
@@ -524,8 +509,14 @@
       }
       const row = rows[0];
       applyData(row.data || {});
+      if (row.brand_guide_url) {
+        const el = document.getElementById('brandGuideStatus');
+        if (el) {
+          el.innerHTML = 'Current upload: <a href="'+row.brand_guide_url+'" target="_blank" rel="noopener">view PDF</a>';
+          el.style.color = 'var(--green)';
+        }
+      }
       if (row.completed_at) {
-        // Show resume option but keep them on last section
         showSection(row.current_section || total);
       } else {
         showSection(row.current_section || 1);
@@ -583,6 +574,48 @@
     await navigator.clipboard.writeText(asText(collect()));
     alert('Copied to clipboard');
   };
+
+  // ---- Brand guide PDF upload ----
+  const BUCKET = 'sim-centre-brand-guides';
+  const STORAGE_URL = SUPABASE_URL + '/storage/v1/object/' + BUCKET + '/';
+  const brandFileEl = document.getElementById('brandGuideFile');
+  const brandStatusEl = document.getElementById('brandGuideStatus');
+  function setBrandStatus(msg, ok){
+    brandStatusEl.textContent = msg;
+    brandStatusEl.style.color = ok === false ? '#b00020' : (ok ? 'var(--green)' : 'var(--muted)');
+  }
+  brandFileEl.addEventListener('change', async () => {
+    const file = brandFileEl.files[0];
+    if (!file) return;
+    if (file.type !== 'application/pdf') { setBrandStatus('Please upload a PDF.', false); return; }
+    if (file.size > 25 * 1024 * 1024) { setBrandStatus('Max 25MB.', false); return; }
+    // Need a submission row first so we can attach the URL
+    if (!submissionId) {
+      const ok = await saveProgress({ section: current });
+      if (!ok) { setBrandStatus('Could not save — try again.', false); return; }
+    }
+    setBrandStatus('Uploading…');
+    const path = submissionId + '/' + Date.now() + '-' + file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
+    const upRes = await fetch(STORAGE_URL + encodeURI(path), {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_ANON,
+        'Authorization': 'Bearer ' + SUPABASE_ANON,
+        'Content-Type': 'application/pdf',
+        'x-upsert': 'true'
+      },
+      body: file
+    });
+    if (!upRes.ok) { setBrandStatus('Upload failed.', false); return; }
+    const publicUrl = SUPABASE_URL + '/storage/v1/object/public/' + BUCKET + '/' + encodeURI(path);
+    // Patch submission with brand_guide_url
+    await fetch(REST + '?id=eq.' + encodeURIComponent(submissionId), {
+      method: 'PATCH',
+      headers: HEADERS_BASE,
+      body: JSON.stringify({ brand_guide_url: publicUrl })
+    });
+    setBrandStatus('Uploaded ✓ ' + file.name, true);
+  });
 
   // ---- Init ----
   (async function init(){
