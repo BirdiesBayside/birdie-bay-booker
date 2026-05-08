@@ -244,21 +244,25 @@
 
 <section class="card" data-section="6" hidden>
   <span class="card-num">06</span>
-  <h2>Pricing &amp; rules</h2>
+  <h2>Pricing &amp; booking rules</h2>
+  <p class="hint">Describe pricing in your own words — flat hourly, peak/off-peak, unlimited member play, packages, anything goes.</p>
+  <label>Visitor / casual pricing</label>
+  <textarea name="price_visitor" rows="4" placeholder="e.g. $35/hr peak, $25/hr off-peak. Peak = Fri–Sun all day + Mon–Thu after 4pm."></textarea>
+  <label>Member pricing (if different to memberships above)</label>
+  <textarea name="price_member" rows="3" placeholder="e.g. $10/hr anytime, or unlimited included in membership."></textarea>
+  <label>Public holiday surcharge</label>
+  <input name="price_holiday" type="text" placeholder="e.g. +20% on public holidays, or none" />
+  <label>Booking timeslot length</label>
+  <div class="checks">
+    <label><input type="radio" name="price_slot_len" value="30" /> 30-minute slots</label>
+    <label><input type="radio" name="price_slot_len" value="60" /> 1-hour slots</label>
+  </div>
   <div class="row">
-    <div><label>Visitor — peak hourly</label><input name="price_peak" type="number" step="0.01" /></div>
-    <div><label>Visitor — off-peak hourly</label><input name="price_off" type="number" step="0.01" /></div>
+    <div><label>Minimum booking length</label><input name="price_min" type="text" placeholder="e.g. 1 hour" /></div>
+    <div><label>Maximum booking length</label><input name="price_max" type="text" placeholder="e.g. 4 hours" /></div>
   </div>
-  <label>Peak vs off-peak definition</label>
-  <div class="hint">e.g. Peak = Fri–Sun all day + Mon–Thu 4pm onwards. Off-peak = everything else.</div>
-  <textarea name="price_peak_def"></textarea>
-  <div class="row-3">
-    <div><label>Public holiday surcharge %</label><input name="price_holiday_pct" type="number" step="1" /></div>
-    <div><label>Min booking (minutes)</label><input name="price_min_mins" type="number" /></div>
-    <div><label>Max booking (minutes)</label><input name="price_max_mins" type="number" /></div>
-  </div>
-  <label>Booking increments</label>
-  <input name="price_increments" type="text" placeholder="e.g. 30 min slots, 1/2/3/4 hour bookings" />
+  <label>Anything else about pricing or booking rules?</label>
+  <textarea name="price_notes"></textarea>
 </section>
 
 <section class="card" data-section="7" hidden>
