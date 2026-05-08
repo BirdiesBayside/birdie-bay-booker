@@ -2075,6 +2075,39 @@ export type Database = {
         }
         Relationships: []
       }
+      sim_centre_submissions: {
+        Row: {
+          completed_at: string | null
+          contact_email: string | null
+          created_at: string
+          current_section: number
+          data: Json
+          id: string
+          trading_name: string | null
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          contact_email?: string | null
+          created_at?: string
+          current_section?: number
+          data?: Json
+          id?: string
+          trading_name?: string | null
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          contact_email?: string | null
+          created_at?: string
+          current_section?: number
+          data?: Json
+          id?: string
+          trading_name?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       system_settings: {
         Row: {
           created_at: string
