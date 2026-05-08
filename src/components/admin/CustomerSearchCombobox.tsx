@@ -20,9 +20,10 @@
    user_id: string;
    first_name: string;
    last_name: string;
-   email: string;
-   deposit_balance?: number;
- }
+  email: string;
+  phone?: string | null;
+  deposit_balance?: number;
+}
  
  interface CustomerSearchComboboxProps {
    customers: Customer[];
@@ -69,7 +70,7 @@
                  {customers.map((customer) => (
                    <CommandItem
                      key={customer.user_id}
-                     value={`${customer.first_name} ${customer.last_name} ${customer.email}`}
+                     value={`${customer.first_name} ${customer.last_name} ${customer.email} ${customer.phone ?? ""}`}
                      onSelect={() => {
                        onValueChange(customer.user_id);
                        setOpen(false);
