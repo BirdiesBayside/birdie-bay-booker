@@ -44,9 +44,18 @@
     padding:48px 24px 56px;
   }
   .hero-inner{max-width:880px;margin:0 auto}
-  .hero img{height:48px;width:auto;display:block;margin-bottom:32px}
-  .hero p{color:#cfcfcf;max-width:640px;font-size:1.05rem}
+  .hero img{height:72px;width:auto;display:block;margin-bottom:32px}
+  .hero p{color:#cfcfcf;max-width:700px;font-size:1.05rem}
   .wrap{max-width:880px;margin:0 auto;padding:32px 24px 96px}
+  .progress-wrap{margin-bottom:18px}
+  .progress-meta{display:flex;justify-content:space-between;font-size:.85rem;color:var(--muted);margin-bottom:6px}
+  .progress-bar{height:8px;background:#dcdcdc;border-radius:999px;overflow:hidden}
+  .progress-fill{height:100%;background:var(--green);width:0;transition:width .3s}
+  .save-banner{
+    background:#e6f4e7;border:1px solid #b6dab9;color:#0c5510;
+    padding:10px 14px;border-radius:10px;margin-bottom:18px;font-size:.92rem;
+  }
+  .save-banner strong{font-family:'Instrument Sans';text-transform:uppercase;letter-spacing:.02em}
   .card{
     background:var(--card);
     border:1px solid var(--line);
@@ -76,11 +85,11 @@
   .checks{display:flex;flex-wrap:wrap;gap:10px 18px;margin-top:6px}
   .checks label{display:flex;align-items:center;gap:6px;font-weight:400;margin:0;font-size:.95rem}
   .checks input{accent-color:var(--green)}
-  .actions{
-    position:sticky;bottom:0;background:var(--bg);
-    padding:16px 0;display:flex;flex-wrap:wrap;gap:10px;justify-content:flex-end;
-    border-top:1px solid var(--line);margin-top:24px;
+  .nav{
+    display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:center;
+    margin-top:24px;padding-top:18px;border-top:1px solid var(--line);
   }
+  .nav-right{display:flex;gap:10px;flex-wrap:wrap}
   button{
     font:inherit;font-weight:700;cursor:pointer;
     padding:12px 18px;border-radius:10px;border:1px solid var(--off-black);
@@ -88,16 +97,21 @@
   }
   button.primary{background:var(--green);color:#fff;border-color:var(--green)}
   button.primary:hover{background:#037a09}
+  button.ghost{border-color:var(--line);color:var(--muted)}
   button:hover{background:#f3f3f3}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  .save-status{font-size:.85rem;color:var(--muted);min-width:140px;text-align:right}
+  .save-status.ok{color:var(--green)}
+  .save-status.err{color:#b00020}
   .footer{text-align:center;color:var(--muted);font-size:.85rem;margin-top:24px}
-  @media print{
-    .actions,.footer-actions{display:none}
-    body{background:#fff}
-    .card{break-inside:avoid;border-color:#bbb}
-    .hero{background:#fff;color:#000;padding:0 0 16px}
-    .hero img{filter:none}
-    h1{color:#000}
+  .complete{
+    text-align:center;padding:28px;
   }
+  .complete h2{color:var(--green);font-size:1.8rem}
+  .toolbar{
+    display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;margin-bottom:14px;
+  }
+  .toolbar button{padding:8px 12px;font-size:.85rem}
 </style>
 </head>
 <body>
@@ -106,15 +120,29 @@
   <div class="hero-inner">
     <img src="logo-bayside.png" alt="Bayside Golf" />
     <h1>Sim Centre Onboarding Questionnaire</h1>
-    <p>This questionnaire gives Bayside Golf everything we need to build your golf simulator centre its own private booking, membership, league and bay-automation platform — the same system that runs Birdies Bayside. Fill in what you can; you can save and download your progress at any point.</p>
+    <p>This questionnaire gives Bayside Golf everything we need to build your golf simulator centre its own private booking, membership, league and bay-automation platform. Fill in what you can; you can save and download your progress at any point.</p>
   </div>
 </header>
 
 <main class="wrap">
+
+<div class="save-banner">
+  <strong>Your answers save automatically.</strong> Pressing <em>Next</em> stores your progress on our servers — close the tab and come back anytime using this same link, and you can press <em>Back</em> to edit earlier answers.
+</div>
+
+<div class="progress-wrap">
+  <div class="progress-meta"><span id="progressLabel">Section 1 of 15</span><span id="saveStatus" class="save-status">Not saved yet</span></div>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+</div>
+
+<div class="toolbar">
+  <button type="button" id="copyBtn">Copy as text</button>
+  <button type="button" id="downloadBtn">Download answers (JSON)</button>
+</div>
+
 <form id="qform" autocomplete="on">
 
-<!-- 1 -->
-<section class="card">
+<section class="card" data-section="1">
   <span class="card-num">01</span>
   <h2>Business basics</h2>
   <div class="row">
@@ -137,8 +165,7 @@
   <textarea name="biz_socials"></textarea>
 </section>
 
-<!-- 2 -->
-<section class="card">
+<section class="card" data-section="2" hidden>
   <span class="card-num">02</span>
   <h2>Location &amp; facility</h2>
   <label class="req">Street address</label><input name="loc_address" type="text" required />
@@ -154,21 +181,16 @@
   <label>Opening hours (per day)</label>
   <div class="hint">Format: Mon 8:00–22:00, Tue 8:00–22:00, etc.</div>
   <textarea name="loc_hours"></textarea>
-
   <label>Public holidays observed</label>
   <div class="hint">Which holidays do you close, run reduced hours, or apply a surcharge?</div>
   <textarea name="loc_holidays"></textarea>
-
   <label>Bay numbering scheme</label>
   <input name="bay_naming" type="text" placeholder="e.g. Bay 1–6, or named (Augusta, Pebble…)" />
-
   <label>Simulator hardware per bay</label>
   <div class="hint">Brand &amp; model. e.g. GSPro + Uneekor EYE XO, Trackman 4, etc.</div>
   <textarea name="sim_hardware"></textarea>
-
   <label>TV / projector layout</label>
   <textarea name="display_layout" placeholder="Single screen, dual screen, projector + TV scoreboard…"></textarea>
-
   <label>On-site facilities</label>
   <div class="checks">
     <label><input type="checkbox" name="fac_bar" /> Bar</label>
@@ -179,8 +201,7 @@
   </div>
 </section>
 
-<!-- 3 -->
-<section class="card">
+<section class="card" data-section="3" hidden>
   <span class="card-num">03</span>
   <h2>Branding</h2>
   <div class="row-3">
@@ -198,8 +219,7 @@
   <textarea name="brand_tone" placeholder="e.g. friendly, premium, irreverent…"></textarea>
 </section>
 
-<!-- 4 -->
-<section class="card">
+<section class="card" data-section="4" hidden>
   <span class="card-num">04</span>
   <h2>Domains &amp; email</h2>
   <div class="row">
@@ -214,8 +234,7 @@
   <input name="email_mkt" type="email" placeholder="news@…" />
 </section>
 
-<!-- 5 -->
-<section class="card">
+<section class="card" data-section="5" hidden>
   <span class="card-num">05</span>
   <h2>Membership model</h2>
   <p class="hint">Birdies runs four tiers (Visitor, Weekday, Birdie, Eagle). Tell us how yours should look.</p>
@@ -228,8 +247,7 @@
   <textarea name="mem_perks"></textarea>
 </section>
 
-<!-- 6 -->
-<section class="card">
+<section class="card" data-section="6" hidden>
   <span class="card-num">06</span>
   <h2>Pricing &amp; rules</h2>
   <div class="row">
@@ -248,8 +266,7 @@
   <input name="price_increments" type="text" placeholder="e.g. 30 min slots, 1/2/3/4 hour bookings" />
 </section>
 
-<!-- 7 -->
-<section class="card">
+<section class="card" data-section="7" hidden>
   <span class="card-num">07</span>
   <h2>Payments</h2>
   <div class="checks">
@@ -266,8 +283,7 @@
   </div>
 </section>
 
-<!-- 8 -->
-<section class="card">
+<section class="card" data-section="8" hidden>
   <span class="card-num">08</span>
   <h2>Bay automation</h2>
   <p class="hint">Birdies powers each bay on 3 minutes before a booking starts and powers off when it ends, using TP-Link Tapo smart plugs and a small Electron app per bay PC.</p>
@@ -284,8 +300,7 @@
   <textarea name="auto_rules" rows="5"></textarea>
 </section>
 
-<!-- 9 -->
-<section class="card">
+<section class="card" data-section="9" hidden>
   <span class="card-num">09</span>
   <h2>Competitions &amp; league</h2>
   <div class="checks">
@@ -298,8 +313,7 @@
   <textarea name="comp_prizes" placeholder="e.g. Weekly winner $40 credit, Monthly winner $100…"></textarea>
 </section>
 
-<!-- 10 -->
-<section class="card">
+<section class="card" data-section="10" hidden>
   <span class="card-num">10</span>
   <h2>Communications</h2>
   <div class="checks">
@@ -312,8 +326,7 @@
   <input name="comm_freq" type="text" placeholder="weekly, fortnightly, ad-hoc…" />
 </section>
 
-<!-- 11 -->
-<section class="card">
+<section class="card" data-section="11" hidden>
   <span class="card-num">11</span>
   <h2>Access control</h2>
   <div class="checks">
@@ -325,8 +338,7 @@
   </div>
 </section>
 
-<!-- 12 -->
-<section class="card">
+<section class="card" data-section="12" hidden>
   <span class="card-num">12</span>
   <h2>POS / Food &amp; beverage</h2>
   <div class="checks">
@@ -338,8 +350,7 @@
   <input name="pos_recon_time" type="text" placeholder="e.g. 3:00am local" />
 </section>
 
-<!-- 13 -->
-<section class="card">
+<section class="card" data-section="13" hidden>
   <span class="card-num">13</span>
   <h2>Mobile app</h2>
   <div class="checks">
@@ -350,8 +361,7 @@
   </div>
 </section>
 
-<!-- 14 -->
-<section class="card">
+<section class="card" data-section="14" hidden>
   <span class="card-num">14</span>
   <h2>Content &amp; policies</h2>
   <div class="row">
@@ -362,41 +372,206 @@
   <textarea name="content_about"></textarea>
 </section>
 
-<!-- 15 -->
-<section class="card">
+<section class="card" data-section="15" hidden>
   <span class="card-num">15</span>
   <h2>Anything else</h2>
   <textarea name="extra" rows="5" placeholder="Custom features, integrations, dreams, dealbreakers…"></textarea>
 </section>
 
-<div class="actions footer-actions">
-  <button type="button" id="copyBtn">Copy as text</button>
-  <button type="button" id="downloadBtn">Download answers (JSON)</button>
-  <button type="button" class="primary" id="emailBtn">Email to Bayside Golf</button>
+<div class="nav">
+  <button type="button" id="backBtn" class="ghost" disabled>← Back</button>
+  <div class="nav-right">
+    <button type="button" id="nextBtn" class="primary">Next →</button>
+    <button type="button" id="submitBtn" class="primary" hidden>Submit to Bayside Golf</button>
+  </div>
 </div>
 
 </form>
+
+<section class="card complete" id="completeCard" hidden>
+  <h2>All done — thank you!</h2>
+  <p>Your responses have been delivered to Bayside Golf. We'll be in touch shortly to talk through the build.</p>
+  <p class="hint">You can still <a href="#" id="reopenLink">reopen and edit your answers</a> using your bookmarked link.</p>
+</section>
 
 <p class="footer">© Bayside Golf — Sim Centre platform onboarding</p>
 </main>
 
 <script>
+  // ---- Supabase REST config (publishable anon key — safe in client) ----
+  const SUPABASE_URL = 'https://hltrcuypuxhetcjyvedl.supabase.co';
+  const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhsdHJjdXlwdXhoZXRjanl2ZWRsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ5NzM4NDIsImV4cCI6MjA4MDU0OTg0Mn0.Y5TxI5TEm9aQPZt8DWXGWVruJIzQfS6BXC5Z9u_27-I';
+  const TABLE = 'sim_centre_submissions';
+  const REST = SUPABASE_URL + '/rest/v1/' + TABLE;
+  const HEADERS_BASE = {
+    'apikey': SUPABASE_ANON,
+    'Authorization': 'Bearer ' + SUPABASE_ANON,
+    'Content-Type': 'application/json'
+  };
+
+  const LS_KEY = 'bayside-questionnaire-id-v1';
   const form = document.getElementById('qform');
+  const sections = [...form.querySelectorAll('section.card')];
+  const total = sections.length;
+  const backBtn = document.getElementById('backBtn');
+  const nextBtn = document.getElementById('nextBtn');
+  const submitBtn = document.getElementById('submitBtn');
+  const progressFill = document.getElementById('progressFill');
+  const progressLabel = document.getElementById('progressLabel');
+  const saveStatus = document.getElementById('saveStatus');
+  const completeCard = document.getElementById('completeCard');
+
+  let current = 1;
+  let submissionId = null;
+
+  // ---- Restore id from URL or localStorage ----
+  const urlParams = new URLSearchParams(location.search);
+  submissionId = urlParams.get('id') || localStorage.getItem(LS_KEY) || null;
+
+  function setStatus(text, cls){
+    saveStatus.textContent = text;
+    saveStatus.className = 'save-status' + (cls ? ' ' + cls : '');
+  }
 
   function collect(){
     const data = {};
     new FormData(form).forEach((v,k)=>{ data[k] = v; });
-    // checkboxes
     form.querySelectorAll('input[type=checkbox]').forEach(cb=>{
       data[cb.name] = cb.checked;
     });
     return data;
   }
 
+  function applyData(data){
+    if (!data) return;
+    Object.entries(data).forEach(([k,v])=>{
+      const el = form.querySelector('[name="'+k+'"]');
+      if (!el) return;
+      if (el.type === 'checkbox') el.checked = !!v;
+      else el.value = v == null ? '' : v;
+    });
+  }
+
+  function showSection(n){
+    current = Math.max(1, Math.min(total, n));
+    sections.forEach(s => s.hidden = (parseInt(s.dataset.section,10) !== current));
+    progressFill.style.width = (current/total*100) + '%';
+    progressLabel.textContent = 'Section ' + current + ' of ' + total;
+    backBtn.disabled = current === 1;
+    nextBtn.hidden = current === total;
+    submitBtn.hidden = current !== total;
+    window.scrollTo({top: 0, behavior:'smooth'});
+  }
+
+  async function saveProgress(opts){
+    opts = opts || {};
+    const data = collect();
+    setStatus('Saving…');
+    try {
+      const body = {
+        data,
+        current_section: opts.section ?? current,
+        contact_email: data.contact_email || null,
+        trading_name: data.biz_trading || null,
+      };
+      if (opts.complete) body.completed_at = new Date().toISOString();
+
+      let res, row;
+      if (!submissionId) {
+        res = await fetch(REST, {
+          method: 'POST',
+          headers: { ...HEADERS_BASE, 'Prefer': 'return=representation' },
+          body: JSON.stringify(body)
+        });
+        if (!res.ok) throw new Error(await res.text());
+        row = (await res.json())[0];
+        submissionId = row.id;
+        localStorage.setItem(LS_KEY, submissionId);
+        // Add id to URL so the link itself becomes the resume link
+        const u = new URL(location.href);
+        u.searchParams.set('id', submissionId);
+        history.replaceState(null, '', u.toString());
+      } else {
+        res = await fetch(REST + '?id=eq.' + encodeURIComponent(submissionId), {
+          method: 'PATCH',
+          headers: { ...HEADERS_BASE, 'Prefer': 'return=representation' },
+          body: JSON.stringify(body)
+        });
+        if (!res.ok) throw new Error(await res.text());
+      }
+      setStatus('Saved ✓', 'ok');
+      return true;
+    } catch (e) {
+      console.error('save failed', e);
+      setStatus('Save failed — retry', 'err');
+      return false;
+    }
+  }
+
+  async function loadExisting(){
+    if (!submissionId) return;
+    try {
+      const res = await fetch(REST + '?id=eq.' + encodeURIComponent(submissionId) + '&select=*', {
+        headers: HEADERS_BASE
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const rows = await res.json();
+      if (!rows.length) {
+        // stale id — discard
+        localStorage.removeItem(LS_KEY);
+        submissionId = null;
+        return;
+      }
+      const row = rows[0];
+      applyData(row.data || {});
+      if (row.completed_at) {
+        // Show resume option but keep them on last section
+        showSection(row.current_section || total);
+      } else {
+        showSection(row.current_section || 1);
+      }
+      setStatus('Loaded saved progress', 'ok');
+    } catch (e) {
+      console.error('load failed', e);
+    }
+  }
+
+  // ---- Buttons ----
+  nextBtn.onclick = async () => {
+    nextBtn.disabled = true;
+    const ok = await saveProgress({ section: Math.min(current+1, total) });
+    nextBtn.disabled = false;
+    if (ok) showSection(current + 1);
+  };
+  backBtn.onclick = async () => {
+    backBtn.disabled = true;
+    await saveProgress({ section: Math.max(current-1, 1) });
+    backBtn.disabled = false;
+    showSection(current - 1);
+  };
+  submitBtn.onclick = async () => {
+    submitBtn.disabled = true;
+    const ok = await saveProgress({ complete: true });
+    submitBtn.disabled = false;
+    if (ok) {
+      form.style.display = 'none';
+      document.querySelector('.nav').style.display = 'none';
+      completeCard.hidden = false;
+      window.scrollTo({top: 0, behavior:'smooth'});
+    }
+  };
+  document.getElementById('reopenLink').onclick = (e) => {
+    e.preventDefault();
+    form.style.display = '';
+    document.querySelector('.nav').style.display = '';
+    completeCard.hidden = true;
+    showSection(1);
+  };
+
+  // ---- Toolbar (download / copy) ----
   function asText(d){
     return Object.entries(d).map(([k,v])=>`${k}: ${v}`).join('\n');
   }
-
   document.getElementById('downloadBtn').onclick = ()=>{
     const blob = new Blob([JSON.stringify(collect(),null,2)], {type:'application/json'});
     const a = document.createElement('a');
@@ -404,17 +579,18 @@
     a.download = 'sim-centre-questionnaire.json';
     a.click();
   };
-
   document.getElementById('copyBtn').onclick = async ()=>{
     await navigator.clipboard.writeText(asText(collect()));
     alert('Copied to clipboard');
   };
 
-  document.getElementById('emailBtn').onclick = ()=>{
-    const body = encodeURIComponent(asText(collect()));
-    const subject = encodeURIComponent('Sim Centre Onboarding — ' + (collect().biz_trading||''));
-    window.location.href = `mailto:hello@baysidegolf.com.au?subject=${subject}&body=${body}`;
-  };
+  // ---- Init ----
+  (async function init(){
+    showSection(1);
+    if (submissionId) await loadExisting();
+    else setStatus('Not saved yet');
+  })();
 </script>
+
 </body>
 </html>
