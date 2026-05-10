@@ -537,6 +537,21 @@
   submitBtn.onclick = async () => {
     submitBtn.disabled = true;
     const ok = await saveProgress({ complete: true });
+    if (ok) {
+      try {
+        const data = collect();
+        await fetch(SUPABASE_URL + '/functions/v1/send-questionnaire-submission', {
+          method: 'POST',
+          headers: { ...HEADERS_BASE },
+          body: JSON.stringify({
+            submissionId,
+            data,
+            tradingName: data.biz_trading || null,
+            contactEmail: data.contact_email || null,
+          })
+        });
+      } catch (e) { console.error('email send failed', e); }
+    }
     submitBtn.disabled = false;
     if (ok) {
       form.style.display = 'none';
