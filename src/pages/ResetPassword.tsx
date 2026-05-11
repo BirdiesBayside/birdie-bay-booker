@@ -273,22 +273,16 @@ export default function ResetPassword() {
     setIsRequestingLink(true);
 
     try {
-      const response = await fetch(`${SUPABASE_URL}/functions/v1/send-password-reset`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
+      // Match admin flow exactly: use supabase.functions.invoke
+      const { data, error } = await supabase.functions.invoke("send-password-reset", {
+        body: {
           email: resetEmail,
           redirectUrl: `${window.location.origin}/reset-password`,
-        }),
+        },
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to send reset link");
-      }
+      if (error) throw new Error(error.message || "Failed to send reset link");
+      if (data?.error) throw new Error(data.error);
 
       setLinkRequested(true);
       toast.success("Password reset link sent! Check your email.");
