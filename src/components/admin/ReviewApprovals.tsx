@@ -92,11 +92,25 @@ export function ReviewApprovals() {
     setIsSearching(true);
 
     const query = searchQuery.trim().toLowerCase();
-    const { data, error } = await supabase
+    const parts = query.split(/\s+/).filter(Boolean);
+
+    let builder = supabase
       .from("profiles")
-      .select("user_id, first_name, last_name, email, deposit_balance")
-      .or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%,email.ilike.%${query}%`)
-      .limit(10);
+      .select("user_id, first_name, last_name, email, deposit_balance");
+
+    if (parts.length >= 2) {
+      // Match "first last" or "last first" across separate columns
+      const [a, b] = parts;
+      builder = builder.or(
+        `and(first_name.ilike.%${a}%,last_name.ilike.%${b}%),and(first_name.ilike.%${b}%,last_name.ilike.%${a}%),email.ilike.%${query}%`
+      );
+    } else {
+      builder = builder.or(
+        `first_name.ilike.%${query}%,last_name.ilike.%${query}%,email.ilike.%${query}%`
+      );
+    }
+
+    const { data, error } = await builder.limit(10);
 
     if (!error && data) {
       // Filter out users who already have a review reward
