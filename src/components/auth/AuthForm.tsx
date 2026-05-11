@@ -78,23 +78,21 @@ export function AuthForm({ defaultToSignUp = false }: AuthFormProps) {
 
     setIsLoading(true);
     try {
-      // Use the custom send-password-reset edge function instead of native Supabase
-      // This ensures consistent link generation and proper redirect URL
-      const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-      const response = await fetch(`${SUPABASE_URL}/functions/v1/send-password-reset`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ 
+      // Match admin flow exactly: use supabase.functions.invoke for consistent headers/auth
+      const { data, error } = await supabase.functions.invoke("send-password-reset", {
+        body: {
           email: formData.email.trim(),
           redirectUrl: `${window.location.origin}/reset-password`,
-        }),
+        },
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
+      if (error) {
+        toast({
+          title: "Error",
+          description: error.message || "Failed to send reset link",
+          variant: "destructive",
+        });
+      } else if (data?.error) {
         toast({
           title: "Error",
           description: data.error || "Failed to send reset link",
