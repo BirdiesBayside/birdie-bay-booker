@@ -24,142 +24,91 @@ export default function ResetPassword() {
   const [resetEmail, setResetEmail] = useState("");
   const [isRequestingLink, setIsRequestingLink] = useState(false);
   const [linkRequested, setLinkRequested] = useState(false);
+  const [pendingTokens, setPendingTokens] = useState<{
+    accessToken?: string;
+    refreshToken?: string;
+    tokenHash?: string;
+    otpToken?: string;
+    emailParam?: string;
+  } | null>(null);
+  const [isConfirming, setIsConfirming] = useState(false);
 
+  const finishValidation = (isValid: boolean, message?: string | null) => {
+    setIsValidSession(isValid);
+    setErrorMessage(isValid ? null : message || "Invalid or expired reset link. Please request a new password reset.");
+    setIsValidating(false);
+    setPendingTokens(null);
+  };
+
+  // STEP 1: On page load, just detect tokens in URL — do NOT consume them.
+  // Email security scanners (Outlook Safe Links, Mimecast, etc.) pre-fetch
+  // links in a real browser and would burn one-time tokens before the user
+  // clicks. We require an explicit button click to verify.
   useEffect(() => {
     let isMounted = true;
     let subscription: { unsubscribe: () => void } | null = null;
 
-    const finishValidation = (isValid: boolean, message?: string | null) => {
-      if (!isMounted) return;
-      setIsValidSession(isValid);
-      setErrorMessage(isValid ? null : message || "Invalid or expired reset link. Please request a new password reset.");
-      setIsValidating(false);
-    };
-
-    const handleTokenExchange = async () => {
-      setIsValidating(true);
-      setErrorMessage(null);
-
+    const detect = async () => {
       try {
         const hash = window.location.hash;
         const search = window.location.search;
         const hashParams = new URLSearchParams(hash.startsWith("#") ? hash.slice(1) : hash);
         const queryParams = new URLSearchParams(search);
 
-        const accessToken = hashParams.get("access_token");
-        const refreshToken = hashParams.get("refresh_token");
-        const tokenHash = queryParams.get("token_hash") || hashParams.get("token_hash");
-        const emailParam = queryParams.get("email") || hashParams.get("email");
-        const otpToken = queryParams.get("token") || hashParams.get("token") || queryParams.get("email_otp") || hashParams.get("email_otp");
+        const accessToken = hashParams.get("access_token") || undefined;
+        const refreshToken = hashParams.get("refresh_token") || undefined;
+        const tokenHash = queryParams.get("token_hash") || hashParams.get("token_hash") || undefined;
+        const emailParam = queryParams.get("email") || hashParams.get("email") || undefined;
+        const otpToken =
+          queryParams.get("token") ||
+          hashParams.get("token") ||
+          queryParams.get("email_otp") ||
+          hashParams.get("email_otp") ||
+          undefined;
         const type = hashParams.get("type") || queryParams.get("type");
         const errorParam = hashParams.get("error") || queryParams.get("error");
         const errorDescription = hashParams.get("error_description") || queryParams.get("error_description");
 
-        console.log("[RESET] Page loaded. Full URL:", window.location.href);
-        console.log("[RESET] Recovery params:", {
-          type,
-          hasAccessToken: !!accessToken,
-          hasRefreshToken: !!refreshToken,
-          hasEmail: !!emailParam,
-          hasOtpToken: !!otpToken,
-          hasTokenHash: !!tokenHash,
-          hasError: !!errorParam,
-        });
+        if (!isMounted) return;
 
         if (errorParam) {
-          console.log("[RESET] Recovery error detected:", errorParam, errorDescription);
           finishValidation(false, errorDescription || "Invalid or expired link");
           return;
         }
 
-        if (accessToken && refreshToken && type === "recovery") {
-          console.log("[RESET] Found recovery tokens in URL hash, setting session...");
-
-          const { data, error } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken,
-          });
-
-          if (error) {
-            console.error("[RESET] Session error:", error.message, error);
-            finishValidation(false, "Invalid or expired reset link. Please request a new one.");
-            return;
-          }
-
-          console.log("[RESET] Session set successfully for:", data?.session?.user?.email);
-          window.history.replaceState(null, "", window.location.pathname);
-          sessionStorage.setItem("password_reset_in_progress", "true");
-          finishValidation(true);
-          return;
-        }
-
-        if (emailParam && otpToken && type === "recovery") {
-          console.log("[RESET] Found recovery OTP in URL, verifying email OTP...");
-
-          const { data, error } = await supabase.auth.verifyOtp({
-            email: emailParam,
-            token: otpToken,
-            type: "recovery",
-          });
-
-          if (error) {
-            console.error("[RESET] Email OTP verification error:", error.message, error);
-          } else {
-            console.log("[RESET] Email OTP verified for:", data?.user?.email);
-            window.history.replaceState(null, "", window.location.pathname);
-            sessionStorage.setItem("password_reset_in_progress", "true");
-            finishValidation(true);
-            return;
-          }
-        }
-
-        if (tokenHash && type === "recovery") {
-          console.log("[RESET] Found recovery token hash in URL, verifying OTP...");
-
-          const { data, error } = await supabase.auth.verifyOtp({
-            token_hash: tokenHash,
-            type: "recovery",
-          });
-
-          if (error) {
-            console.error("[RESET] Token hash verification error:", error.message, error);
-            finishValidation(false, "Invalid or expired reset link. Please request a new one.");
-            return;
-          }
-
-          console.log("[RESET] Token hash verified for:", data?.user?.email);
-          window.history.replaceState(null, "", window.location.pathname);
-          sessionStorage.setItem("password_reset_in_progress", "true");
-          finishValidation(true);
-          return;
-        }
-
+        // Already-signed-in session? Allow immediate password set.
         const { data: { session: existingSession } } = await supabase.auth.getSession();
-
         if (existingSession) {
-          console.log("[RESET] Existing session detected on reset page for:", existingSession.user?.email);
           sessionStorage.setItem("password_reset_in_progress", "true");
           finishValidation(true);
           return;
         }
 
-        const authStateChange = supabase.auth.onAuthStateChange((event, session) => {
-          console.log("[RESET] Auth event during reset:", event, "hasSession:", !!session);
+        const hasAnyToken =
+          (accessToken && refreshToken && type === "recovery") ||
+          (emailParam && otpToken && type === "recovery") ||
+          (tokenHash && type === "recovery");
 
+        if (hasAnyToken) {
+          // Stash tokens; require user click to verify.
+          setPendingTokens({ accessToken, refreshToken, tokenHash, otpToken, emailParam });
+          setIsValidating(false);
+          return;
+        }
+
+        // Last-ditch: wait briefly for a PASSWORD_RECOVERY event
+        // (in case Supabase auto-detected a hash session).
+        const authStateChange = supabase.auth.onAuthStateChange((event, session) => {
           if ((event === "PASSWORD_RECOVERY" || event === "SIGNED_IN") && session) {
             sessionStorage.setItem("password_reset_in_progress", "true");
             finishValidation(true);
           }
         });
-
         subscription = authStateChange.data.subscription;
 
         await new Promise((resolve) => setTimeout(resolve, 1200));
-
         const { data: { session: finalSession } } = await supabase.auth.getSession();
-
         if (finalSession) {
-          console.log("[RESET] Session became available after auth event for:", finalSession.user?.email);
           sessionStorage.setItem("password_reset_in_progress", "true");
           finishValidation(true);
           return;
@@ -167,18 +116,67 @@ export default function ResetPassword() {
 
         finishValidation(false, "Invalid or expired reset link. Please request a new password reset.");
       } catch (error: any) {
-        console.error("[RESET] Token exchange error:", error);
+        console.error("[RESET] Detection error:", error);
         finishValidation(false, "An error occurred. Please try again.");
       }
     };
 
-    handleTokenExchange();
+    detect();
 
     return () => {
       isMounted = false;
       subscription?.unsubscribe();
     };
   }, []);
+
+  // STEP 2: User clicks "Continue" — now consume the token.
+  const handleConfirmReset = async () => {
+    if (!pendingTokens) return;
+    setIsConfirming(true);
+    try {
+      const { accessToken, refreshToken, tokenHash, otpToken, emailParam } = pendingTokens;
+
+      if (accessToken && refreshToken) {
+        const { error } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+        if (error) throw error;
+      } else if (emailParam && otpToken) {
+        const { error } = await supabase.auth.verifyOtp({
+          email: emailParam,
+          token: otpToken,
+          type: "recovery",
+        });
+        if (error && tokenHash) {
+          const { error: e2 } = await supabase.auth.verifyOtp({
+            token_hash: tokenHash,
+            type: "recovery",
+          });
+          if (e2) throw e2;
+        } else if (error) {
+          throw error;
+        }
+      } else if (tokenHash) {
+        const { error } = await supabase.auth.verifyOtp({
+          token_hash: tokenHash,
+          type: "recovery",
+        });
+        if (error) throw error;
+      } else {
+        throw new Error("No reset token found");
+      }
+
+      window.history.replaceState(null, "", window.location.pathname);
+      sessionStorage.setItem("password_reset_in_progress", "true");
+      finishValidation(true);
+    } catch (error: any) {
+      console.error("[RESET] Confirm error:", error);
+      finishValidation(false, "Invalid or expired reset link. Please request a new one.");
+    } finally {
+      setIsConfirming(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -226,6 +224,38 @@ export default function ResetPassword() {
           <CardContent className="pt-6 text-center">
             <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
             <p className="text-muted-foreground">Validating your reset link...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Gate: token detected but not yet consumed. Require user click so email
+  // scanners (Outlook Safe Links, Mimecast, etc.) don't burn the one-time token.
+  if (pendingTokens && !isValidSession && !errorMessage) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <img src={birdieLogo} alt="Birdies" className="h-12 mx-auto mb-4" />
+            <CardTitle className="font-display text-xl uppercase tracking-wide">
+              Reset Your Password
+            </CardTitle>
+            <CardDescription>
+              Click the button below to confirm and continue setting a new password.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={handleConfirmReset} className="w-full" disabled={isConfirming}>
+              {isConfirming ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Verifying...
+                </>
+              ) : (
+                "Continue"
+              )}
+            </Button>
           </CardContent>
         </Card>
       </div>
