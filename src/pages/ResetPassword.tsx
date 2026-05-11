@@ -230,6 +230,38 @@ export default function ResetPassword() {
     );
   }
 
+  // Gate: token detected but not yet consumed. Require user click so email
+  // scanners (Outlook Safe Links, Mimecast, etc.) don't burn the one-time token.
+  if (pendingTokens && !isValidSession && !errorMessage) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <img src={birdieLogo} alt="Birdies" className="h-12 mx-auto mb-4" />
+            <CardTitle className="font-display text-xl uppercase tracking-wide">
+              Reset Your Password
+            </CardTitle>
+            <CardDescription>
+              Click the button below to confirm and continue setting a new password.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={handleConfirmReset} className="w-full" disabled={isConfirming}>
+              {isConfirming ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Verifying...
+                </>
+              ) : (
+                "Continue"
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   const handleRequestNewLink = async (e: React.FormEvent) => {
     e.preventDefault();
     
