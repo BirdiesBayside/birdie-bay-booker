@@ -62,7 +62,7 @@ const buildTemplate = (firstName: string, amount?: number) => {
 
               <p style="margin:18px 0 8px; font-family:Inter, Arial, sans-serif; font-size:15px; line-height:1.6; color:#1F4C25; text-align:center;">If you'd like to change the card on file instead, you can update it here:</p>
               <p style="margin:0 0 4px; text-align:center;">
-                <a href="https://birdiesbayside.com.au/my-account" style="display:inline-block; background-color:#EC622D; color:#FFFFFF; font-family:Anton, Impact, Arial Black, sans-serif; font-size:18px; padding:12px 28px; border-radius:8px; text-decoration:none; letter-spacing:0.5px;">Update Card</a>
+                <a href="https://hub.birdiesbayside.com.au/my-account" style="display:inline-block; background-color:#EC622D; color:#FFFFFF; font-family:Anton, Impact, Arial Black, sans-serif; font-size:18px; padding:12px 28px; border-radius:8px; text-decoration:none; letter-spacing:0.5px;">Update Card</a>
               </p>
 
               <p style="margin:24px 0 0; font-family:Inter, Arial, sans-serif; font-size:14px; line-height:1.6; color:#1F4C25; text-align:center; opacity:0.8;">If the second attempt also fails, your membership will be cancelled and you'll drop back to visitor pricing — but you can re-subscribe any time.</p>
