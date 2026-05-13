@@ -19,8 +19,11 @@ import {
   Calendar,
   X,
   ChevronLeft,
-  Percent
+  Percent,
+  Beer,
+  Loader2
 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -151,11 +154,27 @@ export default function AdminPOS() {
     localStorage.setItem('pos_surcharge_percent', surchargePercent);
   }, [surchargePercent]);
 
+  // Bar tab state
+  interface BarTab {
+    id: string;
+    customer_id: string | null;
+    customer_name: string;
+    items: CartItem[];
+    subtotal: number;
+    updated_at: string;
+  }
+  const [activeTabId, setActiveTabId] = useState<string | null>(null);
+  const [activeTabCustomerName, setActiveTabCustomerName] = useState<string>("");
+  const [openTabs, setOpenTabs] = useState<BarTab[]>([]);
+  const [showTabsDialog, setShowTabsDialog] = useState(false);
+  const [tabSaving, setTabSaving] = useState(false);
+
   useEffect(() => {
     if (isAdmin) {
       fetchProducts();
       fetchUnpaidBookings();
       fetchCustomers();
+      fetchOpenTabs();
     }
   }, [isAdmin]);
 
@@ -302,6 +321,120 @@ export default function AdminPOS() {
     }
   };
 
+  const fetchOpenTabs = async () => {
+    const { data, error } = await supabase
+      .from('bar_tabs')
+      .select('id, customer_id, customer_name, items, subtotal, updated_at')
+      .eq('status', 'open')
+      .order('updated_at', { ascending: false });
+    if (error) {
+      console.error('Error fetching open tabs:', error);
+      return;
+    }
+    setOpenTabs((data || []).map((t: any) => ({
+      ...t,
+      items: Array.isArray(t.items) ? t.items : [],
+    })));
+  };
+
+  // Auto-save active tab when cart changes (debounced)
+  useEffect(() => {
+    if (!activeTabId) return;
+    const handle = setTimeout(async () => {
+      setTabSaving(true);
+      const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      const { error } = await supabase
+        .from('bar_tabs')
+        .update({
+          items: JSON.parse(JSON.stringify(cart)),
+          subtotal,
+          customer_id: selectedCustomer || null,
+        })
+        .eq('id', activeTabId);
+      setTabSaving(false);
+      if (error) {
+        console.error('Error saving tab:', error);
+        toast.error('Failed to save tab');
+      }
+    }, 600);
+    return () => clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cart, activeTabId, selectedCustomer]);
+
+  const startNewTab = async () => {
+    if (!selectedCustomer) {
+      toast.error('Select a customer first');
+      return;
+    }
+    const customer = customers.find(c => c.user_id === selectedCustomer);
+    if (!customer) return;
+    const customerName = `${customer.first_name} ${customer.last_name}`.trim();
+
+    const existing = openTabs.find(t => t.customer_id === selectedCustomer);
+    if (existing) {
+      toast.info(`${customerName} already has an open tab — resuming it`);
+      loadTab(existing);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('bar_tabs')
+      .insert({
+        customer_id: selectedCustomer,
+        customer_name: customerName,
+        items: JSON.parse(JSON.stringify(cart)),
+        subtotal: cart.reduce((s, i) => s + i.price * i.quantity, 0),
+        status: 'open',
+      })
+      .select('id, customer_id, customer_name, items, subtotal, updated_at')
+      .single();
+
+    if (error || !data) {
+      console.error(error);
+      toast.error('Failed to start tab');
+      return;
+    }
+    setActiveTabId(data.id);
+    setActiveTabCustomerName(customerName);
+    fetchOpenTabs();
+    setShowTabsDialog(false);
+    toast.success(`Tab started for ${customerName}`);
+  };
+
+  const loadTab = (tab: BarTab) => {
+    setActiveTabId(tab.id);
+    setActiveTabCustomerName(tab.customer_name);
+    setCart((tab.items as CartItem[]) || []);
+    if (tab.customer_id) setSelectedCustomer(tab.customer_id);
+    setShowTabsDialog(false);
+    toast.success(`Resumed tab for ${tab.customer_name}`);
+  };
+
+  const detachTab = () => {
+    setActiveTabId(null);
+    setActiveTabCustomerName('');
+    setCart([]);
+    setSelectedBooking(null);
+    setSelectedCustomer('');
+    setCreditToApply(0);
+    fetchOpenTabs();
+    toast.info('Tab parked — resume it anytime from Bar Tabs');
+  };
+
+  const discardActiveTab = async () => {
+    if (!activeTabId) return;
+    if (!confirm('Discard this tab? The cart will be cleared and the tab deleted.')) return;
+    await supabase.from('bar_tabs').delete().eq('id', activeTabId);
+    setActiveTabId(null);
+    setActiveTabCustomerName('');
+    fetchOpenTabs();
+    setCart([]);
+    setSelectedBooking(null);
+    setSelectedCustomer('');
+    setCreditToApply(0);
+    toast.info('Tab discarded');
+  };
+
   // Update customer balance when customer is selected
   useEffect(() => {
     if (selectedCustomer) {
@@ -347,6 +480,8 @@ export default function AdminPOS() {
     setSelectedBooking(null);
     setSelectedCustomer("");
     setCreditToApply(0);
+    setActiveTabId(null);
+    setActiveTabCustomerName("");
   };
 
   const addBookingToCart = (booking: UnpaidBooking) => {
@@ -659,6 +794,15 @@ export default function AdminPOS() {
       booking_id: selectedBooking?.id || null,
     });
 
+    // Close active bar tab if this payment was for a tab
+    if (activeTabId) {
+      await supabase
+        .from('bar_tabs')
+        .update({ status: 'closed', closed_at: new Date().toISOString() })
+        .eq('id', activeTabId);
+      fetchOpenTabs();
+    }
+
     // Update booking if this was for a booking
     if (selectedBooking) {
       await supabase
@@ -728,14 +872,50 @@ export default function AdminPOS() {
   // Cart Panel Component (reused for both layouts)
   const CartPanel = ({ className = "" }: { className?: string }) => (
     <div className={`bg-card flex flex-col ${className}`}>
-      <div className="p-4 border-b flex items-center justify-between">
+      <div className="p-4 border-b flex items-center justify-between gap-2">
         <h2 className="font-display text-xl uppercase">Cart</h2>
-        {cart.length > 0 && (
-          <Button variant="ghost" size="sm" onClick={clearCart}>
-            <Trash2 className="h-4 w-4" />
+        <div className="flex items-center gap-1">
+          <Button
+            variant={activeTabId ? "default" : "outline"}
+            size="sm"
+            onClick={() => setShowTabsDialog(true)}
+            className="gap-1.5"
+          >
+            <Beer className="h-4 w-4" />
+            <span className="hidden sm:inline">Bar Tab</span>
+            {openTabs.length > 0 && !activeTabId && (
+              <Badge variant="secondary" className="ml-1 h-5 px-1.5">{openTabs.length}</Badge>
+            )}
           </Button>
-        )}
+          {cart.length > 0 && !activeTabId && (
+            <Button variant="ghost" size="sm" onClick={clearCart}>
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
       </div>
+
+      {/* Active tab indicator */}
+      {activeTabId && (
+        <div className="px-4 py-2 border-b bg-primary/5 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <Beer className="h-4 w-4 text-primary shrink-0" />
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground leading-none">Tab open for</p>
+              <p className="text-sm font-medium truncate">{activeTabCustomerName}</p>
+            </div>
+            {tabSaving && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground shrink-0" />}
+          </div>
+          <div className="flex items-center gap-1 shrink-0">
+            <Button variant="ghost" size="sm" onClick={detachTab} title="Park tab">
+              Park
+            </Button>
+            <Button variant="ghost" size="sm" onClick={discardActiveTab} title="Discard tab" className="text-destructive">
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Customer Selection */}
       <div className="p-4 border-b">
@@ -858,7 +1038,7 @@ export default function AdminPOS() {
           onClick={() => setShowPaymentDialog(true)}
         >
           <CreditCard className="h-5 w-5 mr-2" />
-          Pay ${total.toFixed(2)}
+          {activeTabId ? `Send to POS — $${total.toFixed(2)}` : `Pay $${total.toFixed(2)}`}
         </Button>
       </div>
     </div>
@@ -1297,6 +1477,92 @@ export default function AdminPOS() {
               ))
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bar Tabs Dialog */}
+      <Dialog open={showTabsDialog} onOpenChange={setShowTabsDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="font-display text-xl uppercase flex items-center gap-2">
+              <Beer className="h-5 w-5" /> Bar Tabs
+            </DialogTitle>
+            <DialogDescription>
+              Run a tab for a customer. Items auto-save as you add them. Send to POS when ready to take payment.
+            </DialogDescription>
+          </DialogHeader>
+
+          {!activeTabId && (
+            <div className="space-y-3 pt-2">
+              <div className="border rounded-lg p-3 bg-muted/30 space-y-3">
+                <Label className="text-sm font-medium">Start a new tab</Label>
+                <CustomerSearchCombobox
+                  customers={customers}
+                  value={selectedCustomer}
+                  onValueChange={setSelectedCustomer}
+                />
+                <Button
+                  className="w-full"
+                  onClick={startNewTab}
+                  disabled={!selectedCustomer}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Start Tab
+                </Button>
+              </div>
+
+              <div>
+                <p className="text-sm font-medium mb-2">Open tabs ({openTabs.length})</p>
+                <div className="space-y-2 max-h-80 overflow-y-auto">
+                  {openTabs.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-6">
+                      No open tabs
+                    </p>
+                  ) : (
+                    openTabs.map(tab => (
+                      <Card
+                        key={tab.id}
+                        className="p-3 cursor-pointer hover:bg-accent transition-colors"
+                        onClick={() => loadTab(tab)}
+                      >
+                        <div className="flex justify-between items-start gap-3">
+                          <div className="min-w-0">
+                            <p className="font-medium truncate">{tab.customer_name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {tab.items.length} {tab.items.length === 1 ? 'item' : 'items'} • updated {format(new Date(tab.updated_at), 'h:mm a')}
+                            </p>
+                          </div>
+                          <span className="text-primary font-bold shrink-0">
+                            ${Number(tab.subtotal).toFixed(2)}
+                          </span>
+                        </div>
+                      </Card>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTabId && (
+            <div className="space-y-3 pt-2">
+              <div className="border rounded-lg p-4 bg-primary/5">
+                <p className="text-xs text-muted-foreground">Active tab</p>
+                <p className="font-medium text-lg">{activeTabCustomerName}</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Items added to the cart now save automatically. When ready, hit "Send to POS" to take payment.
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1" onClick={detachTab}>
+                  Park Tab
+                </Button>
+                <Button variant="destructive" className="flex-1" onClick={discardActiveTab}>
+                  Discard Tab
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </AdminLayout>

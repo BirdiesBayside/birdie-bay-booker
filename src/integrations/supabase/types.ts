@@ -82,6 +82,45 @@ export type Database = {
         }
         Relationships: []
       }
+      bar_tabs: {
+        Row: {
+          closed_at: string | null
+          created_at: string
+          customer_id: string | null
+          customer_name: string
+          id: string
+          items: Json
+          opened_by: string | null
+          status: string
+          subtotal: number
+          updated_at: string
+        }
+        Insert: {
+          closed_at?: string | null
+          created_at?: string
+          customer_id?: string | null
+          customer_name: string
+          id?: string
+          items?: Json
+          opened_by?: string | null
+          status?: string
+          subtotal?: number
+          updated_at?: string
+        }
+        Update: {
+          closed_at?: string | null
+          created_at?: string
+          customer_id?: string | null
+          customer_name?: string
+          id?: string
+          items?: Json
+          opened_by?: string | null
+          status?: string
+          subtotal?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       bay_blocks: {
         Row: {
           bay_id: string
