@@ -1076,14 +1076,35 @@ export default function AdminPOS() {
           <span className="text-primary">${total.toFixed(2)}</span>
         </div>
 
-        <Button
-          className="w-full h-14 text-lg font-display uppercase"
-          disabled={cart.length === 0}
-          onClick={() => setShowPaymentDialog(true)}
-        >
-          <CreditCard className="h-5 w-5 mr-2" />
-          {activeTabId ? `Send to POS — $${total.toFixed(2)}` : `Pay $${total.toFixed(2)}`}
-        </Button>
+        {activeTabId ? (
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              className="flex-1 h-14 text-lg"
+              onClick={saveAndExitTab}
+            >
+              <Save className="h-5 w-5 mr-2" />
+              Save
+            </Button>
+            <Button
+              className="flex-[2] h-14 text-lg font-display uppercase"
+              disabled={cart.length === 0}
+              onClick={() => setShowPaymentDialog(true)}
+            >
+              <CreditCard className="h-5 w-5 mr-2" />
+              Send to POS — ${total.toFixed(2)}
+            </Button>
+          </div>
+        ) : (
+          <Button
+            className="w-full h-14 text-lg font-display uppercase"
+            disabled={cart.length === 0}
+            onClick={() => setShowPaymentDialog(true)}
+          >
+            <CreditCard className="h-5 w-5 mr-2" />
+            Pay ${total.toFixed(2)}
+          </Button>
+        )}
       </div>
     </div>
   );
