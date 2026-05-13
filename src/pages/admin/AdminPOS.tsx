@@ -872,14 +872,50 @@ export default function AdminPOS() {
   // Cart Panel Component (reused for both layouts)
   const CartPanel = ({ className = "" }: { className?: string }) => (
     <div className={`bg-card flex flex-col ${className}`}>
-      <div className="p-4 border-b flex items-center justify-between">
+      <div className="p-4 border-b flex items-center justify-between gap-2">
         <h2 className="font-display text-xl uppercase">Cart</h2>
-        {cart.length > 0 && (
-          <Button variant="ghost" size="sm" onClick={clearCart}>
-            <Trash2 className="h-4 w-4" />
+        <div className="flex items-center gap-1">
+          <Button
+            variant={activeTabId ? "default" : "outline"}
+            size="sm"
+            onClick={() => setShowTabsDialog(true)}
+            className="gap-1.5"
+          >
+            <Beer className="h-4 w-4" />
+            <span className="hidden sm:inline">Bar Tab</span>
+            {openTabs.length > 0 && !activeTabId && (
+              <Badge variant="secondary" className="ml-1 h-5 px-1.5">{openTabs.length}</Badge>
+            )}
           </Button>
-        )}
+          {cart.length > 0 && !activeTabId && (
+            <Button variant="ghost" size="sm" onClick={clearCart}>
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
       </div>
+
+      {/* Active tab indicator */}
+      {activeTabId && (
+        <div className="px-4 py-2 border-b bg-primary/5 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <Beer className="h-4 w-4 text-primary shrink-0" />
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground leading-none">Tab open for</p>
+              <p className="text-sm font-medium truncate">{activeTabCustomerName}</p>
+            </div>
+            {tabSaving && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground shrink-0" />}
+          </div>
+          <div className="flex items-center gap-1 shrink-0">
+            <Button variant="ghost" size="sm" onClick={detachTab} title="Park tab">
+              Park
+            </Button>
+            <Button variant="ghost" size="sm" onClick={discardActiveTab} title="Discard tab" className="text-destructive">
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Customer Selection */}
       <div className="p-4 border-b">
