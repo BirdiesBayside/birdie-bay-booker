@@ -1664,6 +1664,54 @@ export default function AdminPOS() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Custom Amount Dialog */}
+      <Dialog open={showCustomAmountDialog} onOpenChange={setShowCustomAmountDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-display text-xl uppercase text-center">
+              Custom Amount
+            </DialogTitle>
+            <DialogDescription className="text-center pt-2">
+              Enter an amount to add to the cart
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-4">
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-lg">$</span>
+              <Input
+                type="number"
+                step="0.01"
+                min={0.01}
+                value={customAmount}
+                onChange={(e) => setCustomAmount(e.target.value)}
+                className="pl-8 text-2xl h-14 font-medium"
+                placeholder="0.00"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') addCustomAmountToCart();
+                }}
+              />
+            </div>
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                className="flex-1 h-12"
+                onClick={() => { setShowCustomAmountDialog(false); setCustomAmount(''); }}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="flex-1 h-12"
+                onClick={addCustomAmountToCart}
+                disabled={!customAmount || parseFloat(customAmount) <= 0}
+              >
+                Add to Cart
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
   );
 }
