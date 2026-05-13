@@ -19,8 +19,11 @@ import {
   Calendar,
   X,
   ChevronLeft,
-  Percent
+  Percent,
+  Beer,
+  Loader2
 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
