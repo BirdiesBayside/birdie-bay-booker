@@ -321,6 +321,120 @@ export default function AdminPOS() {
     }
   };
 
+  const fetchOpenTabs = async () => {
+    const { data, error } = await supabase
+      .from('bar_tabs')
+      .select('id, customer_id, customer_name, items, subtotal, updated_at')
+      .eq('status', 'open')
+      .order('updated_at', { ascending: false });
+    if (error) {
+      console.error('Error fetching open tabs:', error);
+      return;
+    }
+    setOpenTabs((data || []).map((t: any) => ({
+      ...t,
+      items: Array.isArray(t.items) ? t.items : [],
+    })));
+  };
+
+  // Auto-save active tab when cart changes (debounced)
+  useEffect(() => {
+    if (!activeTabId) return;
+    const handle = setTimeout(async () => {
+      setTabSaving(true);
+      const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      const { error } = await supabase
+        .from('bar_tabs')
+        .update({
+          items: JSON.parse(JSON.stringify(cart)),
+          subtotal,
+          customer_id: selectedCustomer || null,
+        })
+        .eq('id', activeTabId);
+      setTabSaving(false);
+      if (error) {
+        console.error('Error saving tab:', error);
+        toast.error('Failed to save tab');
+      }
+    }, 600);
+    return () => clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cart, activeTabId, selectedCustomer]);
+
+  const startNewTab = async () => {
+    if (!selectedCustomer) {
+      toast.error('Select a customer first');
+      return;
+    }
+    const customer = customers.find(c => c.user_id === selectedCustomer);
+    if (!customer) return;
+    const customerName = `${customer.first_name} ${customer.last_name}`.trim();
+
+    const existing = openTabs.find(t => t.customer_id === selectedCustomer);
+    if (existing) {
+      toast.info(`${customerName} already has an open tab — resuming it`);
+      loadTab(existing);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('bar_tabs')
+      .insert({
+        customer_id: selectedCustomer,
+        customer_name: customerName,
+        items: JSON.parse(JSON.stringify(cart)),
+        subtotal: cart.reduce((s, i) => s + i.price * i.quantity, 0),
+        status: 'open',
+      })
+      .select('id, customer_id, customer_name, items, subtotal, updated_at')
+      .single();
+
+    if (error || !data) {
+      console.error(error);
+      toast.error('Failed to start tab');
+      return;
+    }
+    setActiveTabId(data.id);
+    setActiveTabCustomerName(customerName);
+    fetchOpenTabs();
+    setShowTabsDialog(false);
+    toast.success(`Tab started for ${customerName}`);
+  };
+
+  const loadTab = (tab: BarTab) => {
+    setActiveTabId(tab.id);
+    setActiveTabCustomerName(tab.customer_name);
+    setCart((tab.items as CartItem[]) || []);
+    if (tab.customer_id) setSelectedCustomer(tab.customer_id);
+    setShowTabsDialog(false);
+    toast.success(`Resumed tab for ${tab.customer_name}`);
+  };
+
+  const detachTab = () => {
+    setActiveTabId(null);
+    setActiveTabCustomerName('');
+    setCart([]);
+    setSelectedBooking(null);
+    setSelectedCustomer('');
+    setCreditToApply(0);
+    fetchOpenTabs();
+    toast.info('Tab parked — resume it anytime from Bar Tabs');
+  };
+
+  const discardActiveTab = async () => {
+    if (!activeTabId) return;
+    if (!confirm('Discard this tab? The cart will be cleared and the tab deleted.')) return;
+    await supabase.from('bar_tabs').delete().eq('id', activeTabId);
+    setActiveTabId(null);
+    setActiveTabCustomerName('');
+    fetchOpenTabs();
+    setCart([]);
+    setSelectedBooking(null);
+    setSelectedCustomer('');
+    setCreditToApply(0);
+    toast.info('Tab discarded');
+  };
+
   // Update customer balance when customer is selected
   useEffect(() => {
     if (selectedCustomer) {
