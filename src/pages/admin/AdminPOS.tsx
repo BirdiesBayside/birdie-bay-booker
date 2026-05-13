@@ -456,6 +456,28 @@ export default function AdminPOS() {
     setCreditToApply(0);
     toast.info('Tab discarded');
   };
+  const saveAndExitTab = async () => {
+    if (!activeTabId) return;
+    setTabSaving(true);
+    const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    await supabase
+      .from('bar_tabs')
+      .update({
+        items: JSON.parse(JSON.stringify(cart)),
+        subtotal,
+        customer_id: selectedCustomer || null,
+      })
+      .eq('id', activeTabId);
+    setTabSaving(false);
+    setActiveTabId(null);
+    setActiveTabCustomerName('');
+    setCart([]);
+    setSelectedBooking(null);
+    setSelectedCustomer('');
+    setCreditToApply(0);
+    fetchOpenTabs();
+    toast.success('Tab saved — ready for next order');
+  };
 
   // Update customer balance when customer is selected
   useEffect(() => {
