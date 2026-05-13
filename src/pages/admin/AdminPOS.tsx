@@ -154,11 +154,27 @@ export default function AdminPOS() {
     localStorage.setItem('pos_surcharge_percent', surchargePercent);
   }, [surchargePercent]);
 
+  // Bar tab state
+  interface BarTab {
+    id: string;
+    customer_id: string | null;
+    customer_name: string;
+    items: CartItem[];
+    subtotal: number;
+    updated_at: string;
+  }
+  const [activeTabId, setActiveTabId] = useState<string | null>(null);
+  const [activeTabCustomerName, setActiveTabCustomerName] = useState<string>("");
+  const [openTabs, setOpenTabs] = useState<BarTab[]>([]);
+  const [showTabsDialog, setShowTabsDialog] = useState(false);
+  const [tabSaving, setTabSaving] = useState(false);
+
   useEffect(() => {
     if (isAdmin) {
       fetchProducts();
       fetchUnpaidBookings();
       fetchCustomers();
+      fetchOpenTabs();
     }
   }, [isAdmin]);
 
