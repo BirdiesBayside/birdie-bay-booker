@@ -1479,6 +1479,92 @@ export default function AdminPOS() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Bar Tabs Dialog */}
+      <Dialog open={showTabsDialog} onOpenChange={setShowTabsDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="font-display text-xl uppercase flex items-center gap-2">
+              <Beer className="h-5 w-5" /> Bar Tabs
+            </DialogTitle>
+            <DialogDescription>
+              Run a tab for a customer. Items auto-save as you add them. Send to POS when ready to take payment.
+            </DialogDescription>
+          </DialogHeader>
+
+          {!activeTabId && (
+            <div className="space-y-3 pt-2">
+              <div className="border rounded-lg p-3 bg-muted/30 space-y-3">
+                <Label className="text-sm font-medium">Start a new tab</Label>
+                <CustomerSearchCombobox
+                  customers={customers}
+                  value={selectedCustomer}
+                  onValueChange={setSelectedCustomer}
+                />
+                <Button
+                  className="w-full"
+                  onClick={startNewTab}
+                  disabled={!selectedCustomer}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Start Tab
+                </Button>
+              </div>
+
+              <div>
+                <p className="text-sm font-medium mb-2">Open tabs ({openTabs.length})</p>
+                <div className="space-y-2 max-h-80 overflow-y-auto">
+                  {openTabs.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-6">
+                      No open tabs
+                    </p>
+                  ) : (
+                    openTabs.map(tab => (
+                      <Card
+                        key={tab.id}
+                        className="p-3 cursor-pointer hover:bg-accent transition-colors"
+                        onClick={() => loadTab(tab)}
+                      >
+                        <div className="flex justify-between items-start gap-3">
+                          <div className="min-w-0">
+                            <p className="font-medium truncate">{tab.customer_name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {tab.items.length} {tab.items.length === 1 ? 'item' : 'items'} • updated {format(new Date(tab.updated_at), 'h:mm a')}
+                            </p>
+                          </div>
+                          <span className="text-primary font-bold shrink-0">
+                            ${Number(tab.subtotal).toFixed(2)}
+                          </span>
+                        </div>
+                      </Card>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTabId && (
+            <div className="space-y-3 pt-2">
+              <div className="border rounded-lg p-4 bg-primary/5">
+                <p className="text-xs text-muted-foreground">Active tab</p>
+                <p className="font-medium text-lg">{activeTabCustomerName}</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Items added to the cart now save automatically. When ready, hit "Send to POS" to take payment.
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1" onClick={detachTab}>
+                  Park Tab
+                </Button>
+                <Button variant="destructive" className="flex-1" onClick={discardActiveTab}>
+                  Discard Tab
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
   );
 }
