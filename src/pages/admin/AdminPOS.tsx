@@ -170,6 +170,8 @@ export default function AdminPOS() {
   const [openTabs, setOpenTabs] = useState<BarTab[]>([]);
   const [showTabsDialog, setShowTabsDialog] = useState(false);
   const [tabSaving, setTabSaving] = useState(false);
+  const [showCustomAmountDialog, setShowCustomAmountDialog] = useState(false);
+  const [customAmount, setCustomAmount] = useState("");
 
   useEffect(() => {
     if (isAdmin) {
