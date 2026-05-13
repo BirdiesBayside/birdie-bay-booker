@@ -1038,7 +1038,7 @@ export default function AdminPOS() {
           onClick={() => setShowPaymentDialog(true)}
         >
           <CreditCard className="h-5 w-5 mr-2" />
-          Pay ${total.toFixed(2)}
+          {activeTabId ? `Send to POS — $${total.toFixed(2)}` : `Pay $${total.toFixed(2)}`}
         </Button>
       </div>
     </div>
