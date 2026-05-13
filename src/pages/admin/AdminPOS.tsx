@@ -21,7 +21,8 @@ import {
   ChevronLeft,
   Percent,
   Beer,
-  Loader2
+  Loader2,
+  Save
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -454,6 +455,28 @@ export default function AdminPOS() {
     setSelectedCustomer('');
     setCreditToApply(0);
     toast.info('Tab discarded');
+  };
+  const saveAndExitTab = async () => {
+    if (!activeTabId) return;
+    setTabSaving(true);
+    const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    await supabase
+      .from('bar_tabs')
+      .update({
+        items: JSON.parse(JSON.stringify(cart)),
+        subtotal,
+        customer_id: selectedCustomer || null,
+      })
+      .eq('id', activeTabId);
+    setTabSaving(false);
+    setActiveTabId(null);
+    setActiveTabCustomerName('');
+    setCart([]);
+    setSelectedBooking(null);
+    setSelectedCustomer('');
+    setCreditToApply(0);
+    fetchOpenTabs();
+    toast.success('Tab saved — ready for next order');
   };
 
   // Update customer balance when customer is selected
@@ -1053,14 +1076,35 @@ export default function AdminPOS() {
           <span className="text-primary">${total.toFixed(2)}</span>
         </div>
 
-        <Button
-          className="w-full h-14 text-lg font-display uppercase"
-          disabled={cart.length === 0}
-          onClick={() => setShowPaymentDialog(true)}
-        >
-          <CreditCard className="h-5 w-5 mr-2" />
-          {activeTabId ? `Send to POS — $${total.toFixed(2)}` : `Pay $${total.toFixed(2)}`}
-        </Button>
+        {activeTabId ? (
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              className="flex-1 h-14 text-lg"
+              onClick={saveAndExitTab}
+            >
+              <Save className="h-5 w-5 mr-2" />
+              Save
+            </Button>
+            <Button
+              className="flex-[2] h-14 text-lg font-display uppercase"
+              disabled={cart.length === 0}
+              onClick={() => setShowPaymentDialog(true)}
+            >
+              <CreditCard className="h-5 w-5 mr-2" />
+              Send to POS — ${total.toFixed(2)}
+            </Button>
+          </div>
+        ) : (
+          <Button
+            className="w-full h-14 text-lg font-display uppercase"
+            disabled={cart.length === 0}
+            onClick={() => setShowPaymentDialog(true)}
+          >
+            <CreditCard className="h-5 w-5 mr-2" />
+            Pay ${total.toFixed(2)}
+          </Button>
+        )}
       </div>
     </div>
   );
