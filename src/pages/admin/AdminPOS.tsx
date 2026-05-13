@@ -506,6 +506,23 @@ export default function AdminPOS() {
     });
   };
 
+  const addCustomAmountToCart = () => {
+    const amount = parseFloat(customAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast.error('Enter a valid amount');
+      return;
+    }
+    setCart(prev => [...prev, {
+      id: `custom-${Date.now()}`,
+      name: 'Custom Amount',
+      price: amount,
+      quantity: 1,
+    }]);
+    setCustomAmount('');
+    setShowCustomAmountDialog(false);
+    toast.success(`Added $${amount.toFixed(2)} to cart`);
+  };
+
   const updateQuantity = (id: string, delta: number) => {
     setCart(prev =>
       prev.map(item => {
