@@ -22,7 +22,8 @@ import {
   Percent,
   Beer,
   Loader2,
-  Save
+  Save,
+  DollarSign
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
