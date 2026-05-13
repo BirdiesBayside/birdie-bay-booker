@@ -316,16 +316,30 @@ export default function AdminPOS() {
   };
 
   const fetchCustomers = async () => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('user_id, first_name, last_name, email, phone, deposit_balance')
-      .order('first_name', { ascending: true });
+    const pageSize = 1000;
+    let from = 0;
+    let allCustomers: Customer[] = [];
 
-    if (error) {
-      console.error('Error fetching customers:', error);
-    } else {
-      setCustomers(data || []);
+    while (true) {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('user_id, first_name, last_name, email, phone, deposit_balance')
+        .order('first_name', { ascending: true })
+        .order('last_name', { ascending: true })
+        .range(from, from + pageSize - 1);
+
+      if (error) {
+        console.error('Error fetching customers:', error);
+        return;
+      }
+
+      allCustomers = [...allCustomers, ...(data || [])];
+
+      if (!data || data.length < pageSize) break;
+      from += pageSize;
     }
+
+    setCustomers(allCustomers);
   };
 
   const fetchOpenTabs = async () => {
