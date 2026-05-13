@@ -181,6 +181,7 @@ const App = () => (
       <Sonner />
       <PushNotificationInit />
       <Router>
+        <ScrollToTop />
         <DeepLinkHandler />
         <NativeRoutePersistence />
         <Suspense fallback={<PageLoader />}>
