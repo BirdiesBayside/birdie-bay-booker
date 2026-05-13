@@ -178,6 +178,13 @@ export default function AdminPOS() {
     }
   }, [isAdmin]);
 
+  // Refresh customer list when Bar Tabs dialog opens so new customers appear
+  useEffect(() => {
+    if (showTabsDialog && isAdmin) {
+      fetchCustomers();
+    }
+  }, [showTabsDialog, isAdmin]);
+
   // Handle booking data from navigation (from timetable)
   useEffect(() => {
     const navState = location.state as { bookingData?: BookingDataFromNav; bayOrderData?: BayOrderFromNav; localCompData?: LocalCompDataFromNav } | null;
