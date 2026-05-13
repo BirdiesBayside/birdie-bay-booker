@@ -1187,6 +1187,13 @@ export default function AdminPOS() {
                       </button>
                     );
                   })}
+                  <button
+                    onClick={() => setShowCustomAmountDialog(true)}
+                    className="aspect-square bg-card border rounded-lg p-3 flex flex-col items-center justify-center text-center active:bg-muted transition-colors border-dashed border-primary/50"
+                  >
+                    <DollarSign className="h-6 w-6 text-primary mb-1" />
+                    <span className="font-display text-base uppercase tracking-wide text-primary">Custom Amount</span>
+                  </button>
                 </div>
               ) : filteredProducts.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
