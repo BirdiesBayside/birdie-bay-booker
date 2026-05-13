@@ -480,6 +480,8 @@ export default function AdminPOS() {
     setSelectedBooking(null);
     setSelectedCustomer("");
     setCreditToApply(0);
+    setActiveTabId(null);
+    setActiveTabCustomerName("");
   };
 
   const addBookingToCart = (booking: UnpaidBooking) => {
