@@ -794,6 +794,15 @@ export default function AdminPOS() {
       booking_id: selectedBooking?.id || null,
     });
 
+    // Close active bar tab if this payment was for a tab
+    if (activeTabId) {
+      await supabase
+        .from('bar_tabs')
+        .update({ status: 'closed', closed_at: new Date().toISOString() })
+        .eq('id', activeTabId);
+      fetchOpenTabs();
+    }
+
     // Update booking if this was for a booking
     if (selectedBooking) {
       await supabase
