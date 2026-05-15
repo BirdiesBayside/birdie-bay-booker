@@ -238,7 +238,19 @@ export default function AdminTimetable() {
       supabase.removeChannel(channel);
     };
   }, [isAdmin]); // Only recreate subscription when admin status changes
-...
+
+  const fetchBays = async () => {
+    const { data, error } = await supabase
+      .from("bays")
+      .select("*")
+      .eq("is_active", true)
+      .order("bay_number");
+
+    if (!error && data) {
+      setBays(data);
+    }
+  };
+
   const fetchInFlightRef = useRef(0);
   const fetchBookings = async (silent: boolean = false) => {
     if (!silent) setIsLoading(true);
