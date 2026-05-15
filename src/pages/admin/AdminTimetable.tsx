@@ -193,7 +193,16 @@ export default function AdminTimetable() {
     }
   }, [selectedDate]);
 
-  // Realtime subscription to auto-refresh when bookings change
+  // Realtime subscription to auto-refresh when bookings change.
+  // Debounced + filtered to current date so bursts don't blank the table,
+  // and silent (no loading flag) so the UI never flashes empty mid-refresh.
+  const realtimeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fetchBookingsRef = useRef<(silent?: boolean) => Promise<void>>();
+  const selectedDateRef = useRef(selectedDate);
+  useEffect(() => {
+    selectedDateRef.current = selectedDate;
+  }, [selectedDate]);
+
   useEffect(() => {
     if (!isAdmin) return;
 
@@ -206,14 +215,26 @@ export default function AdminTimetable() {
           schema: 'public',
           table: 'bookings',
         },
-        () => {
-          // Refetch bookings when any change happens
-          fetchBookings();
+        (payload: any) => {
+          // Only react if the change concerns the date currently displayed
+          const dateStr = format(selectedDateRef.current, "yyyy-MM-dd");
+          const newDate = (payload?.new as any)?.booking_date;
+          const oldDate = (payload?.old as any)?.booking_date;
+          if (newDate && newDate !== dateStr && (!oldDate || oldDate !== dateStr)) {
+            return;
+          }
+
+          // Debounce bursts (insert -> confirm update -> stale cleanup)
+          if (realtimeDebounceRef.current) clearTimeout(realtimeDebounceRef.current);
+          realtimeDebounceRef.current = setTimeout(() => {
+            fetchBookingsRef.current?.(true); // silent refresh
+          }, 300);
         }
       )
       .subscribe();
 
     return () => {
+      if (realtimeDebounceRef.current) clearTimeout(realtimeDebounceRef.current);
       supabase.removeChannel(channel);
     };
   }, [isAdmin]); // Only recreate subscription when admin status changes
@@ -230,8 +251,10 @@ export default function AdminTimetable() {
     }
   };
 
-  const fetchBookings = async () => {
-    setIsLoading(true);
+  const fetchInFlightRef = useRef(0);
+  const fetchBookings = async (silent: boolean = false) => {
+    if (!silent) setIsLoading(true);
+    const requestId = ++fetchInFlightRef.current;
     
     const dateStr = format(selectedDate, "yyyy-MM-dd");
 
@@ -249,6 +272,9 @@ export default function AdminTimetable() {
         .eq("block_date", dateStr)
     ]);
 
+    // Guard: if a newer fetch started after this one, drop these results
+    if (requestId !== fetchInFlightRef.current) return;
+
     if (!blocksResult.error && blocksResult.data) {
       setBlocks(blocksResult.data);
     }
@@ -264,6 +290,8 @@ export default function AdminTimetable() {
           .select("user_id, first_name, last_name, email, phone, membership_tier, total_bookings")
           .in("user_id", userIds);
 
+        if (requestId !== fetchInFlightRef.current) return;
+
         const profileMap = new Map((profiles || []).map(p => [p.user_id, p]));
         
         const transformedData = data.map((booking: any) => ({
@@ -275,9 +303,16 @@ export default function AdminTimetable() {
         setBookings([]);
       }
     }
+    // On error: keep prior bookings instead of blanking the UI
     
-    setIsLoading(false);
+    if (!silent) setIsLoading(false);
   };
+
+  // Keep a ref to the latest fetchBookings so the realtime effect can call it
+  // without re-subscribing on every render.
+  useEffect(() => {
+    fetchBookingsRef.current = fetchBookings;
+  });
 
   const navigateDate = (direction: "prev" | "next") => {
     setSelectedDate(prev => direction === "next" ? addDays(prev, 1) : addDays(prev, -1));
