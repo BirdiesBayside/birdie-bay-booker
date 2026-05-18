@@ -708,9 +708,19 @@ export type Database = {
           id: string
           issued_at: string
           issued_by: string | null
+          personal_message: string | null
           recipient_email: string
+          recipient_name: string | null
           redeemed_at: string | null
           redeemed_by_user_id: string | null
+          scheduled_for: string | null
+          sender_email: string | null
+          sender_name: string | null
+          sent_at: string | null
+          shopify_line_item_id: string | null
+          shopify_order_id: string | null
+          shopify_order_number: string | null
+          source: string
           status: string
           token: string
           updated_at: string
@@ -721,9 +731,19 @@ export type Database = {
           id?: string
           issued_at?: string
           issued_by?: string | null
+          personal_message?: string | null
           recipient_email: string
+          recipient_name?: string | null
           redeemed_at?: string | null
           redeemed_by_user_id?: string | null
+          scheduled_for?: string | null
+          sender_email?: string | null
+          sender_name?: string | null
+          sent_at?: string | null
+          shopify_line_item_id?: string | null
+          shopify_order_id?: string | null
+          shopify_order_number?: string | null
+          source?: string
           status?: string
           token?: string
           updated_at?: string
@@ -734,9 +754,19 @@ export type Database = {
           id?: string
           issued_at?: string
           issued_by?: string | null
+          personal_message?: string | null
           recipient_email?: string
+          recipient_name?: string | null
           redeemed_at?: string | null
           redeemed_by_user_id?: string | null
+          scheduled_for?: string | null
+          sender_email?: string | null
+          sender_name?: string | null
+          sent_at?: string | null
+          shopify_line_item_id?: string | null
+          shopify_order_id?: string | null
+          shopify_order_number?: string | null
+          source?: string
           status?: string
           token?: string
           updated_at?: string
