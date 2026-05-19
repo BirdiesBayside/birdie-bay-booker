@@ -1,0 +1,1 @@
+UPDATE public.email_templates SET html_content = REPLACE(html_content, '${amount}', '${credit_amount}') WHERE template_key = 'loyalty_credit';
