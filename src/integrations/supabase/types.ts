@@ -1077,6 +1077,8 @@ export type Database = {
           credit_amount: number
           id: string
           milestone_number: number
+          reminder_14d_sent_at: string | null
+          reminder_30d_sent_at: string | null
           total_bookings_at_issue: number
           user_id: string
         }
@@ -1085,6 +1087,8 @@ export type Database = {
           credit_amount: number
           id?: string
           milestone_number: number
+          reminder_14d_sent_at?: string | null
+          reminder_30d_sent_at?: string | null
           total_bookings_at_issue: number
           user_id: string
         }
@@ -1093,6 +1097,8 @@ export type Database = {
           credit_amount?: number
           id?: string
           milestone_number?: number
+          reminder_14d_sent_at?: string | null
+          reminder_30d_sent_at?: string | null
           total_bookings_at_issue?: number
           user_id?: string
         }
