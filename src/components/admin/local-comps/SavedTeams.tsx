@@ -58,24 +58,19 @@ export function SavedTeams() {
       if (!name) throw new Error("Name is required");
 
       if (editingPlayer) {
-        if (!editingPlayer.id) {
-          console.error("savePlayerMutation: editingPlayer has no id", editingPlayer);
-          throw new Error("Player record lost — please close this dialog and try again.");
-        }
-        // Match by id OR by normalized name as a fallback, so a stale id can't break the edit.
-        const { error, data } = await supabase
-          .from("local_comp_players")
-          .update({ name, handicap: hcp })
-          .eq("id", editingPlayer.id)
-          .select("id");
+        const query = supabase.from("local_comp_players").update({ handicap: hcp });
+        // Prefer id; fall back to normalized name so a missing/stale id can't break the edit.
+        const { error, data } = editingPlayer.id
+          ? await query.eq("id", editingPlayer.id).select("id")
+          : await query.eq("name_normalized", norm(editingPlayer.name)).select("id");
         if (error) throw error;
         if (!data || data.length === 0) {
-          // Fallback: update by normalized name match
-          const { error: fallbackErr } = await supabase
+          // Last-resort fallback by normalized name (in case id pointed to a deleted row)
+          const { error: fbErr } = await supabase
             .from("local_comp_players")
             .update({ handicap: hcp })
             .eq("name_normalized", norm(editingPlayer.name));
-          if (fallbackErr) throw fallbackErr;
+          if (fbErr) throw fbErr;
         }
       } else {
         const { error } = await supabase
