@@ -151,6 +151,59 @@ export function SavedTeams() {
     onError: (err: Error) => toast.error(err.message),
   });
 
+  const addTeamMutation = useMutation({
+    mutationFn: async () => {
+      const p1 = newPlayer1.trim();
+      const p2 = newPlayer2.trim();
+      const name = newTeamName.trim();
+      if (!p1 || !p2 || !name) throw new Error("All fields are required");
+
+      const p1Lower = p1.toLowerCase();
+      const p2Lower = p2.toLowerCase();
+      const { data: existing } = await supabase
+        .from("local_comp_saved_teams")
+        .select("team_name, player1_name, player2_name");
+      const duplicate = (existing || []).find((t) => {
+        const a = (t.player1_name || "").trim().toLowerCase();
+        const b = (t.player2_name || "").trim().toLowerCase();
+        return (a === p1Lower && b === p2Lower) || (a === p2Lower && b === p1Lower);
+      });
+      if (duplicate) {
+        throw new Error(`This pairing is already registered as "${duplicate.team_name}".`);
+      }
+
+      const { error: teamError } = await supabase.from("local_comp_saved_teams").insert({
+        team_name: name,
+        player1_name: p1,
+        player2_name: p2,
+        player1_handicap: 0,
+        player2_handicap: 0,
+      });
+      if (teamError) throw teamError;
+
+      for (const playerName of [p1, p2]) {
+        const { error: playerErr } = await supabase.from("local_comp_players").insert({
+          name: playerName,
+          name_normalized: playerName.toLowerCase(),
+          handicap: 0,
+        });
+        if (playerErr && !playerErr.message.toLowerCase().includes("duplicate")) {
+          console.warn("Player insert warning:", playerErr.message);
+        }
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["local-comp-saved-teams"] });
+      queryClient.invalidateQueries({ queryKey: ["local-comp-players"] });
+      toast.success("Team added");
+      setTeamDialogOpen(false);
+      setNewTeamName("");
+      setNewPlayer1("");
+      setNewPlayer2("");
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
   // Lookup map for player handicaps
   const playerHcpMap = useMemo(() => {
     const m = new Map<string, number>();
