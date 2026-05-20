@@ -33,6 +33,12 @@ export function SavedTeams() {
   const [playerSearch, setPlayerSearch] = useState("");
   const [playersOpen, setPlayersOpen] = useState(false);
 
+  // ---------------- Team add ----------------
+  const [teamDialogOpen, setTeamDialogOpen] = useState(false);
+  const [newTeamName, setNewTeamName] = useState("");
+  const [newPlayer1, setNewPlayer1] = useState("");
+  const [newPlayer2, setNewPlayer2] = useState("");
+
   // ---------------- Players ----------------
   const [playerDialogOpen, setPlayerDialogOpen] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
