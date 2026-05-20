@@ -435,6 +435,64 @@ export function SavedTeams() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Add Team dialog — mirrors customer-facing CompRegisterTeam flow */}
+      <Dialog open={teamDialogOpen} onOpenChange={setTeamDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Team</DialogTitle>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              addTeamMutation.mutate();
+            }}
+            className="space-y-4"
+          >
+            <div>
+              <Label>Player 1 Full Name</Label>
+              <Input
+                value={newPlayer1}
+                onChange={(e) => setNewPlayer1(e.target.value)}
+                placeholder="e.g. John Smith"
+                maxLength={100}
+                required
+              />
+            </div>
+            <div>
+              <Label>Player 2 Full Name</Label>
+              <Input
+                value={newPlayer2}
+                onChange={(e) => setNewPlayer2(e.target.value)}
+                placeholder="e.g. Jane Doe"
+                maxLength={100}
+                required
+              />
+            </div>
+            <div>
+              <Label>Team Name</Label>
+              <Input
+                value={newTeamName}
+                onChange={(e) => setNewTeamName(e.target.value)}
+                placeholder="e.g. The Eagles"
+                maxLength={100}
+                required
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Handicaps default to 0 — set them in the Players section after adding.
+            </p>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setTeamDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={addTeamMutation.isPending}>
+                {addTeamMutation.isPending ? "Adding..." : "Add Team"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
