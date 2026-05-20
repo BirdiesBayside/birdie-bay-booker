@@ -234,10 +234,13 @@ export function SavedTeams() {
 
       {/* TEAMS — read-only pairings */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="flex items-center gap-2 text-lg">
             <Users className="h-5 w-5" /> Teams ({teams.length})
           </CardTitle>
+          <Button size="sm" className="gap-2" onClick={() => setTeamDialogOpen(true)}>
+            <Plus className="h-4 w-4" /> Add Team
+          </Button>
         </CardHeader>
         <CardContent>
           <p className="text-xs text-muted-foreground mb-3">
