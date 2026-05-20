@@ -33,6 +33,12 @@ export function SavedTeams() {
   const [playerSearch, setPlayerSearch] = useState("");
   const [playersOpen, setPlayersOpen] = useState(false);
 
+  // ---------------- Team add ----------------
+  const [teamDialogOpen, setTeamDialogOpen] = useState(false);
+  const [newTeamName, setNewTeamName] = useState("");
+  const [newPlayer1, setNewPlayer1] = useState("");
+  const [newPlayer2, setNewPlayer2] = useState("");
+
   // ---------------- Players ----------------
   const [playerDialogOpen, setPlayerDialogOpen] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
@@ -145,6 +151,59 @@ export function SavedTeams() {
     onError: (err: Error) => toast.error(err.message),
   });
 
+  const addTeamMutation = useMutation({
+    mutationFn: async () => {
+      const p1 = newPlayer1.trim();
+      const p2 = newPlayer2.trim();
+      const name = newTeamName.trim();
+      if (!p1 || !p2 || !name) throw new Error("All fields are required");
+
+      const p1Lower = p1.toLowerCase();
+      const p2Lower = p2.toLowerCase();
+      const { data: existing } = await supabase
+        .from("local_comp_saved_teams")
+        .select("team_name, player1_name, player2_name");
+      const duplicate = (existing || []).find((t) => {
+        const a = (t.player1_name || "").trim().toLowerCase();
+        const b = (t.player2_name || "").trim().toLowerCase();
+        return (a === p1Lower && b === p2Lower) || (a === p2Lower && b === p1Lower);
+      });
+      if (duplicate) {
+        throw new Error(`This pairing is already registered as "${duplicate.team_name}".`);
+      }
+
+      const { error: teamError } = await supabase.from("local_comp_saved_teams").insert({
+        team_name: name,
+        player1_name: p1,
+        player2_name: p2,
+        player1_handicap: 0,
+        player2_handicap: 0,
+      });
+      if (teamError) throw teamError;
+
+      for (const playerName of [p1, p2]) {
+        const { error: playerErr } = await supabase.from("local_comp_players").insert({
+          name: playerName,
+          name_normalized: playerName.toLowerCase(),
+          handicap: 0,
+        });
+        if (playerErr && !playerErr.message.toLowerCase().includes("duplicate")) {
+          console.warn("Player insert warning:", playerErr.message);
+        }
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["local-comp-saved-teams"] });
+      queryClient.invalidateQueries({ queryKey: ["local-comp-players"] });
+      toast.success("Team added");
+      setTeamDialogOpen(false);
+      setNewTeamName("");
+      setNewPlayer1("");
+      setNewPlayer2("");
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
   // Lookup map for player handicaps
   const playerHcpMap = useMemo(() => {
     const m = new Map<string, number>();
@@ -175,10 +234,13 @@ export function SavedTeams() {
 
       {/* TEAMS — read-only pairings */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="flex items-center gap-2 text-lg">
             <Users className="h-5 w-5" /> Teams ({teams.length})
           </CardTitle>
+          <Button size="sm" className="gap-2" onClick={() => setTeamDialogOpen(true)}>
+            <Plus className="h-4 w-4" /> Add Team
+          </Button>
         </CardHeader>
         <CardContent>
           <p className="text-xs text-muted-foreground mb-3">
@@ -368,6 +430,64 @@ export function SavedTeams() {
               </Button>
               <Button type="submit" disabled={savePlayerMutation.isPending}>
                 {savePlayerMutation.isPending ? "Saving..." : editingPlayer ? "Update" : "Add"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Team dialog — mirrors customer-facing CompRegisterTeam flow */}
+      <Dialog open={teamDialogOpen} onOpenChange={setTeamDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Team</DialogTitle>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              addTeamMutation.mutate();
+            }}
+            className="space-y-4"
+          >
+            <div>
+              <Label>Player 1 Full Name</Label>
+              <Input
+                value={newPlayer1}
+                onChange={(e) => setNewPlayer1(e.target.value)}
+                placeholder="e.g. John Smith"
+                maxLength={100}
+                required
+              />
+            </div>
+            <div>
+              <Label>Player 2 Full Name</Label>
+              <Input
+                value={newPlayer2}
+                onChange={(e) => setNewPlayer2(e.target.value)}
+                placeholder="e.g. Jane Doe"
+                maxLength={100}
+                required
+              />
+            </div>
+            <div>
+              <Label>Team Name</Label>
+              <Input
+                value={newTeamName}
+                onChange={(e) => setNewTeamName(e.target.value)}
+                placeholder="e.g. The Eagles"
+                maxLength={100}
+                required
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Handicaps default to 0 — set them in the Players section after adding.
+            </p>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setTeamDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={addTeamMutation.isPending}>
+                {addTeamMutation.isPending ? "Adding..." : "Add Team"}
               </Button>
             </DialogFooter>
           </form>
