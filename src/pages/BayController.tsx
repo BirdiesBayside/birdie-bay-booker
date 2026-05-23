@@ -1862,10 +1862,27 @@ export default function BayController() {
     // Update previous bookings ref
     previousBookingsRef.current = [...bookings];
 
-    // NOTE: Plug on/off is handled EXCLUSIVELY by the PrecisionScheduler (below).
-    // This polling effect only handles activeBooking state and cancellation detection.
+    // SAFETY NET: If plugs are on but no booking window justifies it (and not manual),
+    // turn them off. This catches reschedules-away (booking ID stays but times move),
+    // which the cancellation detector above misses, and the PrecisionScheduler can
+    // miss when its timers were cleared mid-flight by a bookings refresh.
+    if (
+      !manualOverride &&
+      !shouldBeOn &&
+      (plugsStatus.monitor || plugsStatus.projector) &&
+      !isLaunchingApps
+    ) {
+      console.log('[SafetyNet] Plugs on but no active booking window - turning off');
+      bayLogger.sendLog('automation_decision',
+        '[SafetyNet] Plugs on without active booking - turning off (likely reschedule)',
+        { immediate: true }
+      );
+      turnOffPlugs(false, false);
+    }
+
+    // NOTE: Plug on/off is handled by the PrecisionScheduler (below) plus the safety net above.
     // Legacy warning notifications are handled by the dedicated notification effect (N1).
-  }, [currentTime, bookings, preStartMinutes, manualOverride, calculateShouldPlugsBeOn]);
+  }, [currentTime, bookings, preStartMinutes, manualOverride, calculateShouldPlugsBeOn, plugsStatus.monitor, plugsStatus.projector, isLaunchingApps, bayLogger]);
 
   // PRECISION SCHEDULER: Schedule exact timeouts for upcoming booking transitions
   // This uses a DUAL-TIMER approach:
