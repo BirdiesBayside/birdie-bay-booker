@@ -2038,9 +2038,14 @@ export default function BayController() {
       }
     }
     
-    // Cleanup function to clear all timeouts when component unmounts or deps change
+    // Cleanup function to clear all timeouts when component unmounts or deps change.
+    // CRITICAL: Also clear the Map so that on the next effect run, .has(key) is false
+    // and the timers get re-armed against the latest booking times. Otherwise a
+    // reschedule mid-flight wipes the timer handles but leaves stale Map keys,
+    // preventing re-scheduling (this was the Chelsea-bay-4 bug).
     return () => {
       scheduledTimeoutsRef.current.forEach((timeout) => clearTimeout(timeout));
+      scheduledTimeoutsRef.current.clear();
     };
   }, [bookings, preStartMinutes, manualOverride, isElectron, appLaunchConfig.appCloseSeconds, appLaunchConfig.enabled, plugsStatus.monitor, plugsStatus.projector]);
 
