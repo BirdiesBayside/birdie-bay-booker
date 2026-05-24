@@ -84,54 +84,79 @@ interface MonthlyStanding {
 }
 
 // Default email template for monthly winners
-const DEFAULT_MONTHLY_EMAIL_TEMPLATE = `<!DOCTYPE html>
-<html>
+const DEFAULT_MONTHLY_EMAIL_TEMPLATE = `<!doctype html>
+<html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Birdies Email</title>
+  <style>
+    @import url("https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;600&display=swap");
+  </style>
 </head>
-<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #FFF5E4;">
-  <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff;">
-    <!-- Header -->
-    <div style="background-color: #1F4C25; padding: 30px 20px; text-align: center;">
-      <h1 style="color: #ffffff; margin: 0; font-size: 28px;">🏆 Monthly Winner!</h1>
-    </div>
-    
-    <!-- Body -->
-    <div style="padding: 30px 20px;">
-      <p style="font-size: 18px; color: #333; margin-bottom: 20px;">
+<body style="margin:0; padding:0; background-color:#FFF5E4;">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#FFF5E4;">
+<tr><td align="center" style="padding:24px 12px;">
+<table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="max-width:600px; width:100%;">
+  <!-- HEADER -->
+  <tr>
+    <td align="center" style="background-color:#1F4C25; padding:18px; border-radius:16px 16px 0 0;">
+      <img src="https://cdn.shopify.com/s/files/1/0758/7030/6550/files/NO-BG_BIRDIES-LOGOS_WORK-DOC_AMENDED-9.7.25-01.png?v=1761536603" width="140" alt="Birdies Bayside" style="display:block; width:140px; height:auto; border:0;" />
+    </td>
+  </tr>
+  <!-- BODY -->
+  <tr>
+    <td style="background-color:#FFF5E4; padding:26px 22px; border-left:1px solid rgba(31,76,37,0.12); border-right:1px solid rgba(31,76,37,0.12);">
+      <h1 style="margin:0 0 18px; font-family:Anton, Impact, Arial Black, sans-serif; font-size:34px; line-height:1.1; color:#1F4C25; text-align:center;">
+        🏆 MONTHLY WINNER!
+      </h1>
+      <p style="margin:0 0 14px; font-family:Inter, Arial, sans-serif; font-size:18px; color:#1F4C25;">
         Congratulations <strong>{{first_name}}</strong>!
       </p>
-      
-      <p style="font-size: 16px; color: #555; line-height: 1.6;">
-        You've been crowned the <strong>{{month}}</strong> Birdies Tour Champion! 
-        Your consistent play throughout the month has earned you this well-deserved recognition.
+      <p style="margin:0 0 18px; font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25;">
+        You've been crowned the <strong>{{month}}</strong> Birdies Tour Champion! Your consistent play throughout the month has earned you this well-deserved recognition.
       </p>
-      
-      <div style="background-color: #FFF5E4; border-radius: 12px; padding: 20px; margin: 25px 0; text-align: center;">
-        <p style="font-size: 14px; color: #666; margin: 0 0 8px 0;">Your Prize</p>
-        <p style="font-size: 24px; color: #1F4C25; font-weight: bold; margin: 0;">{{prize_description}}</p>
+      <div style="background-color:#ffffff; border:1px solid rgba(31,76,37,0.15); border-radius:12px; padding:20px; margin:22px 0; text-align:center;">
+        <p style="font-size:14px; color:#1F4C25; margin:0 0 8px 0; font-family:Inter, Arial, sans-serif; opacity:0.75;">Your Prize</p>
+        <p style="font-family:Anton, Impact, Arial Black, sans-serif; font-size:28px; color:#EC622D; margin:0;">{{prize_description}}</p>
       </div>
-      
-      <p style="font-size: 16px; color: #555; line-height: 1.6;">
+      <p style="margin:0 0 18px; font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25;">
         Pop in next time you're at Birdies to collect your prize. Keep up the great golf!
       </p>
-      
-      <p style="font-size: 16px; color: #555; margin-top: 30px;">
+      <p style="margin:24px 0 0; font-family:Inter, Arial, sans-serif; font-size:16px; color:#1F4C25;">
         See you on the virtual fairways,<br>
         <strong>The Birdies Team</strong>
       </p>
-    </div>
-    
-    <!-- Footer -->
-    <div style="background-color: #f5f5f5; padding: 20px; text-align: center; border-top: 1px solid #eee;">
-      <p style="font-size: 12px; color: #888; margin: 0;">
-        Birdies Bayside | 1/161 Tingal Rd, Wynnum QLD 4178<br>
-        <a href="tel:0721468442" style="color: #1F4C25;">(07) 2146 8442</a> | 
-        <a href="mailto:info@birdiesbayside.com.au" style="color: #1F4C25;">info@birdiesbayside.com.au</a>
-      </p>
-    </div>
-  </div>
+    </td>
+  </tr>
+  <!-- FOOTER -->
+  <tr>
+    <td style="background-color:#1F4C25; padding:22px; border-radius:0 0 16px 16px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td align="center" style="padding-bottom:14px;">
+            <a href="https://www.instagram.com/birdiesbayside" style="margin:0 8px; text-decoration:none;">
+              <img src="https://cdn-icons-png.flaticon.com/512/174/174855.png" alt="Instagram" width="28" height="28" style="display:inline-block; border:0;" />
+            </a>
+            <a href="https://www.facebook.com/share/17NifCh2vH/" style="margin:0 8px; text-decoration:none;">
+              <img src="https://cdn-icons-png.flaticon.com/512/174/174848.png" alt="Facebook" width="28" height="28" style="display:inline-block; border:0;" />
+            </a>
+          </td>
+        </tr>
+        <tr>
+          <td align="center" style="font-family:Inter, Arial, sans-serif; font-size:14px; line-height:1.7; color:#FFFFFF;">
+            <div><a href="https://maps.app.goo.gl/vTXLZvd8XPZEeRn16" style="color:#FFFFFF; text-decoration:underline;">Unit 2, 86 Jardine Drive, Redland Bay QLD 4165</a></div>
+            <div><a href="tel:+61721468442" style="color:#FFFFFF; text-decoration:underline;">(07) 2146 8442</a></div>
+            <div><a href="https://birdiesbayside.com.au" style="color:#FFFFFF; text-decoration:underline;">birdiesbayside.com.au</a></div>
+            <div style="margin-top:10px; font-size:12px; opacity:0.75;">© Birdies Bayside</div>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+</td></tr>
+</table>
 </body>
 </html>`;
 
