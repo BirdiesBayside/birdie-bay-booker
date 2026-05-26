@@ -94,14 +94,19 @@ serve(async (req) => {
         if (emailHtml && RESEND_API_KEY) {
           try {
             // Replace template variables
-            let htmlContent = emailHtml;
-            htmlContent = htmlContent.replace(/\{\{first_name\}\}/g, profile.first_name || playerName);
-            htmlContent = htmlContent.replace(/\{\{player_name\}\}/g, playerName);
-            htmlContent = htmlContent.replace(/\{\{month\}\}/g, month);
-            htmlContent = htmlContent.replace(/\{\{prize_description\}\}/g, prizeDescription || "");
+            let bodyContent = emailHtml;
+            bodyContent = bodyContent.replace(/\{\{first_name\}\}/g, profile.first_name || playerName);
+            bodyContent = bodyContent.replace(/\{\{player_name\}\}/g, playerName);
+            bodyContent = bodyContent.replace(/\{\{month\}\}/g, month);
+            bodyContent = bodyContent.replace(/\{\{prize_description\}\}/g, prizeDescription || "");
 
             let subject = emailSubject || `Congratulations! You're the ${month} Monthly Winner!`;
             subject = subject.replace(/\{\{month\}\}/g, month);
+
+            const htmlContent = buildEmailTemplate(
+              `${month} Monthly Winner!`,
+              bodyContent
+            );
 
             const emailResponse = await fetch("https://api.resend.com/emails", {
               method: "POST",
