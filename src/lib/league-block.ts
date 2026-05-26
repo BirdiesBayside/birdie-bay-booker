@@ -1,121 +1,56 @@
 /**
- * League "Monthly Winner" 4-week block model.
+ * League "Monthly Winner" — calendar-month model.
  *
  * Rule:
- *  - Anchor: Sunday 1 March 2026 (Brisbane) = start of Block 0.
- *  - Each block = exactly 4 consecutive weekly tournaments (Sunday starts).
- *  - A tournament's block is determined by its start_date only.
- *  - A block's display label = the calendar month containing its
- *    midpoint Sunday (block start + 1 week). e.g. block starting
- *    Apr 26 -> midpoint May 3 -> "May 2026".
+ *  - A tournament belongs to the calendar month of its `start_date`
+ *    (Brisbane). Label = "<MonthName> <Year>", e.g. "May 2026".
+ *  - Months naturally have 4 or 5 Sundays; the leaderboard simply
+ *    aggregates every Sunday tournament that falls in that month.
  *
- * No timezone math required: we compare calendar dates only.
+ * The legacy 4-week "block" model and the " (Late)" suffix have been
+ * removed. Helper names are kept so existing callers continue to work.
  */
-
-const ANCHOR_ISO = "2026-03-01"; // Sunday
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
-const MS_PER_WEEK = 7 * MS_PER_DAY;
-
-function parseDateOnly(input: string | Date): Date {
-  if (input instanceof Date) {
-    return new Date(Date.UTC(input.getFullYear(), input.getMonth(), input.getDate()));
-  }
-  // Accept "YYYY-MM-DD" or full ISO strings; only the date portion matters.
-  const ymd = input.slice(0, 10);
-  const [y, m, d] = ymd.split("-").map(Number);
-  return new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1));
-}
-
-const ANCHOR = parseDateOnly(ANCHOR_ISO);
-
-/** Return the most recent Sunday on or before the given date (UTC date math). */
-function snapToSunday(d: Date): Date {
-  // Date.UTC day: 0 = Sunday
-  const day = d.getUTCDay();
-  return new Date(d.getTime() - day * MS_PER_DAY);
-}
-
-/**
- * Compute block index (0, 1, 2…) for a tournament start date.
- * Dates before the anchor return null (no block — pre-model).
- */
-export function getBlockIndex(tournamentStart: string | Date): number | null {
-  const start = snapToSunday(parseDateOnly(tournamentStart));
-  const diffMs = start.getTime() - ANCHOR.getTime();
-  if (diffMs < 0) return null;
-  const weeksSinceAnchor = Math.floor(diffMs / MS_PER_WEEK);
-  return Math.floor(weeksSinceAnchor / 4);
-}
-
-/** Return the Sunday that starts a given block. */
-export function getBlockStartDate(blockIndex: number): Date {
-  return new Date(ANCHOR.getTime() + blockIndex * 4 * MS_PER_WEEK);
-}
-
-/** Midpoint Sunday = block start + 1 week (the 2nd of the 4 Sundays). */
-export function getBlockMidpoint(blockIndex: number): Date {
-  return new Date(getBlockStartDate(blockIndex).getTime() + MS_PER_WEEK);
-}
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
 ];
 
-function rawBlockLabel(blockIndex: number): string {
-  const mid = getBlockMidpoint(blockIndex);
-  return `${MONTH_NAMES[mid.getUTCMonth()]} ${mid.getUTCFullYear()}`;
-}
-
-/**
- * "May 2026" — month containing the block's midpoint Sunday.
- *
- * Because there are 13 blocks per year and only 12 months, exactly one
- * label per year would otherwise duplicate the previous block's label.
- * When that happens we suffix it with " (Late)" so each block is unique.
- * (With our anchor this lands on May every year.)
- */
-export function getBlockLabel(blockIndex: number): string {
-  const cur = rawBlockLabel(blockIndex);
-  if (blockIndex > 0 && rawBlockLabel(blockIndex - 1) === cur) {
-    return `${cur} (Late)`;
+function parseDateOnly(input: string | Date): Date {
+  if (input instanceof Date) {
+    return new Date(Date.UTC(input.getFullYear(), input.getMonth(), input.getDate()));
   }
-  return cur;
+  const ymd = input.slice(0, 10);
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1));
 }
 
-/** Convenience: block label for a given tournament start date. */
-export function getBlockLabelForDate(tournamentStart: string | Date): string | null {
-  const idx = getBlockIndex(tournamentStart);
-  if (idx === null) return null;
-  return getBlockLabel(idx);
+function labelFor(year: number, monthIdx: number): string {
+  return `${MONTH_NAMES[monthIdx]} ${year}`;
 }
 
-/**
- * Block label for "now" — i.e. the block that contains the current (or
- * most recent) Sunday tournament. Used by leaderboards to show the
- * currently-active monthly winner period.
- */
+/** Calendar-month label for a given tournament start date. */
+export function getBlockLabelForDate(tournamentStart: string | Date): string {
+  const d = parseDateOnly(tournamentStart);
+  return labelFor(d.getUTCFullYear(), d.getUTCMonth());
+}
+
+/** Calendar-month label for "now" (current month). */
 export function getCurrentBlockLabel(now: Date = new Date()): string {
-  // Snap "now" back to its Sunday so a Mon–Sat view still maps to the
-  // tournament that started that week.
-  const sunday = snapToSunday(parseDateOnly(now));
-  const diffMs = sunday.getTime() - ANCHOR.getTime();
-  const weeksSinceAnchor = Math.max(0, Math.floor(diffMs / MS_PER_WEEK));
-  const idx = Math.floor(weeksSinceAnchor / 4);
-  return getBlockLabel(idx);
+  const d = parseDateOnly(now);
+  return labelFor(d.getUTCFullYear(), d.getUTCMonth());
 }
 
-/** List the most recent N block labels, newest first, not exceeding "now". */
+/** Most recent N calendar-month labels, newest first. */
 export function getRecentBlockLabels(count: number, now: Date = new Date()): string[] {
-  const sunday = snapToSunday(parseDateOnly(now));
-  const diffMs = sunday.getTime() - ANCHOR.getTime();
-  const weeksSinceAnchor = Math.max(0, Math.floor(diffMs / MS_PER_WEEK));
-  const currentIdx = Math.floor(weeksSinceAnchor / 4);
+  const d = parseDateOnly(now);
+  let year = d.getUTCFullYear();
+  let month = d.getUTCMonth();
   const labels: string[] = [];
   for (let i = 0; i < count; i++) {
-    const idx = currentIdx - i;
-    if (idx < 0) break;
-    labels.push(getBlockLabel(idx));
+    labels.push(labelFor(year, month));
+    month -= 1;
+    if (month < 0) { month = 11; year -= 1; }
   }
   return labels;
 }
