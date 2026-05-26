@@ -116,13 +116,18 @@ serve(async (req) => {
             .maybeSingle();
 
           if (template?.html_content) {
-            let htmlContent = template.html_content;
-            htmlContent = htmlContent.replace(/\{\{first_name\}\}/g, profile.first_name || playerName);
-            htmlContent = htmlContent.replace(/\{\{tournament_name\}\}/g, tournamentName);
-            htmlContent = htmlContent.replace(/\{\{prize_amount\}\}/g, prizeAmount.toString());
+            let bodyContent = template.html_content;
+            bodyContent = bodyContent.replace(/\{\{first_name\}\}/g, profile.first_name || playerName);
+            bodyContent = bodyContent.replace(/\{\{tournament_name\}\}/g, tournamentName);
+            bodyContent = bodyContent.replace(/\{\{prize_amount\}\}/g, prizeAmount.toString());
 
             let subject = template.subject || "Congratulations! You Won This Week's League Prize!";
             subject = subject.replace(/\{\{tournament_name\}\}/g, tournamentName);
+
+            const htmlContent = buildEmailTemplate(
+              "You Won This Week!",
+              bodyContent
+            );
 
             const emailResponse = await fetch("https://api.resend.com/emails", {
               method: "POST",
