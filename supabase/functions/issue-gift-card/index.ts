@@ -41,15 +41,22 @@ serve(async (req: Request): Promise<Response> => {
     // Clean link to the hub sign-up page (no token)
     const signupUrl = "https://hub.birdiesbayside.com.au";
 
-    // Use template or fallback
+    // Use template body or default body
     let subject = template?.subject || `You've received a $${amount.toFixed(2)} gift card!`;
-    let htmlContent = template?.html_content || getDefaultTemplate(amount, signupUrl);
+    let bodyContent = template?.html_content || getDefaultBody(amount);
 
     // Replace placeholders
     subject = subject.replace(/\{amount\}/g, amount.toFixed(2));
-    htmlContent = htmlContent
+    bodyContent = bodyContent
       .replace(/\{amount\}/g, amount.toFixed(2))
       .replace(/\{activation_url\}/g, signupUrl);
+
+    // Wrap with branded header/footer
+    const htmlContent = buildEmailTemplate(
+      "You've Received a Gift!",
+      bodyContent,
+      { text: "Set Up Your Account", url: signupUrl }
+    );
 
     // Send email
     const emailResponse = await resend.emails.send({
