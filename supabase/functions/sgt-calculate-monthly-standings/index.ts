@@ -21,62 +21,18 @@ function getPoints(position: number): number {
 const MIN_ROUNDS = 2;
 
 // =========================================================
-// 4-week block model (mirrors src/lib/league-block.ts).
-// Anchor: Sunday 2026-03-01 = start of Block 0.
-// Each block = 4 consecutive weekly Sunday tournaments.
-// Label = month containing the block's MIDPOINT Sunday
-//   (block start + 1 week). When the resulting label
-//   collides with the previous block's label (happens once
-//   per year, on May), suffix with " (Late)".
+// Calendar-month model (mirrors src/lib/league-block.ts).
+// A tournament belongs to the calendar month of its start_date.
+// Label = "<MonthName> <Year>" e.g. "May 2026".
 // =========================================================
-const ANCHOR_MS = Date.UTC(2026, 2, 1); // 2026-03-01 (Sunday)
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
-const MS_PER_WEEK = 7 * MS_PER_DAY;
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
 ];
 
-function parseDateOnlyUTC(input: string): Date {
-  const [y, m, d] = input.slice(0, 10).split("-").map(Number);
-  return new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1));
-}
-
-function snapToSunday(d: Date): Date {
-  return new Date(d.getTime() - d.getUTCDay() * MS_PER_DAY);
-}
-
-function getBlockIndex(startDate: string): number | null {
-  const sunday = snapToSunday(parseDateOnlyUTC(startDate));
-  const diff = sunday.getTime() - ANCHOR_MS;
-  if (diff < 0) return null;
-  return Math.floor(Math.floor(diff / MS_PER_WEEK) / 4);
-}
-
-function rawBlockLabel(blockIndex: number): string {
-  const mid = new Date(ANCHOR_MS + blockIndex * 4 * MS_PER_WEEK + MS_PER_WEEK);
-  return `${MONTH_NAMES[mid.getUTCMonth()]} ${mid.getUTCFullYear()}`;
-}
-
-function getBlockLabel(blockIndex: number): string {
-  const cur = rawBlockLabel(blockIndex);
-  if (blockIndex > 0 && rawBlockLabel(blockIndex - 1) === cur) {
-    return `${cur} (Late)`;
-  }
-  return cur;
-}
-
-// Legacy calendar-month label, used for back-compat with tournaments that
-// pre-date the block model (i.e. before 2026-03-01).
-function legacyMonthLabel(startDate: string): string {
-  const d = parseDateOnlyUTC(startDate);
-  return `${MONTH_NAMES[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
-}
-
 function labelForTournament(startDate: string): string {
-  const idx = getBlockIndex(startDate);
-  if (idx === null) return legacyMonthLabel(startDate);
-  return getBlockLabel(idx);
+  const [y, m] = startDate.slice(0, 10).split("-").map(Number);
+  return `${MONTH_NAMES[(m ?? 1) - 1]} ${y}`;
 }
 
 interface TournamentData {
@@ -195,19 +151,19 @@ Deno.serve(async (req) => {
       .eq("tour_id", activeTour.tour_id);
     const awardedMonths = new Set((awardedRows ?? []).map(r => r.month));
 
-    // Group tournaments by 4-week block label
+    // Group tournaments by calendar-month label
     const tournamentsByMonth = new Map<string, TournamentData[]>();
     for (const t of tournaments as TournamentData[]) {
       if (!t.start_date) continue;
       const label = labelForTournament(t.start_date);
       if (targetMonth && label !== targetMonth) continue;
-      // Skip already-awarded blocks unless explicitly forced or specifically targeted.
+      // Skip already-awarded months unless explicitly forced or specifically targeted.
       if (!force && !targetMonth && awardedMonths.has(label)) continue;
       if (!tournamentsByMonth.has(label)) tournamentsByMonth.set(label, []);
       tournamentsByMonth.get(label)!.push(t);
     }
 
-    console.log(`[MONTHLY-STANDINGS] ${tournamentsByMonth.size} blocks to process (skipped ${awardedMonths.size} awarded)`);
+    console.log(`[MONTHLY-STANDINGS] ${tournamentsByMonth.size} months to process (skipped ${awardedMonths.size} awarded)`);
     let totalRecords = 0;
 
     for (const [month, monthTournaments] of tournamentsByMonth) {
