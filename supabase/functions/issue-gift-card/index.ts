@@ -87,60 +87,17 @@ serve(async (req: Request): Promise<Response> => {
   }
 });
 
-function getDefaultTemplate(amount: number, signupUrl: string): string {
+function getDefaultBody(amount: number): string {
   return `
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Gift Card</title>
-</head>
-<body style="margin:0; padding:0; background-color:#FFF5E4;">
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#FFF5E4;">
-    <tr>
-      <td align="center" style="padding:24px 12px;">
-        <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="max-width:600px; width:100%;">
-          <tr>
-            <td align="center" style="background-color:#1F4C25; padding:18px; border-radius:16px 16px 0 0;">
-              <img src="https://cdn.shopify.com/s/files/1/0758/7030/6550/files/NO-BG_BIRDIES-LOGOS_WORK-DOC_AMENDED-9.7.25-01.png?v=1761536603" width="140" alt="Birdies Bayside" style="display:block; width:140px; height:auto; border:0;" />
-            </td>
-          </tr>
-          <tr>
-            <td style="background-color:#FFF5E4; padding:26px 22px; border-left:1px solid rgba(31,76,37,0.12); border-right:1px solid rgba(31,76,37,0.12);">
-              <h1 style="margin:0 0 14px; font-family:Arial, sans-serif; font-size:34px; line-height:1.1; color:#1F4C25; text-align:center;">You've Received a Gift!</h1>
-              <p style="margin:0 0 18px; font-family:Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">Great news! You've been gifted credit to use at Birdies Bayside.</p>
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#1F4C25; border-radius:12px; margin:18px 0;">
-                <tr>
-                  <td style="padding:30px; text-align:center;">
-                    <p style="margin:0 0 8px; font-family:Arial, sans-serif; font-size:14px; color:#FFF5E4; opacity:0.9;">Gift Card Value</p>
-                    <p style="margin:0; font-family:Arial, sans-serif; font-size:52px; font-weight:bold; color:#EC622D;">$${amount.toFixed(2)}</p>
-                  </td>
-                </tr>
-              </table>
-              <p style="margin:18px 0; font-family:Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">Set up your free account to start using your credit for sessions at Birdies.</p>
-              <table role="presentation" align="center" cellpadding="0" cellspacing="0" border="0" style="margin:22px auto 0;">
-                <tr>
-                  <td bgcolor="#EC622D" style="border-radius:12px;">
-                    <a href="${signupUrl}" style="display:inline-block; padding:14px 28px; font-family:Arial, sans-serif; font-size:18px; font-weight:bold; color:#FFFFFF; text-decoration:none;">Set Up Your Account</a>
-                  </td>
-                </tr>
-              </table>
-              <p style="margin:18px 0 0; font-family:Arial, sans-serif; font-size:13px; line-height:1.5; color:#1F4C25; text-align:center; opacity:0.7;">Your credit will be automatically added once your account is set up using this email address.</p>
-            </td>
-          </tr>
-          <tr>
-            <td style="background-color:#1F4C25; padding:22px; border-radius:0 0 16px 16px;">
-              <p style="margin:0; font-family:Arial, sans-serif; font-size:13px; color:#FFF5E4; text-align:center; opacity:0.85;">
-                Birdies Bayside | <a href="mailto:info@birdiesbayside.com.au" style="color:#EC622D; text-decoration:none;">info@birdiesbayside.com.au</a>
-              </p>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>
+    <p style="margin:0 0 18px; font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">Great news! You've been gifted credit to use at Birdies Bayside.</p>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#1F4C25; border-radius:12px; margin:18px 0;">
+      <tr>
+        <td style="padding:30px; text-align:center;">
+          <p style="margin:0 0 8px; font-family:Inter, Arial, sans-serif; font-size:14px; color:#FFF5E4; opacity:0.9;">Gift Card Value</p>
+          <p style="margin:0; font-family:Anton, Impact, Arial Black, sans-serif; font-size:52px; color:#EC622D;">$${amount.toFixed(2)}</p>
+        </td>
+      </tr>
+    </table>
+    <p style="margin:18px 0 0; font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">Click the button below to activate your account and start using your credit for booking simulator sessions.</p>
   `;
 }
