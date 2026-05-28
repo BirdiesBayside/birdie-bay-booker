@@ -54,25 +54,24 @@ const buildTemplate = (firstName: string, amount?: number, cancelledBookings = 0
           </tr>
           <tr>
             <td style="background-color:#FFF5E4; padding:26px 22px; border-left:1px solid rgba(31,76,37,0.12); border-right:1px solid rgba(31,76,37,0.12);">
-              <h1 style="margin:0 0 14px; font-family:Anton, Impact, Arial Black, sans-serif; font-size:34px; line-height:1.1; color:#1F4C25; text-align:center;">Heads Up — Payment Didn't Clear</h1>
+              <h1 style="margin:0 0 14px; font-family:Anton, Impact, Arial Black, sans-serif; font-size:34px; line-height:1.1; color:#1F4C25; text-align:center;">Payment Didn't Clear</h1>
               <p style="margin:0 0 14px; font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">Hi ${firstName},</p>
               ${amountLine}
 
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FEF3C7; border-radius:12px; margin:18px 0; border-left:4px solid #D97706;">
                 <tr>
                   <td style="padding:20px; font-family:Inter, Arial, sans-serif; font-size:15px; color:#92400E;">
-                    <h3 style="margin:0 0 10px 0; font-family:Anton, Impact, Arial Black, sans-serif; color:#92400E;">We'll Try Again Soon</h3>
-                    <p style="margin:0;">No action needed — just make sure funds are available in the account linked to your card and we'll automatically retry the payment soon.</p>
+                    <h3 style="margin:0 0 10px 0; font-family:Anton, Impact, Arial Black, sans-serif; color:#92400E;">What This Means</h3>
+                    ${bookingsLine}
                   </td>
                 </tr>
               </table>
 
-              <p style="margin:18px 0 8px; font-family:Inter, Arial, sans-serif; font-size:15px; line-height:1.6; color:#1F4C25; text-align:center;">If you'd like to change the card on file instead, you can update it here:</p>
+              <p style="margin:18px 0 8px; font-family:Inter, Arial, sans-serif; font-size:15px; line-height:1.6; color:#1F4C25; text-align:center;">Update your card on file and you'll be straight back in:</p>
               <p style="margin:0 0 4px; text-align:center;">
                 <a href="https://hub.birdiesbayside.com.au/my-account" style="display:inline-block; background-color:#EC622D; color:#FFFFFF; font-family:Anton, Impact, Arial Black, sans-serif; font-size:18px; padding:12px 28px; border-radius:8px; text-decoration:none; letter-spacing:0.5px;">Update Card</a>
               </p>
 
-              <p style="margin:24px 0 0; font-family:Inter, Arial, sans-serif; font-size:14px; line-height:1.6; color:#1F4C25; text-align:center; opacity:0.8;">If the second attempt also fails, your membership will be cancelled and you'll drop back to visitor pricing — but you can re-subscribe any time.</p>
             </td>
           </tr>
           <tr>
