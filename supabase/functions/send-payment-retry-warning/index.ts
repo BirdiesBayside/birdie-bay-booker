@@ -108,19 +108,20 @@ serve(async (req) => {
   }
 
   try {
-    const { email, first_name, amount }: PaymentRetryRequest = await req.json();
-    logStep("Request received", { email, first_name, amount });
+    const { email, first_name, amount, cancelled_bookings }: PaymentRetryRequest = await req.json();
+    logStep("Request received", { email, first_name, amount, cancelled_bookings });
 
     if (!email) throw new Error("Missing email");
 
-    const html = buildTemplate(first_name || "there", amount);
+    const html = buildTemplate(first_name || "there", amount, cancelled_bookings ?? 0);
 
     const emailResponse = await resend.emails.send({
       from: "Birdies Bayside <info@birdiesbayside.com.au>",
       to: [email],
-      subject: "Heads up — your Birdies payment didn't clear",
+      subject: "Your Birdies payment didn't clear — bookings on hold",
       html,
     });
+
 
     logStep("Email sent", { emailResponse });
 
