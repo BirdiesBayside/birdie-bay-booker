@@ -729,12 +729,16 @@ serve(async (req) => {
                 }
               }
 
-              // Mark cancelled
+              // Mark cancelled with reason
               await supabaseAdmin
                 .from("bookings")
-                .update({ status: "cancelled" })
+                .update({
+                  status: "cancelled",
+                  cancellation_reason: "Membership payment failed — booking refunded",
+                })
                 .eq("id", b.id);
               cancelledCount++;
+
             }
             logStep("Cancelled future bookings due to payment failure", {
               userId,
