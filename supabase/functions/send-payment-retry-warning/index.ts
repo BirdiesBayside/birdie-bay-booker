@@ -54,8 +54,8 @@ const buildTemplate = (firstName: string, amount?: number) => {
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FEF3C7; border-radius:12px; margin:18px 0; border-left:4px solid #D97706;">
                 <tr>
                   <td style="padding:20px; font-family:Inter, Arial, sans-serif; font-size:15px; color:#92400E;">
-                    <h3 style="margin:0 0 10px 0; font-family:Anton, Impact, Arial Black, sans-serif; color:#92400E;">We'll Try Again Soon</h3>
-                    <p style="margin:0;">No action needed — just make sure funds are available in the account linked to your card and we'll automatically retry the payment shortly.</p>
+                    <h3 style="margin:0 0 10px 0; font-family:Anton, Impact, Arial Black, sans-serif; color:#92400E;">We'll Try Again in 3 Days</h3>
+                    <p style="margin:0;">No action needed — just make sure funds are available in the account linked to your card and we'll automatically retry the payment in 3 days.</p>
                   </td>
                 </tr>
               </table>
