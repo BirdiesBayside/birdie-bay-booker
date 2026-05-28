@@ -1,6 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@14.21.0";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -30,7 +29,7 @@ serve(async (req) => {
       throw new Error("STRIPE_SECRET_KEY not configured");
     }
 
-    const stripe = new Stripe(stripeKey, { apiVersion: "2023-10-16" });
+    const stripe = new Stripe(stripeKey, { apiVersion: "2025-07-30.basil" as any });
 
     // Find customer by email
     const customers = await stripe.customers.list({ email, limit: 1 });
@@ -45,53 +44,77 @@ serve(async (req) => {
     const customerId = customers.data[0].id;
     logStep("Found Stripe customer", { customerId });
 
-    // Find active subscriptions
+    // List ALL non-terminal subs (active, past_due, trialing, unpaid, paused)
+    // so we catch every subscription regardless of paused/billing state.
     const subscriptions = await stripe.subscriptions.list({
       customer: customerId,
-      status: "active",
-      limit: 10,
+      status: "all",
+      limit: 20,
     });
 
-    if (subscriptions.data.length === 0) {
-      logStep("No active subscriptions found");
+    const relevantStatuses = new Set([
+      "active",
+      "trialing",
+      "past_due",
+      "unpaid",
+      "paused",
+      "incomplete",
+    ]);
+
+    const targets = subscriptions.data.filter((s) => relevantStatuses.has(s.status));
+
+    if (targets.length === 0) {
+      logStep("No manageable subscriptions found", {
+        all_statuses: subscriptions.data.map((s) => s.status),
+      });
       return new Response(
-        JSON.stringify({ success: true, message: "No active subscriptions to pause" }),
+        JSON.stringify({ success: true, message: "No manageable subscriptions" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    logStep("Found active subscriptions", { count: subscriptions.data.length });
+    logStep("Found subscriptions to update", { count: targets.length });
 
-    // Pause or resume all active subscriptions
-    for (const subscription of subscriptions.data) {
+    const results: Array<{ id: string; action: string; previous_pause?: unknown }> = [];
+
+    for (const subscription of targets) {
       if (put_on_hold) {
-        // Pause the subscription - stops billing but keeps it active
-        await stripe.subscriptions.update(subscription.id, {
-          pause_collection: {
-            behavior: "void", // Don't invoice during pause
-          },
+        const updated = await stripe.subscriptions.update(subscription.id, {
+          pause_collection: { behavior: "void" },
         });
-        logStep("Paused subscription", { subscriptionId: subscription.id });
+        logStep("Paused subscription", { subscriptionId: subscription.id, status: updated.status });
+        results.push({ id: subscription.id, action: "paused" });
       } else {
-        // Resume the subscription
-        await stripe.subscriptions.update(subscription.id, {
-          pause_collection: null, // Resume billing
+        // ALWAYS clear pause_collection on resume, even if it wasn't visibly set,
+        // to guarantee billing actually resumes.
+        const updated = await stripe.subscriptions.update(subscription.id, {
+          pause_collection: "" as any, // Stripe accepts empty string to unset
         });
-        logStep("Resumed subscription", { subscriptionId: subscription.id });
+        logStep("Resumed subscription", {
+          subscriptionId: subscription.id,
+          status: updated.status,
+          pause_collection_after: updated.pause_collection,
+          previous_pause: subscription.pause_collection,
+        });
+        results.push({
+          id: subscription.id,
+          action: "resumed",
+          previous_pause: subscription.pause_collection,
+        });
       }
     }
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: put_on_hold 
-          ? `Paused ${subscriptions.data.length} subscription(s)` 
-          : `Resumed ${subscriptions.data.length} subscription(s)`,
-        subscriptions_affected: subscriptions.data.length
+      JSON.stringify({
+        success: true,
+        message: put_on_hold
+          ? `Paused ${results.length} subscription(s)`
+          : `Resumed ${results.length} subscription(s)`,
+        subscriptions_affected: results.length,
+        results,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logStep("ERROR", { message: errorMessage });
