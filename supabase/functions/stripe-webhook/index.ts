@@ -899,6 +899,17 @@ serve(async (req) => {
       } else {
         logStep("Membership payment recorded", { email, tier, amount, invoiceId: invoice.id });
       }
+
+      // Clear payment_failed_at flag so customer can book again
+      const { error: clearError } = await supabaseAdmin
+        .from("profiles")
+        .update({ payment_failed_at: null })
+        .eq("user_id", profile.user_id)
+        .not("payment_failed_at", "is", null);
+      if (!clearError) {
+        logStep("Cleared payment_failed_at flag", { userId: profile.user_id });
+      }
+
     }
 
     return new Response(JSON.stringify({ received: true }), {
