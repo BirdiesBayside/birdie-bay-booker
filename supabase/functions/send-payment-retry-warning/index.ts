@@ -12,7 +12,9 @@ interface PaymentRetryRequest {
   email: string;
   first_name: string;
   amount?: number; // in dollars
+  cancelled_bookings?: number;
 }
+
 
 const logStep = (step: string, details?: any) => {
   const detailsStr = details ? ` - ${JSON.stringify(details)}` : "";
