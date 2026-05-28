@@ -349,6 +349,11 @@ const MyBookings = () => {
                             {" "}• {booking.duration_hours} hour{booking.duration_hours > 1 ? "s" : ""}
                           </span>
                         </div>
+                        {booking.status === "cancelled" && (booking as any).cancellation_reason && (
+                          <p className="text-xs text-destructive/80 mt-1 italic">
+                            {(booking as any).cancellation_reason}
+                          </p>
+                        )}
                       </div>
                       <span
                         className={`text-xs font-medium px-2 py-1 rounded ${
@@ -360,6 +365,7 @@ const MyBookings = () => {
                         {booking.status === "cancelled" ? "Cancelled" : "Completed"}
                       </span>
                     </div>
+
                   </div>
                 ))}
               </div>

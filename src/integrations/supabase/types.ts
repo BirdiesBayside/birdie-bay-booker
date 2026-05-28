@@ -333,6 +333,7 @@ export type Database = {
         Row: {
           bay_id: string
           booking_date: string
+          cancellation_reason: string | null
           created_at: string
           duration_hours: number
           end_time: string
@@ -351,6 +352,7 @@ export type Database = {
         Insert: {
           bay_id: string
           booking_date: string
+          cancellation_reason?: string | null
           created_at?: string
           duration_hours: number
           end_time: string
@@ -369,6 +371,7 @@ export type Database = {
         Update: {
           bay_id?: string
           booking_date?: string
+          cancellation_reason?: string | null
           created_at?: string
           duration_hours?: number
           end_time?: string
