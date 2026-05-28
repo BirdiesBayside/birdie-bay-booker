@@ -21,10 +21,15 @@ const logStep = (step: string, details?: any) => {
   console.log(`[SEND-PAYMENT-RETRY-WARNING] ${step}${detailsStr}`);
 };
 
-const buildTemplate = (firstName: string, amount?: number) => {
+const buildTemplate = (firstName: string, amount?: number, cancelledBookings = 0) => {
   const amountLine = amount
     ? `<p style="margin:0 0 18px; font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">We tried to charge <strong>$${amount.toFixed(2)}</strong> for your weekly Birdies membership and the payment didn't go through.</p>`
     : `<p style="margin:0 0 18px; font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">We tried to charge your card for your weekly Birdies membership and the payment didn't go through.</p>`;
+
+  const bookingsLine = cancelledBookings > 0
+    ? `<p style="margin:0;">As a result, <strong>${cancelledBookings} upcoming booking${cancelledBookings === 1 ? " has" : "s have"} been cancelled and refunded</strong>, and no new bookings can be made until your card on file is updated.</p>`
+    : `<p style="margin:0;">No new bookings can be made until your card on file is updated.</p>`;
+
 
   return `<!doctype html>
 <html lang="en">
