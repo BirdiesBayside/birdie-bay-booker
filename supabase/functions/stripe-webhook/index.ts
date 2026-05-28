@@ -641,10 +641,11 @@ serve(async (req) => {
 
         const email = customer.email;
         let firstName = "";
+        let userId: string | null = null;
         if (email) {
           const { data: profile } = await supabaseAdmin
             .from("profiles")
-            .select("custom_billing, first_name")
+            .select("user_id, custom_billing, first_name")
             .eq("email", email)
             .maybeSingle();
 
@@ -655,25 +656,114 @@ serve(async (req) => {
             });
           }
           firstName = profile?.first_name ?? "";
+          userId = profile?.user_id ?? null;
         }
 
-        // First failure: heads-up email only, let Stripe retry
+        // First failure: flag profile, cancel + refund all future bookings, send heads-up
         if (attemptCount < 2) {
+          let cancelledCount = 0;
+
+          if (userId) {
+            // Flag profile so new bookings are blocked by DB trigger
+            await supabaseAdmin
+              .from("profiles")
+              .update({ payment_failed_at: new Date().toISOString() })
+              .eq("user_id", userId);
+            logStep("Profile flagged with payment_failed_at", { userId });
+
+            // Fetch future confirmed bookings (Brisbane today onward)
+            const brisbaneToday = new Date(
+              new Date().toLocaleString("en-US", { timeZone: "Australia/Brisbane" })
+            )
+              .toISOString()
+              .slice(0, 10);
+
+            const { data: futureBookings } = await supabaseAdmin
+              .from("bookings")
+              .select("id, stripe_payment_intent_id, payment_method, total_price, user_id")
+              .eq("user_id", userId)
+              .in("status", ["confirmed", "pending"])
+              .gte("booking_date", brisbaneToday);
+
+            for (const b of futureBookings ?? []) {
+              // Stripe refund
+              if (
+                b.stripe_payment_intent_id &&
+                (b.payment_method === "stripe" || b.payment_method === "card")
+              ) {
+                try {
+                  await stripe.refunds.create({
+                    payment_intent: b.stripe_payment_intent_id,
+                    reason: "requested_by_customer",
+                  });
+                } catch (refundErr) {
+                  logStep("Refund failed for booking (continuing)", {
+                    bookingId: b.id,
+                    error: refundErr,
+                  });
+                }
+              } else if (b.payment_method === "balance" || b.payment_method === "partial") {
+                // Credit balance refund
+                const amount = parseFloat(b.total_price as any) || 0;
+                if (amount > 0) {
+                  const { data: prof } = await supabaseAdmin
+                    .from("profiles")
+                    .select("deposit_balance")
+                    .eq("user_id", b.user_id)
+                    .single();
+                  const current = parseFloat((prof?.deposit_balance as any) ?? 0);
+                  const newBal = current + amount;
+                  await supabaseAdmin
+                    .from("profiles")
+                    .update({ deposit_balance: newBal })
+                    .eq("user_id", b.user_id);
+                  await supabaseAdmin.from("deposit_transactions").insert({
+                    user_id: b.user_id,
+                    amount,
+                    balance_before: current,
+                    balance_after: newBal,
+                    transaction_type: "refund",
+                    description: "Booking cancelled — membership payment failed",
+                    related_booking_id: b.id,
+                  });
+                }
+              }
+
+              // Mark cancelled
+              await supabaseAdmin
+                .from("bookings")
+                .update({ status: "cancelled" })
+                .eq("id", b.id);
+              cancelledCount++;
+            }
+            logStep("Cancelled future bookings due to payment failure", {
+              userId,
+              cancelledCount,
+            });
+          }
+
           if (email) {
             try {
               const amountDollars = (invoice.amount_due ?? 0) / 100;
               await supabaseAdmin.functions.invoke("send-payment-retry-warning", {
-                body: { email, first_name: firstName, amount: amountDollars },
+                body: {
+                  email,
+                  first_name: firstName,
+                  amount: amountDollars,
+                  cancelled_bookings: cancelledCount,
+                },
               });
-              logStep("First-failure heads-up email sent", { email, amount: amountDollars });
+              logStep("Heads-up email sent", { email, amount: amountDollars, cancelledCount });
             } catch (emailErr) {
               logStep("Failed to send heads-up email (non-blocking)", { error: emailErr });
             }
           }
-          return new Response(JSON.stringify({ received: true, action: "soft_retry" }), {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
+          return new Response(
+            JSON.stringify({ received: true, action: "blocked_and_cancelled", cancelledCount }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
         }
+
 
         // Second+ failure: cancel + void
         try {
@@ -809,6 +899,17 @@ serve(async (req) => {
       } else {
         logStep("Membership payment recorded", { email, tier, amount, invoiceId: invoice.id });
       }
+
+      // Clear payment_failed_at flag so customer can book again
+      const { error: clearError } = await supabaseAdmin
+        .from("profiles")
+        .update({ payment_failed_at: null })
+        .eq("user_id", profile.user_id)
+        .not("payment_failed_at", "is", null);
+      if (!clearError) {
+        logStep("Cleared payment_failed_at flag", { userId: profile.user_id });
+      }
+
     }
 
     return new Response(JSON.stringify({ received: true }), {
