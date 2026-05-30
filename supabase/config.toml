@@ -132,3 +132,6 @@ verify_jwt = false
 
 [functions.process-scheduled-gift-cards]
 verify_jwt = false
+
+[functions.send-byo-alert]
+verify_jwt = false
