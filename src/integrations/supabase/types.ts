@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      adhoc_sms_log: {
+        Row: {
+          booking_id: string
+          campaign_key: string
+          id: string
+          phone: string | null
+          response: string | null
+          sent_at: string
+          success: boolean
+        }
+        Insert: {
+          booking_id: string
+          campaign_key: string
+          id?: string
+          phone?: string | null
+          response?: string | null
+          sent_at?: string
+          success?: boolean
+        }
+        Update: {
+          booking_id?: string
+          campaign_key?: string
+          id?: string
+          phone?: string | null
+          response?: string | null
+          sent_at?: string
+          success?: boolean
+        }
+        Relationships: []
+      }
       announcement_reads: {
         Row: {
           announcement_id: string
