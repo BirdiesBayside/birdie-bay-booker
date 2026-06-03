@@ -642,13 +642,20 @@ export default function AdminCustomers() {
     setIsTogglingAdmin(false);
   };
 
-  // Toggle custom billing for a customer
+  // Toggle custom billing for a customer (optimistic)
   const toggleCustomBilling = async (customer: Customer) => {
+    const newValue = !customer.custom_billing;
+
+    // Optimistic UI update — flip immediately
+    setCustomers(prev =>
+      prev.map(c => (c.id === customer.id ? { ...c, custom_billing: newValue } : c))
+    );
+    if (selectedCustomer?.id === customer.id) {
+      setSelectedCustomer({ ...selectedCustomer, custom_billing: newValue });
+    }
+
     setIsTogglingCustomBilling(true);
-    
     try {
-      const newValue = !customer.custom_billing;
-      
       const { error } = await supabase
         .from("profiles")
         .update({ custom_billing: newValue })
@@ -658,46 +665,46 @@ export default function AdminCustomers() {
 
       toast({
         title: newValue ? "Custom billing enabled" : "Custom billing disabled",
-        description: newValue 
+        description: newValue
           ? `${customer.first_name}'s tier will not be changed by Stripe webhooks.`
           : `${customer.first_name} will now follow standard billing rules.`,
         duration: 4000,
       });
-
-      // Update local state
-      setCustomers(prev =>
-        prev.map(c =>
-          c.id === customer.id
-            ? { ...c, custom_billing: newValue }
-            : c
-        )
-      );
-      
-      if (selectedCustomer?.id === customer.id) {
-        setSelectedCustomer({
-          ...selectedCustomer,
-          custom_billing: newValue,
-        });
-      }
     } catch (error: any) {
       console.error("Error toggling custom billing:", error);
+      // Revert on failure
+      setCustomers(prev =>
+        prev.map(c => (c.id === customer.id ? { ...c, custom_billing: !newValue } : c))
+      );
+      if (selectedCustomer?.id === customer.id) {
+        setSelectedCustomer({ ...selectedCustomer, custom_billing: !newValue });
+      }
       toast({
         title: "Error",
         description: error.message || "Failed to update custom billing.",
         variant: "destructive",
         duration: 4000,
       });
+    } finally {
+      setIsTogglingCustomBilling(false);
     }
-
-    setIsTogglingCustomBilling(false);
   };
 
-  // Toggle staff segment for a customer
+  // Toggle staff segment for a customer (optimistic)
   const toggleStaffSegment = async (customer: Customer) => {
-    try {
-      const isStaff = customer.custom_segment === "staff";
-      const newSegment = isStaff ? null : "staff";
+    const previousSegment = customer.custom_segment;
+    const isStaff = previousSegment === "staff";
+    const newSegment = isStaff ? null : "staff";
 
+    // Optimistic UI update
+    setCustomers(prev =>
+      prev.map(c => (c.id === customer.id ? { ...c, custom_segment: newSegment } : c))
+    );
+    if (selectedCustomer?.id === customer.id) {
+      setSelectedCustomer({ ...selectedCustomer, custom_segment: newSegment });
+    }
+
+    try {
       const { error } = await supabase
         .from("profiles")
         .update({ custom_segment: newSegment })
@@ -712,51 +719,35 @@ export default function AdminCustomers() {
           : `${customer.first_name} now gets free play during off-peak hours.`,
         duration: 4000,
       });
-
-      setCustomers(prev =>
-        prev.map(c =>
-          c.id === customer.id ? { ...c, custom_segment: newSegment } : c
-        )
-      );
-
-      if (selectedCustomer?.id === customer.id) {
-        setSelectedCustomer({ ...selectedCustomer, custom_segment: newSegment });
-      }
     } catch (error: any) {
       console.error("Error toggling staff segment:", error);
+      // Revert
+      setCustomers(prev =>
+        prev.map(c => (c.id === customer.id ? { ...c, custom_segment: previousSegment } : c))
+      );
+      if (selectedCustomer?.id === customer.id) {
+        setSelectedCustomer({ ...selectedCustomer, custom_segment: previousSegment });
+      }
       toast({ title: "Error", description: error.message, variant: "destructive" });
     }
   };
 
-  // Toggle membership hold for a customer
+  // Toggle membership hold for a customer (optimistic)
   const toggleMembershipHold = async (customer: Customer) => {
+    const newValue = !customer.membership_on_hold;
+
+    // Optimistic UI update — flip the switch immediately
+    setCustomers(prev =>
+      prev.map(c => (c.id === customer.id ? { ...c, membership_on_hold: newValue } : c))
+    );
+    if (selectedCustomer?.id === customer.id) {
+      setSelectedCustomer({ ...selectedCustomer, membership_on_hold: newValue });
+    }
+
     setIsTogglingHold(true);
-    
+
     try {
-      const newValue = !customer.membership_on_hold;
-      
-      // First, pause/resume the Stripe subscription
-      try {
-        const { data: stripeResult, error: stripeError } = await supabase.functions.invoke("toggle-membership-hold", {
-          body: {
-            user_id: customer.user_id,
-            email: customer.email,
-            put_on_hold: newValue,
-          },
-        });
-        
-        if (stripeError) {
-          console.error("Stripe pause/resume error:", stripeError);
-          // Continue anyway - database update is still important
-        } else {
-          console.log("Stripe subscription update:", stripeResult);
-        }
-      } catch (stripeError) {
-        console.error("Failed to toggle Stripe subscription:", stripeError);
-        // Don't fail - continue with database update
-      }
-      
-      // Update the database
+      // Update the database first (fast)
       const { error } = await supabase
         .from("profiles")
         .update({ membership_on_hold: newValue })
@@ -764,56 +755,71 @@ export default function AdminCustomers() {
 
       if (error) throw error;
 
-      // Send email notification when putting on hold
+      // Fire-and-forget the slow Stripe pause/resume + email so the UI feels instant
+      supabase.functions
+        .invoke("toggle-membership-hold", {
+          body: {
+            user_id: customer.user_id,
+            email: customer.email,
+            put_on_hold: newValue,
+          },
+        })
+        .then(({ data, error: stripeError }) => {
+          if (stripeError) {
+            console.error("Stripe pause/resume error:", stripeError);
+            toast({
+              title: "Stripe sync warning",
+              description: "Database updated, but Stripe billing may not have synced.",
+              variant: "destructive",
+              duration: 5000,
+            });
+          } else {
+            console.log("Stripe subscription update:", data);
+          }
+        })
+        .catch((err) => console.error("Failed to toggle Stripe subscription:", err));
+
       if (newValue) {
-        try {
-          await supabase.functions.invoke("send-membership-hold-email", {
+        supabase.functions
+          .invoke("send-membership-hold-email", {
             body: {
               user_id: customer.user_id,
               email: customer.email,
               first_name: customer.first_name,
             },
+          })
+          .catch((emailError) => {
+            console.error("Failed to send membership hold email:", emailError);
           });
-        } catch (emailError) {
-          console.error("Failed to send membership hold email:", emailError);
-          // Don't fail the whole operation if email fails
-        }
       }
 
       toast({
         title: newValue ? "Membership on hold" : "Membership reactivated",
-        description: newValue 
-          ? `${customer.first_name}'s membership is now on hold. Stripe billing paused.`
-          : `${customer.first_name}'s membership has been reactivated. Stripe billing resumed.`,
+        description: newValue
+          ? `${customer.first_name}'s membership is now on hold. Stripe billing pausing…`
+          : `${customer.first_name}'s membership has been reactivated. Stripe billing resuming…`,
         duration: 4000,
       });
-
-      // Update local state
-      setCustomers(prev =>
-        prev.map(c =>
-          c.id === customer.id
-            ? { ...c, membership_on_hold: newValue }
-            : c
-        )
-      );
-      
-      if (selectedCustomer?.id === customer.id) {
-        setSelectedCustomer({
-          ...selectedCustomer,
-          membership_on_hold: newValue,
-        });
-      }
     } catch (error: any) {
       console.error("Error toggling membership hold:", error);
+      // Revert
+      setCustomers(prev =>
+        prev.map(c =>
+          c.id === customer.id ? { ...c, membership_on_hold: !newValue } : c
+        )
+      );
+      if (selectedCustomer?.id === customer.id) {
+        setSelectedCustomer({ ...selectedCustomer, membership_on_hold: !newValue });
+      }
       toast({
         title: "Error",
         description: "Failed to update membership hold status.",
         variant: "destructive",
         duration: 4000,
       });
+    } finally {
+      setIsTogglingHold(false);
     }
-
-    setIsTogglingHold(false);
   };
 
   // Navigate to bulk email page
