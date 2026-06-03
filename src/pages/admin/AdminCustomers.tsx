@@ -642,13 +642,20 @@ export default function AdminCustomers() {
     setIsTogglingAdmin(false);
   };
 
-  // Toggle custom billing for a customer
+  // Toggle custom billing for a customer (optimistic)
   const toggleCustomBilling = async (customer: Customer) => {
+    const newValue = !customer.custom_billing;
+
+    // Optimistic UI update — flip immediately
+    setCustomers(prev =>
+      prev.map(c => (c.id === customer.id ? { ...c, custom_billing: newValue } : c))
+    );
+    if (selectedCustomer?.id === customer.id) {
+      setSelectedCustomer({ ...selectedCustomer, custom_billing: newValue });
+    }
+
     setIsTogglingCustomBilling(true);
-    
     try {
-      const newValue = !customer.custom_billing;
-      
       const { error } = await supabase
         .from("profiles")
         .update({ custom_billing: newValue })
@@ -658,46 +665,46 @@ export default function AdminCustomers() {
 
       toast({
         title: newValue ? "Custom billing enabled" : "Custom billing disabled",
-        description: newValue 
+        description: newValue
           ? `${customer.first_name}'s tier will not be changed by Stripe webhooks.`
           : `${customer.first_name} will now follow standard billing rules.`,
         duration: 4000,
       });
-
-      // Update local state
-      setCustomers(prev =>
-        prev.map(c =>
-          c.id === customer.id
-            ? { ...c, custom_billing: newValue }
-            : c
-        )
-      );
-      
-      if (selectedCustomer?.id === customer.id) {
-        setSelectedCustomer({
-          ...selectedCustomer,
-          custom_billing: newValue,
-        });
-      }
     } catch (error: any) {
       console.error("Error toggling custom billing:", error);
+      // Revert on failure
+      setCustomers(prev =>
+        prev.map(c => (c.id === customer.id ? { ...c, custom_billing: !newValue } : c))
+      );
+      if (selectedCustomer?.id === customer.id) {
+        setSelectedCustomer({ ...selectedCustomer, custom_billing: !newValue });
+      }
       toast({
         title: "Error",
         description: error.message || "Failed to update custom billing.",
         variant: "destructive",
         duration: 4000,
       });
+    } finally {
+      setIsTogglingCustomBilling(false);
     }
-
-    setIsTogglingCustomBilling(false);
   };
 
-  // Toggle staff segment for a customer
+  // Toggle staff segment for a customer (optimistic)
   const toggleStaffSegment = async (customer: Customer) => {
-    try {
-      const isStaff = customer.custom_segment === "staff";
-      const newSegment = isStaff ? null : "staff";
+    const previousSegment = customer.custom_segment;
+    const isStaff = previousSegment === "staff";
+    const newSegment = isStaff ? null : "staff";
 
+    // Optimistic UI update
+    setCustomers(prev =>
+      prev.map(c => (c.id === customer.id ? { ...c, custom_segment: newSegment } : c))
+    );
+    if (selectedCustomer?.id === customer.id) {
+      setSelectedCustomer({ ...selectedCustomer, custom_segment: newSegment });
+    }
+
+    try {
       const { error } = await supabase
         .from("profiles")
         .update({ custom_segment: newSegment })
@@ -712,18 +719,15 @@ export default function AdminCustomers() {
           : `${customer.first_name} now gets free play during off-peak hours.`,
         duration: 4000,
       });
-
-      setCustomers(prev =>
-        prev.map(c =>
-          c.id === customer.id ? { ...c, custom_segment: newSegment } : c
-        )
-      );
-
-      if (selectedCustomer?.id === customer.id) {
-        setSelectedCustomer({ ...selectedCustomer, custom_segment: newSegment });
-      }
     } catch (error: any) {
       console.error("Error toggling staff segment:", error);
+      // Revert
+      setCustomers(prev =>
+        prev.map(c => (c.id === customer.id ? { ...c, custom_segment: previousSegment } : c))
+      );
+      if (selectedCustomer?.id === customer.id) {
+        setSelectedCustomer({ ...selectedCustomer, custom_segment: previousSegment });
+      }
       toast({ title: "Error", description: error.message, variant: "destructive" });
     }
   };
