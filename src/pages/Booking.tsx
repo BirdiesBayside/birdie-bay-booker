@@ -813,6 +813,15 @@ export default function Booking() {
         </div>
       </main>
 
+      <MembershipPaymentIssueDialog
+        open={showMembershipIssueDialog}
+        onOpenChange={setShowMembershipIssueDialog}
+        context="to complete this booking"
+        onResolved={() => {
+          // After successful retry, refresh availability so the user can try again
+          if (selectedDate) fetchBookingsForDate(selectedDate);
+        }}
+      />
     </div>
   );
 }
