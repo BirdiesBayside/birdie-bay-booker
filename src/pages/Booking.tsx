@@ -44,6 +44,8 @@ export default function Booking() {
     isLoading,
     isLoadingSavedCard,
     userMembershipTier,
+    actualMembershipTier,
+    isPaymentLimbo,
     depositBalance,
     savedCard,
     getHourlyRate,
