@@ -106,13 +106,22 @@ const fetchUserProfile = async () => {
 
   const { data } = await supabase
     .from("profiles")
-    .select("membership_tier, custom_hourly_rate, deposit_balance, custom_segment")
+    .select("membership_tier, custom_hourly_rate, deposit_balance, custom_segment, payment_failed_at")
     .eq("user_id", user.id)
     .maybeSingle();
 
+  const actualTier = data?.membership_tier || "visitor";
+  const paymentFailedAt = data?.payment_failed_at ?? null;
+  // Strict rule: while in membership payment limbo, member loses member pricing
+  // and is treated as a visitor everywhere until they retry payment successfully.
+  const effectiveTier = paymentFailedAt ? "visitor" : actualTier;
+
   return {
     userId: user.id,
-    membershipTier: data?.membership_tier || "visitor",
+    membershipTier: effectiveTier,
+    actualMembershipTier: actualTier,
+    paymentFailedAt,
+    isPaymentLimbo: !!paymentFailedAt,
     customHourlyRate: data?.custom_hourly_rate ?? null,
     depositBalance: Number(data?.deposit_balance) || 0,
     customSegment: data?.custom_segment ?? null,
@@ -180,6 +189,8 @@ export function useBooking() {
 
   // Derived values from user profile
   const userMembershipTier = userProfile?.membershipTier || "visitor";
+  const actualMembershipTier = userProfile?.actualMembershipTier || userMembershipTier;
+  const isPaymentLimbo = !!userProfile?.isPaymentLimbo;
   const customHourlyRate = userProfile?.customHourlyRate ?? null;
   const depositBalance = userProfile?.depositBalance || 0;
   const customSegment = userProfile?.customSegment ?? null;
