@@ -19,6 +19,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { MembershipPaymentIssueDialog } from "@/components/membership/MembershipPaymentIssueDialog";
+import { AlertCircle } from "lucide-react";
 
 const MEMBERSHIP_DETAILS: Record<string, { name: string; color: string; rate: number }> = {
   visitor: { name: "Visitor", color: "bg-muted text-muted-foreground", rate: 35 },
@@ -35,6 +37,7 @@ interface Profile {
   membership_tier: string;
   deposit_balance: number;
   sgt_user_id: number | null;
+  payment_failed_at: string | null;
 }
 
 interface SGTMember {
@@ -113,7 +116,7 @@ const MyAccount = () => {
     try {
       const { data, error } = await supabase
         .from("profiles")
-        .select("first_name, last_name, email, phone, membership_tier, deposit_balance, sgt_user_id")
+        .select("first_name, last_name, email, phone, membership_tier, deposit_balance, sgt_user_id, payment_failed_at")
         .eq("user_id", user.id)
         .maybeSingle();
 
