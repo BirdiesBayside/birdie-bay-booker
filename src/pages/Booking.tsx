@@ -66,6 +66,7 @@ export default function Booking() {
   const [usePartialBalance, setUsePartialBalance] = useState(false);
   const [pendingBookingId, setPendingBookingId] = useState<string | null>(null);
   const [playingComp, setPlayingComp] = useState(false);
+  const [showMembershipIssueDialog, setShowMembershipIssueDialog] = useState(false);
 
   const COMP_NOTE = "[COMP] Wednesday Ambrose";
 
