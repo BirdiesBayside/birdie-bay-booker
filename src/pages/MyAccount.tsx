@@ -381,6 +381,35 @@ const MyAccount = () => {
       {/* Main content */}
       <main className="flex-1 p-6">
         <div className="container max-w-2xl mx-auto space-y-6">
+          {/* Payment issue banner */}
+          {profile?.payment_failed_at && (
+            <Card className="border-destructive bg-destructive/5">
+              <CardContent className="pt-6">
+                <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+                  <div className="h-10 w-10 rounded-lg bg-destructive/15 flex items-center justify-center shrink-0">
+                    <AlertCircle className="h-5 w-5 text-destructive" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-display text-lg text-destructive">
+                      Membership Payment Failed
+                    </h3>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Your last membership payment didn't go through, so new bookings are
+                      paused until you settle the outstanding invoice. You're still a member —
+                      we just need to retry payment.
+                    </p>
+                    <Button
+                      className="mt-3 gradient-orange"
+                      onClick={() => setShowPaymentIssueDialog(true)}
+                    >
+                      Fix my membership
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Membership Tier */}
           <Card>
             <CardHeader>
