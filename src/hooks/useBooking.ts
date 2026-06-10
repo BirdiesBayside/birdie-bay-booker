@@ -801,6 +801,8 @@ export function useBooking() {
     bookings,
     isLoading,
     userMembershipTier,
+    actualMembershipTier,
+    isPaymentLimbo,
     depositBalance,
     savedCard: savedCard ?? null,
     isLoadingSavedCard,
