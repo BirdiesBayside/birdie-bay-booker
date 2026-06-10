@@ -135,3 +135,8 @@ verify_jwt = false
 
 [functions.send-byo-alert]
 verify_jwt = false
+
+[functions.retry-membership-payment]
+verify_jwt = false
+
+

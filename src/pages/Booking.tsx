@@ -24,6 +24,7 @@ import { DateTimePicker } from "@/components/booking/DateTimePicker";
 import { BayAvailabilityGrid } from "@/components/booking/BayAvailabilityGrid";
 import { toast } from "@/hooks/use-toast";
 import birdiesLogo from "@/assets/birdies-logo.png";
+import { MembershipPaymentIssueDialog } from "@/components/membership/MembershipPaymentIssueDialog";
 
 const MEMBERSHIP_DISPLAY: Record<string, string> = {
   visitor: "Visitor",
@@ -65,6 +66,7 @@ export default function Booking() {
   const [usePartialBalance, setUsePartialBalance] = useState(false);
   const [pendingBookingId, setPendingBookingId] = useState<string | null>(null);
   const [playingComp, setPlayingComp] = useState(false);
+  const [showMembershipIssueDialog, setShowMembershipIssueDialog] = useState(false);
 
   const COMP_NOTE = "[COMP] Wednesday Ambrose";
 
@@ -246,15 +248,35 @@ export default function Booking() {
         .single();
       
       if (error) {
-        // Check if it's a slot conflict
-        if (error.message?.includes("no longer available")) {
+        const msg = (error.message || "").toLowerCase();
+
+        // Membership payment failure block (DB trigger)
+        if (
+          msg.includes("membership payment") ||
+          msg.includes("payment didn't go through") ||
+          msg.includes("update your card on file before booking")
+        ) {
+          setShowMembershipIssueDialog(true);
+          return null;
+        }
+
+        // Slot conflict
+        if (msg.includes("no longer available") || msg.includes("overlap")) {
           toast({
             title: "Slot Unavailable",
             description: "This time slot was just booked. Please select a different time or bay.",
             variant: "destructive",
           });
           fetchBookingsForDate(selectedDate);
+          return null;
         }
+
+        // Generic fallback - surface the actual error so users aren't left in the dark
+        toast({
+          title: "Couldn't reserve slot",
+          description: error.message || "Please try again or contact us.",
+          variant: "destructive",
+        });
         throw error;
       }
       
@@ -791,6 +813,15 @@ export default function Booking() {
         </div>
       </main>
 
+      <MembershipPaymentIssueDialog
+        open={showMembershipIssueDialog}
+        onOpenChange={setShowMembershipIssueDialog}
+        context="to complete this booking"
+        onResolved={() => {
+          // After successful retry, refresh availability so the user can try again
+          if (selectedDate) fetchBookingsForDate(selectedDate);
+        }}
+      />
     </div>
   );
 }

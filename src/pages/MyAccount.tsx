@@ -19,6 +19,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { MembershipPaymentIssueDialog } from "@/components/membership/MembershipPaymentIssueDialog";
+import { AlertCircle } from "lucide-react";
 
 const MEMBERSHIP_DETAILS: Record<string, { name: string; color: string; rate: number }> = {
   visitor: { name: "Visitor", color: "bg-muted text-muted-foreground", rate: 35 },
@@ -35,6 +37,7 @@ interface Profile {
   membership_tier: string;
   deposit_balance: number;
   sgt_user_id: number | null;
+  payment_failed_at: string | null;
 }
 
 interface SGTMember {
@@ -63,6 +66,7 @@ const MyAccount = () => {
   const [isAddingPaymentMethod, setIsAddingPaymentMethod] = useState(false);
   const [deletingPaymentMethodId, setDeletingPaymentMethodId] = useState<string | null>(null);
   const [showMembershipBlockDialog, setShowMembershipBlockDialog] = useState(false);
+  const [showPaymentIssueDialog, setShowPaymentIssueDialog] = useState(false);
   const [isOpeningBillingPortal, setIsOpeningBillingPortal] = useState(false);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
@@ -113,7 +117,7 @@ const MyAccount = () => {
     try {
       const { data, error } = await supabase
         .from("profiles")
-        .select("first_name, last_name, email, phone, membership_tier, deposit_balance, sgt_user_id")
+        .select("first_name, last_name, email, phone, membership_tier, deposit_balance, sgt_user_id, payment_failed_at")
         .eq("user_id", user.id)
         .maybeSingle();
 
@@ -335,6 +339,15 @@ const MyAccount = () => {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       {/* Membership Block Dialog */}
+      <MembershipPaymentIssueDialog
+        open={showPaymentIssueDialog}
+        onOpenChange={setShowPaymentIssueDialog}
+        onResolved={() => {
+          fetchProfile();
+          fetchPaymentMethods();
+        }}
+      />
+
       <AlertDialog open={showMembershipBlockDialog} onOpenChange={setShowMembershipBlockDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -377,6 +390,35 @@ const MyAccount = () => {
       {/* Main content */}
       <main className="flex-1 p-6">
         <div className="container max-w-2xl mx-auto space-y-6">
+          {/* Payment issue banner */}
+          {profile?.payment_failed_at && (
+            <Card className="border-destructive bg-destructive/5">
+              <CardContent className="pt-6">
+                <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+                  <div className="h-10 w-10 rounded-lg bg-destructive/15 flex items-center justify-center shrink-0">
+                    <AlertCircle className="h-5 w-5 text-destructive" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-display text-lg text-destructive">
+                      Membership Payment Failed
+                    </h3>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Your last membership payment didn't go through, so new bookings are
+                      paused until you settle the outstanding invoice. You're still a member —
+                      we just need to retry payment.
+                    </p>
+                    <Button
+                      className="mt-3 gradient-orange"
+                      onClick={() => setShowPaymentIssueDialog(true)}
+                    >
+                      Fix my membership
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Membership Tier */}
           <Card>
             <CardHeader>
