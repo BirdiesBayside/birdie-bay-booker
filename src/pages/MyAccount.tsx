@@ -66,6 +66,7 @@ const MyAccount = () => {
   const [isAddingPaymentMethod, setIsAddingPaymentMethod] = useState(false);
   const [deletingPaymentMethodId, setDeletingPaymentMethodId] = useState<string | null>(null);
   const [showMembershipBlockDialog, setShowMembershipBlockDialog] = useState(false);
+  const [showPaymentIssueDialog, setShowPaymentIssueDialog] = useState(false);
   const [isOpeningBillingPortal, setIsOpeningBillingPortal] = useState(false);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
