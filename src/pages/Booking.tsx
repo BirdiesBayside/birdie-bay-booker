@@ -573,6 +573,32 @@ export default function Booking() {
       </header>
 
       <main className="max-w-4xl mx-auto p-4 space-y-6">
+        {/* Membership payment limbo banner - forces visitor pricing */}
+        {isPaymentLimbo && (
+          <div className="rounded-lg border border-destructive bg-destructive/5 p-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="font-display text-base text-destructive">
+                  Membership payment failed — paying Visitor rates
+                </p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Your last {MEMBERSHIP_DISPLAY[actualMembershipTier] || "Member"} payment
+                  didn't go through. You can still book at <strong>$35/hr visitor rate</strong>,
+                  or retry your membership payment now to get member pricing back.
+                </p>
+                <Button
+                  size="sm"
+                  className="mt-3 gradient-orange"
+                  onClick={() => setShowMembershipIssueDialog(true)}
+                >
+                  Retry membership payment
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Membership Badge with Peak/Off-Peak Indicator */}
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-secondary rounded-full">
