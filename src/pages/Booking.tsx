@@ -248,15 +248,35 @@ export default function Booking() {
         .single();
       
       if (error) {
-        // Check if it's a slot conflict
-        if (error.message?.includes("no longer available")) {
+        const msg = (error.message || "").toLowerCase();
+
+        // Membership payment failure block (DB trigger)
+        if (
+          msg.includes("membership payment") ||
+          msg.includes("payment didn't go through") ||
+          msg.includes("update your card on file before booking")
+        ) {
+          setShowMembershipIssueDialog(true);
+          return null;
+        }
+
+        // Slot conflict
+        if (msg.includes("no longer available") || msg.includes("overlap")) {
           toast({
             title: "Slot Unavailable",
             description: "This time slot was just booked. Please select a different time or bay.",
             variant: "destructive",
           });
           fetchBookingsForDate(selectedDate);
+          return null;
         }
+
+        // Generic fallback - surface the actual error so users aren't left in the dark
+        toast({
+          title: "Couldn't reserve slot",
+          description: error.message || "Please try again or contact us.",
+          variant: "destructive",
+        });
         throw error;
       }
       
