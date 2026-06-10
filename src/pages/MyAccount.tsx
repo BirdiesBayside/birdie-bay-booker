@@ -339,6 +339,15 @@ const MyAccount = () => {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       {/* Membership Block Dialog */}
+      <MembershipPaymentIssueDialog
+        open={showPaymentIssueDialog}
+        onOpenChange={setShowPaymentIssueDialog}
+        onResolved={() => {
+          fetchProfile();
+          fetchPaymentMethods();
+        }}
+      />
+
       <AlertDialog open={showMembershipBlockDialog} onOpenChange={setShowMembershipBlockDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
