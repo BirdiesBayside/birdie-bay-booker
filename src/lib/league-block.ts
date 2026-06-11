@@ -2,10 +2,12 @@
  * League "Monthly Winner" — calendar-month model.
  *
  * Rule:
- *  - A tournament belongs to the calendar month of its `start_date`
- *    (Brisbane). Label = "<MonthName> <Year>", e.g. "May 2026".
- *  - Months naturally have 4 or 5 Sundays; the leaderboard simply
- *    aggregates every Sunday tournament that falls in that month.
+ *  - A tournament belongs to the calendar month of its *play day* in
+ *    Brisbane (Monday). Because we pad SGT tournaments by one day at
+ *    each end to accommodate the US timezone, the stored `start_date`
+ *    is the Sunday before the Monday play day. We therefore bucket
+ *    by `start_date + 1 day`.
+ *  - Label = "<MonthName> <Year>", e.g. "June 2026".
  *
  * The legacy 4-week "block" model and the " (Late)" suffix have been
  * removed. Helper names are kept so existing callers continue to work.
@@ -29,9 +31,10 @@ function labelFor(year: number, monthIdx: number): string {
   return `${MONTH_NAMES[monthIdx]} ${year}`;
 }
 
-/** Calendar-month label for a given tournament start date. */
+/** Calendar-month label for a given tournament start date (shifted +1 day to the Brisbane play day). */
 export function getBlockLabelForDate(tournamentStart: string | Date): string {
   const d = parseDateOnly(tournamentStart);
+  d.setUTCDate(d.getUTCDate() + 1);
   return labelFor(d.getUTCFullYear(), d.getUTCMonth());
 }
 
