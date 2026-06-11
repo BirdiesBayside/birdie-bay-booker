@@ -22,8 +22,11 @@ const MIN_ROUNDS = 2;
 
 // =========================================================
 // Calendar-month model (mirrors src/lib/league-block.ts).
-// A tournament belongs to the calendar month of its start_date.
-// Label = "<MonthName> <Year>" e.g. "May 2026".
+// A tournament belongs to the calendar month of its Brisbane play
+// day (Monday). We pad SGT tournaments by one day each end for the
+// US timezone, so start_date is the Sunday before play day. We
+// therefore bucket by start_date + 1 day.
+// Label = "<MonthName> <Year>" e.g. "June 2026".
 // =========================================================
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -31,8 +34,10 @@ const MONTH_NAMES = [
 ];
 
 function labelForTournament(startDate: string): string {
-  const [y, m] = startDate.slice(0, 10).split("-").map(Number);
-  return `${MONTH_NAMES[(m ?? 1) - 1]} ${y}`;
+  const [y, m, d] = startDate.slice(0, 10).split("-").map(Number);
+  // Shift +1 day to land on the Brisbane play day (Monday)
+  const dt = new Date(Date.UTC(y, (m ?? 1) - 1, (d ?? 1) + 1));
+  return `${MONTH_NAMES[dt.getUTCMonth()]} ${dt.getUTCFullYear()}`;
 }
 
 interface TournamentData {
