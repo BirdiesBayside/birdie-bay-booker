@@ -198,7 +198,7 @@ serve(async (req: Request): Promise<Response> => {
                         </td>
                       </tr>
                     </table>
-                    <p style="margin:14px 0 0; font-family:Inter, Arial, sans-serif; font-size:12px; color:#1F4C25; opacity:0.7;">Redeem at hub.birdiesbayside.com.au</p>
+                    <p style="margin:14px 0 0; font-family:Inter, Arial, sans-serif; font-size:11px; line-height:1.5; color:#1F4C25; opacity:0.8;">Create a free account at <strong>hub.birdiesbayside.com.au</strong><br/>then enter this code under <strong>My Account → Redeem Gift Card</strong></p>
                   </td>
                 </tr>
               </table>
