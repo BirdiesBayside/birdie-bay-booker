@@ -69,6 +69,28 @@ const MyAccount = () => {
   const [showPaymentIssueDialog, setShowPaymentIssueDialog] = useState(false);
   const [isOpeningBillingPortal, setIsOpeningBillingPortal] = useState(false);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [redeemCode, setRedeemCode] = useState("");
+  const [isRedeeming, setIsRedeeming] = useState(false);
+
+  const handleRedeemCode = async () => {
+    const code = redeemCode.trim().toUpperCase();
+    if (!code) return;
+    setIsRedeeming(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("redeem-gift-card-by-code", {
+        body: { code },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      toast.success(`$${Number((data as any).amount).toFixed(2)} credit added to your account!`);
+      setRedeemCode("");
+      fetchProfile();
+    } catch (e: any) {
+      toast.error(e.message || "Could not redeem code. Please check and try again.");
+    } finally {
+      setIsRedeeming(false);
+    }
+  };
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
