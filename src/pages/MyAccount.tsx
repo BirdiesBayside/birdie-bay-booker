@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Crown, Lock, User, Mail, Phone, Plus, Loader2, Trash2, Pencil, Check, X, Wallet, CreditCard, Gamepad2, Copy, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, Crown, Lock, User, Mail, Phone, Plus, Loader2, Trash2, Pencil, Check, X, Wallet, CreditCard, Gamepad2, Copy, Eye, EyeOff, Gift } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
