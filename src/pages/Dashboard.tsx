@@ -154,7 +154,7 @@ const Dashboard = () => {
   if (!isAuthenticated) return null;
 
   const firstName = user?.user_metadata?.first_name || "Member";
-  const hasLeagueAccess = ["birdie", "eagle"].includes(membershipTier);
+  const hasLeagueAccess = ["birdie", "eagle"].includes(membershipTier) || isStaff;
 
   return (
     <div className="min-h-screen flex flex-col">
