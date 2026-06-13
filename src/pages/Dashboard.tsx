@@ -38,12 +38,14 @@ const Dashboard = () => {
     }
   }, [isAuthenticated, isLoading, navigate]);
 
+  const [isStaff, setIsStaff] = useState(false);
+
   useEffect(() => {
     const fetchProfile = async () => {
       if (!user) return;
       const { data } = await supabase
         .from("profiles")
-        .select("membership_tier, sgt_user_id, membership_on_hold")
+        .select("membership_tier, sgt_user_id, membership_on_hold, custom_segment")
         .eq("user_id", user.id)
         .single();
       if (data?.membership_tier) {
@@ -51,6 +53,7 @@ const Dashboard = () => {
       }
       setMembershipOnHold(!!data?.membership_on_hold);
       setHasSgtAccount(!!data?.sgt_user_id);
+      setIsStaff((data as any)?.custom_segment === "staff");
     };
     fetchProfile();
   }, [user]);
