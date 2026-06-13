@@ -482,6 +482,35 @@ const MyAccount = () => {
             </Card>
           )}
 
+          {/* Redeem Gift Card */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-lg bg-accent/10 flex items-center justify-center">
+                  <Gift className="h-5 w-5 text-accent" />
+                </div>
+                <div>
+                  <CardTitle>Redeem Gift Card</CardTitle>
+                  <CardDescription>Got a printed gift card? Enter the code to add credit.</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Input
+                  placeholder="BIRDIE-XXXX-XXXX"
+                  value={redeemCode}
+                  onChange={(e) => setRedeemCode(e.target.value.toUpperCase())}
+                  className="font-mono tracking-wider uppercase"
+                  disabled={isRedeeming}
+                />
+                <Button onClick={handleRedeemCode} disabled={isRedeeming || !redeemCode.trim()}>
+                  {isRedeeming ? <Loader2 className="h-4 w-4 animate-spin" /> : "Redeem"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* SGT Info */}
           {sgtMember && (
             <Card>
