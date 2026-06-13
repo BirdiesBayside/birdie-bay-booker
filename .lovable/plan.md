@@ -1,39 +1,105 @@
-# David van Jaarsveldt — Wed 10 June Comp Entry Investigation
+# Hub-Native Gift Card System
 
-## What the logs show
+Replace the Shopify gift card flow with a self-hosted gift card purchase page on the Hub, paid via existing Stripe checkout, with tailored delivery emails (recipient direct, or printable to sender).
 
-Three back-to-back POS transactions on Wed 10 June, all from Sam at the bar:
+## 1. Public Purchase Page
 
-| Time (UTC)  | Total | Payment Method        | Item                                 | Stripe PI                       |
-| ----------- | ----- | --------------------- | ------------------------------------ | ------------------------------- |
-| 08:33:23    | $20   | **customer_account** (Stripe card on file) | Week 8 Da Bears entry fee | `pi_3TghZeLpXZPXTNVB112xksF7` ✅ charged |
-| 08:33:48    | $6    | credit_balance        | XXXX Gold                            | —                               |
-| 08:34:22    | —     | (admin credit add)    | Manual credit +$6 (balance 14 → 20)  | —                               |
-| 08:34:53    | $20   | **credit_balance**    | Week 8 Da Bears entry fee (again!)   | —                               |
+New route: `hub.birdiesbayside.com.au/gift` (anonymous, no login required).
 
-## Diagnosis
+Form fields:
+- **Amount** — preset chips ($35, $70, $105, $175, $350) + custom amount
+- **Recipient name**
+- **Recipient email**
+- **Sender name** (pre-filled if logged in)
+- **Sender email** (for receipt + printable copy)
+- **Personal message** (optional, 280 chars)
+- **Delivery date** — defaults today; date picker for future
+- **Delivery method** — radio:
+  - "Email to recipient" (default)
+  - "Email to me to print & give in person"
+  - "Both"
 
-1. **The comp entry fee was charged TWICE.**
-   - First attempt at **08:33:23** — Sam selected **"Customer Account"** (charges saved card on file) instead of **"Credit Balance"**. Stripe charged David's card via `pi_3TghZeLpXZPXTNVB112xksF7`.
-   - 90 seconds later at **08:34:53**, Sam re-ran the same comp entry fee, this time correctly against **credit_balance**, which deducted $20 from David's stored credit.
-   - The first transaction was **not voided/refunded**, so David paid the $20 twice (once on card, once on credit).
+Branded design matching Hub (cream/green/orange, Anton headings).
 
-2. **The $60 → $6 typo is confirmed.** At 08:34:22 Sam added "Manual credit added by admin" for **$6** (deposit_transactions row: balance_before 14 → balance_after 20). This is the entry that should have been $60.
+Shopify side: replace the gift card product/page with a simple Shopify page that links to `https://hub.birdiesbayside.com.au/gift` (or `<iframe>` embed if preferred).
 
-3. **You've already corrected the credit shortfall.** On 12 June at 04:19 and 04:20 you added 2× $30 = $60, taking the balance from 0 → 60. So the credit side is square.
+## 2. Payment Flow
 
-4. **What's still outstanding:** the $20 Stripe charge `pi_3TghZeLpXZPXTNVB112xksF7` against David's card. He's effectively paid for the comp entry twice.
+New edge function: `create-gift-checkout`
+- Validates input (Zod)
+- Generates short redemption code (e.g. `BIRDIE-X7K2-9QPL`)
+- Inserts row in `gift_cards` with `status='pending_payment'`, `source='web'`, plus new columns: `delivery_method`, `redemption_code`, `stripe_session_id`
+- Creates Stripe Checkout Session (`mode: payment`, dynamic price_data so any amount works)
+- Returns checkout URL
 
-## Root cause (UX)
+Stripe webhook (`stripe-webhook`) — add handler for `checkout.session.completed` where `metadata.purpose === 'gift_card'`:
+- Mark gift_card `status='scheduled'` if `scheduled_for > today`, else `status='pending'`
+- If `scheduled_for <= today`, invoke `issue-gift-card` immediately
+- Also send sender receipt with redemption code
 
-The POS terminal exposes two adjacent options — "Customer Account" (charges Stripe card on file) and "Credit Balance" (deducts stored credit). Sam clearly intended Credit Balance the first time but tapped Customer Account by mistake. The system has no guardrail that prompts "this customer has $X credit available — use that first?" when staff pick Customer Account.
+Daily cron (`process-scheduled-gift-cards`) — already exists; will continue to handle future-dated sends.
 
-## Proposed actions
+## 3. Tailored Email Delivery
 
-1. **Refund the $20 Stripe charge** `pi_3TghZeLpXZPXTNVB112xksF7` back to David's card (reason: `duplicate`). I can do this directly via the Stripe MCP once you switch me to build mode and approve.
-2. **No credit adjustment needed** — your 2× $30 top-ups already covered the $60 typo correctly.
-3. *(Optional, not in this plan unless you want it)* Add a guardrail to the POS: when staff select "Customer Account" for a customer who has a positive credit balance, show a confirmation like "David has $X credit available — charge card instead?". Say the word and I'll spec it up as a separate plan.
+Update `issue-gift-card` to branch on `delivery_method` and recipient account status:
 
-## Confirm to proceed
+| Scenario | Email goes to | Template variant |
+|---|---|---|
+| Recipient has Hub account, method=email_recipient | Recipient | **"You've been gifted by {sender_name}"** — credit auto-applied, CTA "View Credit in Hub" |
+| Recipient has NO account, method=email_recipient | Recipient | **"{sender_name} sent you a gift"** — CTA "Create Account to Redeem" |
+| method=print_to_sender | Sender | **Printable gift card** — decorated HTML card with recipient name, amount, message, redemption code |
+| method=both | Recipient + Sender | Both above |
 
-Approve this plan and I'll issue the $20 refund on `pi_3TghZeLpXZPXTNVB112xksF7`. Let me know separately if you want the POS guardrail built.
+When recipient already has an account → the existing `auto_redeem_gift_cards` trigger has already added credit during account creation OR we manually apply it now (new path: if `recipient_email` matches a profile, credit immediately + send "You've been gifted" email).
+
+Add new helper: `apply_gift_card_to_existing_user(gift_card_id)` — credits balance, marks redeemed, logs `deposit_transactions`, sends personalised email naming the sender.
+
+## 4. Schema Changes
+
+```sql
+ALTER TABLE gift_cards
+  ADD COLUMN delivery_method text DEFAULT 'email_recipient'
+    CHECK (delivery_method IN ('email_recipient','print_to_sender','both')),
+  ADD COLUMN redemption_code text UNIQUE,
+  ADD COLUMN stripe_session_id text,
+  ADD COLUMN paid_at timestamptz;
+
+CREATE INDEX idx_gift_cards_redemption_code ON gift_cards(redemption_code);
+```
+
+Update `source` enum/check to include `'web'`.
+
+## 5. Manual Redemption (for printed cards)
+
+Add small "Redeem a Gift Card" section in Hub `My Account`:
+- Input: redemption code
+- Calls new edge function `redeem-gift-card-by-code` → credits balance, marks redeemed, logs transaction
+- Works even if buyer didn't know recipient's email
+
+## 6. Cleanup
+
+After confirming the new flow works end-to-end:
+- Delete `supabase/functions/shopify-gift-card-webhook/`
+- Delete `SHOPIFY_WEBHOOK_SECRET` (only used by gift cards)
+- Keep `shopify_*` columns on `gift_cards` for historical traceability (only 0 historical rows anyway, but harmless)
+- Delete the Liquid section file & remove the Shopify product
+- Remove the Shopify-side webhook config
+
+## 7. Admin Visibility
+
+`GiftCardsSection.tsx` — add filter chip for `source: web` and surface `delivery_method` + `redemption_code` in the row detail so staff can look up printed-card codes if customers call.
+
+## Technical Notes
+
+- Stripe Checkout uses dynamic `price_data` (no Stripe product/price needed; mirrors deposit top-up pattern)
+- Idempotency key on `create-gift-checkout` = random UUID per attempt (matches existing checkout retry strategy)
+- All dates use Australia/Brisbane timezone for `scheduled_for` comparisons
+- Redemption code: 12 chars, uppercase, hyphenated, alphabet excludes ambiguous chars (0/O, 1/I)
+- Printable email styled as a card (cream background, orange amount, Anton heading) — looks good when printed on A4
+
+## Out of Scope (for now)
+
+- PDF download (HTML print is fine per your call)
+- Custom card designs / images
+- Bulk corporate gift card purchases
+- Refunds via UI (handle in Stripe dashboard manually if needed)
