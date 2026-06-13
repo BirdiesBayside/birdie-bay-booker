@@ -198,7 +198,7 @@ serve(async (req: Request): Promise<Response> => {
                         </td>
                       </tr>
                     </table>
-                    <p style="margin:14px 0 0; font-family:Inter, Arial, sans-serif; font-size:12px; color:#1F4C25; opacity:0.7;">Redeem at hub.birdiesbayside.com.au</p>
+                    <p style="margin:14px 0 0; font-family:Inter, Arial, sans-serif; font-size:11px; line-height:1.5; color:#1F4C25; opacity:0.8;">Create a free account at <strong>hub.birdiesbayside.com.au</strong><br/>then enter this code under <strong>My Account → Redeem Gift Card</strong></p>
                   </td>
                 </tr>
               </table>
@@ -210,7 +210,19 @@ serve(async (req: Request): Promise<Response> => {
       const body = `
         <p style="margin:0 0 14px; font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">Your gift card is ready! Print this email (or just the card below) and give it to <strong>${escapeHtml(recipientName)}</strong>.</p>
         ${printableCard}
-        <p style="margin:18px 0 0; font-family:Inter, Arial, sans-serif; font-size:14px; line-height:1.6; color:#1F4C25; text-align:center; opacity:0.85;">They can redeem the code at <strong>hub.birdiesbayside.com.au/my-account</strong> after signing up — credit applies instantly.</p>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FFFFFF; border-radius:12px; margin:22px 0 0; border:1px solid rgba(31,76,37,0.15);">
+          <tr>
+            <td style="padding:20px 22px;">
+              <p style="margin:0 0 10px; font-family:Anton, Impact, Arial Black, sans-serif; font-size:18px; color:#1F4C25; text-align:center; letter-spacing:0.5px;">How ${escapeHtml(recipientName)} Redeems Their Gift</p>
+              <ol style="margin:0; padding-left:22px; font-family:Inter, Arial, sans-serif; font-size:14px; line-height:1.7; color:#1F4C25;">
+                <li>Head to <a href="https://hub.birdiesbayside.com.au" style="color:#EC622D; text-decoration:underline;"><strong>hub.birdiesbayside.com.au</strong></a> and create a free account (or sign in).</li>
+                <li>Go to <strong>My Account</strong> and find the <strong>"Redeem Gift Card"</strong> section.</li>
+                <li>Enter the redemption code above — credit applies to their account instantly.</li>
+                <li>Book a bay and the credit is automatically used at checkout.</li>
+              </ol>
+            </td>
+          </tr>
+        </table>
       `;
 
       const html = buildEmailTemplate("Your Printable Gift Card", body);
