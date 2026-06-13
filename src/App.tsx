@@ -42,6 +42,7 @@ const CompHub = lazy(() => import("./pages/CompHub"));
 const CompFindPartner = lazy(() => import("./pages/CompFindPartner"));
 const CompLeaderboard = lazy(() => import("./pages/CompLeaderboard"));
 const EmbedLocalCompLeaderboard = lazy(() => import("./pages/EmbedLocalCompLeaderboard"));
+const Gift = lazy(() => import("./pages/Gift"));
 
 // Admin pages
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
@@ -219,6 +220,7 @@ const App = () => (
             <Route path="/comp/register-team" element={<CompRegisterTeam />} />
             <Route path="/comp/leaderboard" element={<CompLeaderboard />} />
             <Route path="/embed/local-comp-leaderboard" element={<EmbedLocalCompLeaderboard />} />
+            <Route path="/gift" element={<Gift />} />
             {/* Admin Routes */}
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/admin/analytics" element={<AdminAnalytics />} />
