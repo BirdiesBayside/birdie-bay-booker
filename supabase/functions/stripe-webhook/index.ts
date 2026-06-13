@@ -553,14 +553,62 @@ serve(async (req) => {
       }
     }
 
-    // ─── CHECKOUT SESSION COMPLETED (booking payments) ───
+    // ─── CHECKOUT SESSION COMPLETED ───
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
+      const purpose = session.metadata?.purpose;
       const bookingId = session.metadata?.booking_id;
+      const giftCardId = session.metadata?.gift_card_id;
       const paymentIntentId = session.payment_intent as string;
 
-      logStep("Checkout session completed", { sessionId: session.id, bookingId, paymentIntentId });
+      logStep("Checkout session completed", { sessionId: session.id, purpose, bookingId, giftCardId, paymentIntentId });
 
+      // ── GIFT CARD PAYMENTS ──
+      if (purpose === "gift_card" && giftCardId) {
+        // Brisbane today (UTC+10, no DST)
+        const brisbaneToday = new Date(new Date().getTime() + 10 * 60 * 60 * 1000)
+          .toISOString()
+          .slice(0, 10);
+
+        const { data: card } = await supabaseAdmin
+          .from("gift_cards")
+          .select("scheduled_for, status")
+          .eq("id", giftCardId)
+          .maybeSingle();
+
+        if (!card) {
+          logStep("Gift card row missing", { giftCardId });
+        } else if (card.status !== "pending_payment") {
+          logStep("Gift card already processed, skipping", { giftCardId, status: card.status });
+        } else {
+          const isFuture = card.scheduled_for && card.scheduled_for > brisbaneToday;
+          if (isFuture) {
+            // Schedule it; cron will pick up on the scheduled date
+            await supabaseAdmin
+              .from("gift_cards")
+              .update({ status: "scheduled", paid_at: new Date().toISOString() })
+              .eq("id", giftCardId);
+            logStep("Gift card scheduled", { giftCardId, scheduled_for: card.scheduled_for });
+          } else {
+            // Send immediately
+            await supabaseAdmin
+              .from("gift_cards")
+              .update({ status: "pending", paid_at: new Date().toISOString() })
+              .eq("id", giftCardId);
+
+            try {
+              await supabaseAdmin.functions.invoke("issue-gift-card", {
+                body: { gift_card_id: giftCardId },
+              });
+              logStep("issue-gift-card invoked for immediate send", { giftCardId });
+            } catch (e) {
+              logStep("issue-gift-card invoke failed", { error: String(e) });
+            }
+          }
+        }
+      }
+
+      // ── BOOKING PAYMENTS ──
       if (bookingId) {
         const { error: updateError } = await supabaseAdmin
           .from("bookings")
