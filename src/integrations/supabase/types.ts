@@ -738,14 +738,17 @@ export type Database = {
         Row: {
           amount: number
           created_at: string
+          delivery_method: string
           id: string
           issued_at: string
           issued_by: string | null
+          paid_at: string | null
           personal_message: string | null
           recipient_email: string
           recipient_name: string | null
           redeemed_at: string | null
           redeemed_by_user_id: string | null
+          redemption_code: string | null
           scheduled_for: string | null
           sender_email: string | null
           sender_name: string | null
@@ -755,20 +758,24 @@ export type Database = {
           shopify_order_number: string | null
           source: string
           status: string
+          stripe_session_id: string | null
           token: string
           updated_at: string
         }
         Insert: {
           amount: number
           created_at?: string
+          delivery_method?: string
           id?: string
           issued_at?: string
           issued_by?: string | null
+          paid_at?: string | null
           personal_message?: string | null
           recipient_email: string
           recipient_name?: string | null
           redeemed_at?: string | null
           redeemed_by_user_id?: string | null
+          redemption_code?: string | null
           scheduled_for?: string | null
           sender_email?: string | null
           sender_name?: string | null
@@ -778,20 +785,24 @@ export type Database = {
           shopify_order_number?: string | null
           source?: string
           status?: string
+          stripe_session_id?: string | null
           token?: string
           updated_at?: string
         }
         Update: {
           amount?: number
           created_at?: string
+          delivery_method?: string
           id?: string
           issued_at?: string
           issued_by?: string | null
+          paid_at?: string | null
           personal_message?: string | null
           recipient_email?: string
           recipient_name?: string | null
           redeemed_at?: string | null
           redeemed_by_user_id?: string | null
+          redemption_code?: string | null
           scheduled_for?: string | null
           sender_email?: string | null
           sender_name?: string | null
@@ -801,6 +812,7 @@ export type Database = {
           shopify_order_number?: string | null
           source?: string
           status?: string
+          stripe_session_id?: string | null
           token?: string
           updated_at?: string
         }
