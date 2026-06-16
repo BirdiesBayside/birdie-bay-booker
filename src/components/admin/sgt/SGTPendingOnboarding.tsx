@@ -64,11 +64,25 @@ export function SGTPendingOnboarding() {
 
       if (tourMembersError) throw tourMembersError;
 
-      const onboardedUserIds = new Set((tourMembers || []).map(tm => tm.user_id));
+      // Get all unique player_ids that have played at least one scorecard.
+      // Returning members (whose old tour_members row was removed when a tour
+      // ended) shouldn't appear as "new" — they already have a Birdies HCP
+      // calculated from their history.
+      const { data: scoredPlayers, error: scoredError } = await supabase
+        .from("sgt_scorecards")
+        .select("player_id")
+        .not("player_id", "is", null);
 
-      // Filter to only pending (not in any tour)
-      const pending = profiles.filter(p => 
-        p.sgt_user_id && !onboardedUserIds.has(p.sgt_user_id)
+      if (scoredError) throw scoredError;
+
+      const onboardedUserIds = new Set((tourMembers || []).map(tm => tm.user_id));
+      const playedUserIds = new Set((scoredPlayers || []).map(s => s.player_id));
+
+      // Filter to only truly new pending (not in any tour AND no play history)
+      const pending = profiles.filter(p =>
+        p.sgt_user_id &&
+        !onboardedUserIds.has(p.sgt_user_id) &&
+        !playedUserIds.has(p.sgt_user_id)
       );
 
       return pending as PendingMember[];
