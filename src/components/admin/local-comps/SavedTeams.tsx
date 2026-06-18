@@ -32,6 +32,7 @@ export function SavedTeams() {
   const [search, setSearch] = useState("");
   const [playerSearch, setPlayerSearch] = useState("");
   const [playersOpen, setPlayersOpen] = useState(false);
+  const [teamsOpen, setTeamsOpen] = useState(false);
 
   // ---------------- Team add ----------------
   const [teamDialogOpen, setTeamDialogOpen] = useState(false);
@@ -234,81 +235,98 @@ export function SavedTeams() {
 
       {/* TEAMS — read-only pairings */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <Users className="h-5 w-5" /> Teams ({teams.length})
-          </CardTitle>
-          <Button size="sm" className="gap-2" onClick={() => setTeamDialogOpen(true)}>
-            <Plus className="h-4 w-4" /> Add Team
-          </Button>
-        </CardHeader>
-        <CardContent>
-          <p className="text-xs text-muted-foreground mb-3">
-            Player pairings are locked. To change a team's roster, delete the team and create a new one.
-          </p>
-          {teamsLoading ? (
-            <div className="flex justify-center py-8">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
-            </div>
-          ) : filteredTeams.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-6 text-center">
-              {search ? "No teams match." : "No teams yet."}
-            </p>
-          ) : (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {filteredTeams.map((team) => {
-                const p1Hcp = playerHcpMap.get(norm(team.player1_name));
-                const p2Hcp = playerHcpMap.get(norm(team.player2_name));
-                const combined =
-                  p1Hcp !== undefined && p2Hcp !== undefined ? (p1Hcp + p2Hcp) / 4 : null;
-                return (
-                  <Card key={team.id}>
-                    <CardContent className="p-4 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <h3 className="font-semibold text-foreground">{team.team_name}</h3>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => {
-                            if (confirm(`Delete team "${team.team_name}"?`)) {
-                              deleteTeamMutation.mutate(team.id);
-                            }
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </div>
-                      <div className="text-sm text-muted-foreground space-y-1">
-                        <p>
-                          {team.player1_name} —{" "}
-                          {p1Hcp !== undefined ? (
-                            <span className="font-semibold text-foreground">{p1Hcp.toFixed(1)}</span>
-                          ) : (
-                            <span className="text-destructive text-xs">no player record</span>
-                          )}
-                        </p>
-                        <p>
-                          {team.player2_name} —{" "}
-                          {p2Hcp !== undefined ? (
-                            <span className="font-semibold text-foreground">{p2Hcp.toFixed(1)}</span>
-                          ) : (
-                            <span className="text-destructive text-xs">no player record</span>
-                          )}
-                        </p>
-                        {combined !== null && (
-                          <p className="text-xs font-medium pt-1">
-                            Combined: {combined.toFixed(2)}
-                          </p>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
-        </CardContent>
+        <Collapsible open={teamsOpen} onOpenChange={setTeamsOpen}>
+          <CollapsibleTrigger asChild>
+            <CardHeader className="flex flex-row items-center justify-between cursor-pointer hover:bg-muted/40 transition-colors">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Users className="h-5 w-5" /> Teams ({teams.length})
+                <ChevronDown
+                  className={`h-4 w-4 transition-transform ${teamsOpen ? "rotate-180" : ""}`}
+                />
+              </CardTitle>
+              <Button
+                size="sm"
+                className="gap-2"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setTeamDialogOpen(true);
+                }}
+              >
+                <Plus className="h-4 w-4" /> Add Team
+              </Button>
+            </CardHeader>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <CardContent>
+              <p className="text-xs text-muted-foreground mb-3">
+                Player pairings are locked. To change a team's roster, delete the team and create a new one.
+              </p>
+              {teamsLoading ? (
+                <div className="flex justify-center py-8">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
+                </div>
+              ) : filteredTeams.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-6 text-center">
+                  {search ? "No teams match." : "No teams yet."}
+                </p>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {filteredTeams.map((team) => {
+                    const p1Hcp = playerHcpMap.get(norm(team.player1_name));
+                    const p2Hcp = playerHcpMap.get(norm(team.player2_name));
+                    const combined =
+                      p1Hcp !== undefined && p2Hcp !== undefined ? (p1Hcp + p2Hcp) / 4 : null;
+                    return (
+                      <Card key={team.id}>
+                        <CardContent className="p-4 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <h3 className="font-semibold text-foreground">{team.team_name}</h3>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                if (confirm(`Delete team "${team.team_name}"?`)) {
+                                  deleteTeamMutation.mutate(team.id);
+                                }
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </div>
+                          <div className="text-sm text-muted-foreground space-y-1">
+                            <p>
+                              {team.player1_name} —{" "}
+                              {p1Hcp !== undefined ? (
+                                <span className="font-semibold text-foreground">{p1Hcp.toFixed(1)}</span>
+                              ) : (
+                                <span className="text-destructive text-xs">no player record</span>
+                              )}
+                            </p>
+                            <p>
+                              {team.player2_name} —{" "}
+                              {p2Hcp !== undefined ? (
+                                <span className="font-semibold text-foreground">{p2Hcp.toFixed(1)}</span>
+                              ) : (
+                                <span className="text-destructive text-xs">no player record</span>
+                              )}
+                            </p>
+                            {combined !== null && (
+                              <p className="text-xs font-medium pt-1">
+                                Combined: {combined.toFixed(2)}
+                              </p>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </CollapsibleContent>
+        </Collapsible>
       </Card>
+
 
       {/* PLAYERS — collapsible, single source of truth for handicaps */}
       <Card>
