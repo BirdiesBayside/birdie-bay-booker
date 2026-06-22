@@ -770,20 +770,20 @@ export function SGTWinners() {
               {weeklyPrizes.map(prize => (
                 <div
                   key={prize.id}
-                  className="flex items-center justify-between p-4 bg-muted/50 rounded-lg"
+                  className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 bg-muted/50 rounded-lg"
                 >
-                  <div className="flex items-center gap-4">
-                    <div className="h-10 w-10 rounded-full bg-yellow-100 flex items-center justify-center">
+                  <div className="flex items-center gap-4 min-w-0">
+                    <div className="h-10 w-10 shrink-0 rounded-full bg-yellow-100 flex items-center justify-center">
                       <Trophy className="h-5 w-5 text-yellow-600" />
                     </div>
-                    <div>
-                      <p className="font-medium">{prize.player_name}</p>
-                      <p className="text-sm text-muted-foreground">
+                    <div className="min-w-0">
+                      <p className="font-medium truncate">{prize.player_name}</p>
+                      <p className="text-sm text-muted-foreground truncate">
                         {getTournamentName(prize.tournament_id)}
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center flex-wrap gap-2">
                     <Badge variant="secondary" className="gap-1">
                       <DollarSign className="h-3 w-3" />
                       {prize.prize_amount}
@@ -804,7 +804,7 @@ export function SGTWinners() {
                         Sent
                       </Badge>
                     )}
-                    <span className="text-sm text-muted-foreground">
+                    <span className="text-sm text-muted-foreground whitespace-nowrap">
                       {format(new Date(prize.awarded_at), "dd MMM yyyy")}
                     </span>
                   </div>
