@@ -2058,11 +2058,13 @@ async function showSgtInfoOverlay(displayLabel) {
     
     const { x, y, width, height } = targetDisplay.bounds;
     
-    // Create a centered overlay window - wider for better content display
-    const overlayWidth = 500;
-    const overlayHeight = 480;
-    const overlayX = x + (width - overlayWidth) / 2;
-    const overlayY = y + (height - overlayHeight) / 2;
+    // Compact overlay docked to the top-right so it never blocks the GSPro
+    // player name / UID fields in the centre of the screen.
+    const overlayWidth = 340;
+    const overlayHeight = 520;
+    const margin = 20;
+    const overlayX = x + width - overlayWidth - margin;
+    const overlayY = y + margin;
     
     sgtInfoWindow = new BrowserWindow({
       width: overlayWidth,
