@@ -2086,6 +2086,16 @@ async function showSgtInfoOverlay(displayLabel) {
     
     // Set always on top with screen-saver level to appear above fullscreen apps
     sgtInfoWindow.setAlwaysOnTop(true, 'screen-saver');
+    sgtInfoWindow.setVisibleOnAllWorkspaces(true);
+
+    // Re-assert always-on-top whenever focus shifts away (e.g. user clicks
+    // into GSPro to paste). Without this, GSPro fullscreen can occasionally
+    // steal the topmost slot and bury the SGT info window.
+    sgtInfoWindow.on('blur', () => {
+      if (sgtInfoWindow && !sgtInfoWindow.isDestroyed()) {
+        sgtInfoWindow.setAlwaysOnTop(true, 'screen-saver');
+      }
+    });
     
     const iconBase64 = getSgtIconBase64();
     const playerData = sgtPlayerData || { customerName: 'Guest', sgtUsername: '', sgtGameId: '' };
@@ -2867,9 +2877,11 @@ Write-Output "done"
     await execAsync(`powershell -NoProfile -ExecutionPolicy Bypass -File "${tempScript}"`, { timeout: 5000 });
     fs.unlinkSync(tempScript);
     
-    // Restore SGT info window to always on top
+    // Restore SGT info window to always on top (screen-saver level so it stays
+    // above GSPro fullscreen even after the user clicks back into the game).
     if (sgtInfoWindow && !sgtInfoWindow.isDestroyed()) {
-      sgtInfoWindow.setAlwaysOnTop(true);
+      sgtInfoWindow.setAlwaysOnTop(true, 'screen-saver');
+      sgtInfoWindow.setVisibleOnAllWorkspaces(true);
     }
     
     // Disarm auto-paste after use
@@ -2882,7 +2894,7 @@ Write-Output "done"
     console.error('Auto-paste failed:', error);
     // Restore always on top even on error
     if (sgtInfoWindow && !sgtInfoWindow.isDestroyed()) {
-      sgtInfoWindow.setAlwaysOnTop(true);
+      sgtInfoWindow.setAlwaysOnTop(true, 'screen-saver');
     }
     try { fs.unlinkSync(path.join(app.getPath('temp'), 'auto_paste.ps1')); } catch {}
     return { success: false, error: error.message };
