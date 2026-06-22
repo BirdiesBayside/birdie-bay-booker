@@ -2058,11 +2058,13 @@ async function showSgtInfoOverlay(displayLabel) {
     
     const { x, y, width, height } = targetDisplay.bounds;
     
-    // Create a centered overlay window - wider for better content display
-    const overlayWidth = 500;
-    const overlayHeight = 480;
-    const overlayX = x + (width - overlayWidth) / 2;
-    const overlayY = y + (height - overlayHeight) / 2;
+    // Compact overlay docked to the top-right so it never blocks the GSPro
+    // player name / UID fields in the centre of the screen.
+    const overlayWidth = 340;
+    const overlayHeight = 520;
+    const margin = 20;
+    const overlayX = x + width - overlayWidth - margin;
+    const overlayY = y + margin;
     
     sgtInfoWindow = new BrowserWindow({
       width: overlayWidth,
@@ -2116,39 +2118,39 @@ async function showSgtInfoOverlay(displayLabel) {
           }
           .overlay {
             background: white;
-            border-radius: 16px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            padding: 24px;
+            border-radius: 14px;
+            box-shadow: 0 16px 50px rgba(0,0,0,0.3);
+            padding: 16px;
             -webkit-app-region: drag;
           }
           .header {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            margin-bottom: 20px;
-            padding-bottom: 16px;
+            margin-bottom: 12px;
+            padding-bottom: 10px;
             border-bottom: 2px solid #f0f0f0;
           }
           .title-row {
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 8px;
           }
           .logo {
-            width: 40px;
-            height: 40px;
+            width: 28px;
+            height: 28px;
             border-radius: 50%;
             object-fit: cover;
           }
           .title {
-            font-size: 20px;
+            font-size: 15px;
             font-weight: 700;
             color: #1f4c25;
           }
           .close-btn {
             -webkit-app-region: no-drag;
-            width: 32px;
-            height: 32px;
+            width: 26px;
+            height: 26px;
             border-radius: 50%;
             border: none;
             background: #f0f0f0;
@@ -2166,93 +2168,87 @@ async function showSgtInfoOverlay(displayLabel) {
             -webkit-app-region: no-drag;
           }
           .customer-name {
-            font-size: 24px;
+            font-size: 16px;
             font-weight: 600;
             color: #1f4c25;
-            margin-bottom: 20px;
+            margin-bottom: 10px;
           }
           .field {
             background: #f8f9fa;
-            border-radius: 12px;
-            padding: 16px;
-            margin-bottom: 12px;
+            border-radius: 10px;
+            padding: 10px 12px;
+            margin-bottom: 8px;
           }
           .field-label {
-            font-size: 12px;
+            font-size: 10px;
             font-weight: 600;
             color: #6c757d;
             text-transform: uppercase;
             letter-spacing: 0.5px;
-            margin-bottom: 6px;
+            margin-bottom: 4px;
           }
           .field-value {
-            font-size: 18px;
+            font-size: 14px;
             font-weight: 500;
             color: #212529;
             font-family: monospace;
+            word-break: break-all;
+            margin-bottom: 8px;
           }
           .action-btns {
             display: flex;
-            gap: 8px;
-            float: right;
-            margin-top: -40px;
+            gap: 6px;
           }
           .copy-btn, .paste-btn {
             -webkit-app-region: no-drag;
             color: white;
             border: none;
-            padding: 10px 18px;
-            border-radius: 8px;
-            font-size: 14px;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
             font-weight: 500;
             cursor: pointer;
             transition: all 0.2s;
+            flex: 1;
           }
-          .copy-btn {
-            background: #1f4c25;
-          }
-          .copy-btn:hover {
-            background: #2d6a34;
-          }
-          .paste-btn {
-            background: #ec622d;
-          }
-          .paste-btn:hover {
-            background: #d55627;
-          }
-          .paste-btn.pasting {
-            background: #28a745;
-          }
-          .copy-btn.copied, .paste-btn.pasted {
-            background: #28a745;
-          }
-          .tip {
-            margin-top: 16px;
-            padding: 12px;
-            background: #fff5e4;
-            border-radius: 8px;
-            font-size: 13px;
-            color: #1f4c25;
-          }
-          .tip strong {
-            color: #ec622d;
-          }
+          .copy-btn { background: #1f4c25; }
+          .copy-btn:hover { background: #2d6a34; }
+          .paste-btn { background: #ec622d; }
+          .paste-btn:hover { background: #d55627; }
+          .paste-btn.pasting { background: #28a745; }
+          .copy-btn.copied, .paste-btn.pasted { background: #28a745; }
           .instructions {
-            margin-top: 12px;
-            padding: 12px;
+            margin-top: 10px;
+            padding: 10px 12px;
             background: #e8f4fd;
             border-radius: 8px;
-            font-size: 12px;
+            font-size: 11.5px;
             color: #1f4c25;
-            line-height: 1.6;
+            line-height: 1.5;
+          }
+          .instructions-title {
+            font-weight: 700;
+            margin-bottom: 6px;
+            color: #1f4c25;
           }
           .instructions ol {
             margin: 0;
-            padding-left: 20px;
+            padding-left: 18px;
           }
           .instructions li {
-            margin-bottom: 4px;
+            margin-bottom: 3px;
           }
+          .instructions strong { color: #ec622d; }
+          .tip {
+            margin-top: 8px;
+            padding: 8px 10px;
+            background: #fff5e4;
+            border-radius: 6px;
+            font-size: 11px;
+            color: #1f4c25;
+            text-align: center;
+          }
+          .tip strong { color: #ec622d; }
         </style>
       </head>
       <body>
@@ -2263,7 +2259,7 @@ async function showSgtInfoOverlay(displayLabel) {
               <span class="title">SGT Player Info</span>
             </div>
             <button class="close-btn" onclick="window.electronAPI.closeSgtInfoOverlay()" title="Close">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="18" y1="6" x2="6" y2="18"></line>
                 <line x1="6" y1="6" x2="18" y2="18"></line>
               </svg>
@@ -2271,36 +2267,39 @@ async function showSgtInfoOverlay(displayLabel) {
           </div>
           <div class="content">
             <div class="customer-name">${escapeHtml(playerData.customerName || 'Guest')}</div>
-            
+
             <div class="field">
-              <div class="field-label">1. SGT Username (Player Name)</div>
+              <div class="field-label">SGT Username</div>
               <div class="field-value" id="username">${escapeHtml(playerData.sgtUsername || 'Not set')}</div>
               ${playerData.sgtUsername ? `<div class="action-btns">
                 <button class="copy-btn" onclick="copyField('${escapeHtml(playerData.sgtUsername)}', this)">Copy</button>
                 <button class="paste-btn" onclick="pasteField('${escapeHtml(playerData.sgtUsername)}', this)">Paste</button>
               </div>` : ''}
             </div>
-            
+
             <div class="field">
-              <div class="field-label">2. Simulator Golf Tour ID</div>
+              <div class="field-label">Simulator Golf Tour ID (UID)</div>
               <div class="field-value" id="gameid">${escapeHtml(playerData.sgtGameId || 'Not set')}</div>
               ${playerData.sgtGameId ? `<div class="action-btns">
                 <button class="copy-btn" onclick="copyField('${escapeHtml(playerData.sgtGameId)}', this)">Copy</button>
                 <button class="paste-btn" onclick="pasteField('${escapeHtml(playerData.sgtGameId)}', this)">Paste</button>
               </div>` : ''}
             </div>
-            
+
             <div class="instructions">
+              <div class="instructions-title">Instructions</div>
               <ol>
-                <li>Click the <strong>Player Name</strong> field in GSPRO then click <strong>Paste</strong></li>
-                <li>Click the <strong>Simulator Golf Tour ID</strong> field then click <strong>Paste</strong></li>
+                <li>Go to <strong>Settings / Players</strong></li>
+                <li>Add a new player or edit a guest</li>
+                <li>Click <strong>Copy Username</strong>, paste into the Player Name field</li>
+                <li>Click <strong>Copy UID</strong>, paste into the UID field</li>
+                <li>Click <strong>Save</strong> and head to <strong>Sim Tournaments</strong> to load your league rounds</li>
               </ol>
             </div>
-            
-            <div class="tip">
-              <strong>💡 Tip:</strong> Press F7 anytime to toggle this window
-            </div>
+
+            <div class="tip"><strong>F7</strong> toggles this window</div>
           </div>
+        </div>
         </div>
         
         <script>
