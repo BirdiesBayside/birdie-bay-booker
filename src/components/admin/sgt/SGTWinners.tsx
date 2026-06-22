@@ -840,16 +840,16 @@ export function SGTWinners() {
               {monthlyAwards.map(award => (
                 <div
                   key={award.id}
-                  className="flex items-center justify-between p-4 bg-muted/50 rounded-lg"
+                  className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-4 bg-muted/50 rounded-lg"
                 >
-                  <div className="flex items-center gap-4">
-                    <div className="h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center">
+                  <div className="flex items-center gap-4 min-w-0">
+                    <div className="h-10 w-10 shrink-0 rounded-full bg-purple-100 flex items-center justify-center">
                       <Award className="h-5 w-5 text-purple-600" />
                     </div>
-                    <div>
-                      <p className="font-medium">{award.winner_player_name}</p>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Calendar className="h-3 w-3" />
+                    <div className="min-w-0">
+                      <p className="font-medium truncate">{award.winner_player_name}</p>
+                      <div className="flex items-center flex-wrap gap-2 text-sm text-muted-foreground">
+                        <Calendar className="h-3 w-3 shrink-0" />
                         {award.month}
                         {award.prize_description && (
                           <>
@@ -860,7 +860,7 @@ export function SGTWinners() {
                       </div>
                     </div>
                   </div>
-                  <span className="text-sm text-muted-foreground">
+                  <span className="text-sm text-muted-foreground whitespace-nowrap">
                     {format(new Date(award.awarded_at), "dd MMM yyyy")}
                   </span>
                 </div>
