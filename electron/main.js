@@ -3037,6 +3037,17 @@ async function restoreBaselineFiles() {
     console.log('Skipping Protee config restore - no screen ID configured');
   }
   
+  // Clear Windows clipboard so leftover SGT credentials (or anything else)
+  // from the previous customer can't be pasted by the next player.
+  try {
+    clipboard.clear();
+    console.log('Cleared Windows clipboard');
+    results.push({ file: 'Clipboard', success: true });
+  } catch (error) {
+    console.error('Failed to clear clipboard:', error);
+    results.push({ file: 'Clipboard', success: false, error: error.message });
+  }
+
   console.log('=== BASELINE RESTORE COMPLETE ===', results);
   return results;
 }
