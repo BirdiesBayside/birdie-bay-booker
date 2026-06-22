@@ -2867,9 +2867,11 @@ Write-Output "done"
     await execAsync(`powershell -NoProfile -ExecutionPolicy Bypass -File "${tempScript}"`, { timeout: 5000 });
     fs.unlinkSync(tempScript);
     
-    // Restore SGT info window to always on top
+    // Restore SGT info window to always on top (screen-saver level so it stays
+    // above GSPro fullscreen even after the user clicks back into the game).
     if (sgtInfoWindow && !sgtInfoWindow.isDestroyed()) {
-      sgtInfoWindow.setAlwaysOnTop(true);
+      sgtInfoWindow.setAlwaysOnTop(true, 'screen-saver');
+      sgtInfoWindow.setVisibleOnAllWorkspaces(true);
     }
     
     // Disarm auto-paste after use
