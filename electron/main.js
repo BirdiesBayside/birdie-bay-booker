@@ -2086,6 +2086,16 @@ async function showSgtInfoOverlay(displayLabel) {
     
     // Set always on top with screen-saver level to appear above fullscreen apps
     sgtInfoWindow.setAlwaysOnTop(true, 'screen-saver');
+    sgtInfoWindow.setVisibleOnAllWorkspaces(true);
+
+    // Re-assert always-on-top whenever focus shifts away (e.g. user clicks
+    // into GSPro to paste). Without this, GSPro fullscreen can occasionally
+    // steal the topmost slot and bury the SGT info window.
+    sgtInfoWindow.on('blur', () => {
+      if (sgtInfoWindow && !sgtInfoWindow.isDestroyed()) {
+        sgtInfoWindow.setAlwaysOnTop(true, 'screen-saver');
+      }
+    });
     
     const iconBase64 = getSgtIconBase64();
     const playerData = sgtPlayerData || { customerName: 'Guest', sgtUsername: '', sgtGameId: '' };
