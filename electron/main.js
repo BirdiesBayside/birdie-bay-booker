@@ -2884,7 +2884,7 @@ Write-Output "done"
     console.error('Auto-paste failed:', error);
     // Restore always on top even on error
     if (sgtInfoWindow && !sgtInfoWindow.isDestroyed()) {
-      sgtInfoWindow.setAlwaysOnTop(true);
+      sgtInfoWindow.setAlwaysOnTop(true, 'screen-saver');
     }
     try { fs.unlinkSync(path.join(app.getPath('temp'), 'auto_paste.ps1')); } catch {}
     return { success: false, error: error.message };
