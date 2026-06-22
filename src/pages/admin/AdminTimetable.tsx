@@ -996,6 +996,20 @@ export default function AdminTimetable() {
                       </p>
                     </div>
                   </div>
+                  <div>
+                    <p className="text-muted-foreground">Method</p>
+                    <p className="font-medium capitalize">
+                      {selectedBooking.payment_method === "card"
+                        ? "Card"
+                        : selectedBooking.payment_method === "balance"
+                        ? "Deposit Balance"
+                        : selectedBooking.payment_method === "cash"
+                        ? "Cash"
+                        : selectedBooking.payment_method === "pending"
+                        ? "Pending"
+                        : selectedBooking.payment_method || "—"}
+                    </p>
+                  </div>
                 </div>
 
                 {/* Notes */}
