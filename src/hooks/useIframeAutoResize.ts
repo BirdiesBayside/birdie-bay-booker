@@ -30,12 +30,12 @@ export function useIframeAutoResize(enabled: boolean = true) {
     if (window.parent === window) return;
 
     let lastHeight = 0;
-    const post = () => {
+    const post = (force = false) => {
       const height = Math.max(
         document.documentElement.scrollHeight,
         document.body?.scrollHeight ?? 0
       );
-      if (height && height !== lastHeight) {
+      if (height && (force || height !== lastHeight)) {
         lastHeight = height;
         window.parent.postMessage(
           { type: "birdies:embed-height", height },
@@ -44,18 +44,31 @@ export function useIframeAutoResize(enabled: boolean = true) {
       }
     };
 
-    post();
+    // Aggressive initial bursts — data loads async, fonts/images shift layout,
+    // and we want the parent iframe sized BEFORE the user's first scroll attempt.
+    post(true);
+    const burstTimers: number[] = [];
+    [50, 150, 300, 500, 800, 1200, 1800, 2500, 3500, 5000].forEach((t) => {
+      burstTimers.push(window.setTimeout(() => post(true), t));
+    });
+
     const ro = new ResizeObserver(() => post());
     ro.observe(document.documentElement);
     if (document.body) ro.observe(document.body);
 
     const interval = window.setInterval(post, 1000);
-    window.addEventListener("load", post);
+    window.addEventListener("load", () => post(true));
+    // Re-post when images finish loading (common layout shift)
+    const onImgLoad = () => post(true);
+    document.addEventListener("load", onImgLoad, true);
 
     return () => {
       ro.disconnect();
       window.clearInterval(interval);
-      window.removeEventListener("load", post);
+      burstTimers.forEach((t) => window.clearTimeout(t));
+      window.removeEventListener("load", () => post(true));
+      document.removeEventListener("load", onImgLoad, true);
     };
+
   }, [enabled]);
 }
