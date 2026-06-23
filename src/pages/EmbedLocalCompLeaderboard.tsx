@@ -12,8 +12,10 @@ import {
 } from "@/components/ui/select";
 import { format } from "date-fns";
 import birdiesB from "@/assets/birdies-b-icon.png";
+import { useIframeAutoResize } from "@/hooks/useIframeAutoResize";
 
 export default function EmbedLocalCompLeaderboard() {
+  useIframeAutoResize();
   const [selectedCompId, setSelectedCompId] = useState<string>("");
 
   // Fetch all competitions (oldest first for week numbering)

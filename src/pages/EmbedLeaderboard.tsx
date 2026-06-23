@@ -13,6 +13,7 @@ import { useSGTTournamentStandings } from "@/hooks/useSGTEmbedData";
 import { useActiveTourData } from "@/hooks/useActiveTourData";
 import { supabase } from "@/integrations/supabase/client";
 import birdiesB from "@/assets/birdies-b-icon.png";
+import { useIframeAutoResize } from "@/hooks/useIframeAutoResize";
 
 interface MonthlyStanding {
   id: string;
@@ -31,6 +32,7 @@ interface MonthlyStanding {
 }
 
 export default function EmbedLeaderboard() {
+  useIframeAutoResize();
   const { activeTour, currentTournament, tournaments, isLoading: dataLoading } = useActiveTourData();
   
   const [selectedTournament, setSelectedTournament] = useState<number | null>(null);

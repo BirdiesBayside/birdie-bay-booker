@@ -7,6 +7,7 @@ import { useSGTTournamentStandings } from "@/hooks/useSGTEmbedData";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import birdiesB from "@/assets/birdies-b-orange.png";
+import { useIframeAutoResize } from "@/hooks/useIframeAutoResize";
 
 // Brand tokens (locked to iframe so it renders consistently inside Shopify)
 const GREEN = "hsl(128,42%,21%)";
@@ -42,6 +43,7 @@ const toParColor = (s: string) => {
 };
 
 export default function EmbedCompete() {
+  useIframeAutoResize();
   const { activeTour, currentTournament, previousTournament, isLoading: tourLoading } = useActiveTourData();
   const [scoreType, setScoreType] = useState<"gross" | "net">("net");
   const [weeklyOpen, setWeeklyOpen] = useState(false);
