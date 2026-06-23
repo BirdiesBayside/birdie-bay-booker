@@ -59,6 +59,7 @@ const AdminAnnouncements = lazy(() => import("./pages/admin/AdminAnnouncements")
 const AdminSGTManager = lazy(() => import("./pages/admin/AdminSGTManager"));
 const AdminLocalComps = lazy(() => import("./pages/admin/AdminLocalComps"));
 const EmbedTVLocalComp = lazy(() => import("./pages/EmbedTVLocalComp"));
+const EmbedCompete = lazy(() => import("./pages/EmbedCompete"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -236,6 +237,7 @@ const App = () => (
             <Route path="/admin/sgt" element={<AdminSGTManager />} />
             <Route path="/admin/local-comps" element={<AdminLocalComps />} />
             <Route path="/embed/tv-local-comp" element={<EmbedTVLocalComp />} />
+            <Route path="/embed/compete" element={<EmbedCompete />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
