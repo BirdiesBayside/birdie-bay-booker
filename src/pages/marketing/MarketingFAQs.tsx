@@ -6,7 +6,7 @@ const groups = [
     section: "Visiting Birdies",
     items: [
       { q: "Do I need to be a member?", a: "No — visitors are always welcome. Just book a bay online and turn up. Pay-as-you-go rates are $30/hr off-peak and $35/hr peak." },
-      { q: "When is Birdies open?", a: "Members have 24/7 access via the automated bays. Staffed hours vary — check the banner at the top of the site or call (07) 2146 8442." },
+      { q: "When is Birdies open?", a: "Members have access from 5am - 10pm via the automated bays. Staffed hours vary — check the banner at the top of the site or call (07) 2146 8442." },
       { q: "How many people can fit in a bay?", a: "Each bay comfortably fits up to 4 players. You can play stroke play, scramble, closest-to-pin and more — all on the same booking." },
       { q: "Do you provide clubs?", a: "Yes — we have rental clubs available at the centre. Just let us know when you book." },
     ],

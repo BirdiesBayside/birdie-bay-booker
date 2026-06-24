@@ -8,7 +8,7 @@ const COMMUNITY_IMG = "https://birdiesbayside.com.au/cdn/shop/files/Birdies_Golf
 
 const features = [
   { icon: Target, title: "High-Tech Simulators", body: "Tour-accurate launch data, 4K graphics and 1,700+ world-famous courses." },
-  { icon: Clock, title: "Flexible 24/7 Access", body: "Six fully automated bays — book any time, play any time." },
+  { icon: Clock, title: "Flexible 5am - 10pm Access", body: "Six fully automated bays — book any time, play any time." },
   { icon: DollarSign, title: "Affordable Memberships", body: "From $15/week. The more you play, the more you save." },
   { icon: Trophy, title: "Competitions & League", body: "Compete with other members in The COMPETE for prizes." },
 ];
