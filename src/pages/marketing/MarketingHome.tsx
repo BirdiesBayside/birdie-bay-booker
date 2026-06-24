@@ -26,7 +26,7 @@ const MarketingHome = () => {
           playsInline
           className="absolute inset-0 w-full h-full object-cover"
         />
-        <div className="absolute inset-0 bg-gradient-to-r from-primary/90 via-primary/70 to-primary/20" />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/40 to-transparent" />
         <div className="relative container mx-auto px-4 max-w-5xl">
           <p className="text-accent font-display tracking-[0.25em] uppercase text-sm mb-4">
             Welcome to Birdies, Redland Bay
