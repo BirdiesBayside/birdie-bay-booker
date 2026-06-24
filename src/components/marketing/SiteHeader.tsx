@@ -21,7 +21,7 @@ const SiteHeader = () => {
     <header className="sticky top-0 z-50 bg-primary text-primary-foreground shadow-sm">
       {/* Top announcement bar */}
       <div className="bg-accent text-accent-foreground text-center text-xs sm:text-sm py-2 px-4 font-bold uppercase tracking-wide">
-        <Link to="/about" className="underline hover:no-underline">Click Here For Staffed Hours</Link>
+        <Link to="/about" className="hover:underline">Click Here For Staffed Hours</Link>
         {" | "}
         <a href="tel:0721468442" className="hover:underline">07 2146 8442</a>
       </div>
