@@ -76,7 +76,7 @@ const MarketingFAQs = () => (
 
         <div className="bg-card border border-border rounded-2xl p-8 text-center mt-12">
           <h3 className="font-display text-2xl text-primary mb-3">Still have a question?</h3>
-          <p className="text-foreground/70 mb-5">Drop us a line, we usually reply within a few hours.</p>
+          <p className="text-foreground/70 mb-5">Drop us a line, we usually reply within the hour.</p>
           <a
             href="mailto:info@birdiesbayside.com.au"
             className="inline-block bg-accent hover:bg-accent/90 text-accent-foreground font-display tracking-wide uppercase px-6 py-3 rounded-md"
