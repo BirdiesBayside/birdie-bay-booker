@@ -19,9 +19,11 @@ const SiteHeader = () => {
 
   return (
     <header className="sticky top-0 z-50 bg-primary text-primary-foreground shadow-sm">
-      {/* Top utility bar */}
-      <div className="bg-accent text-accent-foreground text-center text-xs sm:text-sm py-2 px-4 font-medium">
-        OPEN 5AM - 11PM FOR MEMBERS  ·  STAFFED HOURS · 07 2146 8442
+      {/* Top announcement bar */}
+      <div className="bg-accent text-accent-foreground text-center text-xs sm:text-sm py-2 px-4 font-bold uppercase tracking-wide">
+        <Link to="/about" className="hover:underline">Click Here For Staffed Hours</Link>
+        {" | "}
+        <a href="tel:0721468442" className="hover:underline">07 2146 8442</a>
       </div>
 
       <div className="container mx-auto flex items-center justify-between py-3 px-4">
