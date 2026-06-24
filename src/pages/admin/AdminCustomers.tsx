@@ -226,7 +226,7 @@ export default function AdminCustomers() {
 
   const filteredCustomers = useMemo(() => {
     return customers.filter(customer => {
-      // Search filter — tokenized so "paul gale" matches first+last across columns
+      // Search filter , tokenized so "paul gale" matches first+last across columns
       if (searchQuery && searchQuery.trim()) {
         const tokens = searchQuery.trim().toLowerCase().split(/\s+/).filter(Boolean);
         const fullName = `${customer.first_name || ''} ${customer.last_name || ''}`.toLowerCase();
@@ -646,7 +646,7 @@ export default function AdminCustomers() {
   const toggleCustomBilling = async (customer: Customer) => {
     const newValue = !customer.custom_billing;
 
-    // Optimistic UI update — flip immediately
+    // Optimistic UI update , flip immediately
     setCustomers(prev =>
       prev.map(c => (c.id === customer.id ? { ...c, custom_billing: newValue } : c))
     );
@@ -736,7 +736,7 @@ export default function AdminCustomers() {
   const toggleMembershipHold = async (customer: Customer) => {
     const newValue = !customer.membership_on_hold;
 
-    // Optimistic UI update — flip the switch immediately
+    // Optimistic UI update , flip the switch immediately
     setCustomers(prev =>
       prev.map(c => (c.id === customer.id ? { ...c, membership_on_hold: newValue } : c))
     );

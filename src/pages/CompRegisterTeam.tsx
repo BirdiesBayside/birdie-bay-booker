@@ -32,7 +32,7 @@ export default function CompRegisterTeam() {
 
     setSubmitting(true);
 
-    // Duplicate check — same two player names (order-insensitive, case-insensitive)
+    // Duplicate check , same two player names (order-insensitive, case-insensitive)
     const p1Lower = p1.toLowerCase();
     const p2Lower = p2.toLowerCase();
     const { data: existing } = await supabase
@@ -48,7 +48,7 @@ export default function CompRegisterTeam() {
     if (duplicate) {
       setSubmitting(false);
       toast.error(
-        `This team is already registered as "${duplicate.team_name}". You're locked in — no need to register again!`,
+        `This team is already registered as "${duplicate.team_name}". You're locked in , no need to register again!`,
         { duration: 6000 }
       );
       return;
@@ -70,7 +70,7 @@ export default function CompRegisterTeam() {
       return;
     }
 
-    // Upsert players (default 0 hcp — staff sets it later). Ignore duplicate-key errors.
+    // Upsert players (default 0 hcp , staff sets it later). Ignore duplicate-key errors.
     for (const playerName of [p1, p2]) {
       const { error: playerErr } = await supabase
         .from("local_comp_players")
@@ -79,7 +79,7 @@ export default function CompRegisterTeam() {
           name_normalized: playerName.toLowerCase(),
           handicap: 0,
         });
-      // Ignore unique violation (player already exists) — keep their existing hcp.
+      // Ignore unique violation (player already exists) , keep their existing hcp.
       if (playerErr && !playerErr.message.toLowerCase().includes("duplicate")) {
         console.warn("Player insert warning:", playerErr.message);
       }
@@ -150,7 +150,7 @@ export default function CompRegisterTeam() {
             <div className="mb-5 rounded-lg border-2 border-primary/30 bg-primary/10 p-4 flex gap-3">
               <CheckCircle className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
               <p className="text-sm font-semibold text-foreground leading-snug">
-                Register your team <span className="underline">once</span> — you're locked in for every week's comp after that.
+                Register your team <span className="underline">once</span> , you're locked in for every week's comp after that.
               </p>
             </div>
             <form onSubmit={handleSubmit} className="space-y-4">

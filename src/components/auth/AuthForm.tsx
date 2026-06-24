@@ -452,7 +452,7 @@ export function AuthForm({ defaultToSignUp = false }: AuthFormProps) {
                         <ScrollArea className="h-[60vh] pr-4">
                           <div className="space-y-4 text-sm text-muted-foreground">
                             <p className="font-semibold text-foreground">
-                              Birdies Indoor Golf Centre — Terms and Conditions
+                              Birdies Indoor Golf Centre , Terms and Conditions
                             </p>
                             <p>
                               These Terms and Conditions ("Terms") govern the use of all facilities, equipment, and services provided by Birdies Indoor Golf Centre ("Birdies", "we", "us", or "our"). By signing up for a membership, booking a session, or otherwise accessing the premises, you ("Customer", "you", or "your") agree to be bound by these Terms.
@@ -484,7 +484,7 @@ export function AuthForm({ defaultToSignUp = false }: AuthFormProps) {
                               <h3 className="font-semibold text-foreground">4. Alcohol Policy</h3>
                               <p>4.1. Responsible alcohol consumption is mandatory.</p>
                               <p>4.2. Anyone seen abusing alcohol or appearing intoxicated will be removed from the premises immediately and banned permanently.</p>
-                              <p>4.3. Alcohol service is only available to those with a valid Gold Bay booking during staffed hours (Fridays to Sundays, 2:00pm – 10:00pm).</p>
+                              <p>4.3. Alcohol service is only available to those with a valid Gold Bay booking during staffed hours (Fridays to Sundays, 2:00pm , 10:00pm).</p>
                               <p>4.4. The bar is not open to the public, and cannot be accessed without a valid, active booking.</p>
                               <p>4.5. BYO alcohol is strictly prohibited. Any individual caught bringing alcohol onto the premises will face an immediate and permanent ban.</p>
                               <p>4.6. Alcohol may not be consumed or accessed outside of designated staffed hours.</p>
@@ -517,7 +517,7 @@ export function AuthForm({ defaultToSignUp = false }: AuthFormProps) {
                               <p>8.2. You agree to take care of hired equipment, return it after use, and keep it clean.</p>
                               <p>8.3. Only clean, undamaged golf balls and clubs are to be used.</p>
                               <p>8.4. Any customer using nicked, scuffed, or dirty balls/clubs that cause screen damage will be liable for replacement costs and may be banned.</p>
-                              <p>8.5. PCs and simulation equipment may only be used for their intended purpose — golf simulation. Any unauthorized use will result in an immediate and permanent ban.</p>
+                              <p>8.5. PCs and simulation equipment may only be used for their intended purpose , golf simulation. Any unauthorized use will result in an immediate and permanent ban.</p>
                             </div>
 
                             <div>

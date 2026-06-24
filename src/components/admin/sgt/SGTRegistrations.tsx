@@ -373,7 +373,7 @@ export function SGTRegistrations() {
                             }}
                           />
                         ) : (
-                          <span className="text-muted-foreground">—</span>
+                          <span className="text-muted-foreground">,</span>
                         )}
                       </TableCell>
                       <TableCell className="text-center">
@@ -510,7 +510,7 @@ export function SGTRegistrations() {
                             {member.custom_hcp.toFixed(1)}
                           </span>
                         ) : (
-                          <span className="text-muted-foreground">—</span>
+                          <span className="text-muted-foreground">,</span>
                         )}
                       </TableCell>
                       <TableCell className="text-center">

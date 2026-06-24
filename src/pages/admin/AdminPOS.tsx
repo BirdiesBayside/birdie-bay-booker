@@ -397,7 +397,7 @@ export default function AdminPOS() {
 
     const existing = openTabs.find(t => t.customer_id === selectedCustomer);
     if (existing) {
-      toast.info(`${customerName} already has an open tab — resuming it`);
+      toast.info(`${customerName} already has an open tab , resuming it`);
       loadTab(existing);
       return;
     }
@@ -443,7 +443,7 @@ export default function AdminPOS() {
     setSelectedCustomer('');
     setCreditToApply(0);
     fetchOpenTabs();
-    toast.info('Tab parked — resume it anytime from Bar Tabs');
+    toast.info('Tab parked , resume it anytime from Bar Tabs');
   };
 
   const discardActiveTab = async () => {
@@ -479,7 +479,7 @@ export default function AdminPOS() {
     setSelectedCustomer('');
     setCreditToApply(0);
     fetchOpenTabs();
-    toast.success('Tab saved — ready for next order');
+    toast.success('Tab saved , ready for next order');
   };
 
   // Update customer balance when customer is selected
@@ -1112,7 +1112,7 @@ export default function AdminPOS() {
               onClick={() => setShowPaymentDialog(true)}
             >
               <CreditCard className="h-5 w-5 mr-2" />
-              Send to POS — ${total.toFixed(2)}
+              Send to POS , ${total.toFixed(2)}
             </Button>
           </div>
         ) : (

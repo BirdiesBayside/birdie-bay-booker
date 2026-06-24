@@ -3,10 +3,10 @@ import { Link } from "react-router-dom";
 import MarketingLayout from "@/components/marketing/MarketingLayout";
 
 const hours = [
-  { day: "Monday – Thursday", time: "4PM – 9PM" },
-  { day: "Friday", time: "2PM – 9PM" },
-  { day: "Saturday", time: "11AM – 9PM" },
-  { day: "Sunday", time: "11AM – 5PM" },
+  { day: "Monday , Thursday", time: "4PM , 9PM" },
+  { day: "Friday", time: "2PM , 9PM" },
+  { day: "Saturday", time: "11AM , 9PM" },
+  { day: "Sunday", time: "11AM , 5PM" },
 ];
 
 const MarketingStaffedHours = () => {
@@ -19,7 +19,7 @@ const MarketingStaffedHours = () => {
             Staffed Hours
           </h1>
           <p className="mt-4 text-primary-foreground/80 max-w-2xl mx-auto">
-            Open every day from <span className="text-accent font-semibold">5am – 11pm</span> for
+            Open every day from <span className="text-accent font-semibold">5am , 11pm</span> for
             visitors and members.
           </p>
         </div>
@@ -33,7 +33,7 @@ const MarketingStaffedHours = () => {
               <Clock className="h-6 w-6 text-accent" />
               <h2 className="font-display text-2xl uppercase tracking-wide">Opening Hours</h2>
             </div>
-            <p className="text-4xl font-display tracking-wide text-primary">5AM – 11PM</p>
+            <p className="text-4xl font-display tracking-wide text-primary">5AM , 11PM</p>
             <p className="text-muted-foreground mt-2">Every day, for visitors and members*.</p>
           </div>
 
@@ -82,7 +82,7 @@ const MarketingStaffedHours = () => {
               </h2>
             </div>
             <p className="text-muted-foreground">
-              Food and drinks are available on-site — please don't bring your own.
+              Food and drinks are available on-site , please don't bring your own.
             </p>
           </div>
 

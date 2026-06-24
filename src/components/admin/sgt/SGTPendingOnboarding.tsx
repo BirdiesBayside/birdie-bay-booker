@@ -66,7 +66,7 @@ export function SGTPendingOnboarding() {
 
       // Get all unique player_ids that have played at least one scorecard.
       // Returning members (whose old tour_members row was removed when a tour
-      // ended) shouldn't appear as "new" — they already have a Birdies HCP
+      // ended) shouldn't appear as "new" , they already have a Birdies HCP
       // calculated from their history.
       const { data: scoredPlayers, error: scoredError } = await supabase
         .from("sgt_scorecards")
@@ -138,7 +138,7 @@ export function SGTPendingOnboarding() {
         throw failed.error;
       }
 
-      // Fire-and-forget the auto-registration edge function — it can take a while
+      // Fire-and-forget the auto-registration edge function , it can take a while
       // because it hits the external SGT API for every open tournament. No need
       // to block the admin UI on it.
       supabase.functions
@@ -265,7 +265,7 @@ export function SGTPendingOnboarding() {
                             }}
                           />
                         ) : (
-                          <span className="text-muted-foreground">—</span>
+                          <span className="text-muted-foreground">,</span>
                         )}
                       </TableCell>
                       <TableCell className="text-center">

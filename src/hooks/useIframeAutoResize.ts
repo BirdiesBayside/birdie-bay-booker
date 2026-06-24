@@ -44,7 +44,7 @@ export function useIframeAutoResize(enabled: boolean = true) {
       }
     };
 
-    // Aggressive initial bursts — data loads async, fonts/images shift layout,
+    // Aggressive initial bursts , data loads async, fonts/images shift layout,
     // and we want the parent iframe sized BEFORE the user's first scroll attempt.
     post(true);
     const burstTimers: number[] = [];
