@@ -156,10 +156,7 @@ export default function EmbedCompete() {
             </span>
           </div>
 
-          <h1
-            className="text-white font-black leading-[0.9] tracking-[0.05em] mb-4"
-            style={{ fontFamily: "'Anton', 'Impact', sans-serif", fontSize: "clamp(3rem, 10vw, 7rem)" }}
-          >
+          <h1 className="font-display text-3xl sm:text-5xl text-white leading-none mb-4">
             COMPETE.
           </h1>
           <p className="text-white/80 text-lg sm:text-xl max-w-2xl mb-8 leading-relaxed">
