@@ -11,10 +11,7 @@ const hours = [
 
 const MarketingStaffedHours = () => {
   return (
-    <MarketingLayout
-      title="Staffed Hours | Birdies Bayside Indoor Golf"
-      description="Birdies Bayside is open 5am – 11pm every day. See our staffed hours for in-person support, or enjoy our fully automated centre outside those times."
-    >
+    <MarketingLayout>
       {/* Hero */}
       <section className="bg-primary text-primary-foreground py-16 md:py-24">
         <div className="container mx-auto px-4 text-center">
