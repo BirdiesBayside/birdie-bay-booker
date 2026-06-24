@@ -53,7 +53,7 @@ const MarketingAbout = () => (
             { icon: Target, title: "Tour-Level Accuracy", body: "24 measured data points, impact video, swing analysis and immediate shot-to-show." },
             { icon: Clock, title: "Flexible Access", body: "Six fully automated bays — find the right time, every time." },
             { icon: DollarSign, title: "Affordable Memberships", body: "From $15/week. The more you play, the more you save." },
-            { icon: Trophy, title: "Competitions & League", body: "Be part of the Birdies League and compete for prizes." },
+            { icon: Trophy, title: "Competitions & League", body: "Be part of the COMPETE and compete for prizes." },
           ].map((f) => (
             <div key={f.title} className="bg-primary-foreground/5 border border-primary-foreground/10 rounded-xl p-6">
               <div className="w-11 h-11 rounded-lg bg-accent/15 text-accent flex items-center justify-center mb-4">
