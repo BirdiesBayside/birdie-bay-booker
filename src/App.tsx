@@ -243,6 +243,7 @@ const App = () => (
             <Route path="/contact" element={<MarketingContact />} />
             <Route path="/faqs" element={<MarketingFAQs />} />
             <Route path="/staffed-hours" element={<MarketingStaffedHours />} />
+            <Route path="/gate-access" element={<MarketingGateAccess />} />
             {/* Admin Routes */}
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/admin/analytics" element={<AdminAnalytics />} />
