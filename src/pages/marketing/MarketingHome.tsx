@@ -10,7 +10,7 @@ const features = [
   { icon: Target, title: "High-Tech Simulators", body: "Tour-accurate launch data, 4K graphics and 1,700+ world-famous courses." },
   { icon: Clock, title: "Flexible 24/7 Access", body: "Six fully automated bays — book any time, play any time." },
   { icon: DollarSign, title: "Affordable Memberships", body: "From $15/week. The more you play, the more you save." },
-  { icon: Trophy, title: "Competitions & League", body: "Compete with other members in The Birdies League for prizes." },
+  { icon: Trophy, title: "Competitions & League", body: "Compete with other members in The COMPETE for prizes." },
 ];
 
 const MarketingHome = () => {
@@ -122,8 +122,8 @@ const MarketingHome = () => {
           </div>
           <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
             <PriceCard tier="Weekday" rate="$10/hr" price="$15" tag="Mon–Thu before 4pm" perks={["Cancel anytime", "Peak charged at visitor rate"]} />
-            <PriceCard tier="Birdie" rate="$10/hr" price="$27" tag="Most popular" highlight perks={["Play anytime", "Birdies League access", "Cancel anytime"]} />
-            <PriceCard tier="Eagle" rate="$8/hr" price="$35" tag="Best value per round" perks={["Play anytime", "Birdies League access", "Priority booking"]} />
+            <PriceCard tier="Birdie" rate="$10/hr" price="$27" tag="Most popular" highlight perks={["Play anytime", "COMPETE access", "Cancel anytime"]} />
+            <PriceCard tier="Eagle" rate="$8/hr" price="$35" tag="Best value per round" perks={["Play anytime", "COMPETE access", "Priority booking"]} />
           </div>
           <p className="text-center text-foreground/60 text-sm mt-8">
             Visitor pricing: Peak $35/hr (Fri–Sun & Mon–Thu 4pm+) · Off-Peak $30/hr (Mon–Thu before 4pm)
@@ -143,7 +143,7 @@ const MarketingHome = () => {
             Become a Member Today.
           </h2>
           <p className="text-primary-foreground/85 text-lg mb-8">
-            Join Birdies and get unlimited access to premium simulators, the Birdies League, and a great local community.
+            Join Birdies and get unlimited access to premium simulators, the COMPETE, and a great local community.
           </p>
           <a
             href="https://hub.birdiesbayside.com.au/"

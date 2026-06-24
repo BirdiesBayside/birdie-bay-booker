@@ -38,7 +38,7 @@ const SiteFooter = () => {
           <ul className="space-y-2 text-sm">
             <li><Link to="/about" className="hover:text-accent transition-colors">About Us</Link></li>
             <li><Link to="/membership-info" className="hover:text-accent transition-colors">Membership</Link></li>
-            <li><Link to="/league-info" className="hover:text-accent transition-colors">Birdies League</Link></li>
+            <li><Link to="/league-info" className="hover:text-accent transition-colors">COMPETE</Link></li>
             <li><Link to="/faqs" className="hover:text-accent transition-colors">FAQs</Link></li>
             <li><Link to="/gift" className="hover:text-accent transition-colors">Gift Cards</Link></li>
           </ul>
