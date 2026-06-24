@@ -30,12 +30,12 @@ const tiers = [
 
 const MarketingMembership = () => (
   <MarketingLayout>
-    <section className="relative h-[42vh] min-h-[320px] flex items-end overflow-hidden">
+    <section className="relative h-[36vh] min-h-[240px] flex items-end overflow-hidden">
       <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${HERO})` }} />
       <div className="absolute inset-0 bg-gradient-to-t from-primary via-primary/70 to-primary/30" />
-      <div className="relative container mx-auto px-4 pb-12">
-        <p className="text-accent font-display tracking-[0.25em] uppercase text-sm mb-2">Membership</p>
-        <h1 className="font-display text-5xl sm:text-7xl text-primary-foreground leading-none">
+      <div className="relative container mx-auto px-4 pb-8">
+        <p className="text-accent font-display tracking-[0.25em] uppercase text-xs mb-1.5">Membership</p>
+        <h1 className="font-display text-3xl sm:text-5xl text-primary-foreground leading-none">
           Play More.<br />Save More.
         </h1>
       </div>

@@ -50,12 +50,12 @@ const faqs = [
 
 const MarketingLeague = () => (
   <MarketingLayout>
-    <section className="relative h-[55vh] min-h-[400px] flex items-end overflow-hidden">
+    <section className="relative h-[38vh] min-h-[260px] flex items-end overflow-hidden">
       <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${HERO})` }} />
       <div className="absolute inset-0 bg-gradient-to-t from-primary via-primary/80 to-primary/40" />
-      <div className="relative container mx-auto px-4 pb-12">
-        <p className="text-accent font-display tracking-[0.25em] uppercase text-sm mb-2">Members Only</p>
-        <h1 className="font-display text-5xl sm:text-7xl text-primary-foreground leading-none">
+      <div className="relative container mx-auto px-4 pb-8">
+        <p className="text-accent font-display tracking-[0.25em] uppercase text-xs mb-1.5">Members Only</p>
+        <h1 className="font-display text-3xl sm:text-5xl text-primary-foreground leading-none">
           Welcome to the<br /><span className="text-accent">Birdies League</span>
         </h1>
       </div>
