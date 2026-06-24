@@ -21,7 +21,7 @@ const SiteHeader = () => {
     <header className="sticky top-0 z-50 bg-primary text-primary-foreground shadow-sm">
       {/* Top utility bar */}
       <div className="bg-accent text-accent-foreground text-center text-xs sm:text-sm py-2 px-4 font-medium">
-        OPEN 5AM - 10PM FOR MEMBERS  ·  STAFFED HOURS · 07 2146 8442
+        OPEN 5AM - 11PM FOR MEMBERS  ·  STAFFED HOURS · 07 2146 8442
       </div>
 
       <div className="container mx-auto flex items-center justify-between py-3 px-4">
