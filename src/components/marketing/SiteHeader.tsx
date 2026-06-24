@@ -7,7 +7,7 @@ const nav = [
   { to: "/", label: "Home" },
   { to: "/about", label: "About" },
   { to: "/membership-info", label: "Membership" },
-  { to: "/league-info", label: "COMPETE" },
+  { to: "/compete-info", label: "COMPETE" },
   { to: "/contact", label: "Contact" },
   { to: "/faqs", label: "FAQs" },
   { to: "/gift", label: "Gift Cards" },
