@@ -17,8 +17,8 @@ const MarketingAbout = () => (
 
     <section className="py-20">
       <div className="container mx-auto px-4 grid lg:grid-cols-2 gap-12 items-center max-w-6xl">
-        <div className="rounded-2xl overflow-hidden shadow-xl aspect-[4/5]">
-          <img src={STORY} alt="Birdies founders" className="w-full h-full object-cover" />
+        <div className="rounded-2xl overflow-hidden shadow-xl aspect-[4/3]">
+          <img src={simulatorBay.url} alt="Birdies golf simulator bay" className="w-full h-full object-cover" />
         </div>
         <div>
           <h2 className="font-display text-4xl text-primary leading-tight mb-6">
