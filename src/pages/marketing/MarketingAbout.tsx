@@ -1,9 +1,8 @@
 import MarketingLayout from "@/components/marketing/MarketingLayout";
-import { Link } from "react-router-dom";
 import { ArrowRight, Target, Clock, DollarSign, Trophy } from "lucide-react";
+import simulatorBay from "@/assets/simulator-bay.png.asset.json";
 
 const HERO = "https://birdiesbayside.com.au/cdn/shop/files/Birdies_Golf.jpg?v=1751956878&width=3840";
-const STORY = "https://birdiesbayside.com.au/cdn/shop/files/7CF39089-C88F-4561-9510-AC4A09E1FA62.jpg?v=1754371733&width=3840";
 
 const MarketingAbout = () => (
   <MarketingLayout>
@@ -18,8 +17,8 @@ const MarketingAbout = () => (
 
     <section className="py-20">
       <div className="container mx-auto px-4 grid lg:grid-cols-2 gap-12 items-center max-w-6xl">
-        <div className="rounded-2xl overflow-hidden shadow-xl aspect-[4/5]">
-          <img src={STORY} alt="Birdies founders" className="w-full h-full object-cover" />
+        <div className="rounded-2xl overflow-hidden shadow-xl aspect-[4/3]">
+          <img src={simulatorBay.url} alt="Birdies golf simulator bay" className="w-full h-full object-cover" />
         </div>
         <div>
           <h2 className="font-display text-4xl text-primary leading-tight mb-6">
