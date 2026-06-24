@@ -580,7 +580,7 @@ export default function Booking() {
               <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
               <div className="flex-1">
                 <p className="font-display text-base text-destructive">
-                  Membership payment failed — paying Visitor rates
+                  Membership payment failed , paying Visitor rates
                 </p>
                 <p className="text-sm text-muted-foreground mt-1">
                   Your last {MEMBERSHIP_DISPLAY[actualMembershipTier] || "Member"} payment
@@ -645,7 +645,7 @@ export default function Booking() {
             <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5 text-primary" />
             <div>
               <strong>Public Holiday Surcharge.</strong>{" "}
-              {rateInfo.holidayName ? `${rateInfo.holidayName} — ` : ""}
+              {rateInfo.holidayName ? `${rateInfo.holidayName} , ` : ""}
               A {rateInfo.surchargePercent}% surcharge applies to all bookings on this day.
             </div>
           </div>

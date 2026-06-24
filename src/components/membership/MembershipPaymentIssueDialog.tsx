@@ -89,7 +89,7 @@ export function MembershipPaymentIssueDialog({
           </DialogTitle>
           <DialogDescription className="text-center">
             Your last membership payment didn't go through, so new bookings are paused
-            {context ? ` ${context}` : ""}. You're still a member — we just need to settle the
+            {context ? ` ${context}` : ""}. You're still a member , we just need to settle the
             outstanding invoice.
           </DialogDescription>
         </DialogHeader>

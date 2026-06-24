@@ -30,7 +30,7 @@ export function ScoreEntry() {
   const [p2Name, setP2Name] = useState("");
   const [p2Hcp, setP2Hcp] = useState("");
 
-  // Players table — single source of truth for handicaps.
+  // Players table , single source of truth for handicaps.
   const { data: players } = useQuery({
     queryKey: ["local-comp-players"],
     queryFn: async () => {
@@ -53,7 +53,7 @@ export function ScoreEntry() {
     [playerHcpMap]
   );
 
-  // Saved teams (roster only — handicaps come from players table).
+  // Saved teams (roster only , handicaps come from players table).
   const { data: savedTeams } = useQuery({
     queryKey: ["local-comp-saved-teams"],
     queryFn: async () => {
@@ -399,9 +399,9 @@ export function ScoreEntry() {
                                     <div className="flex flex-col">
                                       <span className="font-medium">{t.team_name}</span>
                                       <span className="text-xs text-muted-foreground">
-                                        {t.player1_name} — HCP <strong className="text-foreground">{h1.toFixed(1)}</strong>
+                                        {t.player1_name} , HCP <strong className="text-foreground">{h1.toFixed(1)}</strong>
                                         {" & "}
-                                        {t.player2_name} — HCP <strong className="text-foreground">{h2.toFixed(1)}</strong>
+                                        {t.player2_name} , HCP <strong className="text-foreground">{h2.toFixed(1)}</strong>
                                       </span>
                                     </div>
                                   </CommandItem>

@@ -8,7 +8,7 @@ const COMMUNITY_IMG = "https://birdiesbayside.com.au/cdn/shop/files/Birdies_Golf
 
 const features = [
   { icon: Target, title: "High-Tech Simulators", body: "Tour-accurate launch data, 4K graphics and 1,700+ world-famous courses." },
-  { icon: Clock, title: "Flexible 5am - 11pm Access", body: "Six fully automated bays — book any time, play any time." },
+  { icon: Clock, title: "Flexible 5am - 11pm Access", body: "Six fully automated bays , book any time, play any time." },
   { icon: DollarSign, title: "Affordable Memberships", body: "From $15/week. The more you play, the more you save." },
   { icon: Trophy, title: "Competitions & League", body: "Birdie & Eagle members get access to the Birdies League. Weekday members can still jump into our Wednesday local comp." },
 ];
@@ -36,7 +36,7 @@ const MarketingHome = () => {
             <span className="text-accent">Redefined.</span>
           </h1>
           <p className="mt-6 text-lg sm:text-xl text-primary-foreground/90 max-w-xl">
-            Experience world-class indoor golf. Play, practice and compete — rain or shine.
+            Experience world-class indoor golf. Play, practice and compete , rain or shine.
             Visitors welcome.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
@@ -66,7 +66,7 @@ const MarketingHome = () => {
             </h2>
             <p className="text-foreground/80 text-lg leading-relaxed mb-4">
               Birdies combines cutting-edge simulator technology with 4K visuals and tour-level accuracy.
-              Perfect for practice, game improvement, or a quick round with friends — all without leaving the Redlands.
+              Perfect for practice, game improvement, or a quick round with friends , all without leaving the Redlands.
             </p>
             <Link
               to="/about"
@@ -125,12 +125,12 @@ const MarketingHome = () => {
             </h2>
           </div>
           <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-            <PriceCard tier="Weekday" rate="$10/hr" price="$15" tag="Mon–Thu before 4pm" perks={["Cancel anytime", "Peak charged at visitor rate"]} />
+            <PriceCard tier="Weekday" rate="$10/hr" price="$15" tag="Mon,Thu before 4pm" perks={["Cancel anytime", "Peak charged at visitor rate"]} />
             <PriceCard tier="Birdie" rate="$10/hr" price="$27" tag="Most popular" highlight perks={["Play anytime", "Birdies League access", "Cancel anytime"]} />
             <PriceCard tier="Eagle" rate="$8/hr" price="$35" tag="Best value per round" perks={["Play anytime", "Birdies League access", "Priority booking"]} />
           </div>
           <p className="text-center text-foreground/60 text-sm mt-8">
-            Visitor pricing: Peak $35/hr (Fri–Sun & Mon–Thu 4pm+) · Off-Peak $30/hr (Mon–Thu before 4pm)
+            Visitor pricing: Peak $35/hr (Fri,Sun & Mon,Thu 4pm+) · Off-Peak $30/hr (Mon,Thu before 4pm)
           </p>
         </div>
       </section>

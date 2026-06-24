@@ -109,7 +109,7 @@ export default function Gift() {
             GIFT ON ITS WAY!
           </h1>
           <p className="text-[#1F4C25]/80 mb-6">
-            Thank you — your payment is confirmed. We'll email the gift card per your delivery choice.
+            Thank you , your payment is confirmed. We'll email the gift card per your delivery choice.
           </p>
           <Button asChild className="bg-[#EC622D] hover:bg-[#EC622D]/90 text-white">
             <Link to="/gift">Send Another</Link>

@@ -197,7 +197,7 @@ export function SGTLeagueMembers() {
   });
 
   const formatHcp = (value: number | null) => {
-    if (value === null) return "—";
+    if (value === null) return ",";
     return value >= 0 ? `+${value.toFixed(1)}` : value.toFixed(1);
   };
 
@@ -329,7 +329,7 @@ export function SGTLeagueMembers() {
                               value={editHandicapValue}
                               onChange={(e) => setEditHandicapValue(e.target.value)}
                               className="w-20 mx-auto text-center"
-                              placeholder="—"
+                              placeholder=","
                               autoFocus
                               onKeyDown={(e) => {
                                 if (e.key === "Enter") handleSaveHcp(member.user_id);

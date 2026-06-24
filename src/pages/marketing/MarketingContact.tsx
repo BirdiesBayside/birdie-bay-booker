@@ -21,7 +21,7 @@ const MarketingContact = () => (
         <div>
           <h2 className="font-display text-3xl text-primary mb-6">Reach out anytime</h2>
           <p className="text-foreground/80 mb-8 leading-relaxed">
-            Got a question, want to plan a function, or need help with a booking? Drop us a line — we usually reply within a few hours.
+            Got a question, want to plan a function, or need help with a booking? Drop us a line , we usually reply within a few hours.
           </p>
           <div className="space-y-5">
             <ContactRow icon={Phone} label="Phone" value="(07) 2146 8442" href="tel:0721468442" />

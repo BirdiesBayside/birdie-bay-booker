@@ -426,7 +426,7 @@ const MyAccount = () => {
                     </h3>
                     <p className="text-sm text-muted-foreground mt-1">
                       Your last membership payment didn't go through, so new bookings are
-                      paused until you settle the outstanding invoice. You're still a member —
+                      paused until you settle the outstanding invoice. You're still a member ,
                       we just need to retry payment.
                     </p>
                     <Button

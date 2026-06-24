@@ -8,7 +8,7 @@ const CompHub = () => {
   const tiles = [
     {
       title: "Register Team",
-      description: "Sign up your 2-man Ambrose team — only register once and you're locked in for every weekly comp.",
+      description: "Sign up your 2-man Ambrose team , only register once and you're locked in for every weekly comp.",
       icon: Users,
       onClick: () => navigate("/comp/register-team"),
       accent: true,
@@ -43,7 +43,7 @@ const CompHub = () => {
         <div>
           <h1 className="font-display text-3xl text-primary font-bold">WEEKLY COMP</h1>
           <p className="text-muted-foreground mt-1">
-            2-Man Ambrose — register, find a partner, and check results.
+            2-Man Ambrose , register, find a partner, and check results.
           </p>
         </div>
 

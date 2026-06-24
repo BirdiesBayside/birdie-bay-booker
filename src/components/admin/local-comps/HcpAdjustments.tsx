@@ -66,7 +66,7 @@ export function HcpAdjustments() {
                     <div className="min-w-0">
                       <p className="font-semibold text-foreground truncate">{adj.player_name}</p>
                       <p className="text-xs text-muted-foreground truncate">
-                        {adj.competition_name || "—"} · {adj.reason}
+                        {adj.competition_name || ","} · {adj.reason}
                       </p>
                     </div>
                   </div>

@@ -353,12 +353,12 @@ export function CompetitionList() {
                       <span>{comp.course_name}</span>
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
-                      <div><span className="opacity-70">Tees:</span> <span className="font-medium text-foreground">{comp.tees ?? '—'}</span></div>
-                      <div><span className="opacity-70">Pins:</span> <span className="font-medium text-foreground">{comp.pins ?? '—'}</span></div>
-                      <div><span className="opacity-70">Wind:</span> <span className="font-medium text-foreground">{comp.wind ?? '—'}</span></div>
-                      <div><span className="opacity-70">Green Speed:</span> <span className="font-medium text-foreground">Stimp {comp.green_speed ?? '—'}</span></div>
-                      <div><span className="opacity-70">Green Firmness:</span> <span className="font-medium text-foreground">{comp.green_firmness ?? '—'}</span></div>
-                      <div><span className="opacity-70">Fairway Firmness:</span> <span className="font-medium text-foreground">{comp.fairway_firmness ?? '—'}</span></div>
+                      <div><span className="opacity-70">Tees:</span> <span className="font-medium text-foreground">{comp.tees ?? ','}</span></div>
+                      <div><span className="opacity-70">Pins:</span> <span className="font-medium text-foreground">{comp.pins ?? ','}</span></div>
+                      <div><span className="opacity-70">Wind:</span> <span className="font-medium text-foreground">{comp.wind ?? ','}</span></div>
+                      <div><span className="opacity-70">Green Speed:</span> <span className="font-medium text-foreground">Stimp {comp.green_speed ?? ','}</span></div>
+                      <div><span className="opacity-70">Green Firmness:</span> <span className="font-medium text-foreground">{comp.green_firmness ?? ','}</span></div>
+                      <div><span className="opacity-70">Fairway Firmness:</span> <span className="font-medium text-foreground">{comp.fairway_firmness ?? ','}</span></div>
                     </div>
                   </div>
                 )}

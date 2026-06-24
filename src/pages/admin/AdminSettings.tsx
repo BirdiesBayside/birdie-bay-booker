@@ -1164,7 +1164,7 @@ export default function AdminSettings() {
                     {TEMPLATE_TAGS[selectedTemplate.templateKey]?.map((item) => (
                       <div key={item.tag} className="flex gap-2">
                         <code className="font-mono text-primary">{item.tag}</code>
-                        <span>— {item.description}</span>
+                        <span>, {item.description}</span>
                       </div>
                     ))}
                   </div>

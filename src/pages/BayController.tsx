@@ -1886,8 +1886,8 @@ export default function BayController() {
 
   // PRECISION SCHEDULER: Schedule exact timeouts for upcoming booking transitions
   // This uses a DUAL-TIMER approach:
-  //   1. App close at T-appCloseSeconds (e.g. T-15s) — kills apps while screens are still on
-  //   2. Plug off at T+0 — cuts power after apps are confirmed dead
+  //   1. App close at T-appCloseSeconds (e.g. T-15s) , kills apps while screens are still on
+  //   2. Plug off at T+0 , cuts power after apps are confirmed dead
   // This ensures apps are fully terminated before plugs turn off, preventing orphaned processes.
   const scheduledTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   
@@ -2131,7 +2131,7 @@ export default function BayController() {
 
         if (gsproFound || proteeFound) {
           const detectedApps = [gsproFound && "GSPro", proteeFound && "Protee Labs"].filter(Boolean).join(" & ");
-          console.log(`[ProcessDetection] Externally launched app(s) detected: ${detectedApps} — setting appsRunning=true`);
+          console.log(`[ProcessDetection] Externally launched app(s) detected: ${detectedApps} , setting appsRunning=true`);
           addLog(`Detected externally launched: ${detectedApps}`, 'info');
           bayLogger.sendLog('process_detection', `Externally launched app(s) detected: ${detectedApps}`, {
             details: { gsproFound, proteeFound },
@@ -2141,7 +2141,7 @@ export default function BayController() {
           setAppLaunchStatus(`${detectedApps} detected (external launch)`);
         }
       } catch (err) {
-        // Silent failure — don't spam logs
+        // Silent failure , don't spam logs
       }
     }, 5000); // Check every 5 seconds
 

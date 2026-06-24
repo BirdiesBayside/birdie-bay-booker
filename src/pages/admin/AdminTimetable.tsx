@@ -1007,7 +1007,7 @@ export default function AdminTimetable() {
                         ? "Cash"
                         : selectedBooking.payment_method === "pending"
                         ? "Pending"
-                        : selectedBooking.payment_method || "—"}
+                        : selectedBooking.payment_method || ","}
                     </p>
                   </div>
                 </div>
@@ -1309,7 +1309,7 @@ export default function AdminTimetable() {
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 text-sm">
                     <Clock className="h-4 w-4 text-muted-foreground" />
-                    <span>{formatTime(selectedBlock.start_time)} – {formatTime(selectedBlock.end_time)}</span>
+                    <span>{formatTime(selectedBlock.start_time)} , {formatTime(selectedBlock.end_time)}</span>
                   </div>
                   <div className="flex items-center gap-2 text-sm">
                     <CalendarIcon className="h-4 w-4 text-muted-foreground" />

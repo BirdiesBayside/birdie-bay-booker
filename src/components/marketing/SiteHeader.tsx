@@ -28,7 +28,7 @@ const SiteHeader = () => {
 
       <div className="container mx-auto flex items-center justify-between py-3 px-4">
         <Link to="/" className="flex items-center gap-2" onClick={() => setOpen(false)}>
-          <img src={birdiesLogo} alt="Birdies — Indoor Golf Redefined" className="h-10 sm:h-12" />
+          <img src={birdiesLogo} alt="Birdies , Indoor Golf Redefined" className="h-10 sm:h-12" />
         </Link>
 
         <nav className="hidden lg:flex items-center gap-7">
