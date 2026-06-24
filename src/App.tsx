@@ -50,6 +50,7 @@ const MarketingMembership = lazy(() => import("./pages/marketing/MarketingMember
 const MarketingLeague = lazy(() => import("./pages/marketing/MarketingLeague"));
 const MarketingContact = lazy(() => import("./pages/marketing/MarketingContact"));
 const MarketingFAQs = lazy(() => import("./pages/marketing/MarketingFAQs"));
+const MarketingStaffedHours = lazy(() => import("./pages/marketing/MarketingStaffedHours"));
 
 // Admin pages
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
@@ -238,6 +239,7 @@ const App = () => (
             <Route path="/league-info" element={<MarketingLeague />} />
             <Route path="/contact" element={<MarketingContact />} />
             <Route path="/faqs" element={<MarketingFAQs />} />
+            <Route path="/staffed-hours" element={<MarketingStaffedHours />} />
             {/* Admin Routes */}
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/admin/analytics" element={<AdminAnalytics />} />
