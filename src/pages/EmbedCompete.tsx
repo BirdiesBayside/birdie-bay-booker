@@ -231,7 +231,7 @@ export default function EmbedCompete() {
             onClick={() => setWeeklyOpen(!weeklyOpen)}
             className="w-full px-5 py-4 flex items-center justify-between text-left hover:bg-[hsl(37,100%,97%)] transition-colors"
           >
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-1 min-w-0">
               <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: CREAM_DEEP, color: GREEN }}>
                 <Trophy className="h-5 w-5" />
               </div>
@@ -302,7 +302,7 @@ export default function EmbedCompete() {
             onClick={() => setMonthlyOpen(!monthlyOpen)}
             className="w-full px-5 py-4 flex items-center justify-between text-left hover:bg-[hsl(37,100%,97%)] transition-colors"
           >
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-1 min-w-0">
               <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: CREAM_DEEP, color: GREEN }}>
                 <Calendar className="h-5 w-5" />
               </div>
@@ -367,7 +367,7 @@ export default function EmbedCompete() {
             onClick={() => setAmbroseOpen(!ambroseOpen)}
             className="w-full px-5 py-4 flex items-center justify-between text-left hover:bg-[hsl(37,100%,97%)] transition-colors"
           >
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-1 min-w-0">
               <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: CREAM_DEEP, color: GREEN }}>
                 <Target className="h-5 w-5" />
               </div>
