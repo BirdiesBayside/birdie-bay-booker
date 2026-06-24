@@ -17,14 +17,14 @@ const tiers = [
     rate: "$10/hr",
     tag: "Most popular",
     highlight: true,
-    perks: ["Play anytime", "COMPETE access", "Cancel any time"],
+    perks: ["Play anytime", "Birdies League access", "Cancel any time"],
   },
   {
     name: "Eagle",
     price: "$35",
     rate: "$8/hr",
     tag: "Best value per round",
-    perks: ["Play anytime", "COMPETE access", "Priority booking", "Cancel any time"],
+    perks: ["Play anytime", "Birdies League access", "Priority booking", "Cancel any time"],
   },
 ];
 
