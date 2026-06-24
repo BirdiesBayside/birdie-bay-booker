@@ -189,14 +189,14 @@ export default function EmbedCompete() {
             tag="Monthly · Members"
             title="Monthly Winner"
             desc="Earn points from every weekly tournament. Top of the table at month's end takes the title."
-            prize="$40 monthly bonus"
+            prize="Varied monthly prizes"
           />
           <HowCard
             icon={<Target className="h-6 w-6" />}
             tag="Wednesdays · Open"
             title="2-Man Ambrose"
             desc="Team comp every Wednesday night. Combined handicaps, alternating shots, weekly pot."
-            prize="Winner takes the pot"
+            prize="$100 Prize pot"
           />
         </div>
       </section>
