@@ -482,40 +482,6 @@ export default function EmbedCompete() {
         </div>
       </section>
 
-      {/* HOW IT WORKS */}
-      <section className="max-w-6xl mx-auto px-4 sm:px-6 py-10">
-        <div className="text-center mb-8">
-          <div className="text-[11px] uppercase tracking-widest font-bold" style={{ color: ORANGE }}>
-            Three ways to play
-          </div>
-          <h3 className="font-black text-3xl sm:text-4xl" style={{ color: GREEN, fontFamily: "'Anton', sans-serif" }}>
-            HOW TO COMPETE
-          </h3>
-        </div>
-        <div className="grid md:grid-cols-3 gap-4">
-          <HowCard
-            icon={<Calendar className="h-6 w-6" />}
-            tag="Weekly · Members"
-            title="SGT Tournament"
-            desc="Play your two competition rounds anytime during the week. Live net + gross leaderboards."
-            prize="$40 prize per week"
-          />
-          <HowCard
-            icon={<Trophy className="h-6 w-6" />}
-            tag="Monthly · Members"
-            title="Monthly Winner"
-            desc="Earn points from every weekly tournament. Top of the table at month's end takes the title."
-            prize="$40 monthly bonus"
-          />
-          <HowCard
-            icon={<Target className="h-6 w-6" />}
-            tag="Wednesdays · Open"
-            title="2-Man Ambrose"
-            desc="Team comp every Wednesday night. Combined handicaps, alternating shots, weekly pot."
-            prize="Winner takes the pot"
-          />
-        </div>
-      </section>
 
       {/* CTA STRIP */}
       <section className="max-w-6xl mx-auto px-4 sm:px-6 pb-12">
