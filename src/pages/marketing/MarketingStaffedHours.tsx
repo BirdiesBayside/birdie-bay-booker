@@ -13,9 +13,9 @@ const MarketingStaffedHours = () => {
   return (
     <MarketingLayout>
       {/* Hero */}
-      <section className="bg-primary text-primary-foreground py-16 md:py-24">
+      <section className="bg-primary text-primary-foreground py-10 md:py-14">
         <div className="container mx-auto px-4 text-center">
-          <h1 className="font-display text-5xl md:text-7xl tracking-wide uppercase">
+          <h1 className="font-display text-3xl sm:text-5xl tracking-wide uppercase">
             Staffed Hours
           </h1>
           <p className="mt-4 text-primary-foreground/80 max-w-2xl mx-auto">
