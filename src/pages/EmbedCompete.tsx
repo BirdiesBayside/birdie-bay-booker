@@ -180,7 +180,7 @@ export default function EmbedCompete() {
           <HowCard
             icon={<Calendar className="h-6 w-6" />}
             tag="Weekly · Members"
-            title="SGT Tournament"
+            title="The Birdies League"
             desc="Play your two competition rounds anytime during the week. Live net + gross leaderboards."
             prize="$40 prize per week"
           />
@@ -240,7 +240,7 @@ export default function EmbedCompete() {
                   Weekly
                 </span>
                 <h3 className="font-black text-lg leading-tight" style={{ color: GREEN, fontFamily: "'Anton', sans-serif" }}>
-                  Weekly Tournament
+                  The Birdies League
                 </h3>
                 <p className="text-xs mt-0.5 truncate" style={{ color: MUTED }}>
                   {currentTournament?.name ?? previousTournament?.name ?? "Birdies Tour"}
