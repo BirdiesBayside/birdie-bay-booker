@@ -80,7 +80,7 @@ export default function BayOrder() {
     if (currentTime < todayHours.open_time || currentTime >= todayHours.close_time) {
       setServiceHours({
         isOpen: false,
-        message: `Closed , opens ${formatTime(todayHours.open_time)} to ${formatTime(todayHours.close_time)}`,
+        message: `Closed, opens ${formatTime(todayHours.open_time)} to ${formatTime(todayHours.close_time)}`,
       });
       return;
     }

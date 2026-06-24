@@ -5,27 +5,27 @@ const groups = [
   {
     section: "Visiting Birdies",
     items: [
-      { q: "Do I need to be a member?", a: "No , visitors are always welcome. Just book a bay online and turn up. Pay-as-you-go rates are $30/hr off-peak and $35/hr peak." },
-      { q: "When is Birdies open?", a: "Members have access from 5am - 11pm via the automated bays. Staffed hours vary , check the banner at the top of the site or call (07) 2146 8442." },
-      { q: "How many people can fit in a bay?", a: "Each bay comfortably fits up to 4 players. You can play stroke play, scramble, closest-to-pin and more , all on the same booking." },
-      { q: "Do you provide clubs?", a: "Yes , we have rental clubs available at the centre. Just let us know when you book." },
+      { q: "Do I need to be a member?", a: "No, visitors are always welcome. Just book a bay online and turn up. Pay-as-you-go rates are $30/hr off-peak and $35/hr peak." },
+      { q: "When is Birdies open?", a: "Members have access from 5am - 11pm via the automated bays. Staffed hours vary, check the banner at the top of the site or call (07) 2146 8442." },
+      { q: "How many people can fit in a bay?", a: "Each bay comfortably fits up to 4 players. You can play stroke play, scramble, closest-to-pin and more, all on the same booking." },
+      { q: "Do you provide clubs?", a: "Yes, we have rental clubs available at the centre. Just let us know when you book." },
     ],
   },
   {
     section: "Booking & Payment",
     items: [
-      { q: "How do I book?", a: "Bookings are made through The Birdies Hub at hub.birdiesbayside.com.au. Choose your bay, your time, and pay online , done in under a minute." },
-      { q: "Can I cancel or reschedule?", a: "Yes , bookings can be cancelled or rescheduled from inside The Hub up until the booking starts." },
-      { q: "Do you offer gift cards?", a: "Yes , gift cards are available on our Gift Cards page and can be redeemed for any booking or membership." },
+      { q: "How do I book?", a: "Bookings are made through The Birdies Hub at hub.birdiesbayside.com.au. Choose your bay, your time, and pay online, done in under a minute." },
+      { q: "Can I cancel or reschedule?", a: "Yes, bookings can be cancelled or rescheduled from inside The Hub up until the booking starts." },
+      { q: "Do you offer gift cards?", a: "Yes, gift cards are available on our Gift Cards page and can be redeemed for any booking or membership." },
     ],
   },
   {
     section: "Membership",
     items: [
       { q: "What memberships are available?", a: "We offer three weekly plans: Weekday ($15), Birdie ($27) and Eagle ($35). All include discounted bay rates and no lock-in contracts." },
-      { q: "Can I cancel any time?", a: "Yes , all memberships can be cancelled at any time. We don't refund the most recent weekly payment." },
+      { q: "Can I cancel any time?", a: "Yes, all memberships can be cancelled at any time. We don't refund the most recent weekly payment." },
       { q: "What's the difference between Birdie and Eagle?", a: "Eagle members get a lower hourly rate ($8 vs $10) and priority booking. Both tiers include access to the Birdies League." },
-      { q: "Can Weekday members join competitions?", a: "Yes , Weekday members can join our Wednesday local comp. The full Birdies League season is a perk reserved for Birdie and Eagle members." },
+      { q: "Can Weekday members join competitions?", a: "Yes, Weekday members can join our Wednesday local comp. The full Birdies League season is a perk reserved for Birdie and Eagle members." },
     ],
   },
   {
@@ -33,7 +33,7 @@ const groups = [
     items: [
       { q: "What is the Birdies League?", a: "A members-only golf sim league with weekly tournament rounds, leaderboards, competitions and prizes. Access is included with Birdie and Eagle memberships." },
       { q: "How do I play?", a: "Once you've created an SGT account, your name is synced to every bay. Hit ONLINE MATCH, choose your name, and play your weekly rounds whenever suits you." },
-      { q: "Are there prizes?", a: "Yes , we work with local businesses and run a monthly medal prize alongside ad-hoc giveaways." },
+      { q: "Are there prizes?", a: "Yes, we work with local businesses and run a monthly medal prize alongside ad-hoc giveaways." },
     ],
   },
 ];
@@ -45,7 +45,7 @@ const MarketingFAQs = () => (
         <p className="text-accent font-display tracking-[0.25em] uppercase text-sm mb-2">FAQs</p>
         <h1 className="font-display text-5xl sm:text-6xl leading-none mb-4">Questions, Answered.</h1>
         <p className="text-primary-foreground/80 text-lg">
-          Everything you need to know about Birdies , visiting, booking, memberships and the league.
+          Everything you need to know about Birdies, visiting, booking, memberships and the league.
         </p>
       </div>
     </section>
@@ -76,7 +76,7 @@ const MarketingFAQs = () => (
 
         <div className="bg-card border border-border rounded-2xl p-8 text-center mt-12">
           <h3 className="font-display text-2xl text-primary mb-3">Still have a question?</h3>
-          <p className="text-foreground/70 mb-5">Drop us a line , we usually reply within a few hours.</p>
+          <p className="text-foreground/70 mb-5">Drop us a line, we usually reply within a few hours.</p>
           <a
             href="mailto:info@birdiesbayside.com.au"
             className="inline-block bg-accent hover:bg-accent/90 text-accent-foreground font-display tracking-wide uppercase px-6 py-3 rounded-md"

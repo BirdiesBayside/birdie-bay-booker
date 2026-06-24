@@ -9,7 +9,7 @@ const SiteFooter = () => {
         <div className="md:col-span-1">
           <img src={birdiesLogo} alt="Birdies" className="h-14 mb-4" />
           <p className="text-primary-foreground/70 text-sm leading-relaxed">
-            Redland Bay's premier indoor golf centre. Play, practice and compete , rain or shine.
+            Redland Bay's premier indoor golf centre. Play, practice and compete, rain or shine.
           </p>
           <div className="flex gap-3 mt-5">
             <a

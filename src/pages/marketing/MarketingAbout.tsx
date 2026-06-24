@@ -22,7 +22,7 @@ const MarketingAbout = () => (
         </div>
         <div>
           <h2 className="font-display text-4xl text-primary leading-tight mb-6">
-            Golf has entered a new era , and it's happening indoors.
+            Golf has entered a new era, and it's happening indoors.
           </h2>
           <div className="space-y-4 text-foreground/80 text-lg leading-relaxed">
             <p>
@@ -35,7 +35,7 @@ const MarketingAbout = () => (
             </p>
             <p>
               Whether you're working on your swing or playing with friends, Birdies makes golf more accessible, more
-              flexible, and far more convenient. No more 5-hour rounds, no more getting rained off , just great golf,
+              flexible, and far more convenient. No more 5-hour rounds, no more getting rained off, just great golf,
               when it suits you.
             </p>
             <p className="font-display text-accent text-2xl pt-4">Indoor Golf, Redefined.</p>
@@ -50,7 +50,7 @@ const MarketingAbout = () => (
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-5xl mx-auto">
           {[
             { icon: Target, title: "Tour-Level Accuracy", body: "24 measured data points, impact video, swing analysis and immediate shot-to-show." },
-            { icon: Clock, title: "Flexible Access", body: "Six fully automated bays , find the right time, every time." },
+            { icon: Clock, title: "Flexible Access", body: "Six fully automated bays, find the right time, every time." },
             { icon: DollarSign, title: "Affordable Memberships", body: "From $15/week. The more you play, the more you save." },
             { icon: Trophy, title: "Competitions & League", body: "Be part of the Birdies League and compete for prizes (Birdie/Eagle members)." },
           ].map((f) => (

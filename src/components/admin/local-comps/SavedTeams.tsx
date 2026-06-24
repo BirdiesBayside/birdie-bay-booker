@@ -231,9 +231,9 @@ export function SavedTeams() {
         className="max-w-sm"
       />
 
-      {/* TEAMS first , used most often */}
+      {/* TEAMS first, used most often */}
 
-      {/* TEAMS , read-only pairings */}
+      {/* TEAMS, read-only pairings */}
       <Card>
         <Collapsible open={teamsOpen} onOpenChange={setTeamsOpen}>
           <CollapsibleTrigger asChild>
@@ -295,7 +295,7 @@ export function SavedTeams() {
                           </div>
                           <div className="text-sm text-muted-foreground space-y-1">
                             <p>
-                              {team.player1_name} ,{" "}
+                              {team.player1_name},{" "}
                               {p1Hcp !== undefined ? (
                                 <span className="font-semibold text-foreground">{p1Hcp.toFixed(1)}</span>
                               ) : (
@@ -303,7 +303,7 @@ export function SavedTeams() {
                               )}
                             </p>
                             <p>
-                              {team.player2_name} ,{" "}
+                              {team.player2_name},{" "}
                               {p2Hcp !== undefined ? (
                                 <span className="font-semibold text-foreground">{p2Hcp.toFixed(1)}</span>
                               ) : (
@@ -328,7 +328,7 @@ export function SavedTeams() {
       </Card>
 
 
-      {/* PLAYERS , collapsible, single source of truth for handicaps */}
+      {/* PLAYERS, collapsible, single source of truth for handicaps */}
       <Card>
         <Collapsible open={playersOpen} onOpenChange={setPlayersOpen}>
           <CollapsibleTrigger asChild>
@@ -454,7 +454,7 @@ export function SavedTeams() {
         </DialogContent>
       </Dialog>
 
-      {/* Add Team dialog , mirrors customer-facing CompRegisterTeam flow */}
+      {/* Add Team dialog, mirrors customer-facing CompRegisterTeam flow */}
       <Dialog open={teamDialogOpen} onOpenChange={setTeamDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -498,7 +498,7 @@ export function SavedTeams() {
               />
             </div>
             <p className="text-xs text-muted-foreground">
-              Handicaps default to 0 , set them in the Players section after adding.
+              Handicaps default to 0, set them in the Players section after adding.
             </p>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setTeamDialogOpen(false)}>

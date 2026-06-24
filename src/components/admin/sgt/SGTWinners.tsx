@@ -540,7 +540,7 @@ export function SGTWinners() {
                                       <Badge variant="outline" className="text-xs text-destructive border-destructive/30">DNF</Badge>
                                     ) : (
                                       <span className="text-muted-foreground">
-                                        ({player.to_par_net_sum === 0 ? "E" : player.to_par_net_sum > 0 ? `+${player.to_par_net_sum}` : player.to_par_net_sum} Net , {player.rounds_completed} rds)
+                                        ({player.to_par_net_sum === 0 ? "E" : player.to_par_net_sum > 0 ? `+${player.to_par_net_sum}` : player.to_par_net_sum} Net, {player.rounds_completed} rds)
                                       </span>
                                     )}
                                   </div>

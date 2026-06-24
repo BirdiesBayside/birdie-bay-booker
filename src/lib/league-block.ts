@@ -1,5 +1,5 @@
 /**
- * League "Monthly Winner" , calendar-month model.
+ * League "Monthly Winner", calendar-month model.
  *
  * Rule:
  *  - A tournament belongs to the calendar month of its *play day* in
