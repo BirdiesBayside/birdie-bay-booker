@@ -4,17 +4,39 @@ import { AuthForm } from "@/components/auth/AuthForm";
 import { useAuth } from "@/hooks/useAuth";
 import birdiesLogo from "@/assets/birdies-logo.png";
 import birdiesAppIcon from "@/assets/birdies-app-icon.png";
+import MarketingHome from "./marketing/MarketingHome";
+
+/**
+ * Hostname routing:
+ *  - hub.birdiesbayside.com.au  → existing Hub login (AuthForm)
+ *  - everything else (main domain, lovable preview, localhost)
+ *      → public marketing site
+ *
+ * Hub can still be reached from any host via deep links (/dashboard, /booking, …).
+ */
+const isHubHost = () => {
+  if (typeof window === "undefined") return false;
+  const h = window.location.hostname;
+  return h.startsWith("hub.") || h === "hub.birdiesbayside.com.au";
+};
 
 const Index = () => {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const hubHost = isHubHost();
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (hubHost && isAuthenticated) {
       navigate("/dashboard");
     }
-  }, [isAuthenticated, navigate]);
+  }, [hubHost, isAuthenticated, navigate]);
 
+  // Public marketing site
+  if (!hubHost) {
+    return <MarketingHome />;
+  }
+
+  // Hub login
   if (authLoading || isAuthenticated) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background safe-area-top safe-area-bottom">
