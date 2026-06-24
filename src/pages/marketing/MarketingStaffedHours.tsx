@@ -58,8 +58,10 @@ const MarketingStaffedHours = () => {
       <section className="py-12 bg-muted/40">
         <div className="container mx-auto px-4 max-w-3xl text-center">
           <p className="text-muted-foreground">
-            *Our centre is fully automated outside of staffed hours. This keeps visitor numbers low
-            and makes self-service simple. Tech support is always available over the phone.
+            *Our centre is fully automated outside of staffed hours. This keeps our pricing low
+            and makes self-service simple. We recommend booking your first Birdies session during
+            staffed hours so our friendly staff can help you learn the sim tech. Tech support is
+            always available over the phone.
           </p>
           <a
             href="tel:0721468442"
