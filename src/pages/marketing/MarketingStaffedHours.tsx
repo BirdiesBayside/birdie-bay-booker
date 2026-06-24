@@ -84,7 +84,7 @@ const MarketingStaffedHours = () => {
               </h2>
             </div>
             <p className="text-muted-foreground">
-              Food and drinks are available on-site, please don't bring your own.
+              Drinks are available on-site, please don't bring your own.
             </p>
           </div>
 
