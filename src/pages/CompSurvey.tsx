@@ -66,7 +66,7 @@ export default function CompSurvey() {
         <div className="text-center">
           <img src={birdiesLogo} alt="Birdies Bayside" className="h-14 mx-auto mb-4" />
           <h1 className="text-2xl font-bold text-[#1F4C25]">Weekly Ambrose Comp</h1>
-          <p className="text-[#1F4C25]/70 mt-1">Help us pick the best format , choose your preferences below</p>
+          <p className="text-[#1F4C25]/70 mt-1">Help us pick the best format, choose your preferences below</p>
         </div>
 
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-[#1F4C25]/10 space-y-6">

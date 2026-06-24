@@ -40,7 +40,7 @@ export default function ResetPassword() {
     setPendingTokens(null);
   };
 
-  // STEP 1: On page load, just detect tokens in URL , do NOT consume them.
+  // STEP 1: On page load, just detect tokens in URL, do NOT consume them.
   // Email security scanners (Outlook Safe Links, Mimecast, etc.) pre-fetch
   // links in a real browser and would burn one-time tokens before the user
   // clicks. We require an explicit button click to verify.
@@ -129,7 +129,7 @@ export default function ResetPassword() {
     };
   }, []);
 
-  // STEP 2: User clicks "Continue" , now consume the token.
+  // STEP 2: User clicks "Continue", now consume the token.
   const handleConfirmReset = async () => {
     if (!pendingTokens) return;
     setIsConfirming(true);

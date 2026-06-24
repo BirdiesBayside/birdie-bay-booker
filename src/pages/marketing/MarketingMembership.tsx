@@ -103,14 +103,14 @@ const MarketingMembership = () => (
           <h3 className="font-display text-2xl uppercase tracking-wide mb-3">Member Perks</h3>
           <p className="text-primary-foreground/80 leading-relaxed">
             Priority access to the centre, all of the great golf tech it has to offer, weekly competitions,
-            and the chance to sharpen your game whenever it suits you , rain or shine.
+            and the chance to sharpen your game whenever it suits you, rain or shine.
           </p>
         </div>
         <div className="bg-primary-foreground/5 border border-primary-foreground/10 rounded-xl p-8">
           <ShieldCheck className="h-8 w-8 text-accent mb-4" />
           <h3 className="font-display text-2xl uppercase tracking-wide mb-3">Satisfaction Guarantee</h3>
           <p className="text-primary-foreground/80 leading-relaxed">
-            Not happy or struggling for time? Not a problem , we have no lock-in contracts and no scary terms and conditions.
+            Not happy or struggling for time? Not a problem, we have no lock-in contracts and no scary terms and conditions.
           </p>
         </div>
       </div>
@@ -131,7 +131,7 @@ const MarketingMembership = () => (
           Not ready to commit? Just pay to play.
         </h2>
         <p className="text-foreground/80 text-lg mb-10">
-          We welcome Pay As You Go sessions at Birdies , same premium golf, no commitment, same easy booking and access platform as members.
+          We welcome Pay As You Go sessions at Birdies, same premium golf, no commitment, same easy booking and access platform as members.
         </p>
         <div className="grid sm:grid-cols-2 gap-6 max-w-2xl mx-auto">
           <div className="bg-card border border-border rounded-xl p-7">

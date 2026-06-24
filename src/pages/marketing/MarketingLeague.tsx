@@ -8,7 +8,7 @@ const features = [
   { icon: Globe, title: "Web Portal Access", body: "See every stat, every shot, every round on the go with our SGT web portal." },
   { icon: CalendarDays, title: "Weekly Rounds", body: "Play your weekly competition rounds whenever suits you." },
   { icon: Zap, title: "Seamless Play", body: "Book any bay and instantly access your own tournament rounds." },
-  { icon: Trophy, title: "Prizes & Giveaways", body: "Win big , or small , with locally supported prizes and giveaways." },
+  { icon: Trophy, title: "Prizes & Giveaways", body: "Win big, or small, with locally supported prizes and giveaways." },
 ];
 
 const faqs = [
@@ -16,7 +16,7 @@ const faqs = [
     section: "General Information",
     items: [
       { q: "What is the Birdies League?", a: "The Birdies League is a members-only golf sim league that allows competitive play, tournament rounds, leaderboards, competitions and prizes." },
-      { q: "How much does it cost to join?", a: "Access to the Birdies League is included with your membership. You must be a Birdie member or higher to take part , Weekday members can still join our Wednesday local comp." },
+      { q: "How much does it cost to join?", a: "Access to the Birdies League is included with your membership. You must be a Birdie member or higher to take part, Weekday members can still join our Wednesday local comp." },
     ],
   },
   {
@@ -32,7 +32,7 @@ const faqs = [
     section: "Gameplay & Rules",
     items: [
       { q: "How many holes do I play each week?", a: "Each week you'll be required to play 2 full 18-hole rounds. These can be played on different days, or even resumed at different times if required." },
-      { q: "What courses will I play?", a: "We always select the best courses to play each week. Some of our tours will be themed , for example we may run an Aussie tour that's only Australian courses." },
+      { q: "What courses will I play?", a: "We always select the best courses to play each week. Some of our tours will be themed, for example we may run an Aussie tour that's only Australian courses." },
       { q: "Is there a handicap system?", a: "Yes. You'll be required to obtain your handicap in your first week by completing 'Q School'. Once you have your handicap you'll play the tour and get a net score for each round." },
       { q: "What if I hit an accidental shot or get a strange misread?", a: "Although we can edit scores, to ensure fair play all scores will be final. We recommend ensuring you are very comfortable with GSPRO and sim usage before competing in the Birdies League." },
     ],
@@ -41,9 +41,9 @@ const faqs = [
     section: "Scoring & Standings",
     items: [
       { q: "How is scoring tracked?", a: "Scores are fully automated through GSPRO and the SGT. Your round results show at the end of the round and are visible online almost immediately." },
-      { q: "Where can we see the leaderboard?", a: "The leaderboard is available in the online SGT portal , or you can see it on our Birdies TV located near the vending machine." },
+      { q: "Where can we see the leaderboard?", a: "The leaderboard is available in the online SGT portal, or you can see it on our Birdies TV located near the vending machine." },
       { q: "What if I miss a week?", a: "You won't gain any points for that week, but the leaderboards are cumulative, so missing one round won't be a huge disadvantage." },
-      { q: "Are there prizes?", a: "Yes , we work with local businesses and have a rotating selection of prizes, including a monthly medal prize." },
+      { q: "Are there prizes?", a: "Yes, we work with local businesses and have a rotating selection of prizes, including a monthly medal prize." },
     ],
   },
 ];

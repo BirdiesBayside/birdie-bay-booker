@@ -255,7 +255,7 @@ export default function EmbedCompete() {
                 {tourLoading || weeklyLoading ? (
                   <LoadingRow />
                 ) : weeklyStandings.length === 0 ? (
-                  <EmptyState text="No scores yet this week , be the first on the board." />
+                  <EmptyState text="No scores yet this week, be the first on the board." />
                 ) : (
                   <div className="divide-y" style={{ borderColor: BORDER }}>
                     {weeklyStandings.slice(0, 8).map((r) => (
@@ -444,7 +444,7 @@ export default function EmbedCompete() {
                         </div>
                         {sortedAmbroseTeams.length === 0 ? (
                           <div className="px-5 py-10 text-center text-sm" style={{ color: MUTED }}>
-                            No comp results yet , check back Wednesday night.
+                            No comp results yet, check back Wednesday night.
                           </div>
                         ) : (
                           <div className="divide-y" style={{ borderColor: BORDER }}>

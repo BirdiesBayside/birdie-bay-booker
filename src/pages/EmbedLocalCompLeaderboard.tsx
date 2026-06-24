@@ -127,7 +127,7 @@ export default function EmbedLocalCompLeaderboard() {
                 return (
                   <SelectItem key={c.id} value={c.id}>
                     <div className="flex items-center gap-2">
-                      <span>Week {wk} , {c.name}</span>
+                      <span>Week {wk}, {c.name}</span>
                       <span className="text-muted-foreground text-xs">
                         ({format(new Date(c.date + "T00:00:00"), "dd MMM")})
                       </span>
