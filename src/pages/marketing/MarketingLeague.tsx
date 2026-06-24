@@ -15,8 +15,8 @@ const faqs = [
   {
     section: "General Information",
     items: [
-      { q: "What is the COMPETE?", a: "The COMPETE is a members-only golf sim league that allows competitive play, tournament rounds, leaderboards, competitions and prizes." },
-      { q: "How much does it cost to join?", a: "You gain entry to The COMPETE by joining as a member. Please note you must be a Birdie member or higher to gain access." },
+      { q: "What is the Birdies League?", a: "The Birdies League is a members-only golf sim league that allows competitive play, tournament rounds, leaderboards, competitions and prizes." },
+      { q: "How much does it cost to join?", a: "Access to the Birdies League is included with your membership. You must be a Birdie member or higher to take part — Weekday members can still join our Wednesday local comp." },
     ],
   },
   {
@@ -34,7 +34,7 @@ const faqs = [
       { q: "How many holes do I play each week?", a: "Each week you'll be required to play 2 full 18-hole rounds. These can be played on different days, or even resumed at different times if required." },
       { q: "What courses will I play?", a: "We always select the best courses to play each week. Some of our tours will be themed — for example we may run an Aussie tour that's only Australian courses." },
       { q: "Is there a handicap system?", a: "Yes. You'll be required to obtain your handicap in your first week by completing 'Q School'. Once you have your handicap you'll play the tour and get a net score for each round." },
-      { q: "What if I hit an accidental shot or get a strange misread?", a: "Although we can edit scores, to ensure fair play all scores will be final. We recommend ensuring you are very comfortable with GSPRO and sim usage before competing in the COMPETE." },
+      { q: "What if I hit an accidental shot or get a strange misread?", a: "Although we can edit scores, to ensure fair play all scores will be final. We recommend ensuring you are very comfortable with GSPRO and sim usage before competing in the Birdies League." },
     ],
   },
   {
@@ -56,7 +56,7 @@ const MarketingLeague = () => (
       <div className="relative container mx-auto px-4 pb-12">
         <p className="text-accent font-display tracking-[0.25em] uppercase text-sm mb-2">Members Only</p>
         <h1 className="font-display text-5xl sm:text-7xl text-primary-foreground leading-none">
-          Welcome to the<br /><span className="text-accent">COMPETE</span>
+          Welcome to the<br /><span className="text-accent">Birdies League</span>
         </h1>
       </div>
     </section>
@@ -64,8 +64,8 @@ const MarketingLeague = () => (
     <section className="py-20">
       <div className="container mx-auto px-4 max-w-3xl text-center">
         <p className="text-lg text-foreground/80 leading-relaxed mb-8">
-          The COMPETE is the ultimate place to be for golfers looking to show off their skills. Every member gets
-          access to our own club, creating a great community and healthy competition. It's competitive, social, and the
+          The Birdies League is the ultimate place to be for golfers looking to show off their skills. A perk of Birdie
+          and Eagle membership, it creates a great community and healthy competition. It's competitive, social, and the
           best way to get more out of every swing.
         </p>
         <a

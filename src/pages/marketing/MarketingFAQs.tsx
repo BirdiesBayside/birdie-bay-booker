@@ -24,13 +24,14 @@ const groups = [
     items: [
       { q: "What memberships are available?", a: "We offer three weekly plans: Weekday ($15), Birdie ($27) and Eagle ($35). All include discounted bay rates and no lock-in contracts." },
       { q: "Can I cancel any time?", a: "Yes — all memberships can be cancelled at any time. We don't refund the most recent weekly payment." },
-      { q: "What's the difference between Birdie and Eagle?", a: "Eagle members get a lower hourly rate ($8 vs $10) and priority booking. Both include COMPETE access." },
+      { q: "What's the difference between Birdie and Eagle?", a: "Eagle members get a lower hourly rate ($8 vs $10) and priority booking. Both tiers include access to the Birdies League." },
+      { q: "Can Weekday members join competitions?", a: "Yes — Weekday members can join our Wednesday local comp. The full Birdies League season is a perk reserved for Birdie and Eagle members." },
     ],
   },
   {
-    section: "COMPETE",
+    section: "Birdies League",
     items: [
-      { q: "What is the COMPETE?", a: "A members-only golf sim league with weekly tournament rounds, leaderboards, competitions and prizes." },
+      { q: "What is the Birdies League?", a: "A members-only golf sim league with weekly tournament rounds, leaderboards, competitions and prizes. Access is included with Birdie and Eagle memberships." },
       { q: "How do I play?", a: "Once you've created an SGT account, your name is synced to every bay. Hit ONLINE MATCH, choose your name, and play your weekly rounds whenever suits you." },
       { q: "Are there prizes?", a: "Yes — we work with local businesses and run a monthly medal prize alongside ad-hoc giveaways." },
     ],

@@ -1,8 +1,8 @@
 import { Link } from "react-router-dom";
 import MarketingLayout from "@/components/marketing/MarketingLayout";
 import { Clock, DollarSign, Trophy, Target, ArrowRight } from "lucide-react";
+import heroVideo from "@/assets/hero-video.mov.asset.json";
 
-const HERO_IMG = "https://birdiesbayside.com.au/cdn/shop/files/SCR-20250731-rnts.jpg?v=1753956652&width=3840";
 const SIM_IMG = "https://birdiesbayside.com.au/cdn/shop/files/SCR-20250731-romi.jpg?v=1753956777&width=3840";
 const COMMUNITY_IMG = "https://birdiesbayside.com.au/cdn/shop/files/Birdies_Golf.jpg?v=1751956878&width=3840";
 
@@ -10,7 +10,7 @@ const features = [
   { icon: Target, title: "High-Tech Simulators", body: "Tour-accurate launch data, 4K graphics and 1,700+ world-famous courses." },
   { icon: Clock, title: "Flexible 5am - 11pm Access", body: "Six fully automated bays — book any time, play any time." },
   { icon: DollarSign, title: "Affordable Memberships", body: "From $15/week. The more you play, the more you save." },
-  { icon: Trophy, title: "Competitions & League", body: "Compete with other members in The COMPETE for prizes." },
+  { icon: Trophy, title: "Competitions & League", body: "Birdie & Eagle members get access to the Birdies League. Weekday members can still jump into our Wednesday local comp." },
 ];
 
 const MarketingHome = () => {
@@ -18,9 +18,13 @@ const MarketingHome = () => {
     <MarketingLayout>
       {/* HERO */}
       <section className="relative h-[88vh] min-h-[560px] flex items-center overflow-hidden">
-        <div
-          className="absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: `url(${HERO_IMG})` }}
+        <video
+          src={heroVideo.url}
+          autoPlay
+          muted
+          loop
+          playsInline
+          className="absolute inset-0 w-full h-full object-cover"
         />
         <div className="absolute inset-0 bg-gradient-to-r from-primary/90 via-primary/70 to-primary/20" />
         <div className="relative container mx-auto px-4 max-w-5xl">
@@ -122,8 +126,8 @@ const MarketingHome = () => {
           </div>
           <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
             <PriceCard tier="Weekday" rate="$10/hr" price="$15" tag="Mon–Thu before 4pm" perks={["Cancel anytime", "Peak charged at visitor rate"]} />
-            <PriceCard tier="Birdie" rate="$10/hr" price="$27" tag="Most popular" highlight perks={["Play anytime", "COMPETE access", "Cancel anytime"]} />
-            <PriceCard tier="Eagle" rate="$8/hr" price="$35" tag="Best value per round" perks={["Play anytime", "COMPETE access", "Priority booking"]} />
+            <PriceCard tier="Birdie" rate="$10/hr" price="$27" tag="Most popular" highlight perks={["Play anytime", "Birdies League access", "Cancel anytime"]} />
+            <PriceCard tier="Eagle" rate="$8/hr" price="$35" tag="Best value per round" perks={["Play anytime", "Birdies League access", "Priority booking"]} />
           </div>
           <p className="text-center text-foreground/60 text-sm mt-8">
             Visitor pricing: Peak $35/hr (Fri–Sun & Mon–Thu 4pm+) · Off-Peak $30/hr (Mon–Thu before 4pm)
@@ -143,7 +147,7 @@ const MarketingHome = () => {
             Become a Member Today.
           </h2>
           <p className="text-primary-foreground/85 text-lg mb-8">
-            Join Birdies and get unlimited access to premium simulators, the COMPETE, and a great local community.
+            Join Birdies and get unlimited access to premium simulators, the Birdies League, and a great local community.
           </p>
           <a
             href="https://hub.birdiesbayside.com.au/"
