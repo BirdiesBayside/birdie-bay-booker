@@ -2,6 +2,9 @@ import { Link } from "react-router-dom";
 import { Phone, Mail, MapPin, Facebook, Instagram } from "lucide-react";
 import birdiesLogo from "@/assets/birdies-logo.png";
 
+const APP_STORE_BADGE_URL =
+  "https://tools.applemediaservices.com/api/badges/download-on-the-app-store/white/en-au?size=250x83";
+
 const SiteFooter = () => {
   return (
     <footer className="bg-primary text-primary-foreground mt-20">
