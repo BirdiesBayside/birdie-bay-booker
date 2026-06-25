@@ -21,13 +21,16 @@ const isPlayActive = (pathname: string) =>
 const SiteHeader = () => {
   const [open, setOpen] = useState(false);
   const [playOpen, setPlayOpen] = useState(false);
+  const [mobilePlayOpen, setMobilePlayOpen] = useState(false);
   const playRef = useRef<HTMLDivElement>(null);
   const { pathname } = useLocation();
 
   useEffect(() => {
     setOpen(false);
     setPlayOpen(false);
+    setMobilePlayOpen(false);
   }, [pathname]);
+
 
   useEffect(() => {
     document.body.style.overflow = open ? "hidden" : "";
