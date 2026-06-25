@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Menu, X, ChevronDown } from "lucide-react";
 import birdiesLogo from "@/assets/birdies-logo.png";
@@ -16,13 +16,18 @@ const topNav = [
   { to: "/gift", label: "Gift cards" },
 ];
 
+const isPlayActive = (pathname: string) =>
+  playLinks.some((l) => l.to === pathname);
+
 const SiteHeader = () => {
   const [open, setOpen] = useState(false);
   const [playOpen, setPlayOpen] = useState(false);
+  const playRef = useRef<HTMLDivElement>(null);
   const { pathname } = useLocation();
 
   useEffect(() => {
     setOpen(false);
+    setPlayOpen(false);
   }, [pathname]);
 
   useEffect(() => {
@@ -31,6 +36,17 @@ const SiteHeader = () => {
       document.body.style.overflow = "";
     };
   }, [open]);
+
+  // Close PLAY dropdown when clicking outside
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (playRef.current && !playRef.current.contains(e.target as Node)) {
+        setPlayOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
 
   return (
     <header className="sticky top-0 z-50 bg-primary text-primary-foreground shadow-sm">
@@ -57,7 +73,34 @@ const SiteHeader = () => {
 
         {/* Desktop: full nav */}
         <nav className="hidden lg:flex items-center gap-6 xl:gap-7">
-          {nav.map((n) => {
+          {/* PLAY dropdown */}
+          <div ref={playRef} className="relative">
+            <button
+              onClick={() => setPlayOpen((p) => !p)}
+              className={`font-display tracking-wide text-sm uppercase transition-colors whitespace-nowrap flex items-center gap-1 ${
+                isPlayActive(pathname) ? "text-accent" : "text-primary-foreground hover:text-accent"
+              }`}
+            >
+              PLAY <ChevronDown className={`h-3.5 w-3.5 transition-transform ${playOpen ? "rotate-180" : ""}`} />
+            </button>
+            {playOpen && (
+              <div className="absolute top-full left-0 mt-2 w-48 bg-primary border border-primary-foreground/10 rounded-md shadow-xl py-1 z-50">
+                {playLinks.map((l) => (
+                  <Link
+                    key={l.to}
+                    to={l.to}
+                    className={`block px-4 py-2.5 text-sm font-display tracking-wide uppercase transition-colors ${
+                      pathname === l.to ? "text-accent" : "text-primary-foreground hover:text-accent"
+                    }`}
+                  >
+                    {l.label}
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {topNav.map((n) => {
             const active = pathname === n.to;
             return (
               <Link
@@ -114,7 +157,35 @@ const SiteHeader = () => {
             </button>
           </div>
           <nav className="flex flex-col px-4 py-4 gap-1">
-            {nav.map((n) => (
+            {/* PLAY expandable */}
+            <div>
+              <button
+                onClick={() => setPlayOpen((p) => !p)}
+                className={`w-full flex items-center justify-between font-display tracking-wide uppercase py-3 border-b border-primary-foreground/10 ${
+                  isPlayActive(pathname) ? "text-accent" : "text-primary-foreground"
+                }`}
+              >
+                <span>PLAY</span>
+                <ChevronDown className={`h-4 w-4 transition-transform ${playOpen ? "rotate-180" : ""}`} />
+              </button>
+              {playOpen && (
+                <div className="pl-4 flex flex-col gap-1">
+                  {playLinks.map((l) => (
+                    <Link
+                      key={l.to}
+                      to={l.to}
+                      className={`font-display tracking-wide uppercase py-2 text-sm ${
+                        pathname === l.to ? "text-accent" : "text-primary-foreground/80"
+                      }`}
+                    >
+                      {l.label}
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {topNav.map((n) => (
               <Link
                 key={n.to}
                 to={n.to}
