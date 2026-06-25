@@ -39,10 +39,10 @@ const MarketingHome = () => {
             Experience world-class indoor golf. Play, practice and compete, rain or shine.
             Visitors welcome.
           </p>
-          <div className="mt-8 flex flex-wrap gap-3">
+          <div className="mt-8 flex flex-col items-start gap-3">
             <a
               href="https://hub.birdiesbayside.com.au/"
-              className="bg-accent hover:bg-accent/90 text-accent-foreground font-display tracking-wide uppercase px-7 py-4 rounded-md inline-flex items-center gap-2 transition-all hover:translate-x-0.5"
+              className="bg-accent hover:bg-accent/90 text-accent-foreground font-display tracking-wide uppercase px-7 h-12 rounded-md inline-flex items-center justify-center gap-2 transition-all hover:translate-x-0.5"
             >
               Book Now <ArrowRight className="h-4 w-4" />
             </a>
