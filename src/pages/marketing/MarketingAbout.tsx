@@ -6,7 +6,7 @@ const HERO = "https://birdiesbayside.com.au/cdn/shop/files/Birdies_Golf.jpg?v=17
 
 const MarketingAbout = () => (
   <MarketingLayout>
-    <section className="relative h-[34vh] min-h-[220px] flex items-end overflow-hidden">
+    <section className="relative h-[17vh] min-h-[110px] flex items-end overflow-hidden">
       <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${HERO})` }} />
       <div className="absolute inset-0 bg-gradient-to-t from-primary via-primary/70 to-primary/30" />
       <div className="relative container mx-auto px-4 pb-8">
