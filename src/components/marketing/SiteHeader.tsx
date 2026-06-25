@@ -13,7 +13,7 @@ const topNav = [
   { to: "/compete-info", label: "COMPETE" },
   { to: "/membership-info", label: "JOIN" },
   { to: "/gift", label: "Gift cards" },
-  { to: "/contact-info", label: "Contact" },
+  { to: "/contact", label: "Contact" },
 ];
 
 const isPlayActive = (pathname: string) =>
