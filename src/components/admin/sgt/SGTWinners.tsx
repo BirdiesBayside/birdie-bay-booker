@@ -138,7 +138,7 @@ const DEFAULT_MONTHLY_EMAIL_TEMPLATE = `<!doctype html>
             <a href="https://www.instagram.com/birdiesbayside" style="margin:0 8px; text-decoration:none;">
               <img src="https://cdn-icons-png.flaticon.com/512/174/174855.png" alt="Instagram" width="28" height="28" style="display:inline-block; border:0;" />
             </a>
-            <a href="https://www.facebook.com/share/17NifCh2vH/" style="margin:0 8px; text-decoration:none;">
+            <a href="https://www.facebook.com/p/Birdies-Bayside-61577186327753/" style="margin:0 8px; text-decoration:none;">
               <img src="https://cdn-icons-png.flaticon.com/512/174/174848.png" alt="Facebook" width="28" height="28" style="display:inline-block; border:0;" />
             </a>
           </td>

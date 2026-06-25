@@ -13,7 +13,7 @@ const SiteFooter = () => {
           </p>
           <div className="flex gap-3 mt-5">
             <a
-              href="https://www.facebook.com/share/1BtmvKBthA/?mibextid=wwXIfr"
+              href="https://www.facebook.com/p/Birdies-Bayside-61577186327753/"
               target="_blank"
               rel="noreferrer"
               aria-label="Facebook"
