@@ -162,15 +162,15 @@ const SiteHeader = () => {
             {/* PLAY expandable */}
             <div>
               <button
-                onClick={() => setPlayOpen((p) => !p)}
+                onClick={() => setMobilePlayOpen((p) => !p)}
                 className={`w-full flex items-center justify-between font-display tracking-wide uppercase py-3 border-b border-primary-foreground/10 ${
                   isPlayActive(pathname) ? "text-accent" : "text-primary-foreground"
                 }`}
               >
                 <span>PLAY</span>
-                <ChevronDown className={`h-4 w-4 transition-transform ${playOpen ? "rotate-180" : ""}`} />
+                <ChevronDown className={`h-4 w-4 transition-transform ${mobilePlayOpen ? "rotate-180" : ""}`} />
               </button>
-              {playOpen && (
+              {mobilePlayOpen && (
                 <div className="pl-4 flex flex-col gap-1">
                   {playLinks.map((l) => (
                     <Link
@@ -186,6 +186,7 @@ const SiteHeader = () => {
                 </div>
               )}
             </div>
+
 
             {topNav.map((n) => (
               <Link
