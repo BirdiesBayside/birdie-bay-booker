@@ -91,15 +91,39 @@ function GiftContent() {
           delivery_method: deliveryMethod,
         },
       });
-      if (error) throw error;
+
+      // Extract the real error message from the edge function response body.
+      // supabase.functions.invoke() only surfaces a generic "non-2xx" message,
+      // so we parse error.context (the underlying Response) to get specifics.
+      if (error) {
+        let detailedMessage = "";
+        try {
+          const ctx: any = (error as any).context;
+          if (ctx && typeof ctx.json === "function") {
+            const body = await ctx.json();
+            detailedMessage = body?.error || body?.message || "";
+          } else if (ctx && typeof ctx.text === "function") {
+            detailedMessage = await ctx.text();
+          }
+        } catch {
+          /* ignore parse failure */
+        }
+        throw new Error(detailedMessage || error.message || "Failed to start checkout");
+      }
+
+      if (data?.error) throw new Error(data.error);
       if (data?.url) {
+        toast.success("Redirecting to secure checkout…");
         window.location.href = data.url;
       } else {
-        throw new Error(data?.error || "No checkout URL returned");
+        throw new Error("No checkout URL returned. Please try again.");
       }
     } catch (err: any) {
-      console.error(err);
-      toast.error(err.message || "Failed to start checkout");
+      console.error("[gift checkout]", err);
+      toast.error(err.message || "Failed to start checkout", {
+        description: "If this keeps happening, please contact us at sales@baysidegolf.com.au.",
+        duration: 8000,
+      });
       setSubmitting(false);
     }
   };
