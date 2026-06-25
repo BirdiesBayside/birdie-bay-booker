@@ -50,7 +50,7 @@ const MarketingHome = () => {
               to="/membership-info"
               className="bg-primary-foreground/10 backdrop-blur hover:bg-primary-foreground/20 text-primary-foreground border border-primary-foreground/30 font-display tracking-wide uppercase px-7 py-4 rounded-md"
             >
-              Membership Info
+              Join
             </Link>
           </div>
         </div>
