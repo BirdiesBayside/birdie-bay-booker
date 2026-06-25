@@ -46,12 +46,17 @@ const MarketingHome = () => {
             >
               Book Now <ArrowRight className="h-4 w-4" />
             </a>
-            <Link
-              to="/about"
-              className="bg-primary-foreground/10 backdrop-blur hover:bg-primary-foreground/20 text-primary-foreground border border-primary-foreground/30 font-display tracking-wide uppercase px-7 py-4 rounded-md"
+            <a
+              href="https://apps.apple.com/au/app/birdies-hub/id6758370714"
+              target="_blank"
+              rel="noopener noreferrer"
             >
-              Learn More
-            </Link>
+              <img
+                src="https://tools.applemediaservices.com/api/badges/download-on-the-app-store/white/en-au?size=250x83"
+                alt="Download on the App Store"
+                className="h-12 w-auto rounded-md"
+              />
+            </a>
           </div>
         </div>
       </section>
