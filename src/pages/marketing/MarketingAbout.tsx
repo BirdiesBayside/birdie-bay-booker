@@ -13,7 +13,7 @@ const highlights = [
   {
     icon: Monitor,
     title: "Top of the Range Tech",
-    body: "Tour-accurate launch data, 4K visuals, and 1,700+ world-famous courses.",
+    body: "Tour-accurate launch data, 4K visuals, and 2,300+ world-famous courses.",
   },
   {
     icon: BadgePercent,
