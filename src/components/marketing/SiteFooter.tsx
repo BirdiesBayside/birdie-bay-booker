@@ -37,9 +37,17 @@ const SiteFooter = () => {
           <h3 className="font-display tracking-wide uppercase text-accent mb-4">Explore</h3>
           <ul className="space-y-2 text-sm">
             <li><Link to="/about" className="hover:text-accent transition-colors">About Us</Link></li>
-            <li><Link to="/membership-info" className="hover:text-accent transition-colors">Membership</Link></li>
-            <li><Link to="/compete-info" className="hover:text-accent transition-colors">Compete</Link></li>
+            <li><Link to="/staffed-hours" className="hover:text-accent transition-colors">Staffed Hours</Link></li>
+            <li><Link to="/gate-access" className="hover:text-accent transition-colors">Gate Access</Link></li>
             <li><Link to="/faqs" className="hover:text-accent transition-colors">FAQs</Link></li>
+          </ul>
+        </div>
+
+        <div>
+          <h3 className="font-display tracking-wide uppercase text-accent mb-4">Join</h3>
+          <ul className="space-y-2 text-sm">
+            <li><Link to="/membership-info" className="hover:text-accent transition-colors">Membership Plans</Link></li>
+            <li><Link to="/compete-info" className="hover:text-accent transition-colors">Compete</Link></li>
             <li><Link to="/gift" className="hover:text-accent transition-colors">Gift Cards</Link></li>
           </ul>
         </div>
