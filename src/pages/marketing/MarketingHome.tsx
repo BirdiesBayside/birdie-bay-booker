@@ -47,10 +47,10 @@ const MarketingHome = () => {
               Book Now <ArrowRight className="h-4 w-4" />
             </a>
             <Link
-              to="/membership-info"
+              to="/about"
               className="bg-primary-foreground/10 backdrop-blur hover:bg-primary-foreground/20 text-primary-foreground border border-primary-foreground/30 font-display tracking-wide uppercase px-7 py-4 rounded-md"
             >
-              Join
+              Learn More
             </Link>
           </div>
         </div>
