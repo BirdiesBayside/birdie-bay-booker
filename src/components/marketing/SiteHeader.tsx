@@ -1,20 +1,24 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Menu, X } from "lucide-react";
+import { Menu, X, ChevronDown } from "lucide-react";
 import birdiesLogo from "@/assets/birdies-logo.png";
 
-const nav = [
-  { to: "/", label: "Home" },
+const playLinks = [
   { to: "/about", label: "About" },
-  { to: "/membership-info", label: "Membership" },
-  { to: "/compete-info", label: "COMPETE" },
-  { to: "/contact", label: "Contact" },
+  { to: "/staffed-hours", label: "Staffed Hours" },
+  { to: "/gate-access", label: "Gate Access" },
   { to: "/faqs", label: "FAQs" },
-  { to: "/gift", label: "Gift Cards" },
+];
+
+const topNav = [
+  { to: "/compete-info", label: "COMPETE" },
+  { to: "/membership-info", label: "JOIN" },
+  { to: "/gift", label: "Gift cards" },
 ];
 
 const SiteHeader = () => {
   const [open, setOpen] = useState(false);
+  const [playOpen, setPlayOpen] = useState(false);
   const { pathname } = useLocation();
 
   useEffect(() => {
