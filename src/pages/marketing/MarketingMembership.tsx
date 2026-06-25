@@ -131,7 +131,7 @@ const MarketingMembership = () => (
           Not ready to commit? Just pay to play.
         </h2>
         <p className="text-foreground/80 text-lg mb-10">
-          We welcome Pay As You Go sessions at Birdies, same premium golf, no commitment, same easy booking and access platform as members.
+          We welcome Pay As You Go sessions at Birdies, same premium golf, no commitment, same easy booking and access platform as members. Bay pricing covers up to 4 players.
         </p>
         <div className="grid sm:grid-cols-2 gap-6 max-w-2xl mx-auto">
           <div className="bg-card border border-border rounded-xl p-7">

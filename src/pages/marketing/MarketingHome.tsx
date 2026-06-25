@@ -130,7 +130,7 @@ const MarketingHome = () => {
             <PriceCard tier="Eagle" rate="$8/hr" price="$35" tag="Best value per round" perks={["Play anytime", "Birdies League access", "Priority booking"]} />
           </div>
           <p className="text-center text-foreground/60 text-sm mt-8">
-            Visitor pricing: Peak $35/hr (Fri,Sun & Mon,Thu 4pm+) · Off-Peak $30/hr (Mon,Thu before 4pm)
+            Visitor pricing: Peak $35/hr (Fri,Sun & Mon,Thu 4pm+) · Off-Peak $30/hr (Mon,Thu before 4pm) — per bay, up to 4 players
           </p>
         </div>
       </section>
