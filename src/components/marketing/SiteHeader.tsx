@@ -6,7 +6,6 @@ import birdiesLogo from "@/assets/birdies-logo.png";
 const playLinks = [
   { to: "/about", label: "About" },
   { to: "/staffed-hours", label: "Staffed Hours" },
-  { to: "/gate-access", label: "Gate Access" },
   { to: "/faqs", label: "FAQs" },
 ];
 
