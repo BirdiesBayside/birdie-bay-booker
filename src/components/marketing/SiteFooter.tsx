@@ -5,7 +5,7 @@ import birdiesLogo from "@/assets/birdies-logo.png";
 const SiteFooter = () => {
   return (
     <footer className="bg-primary text-primary-foreground mt-20">
-      <div className="container mx-auto px-4 py-14 grid gap-10 md:grid-cols-4">
+      <div className="container mx-auto px-4 py-14 grid gap-10 md:grid-cols-5">
         <div className="md:col-span-1">
           <img src={birdiesLogo} alt="Birdies" className="h-14 mb-4" />
           <p className="text-primary-foreground/70 text-sm leading-relaxed">
