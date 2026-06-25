@@ -7,7 +7,7 @@ const SIM_IMG = "https://birdiesbayside.com.au/cdn/shop/files/SCR-20250731-romi.
 const COMMUNITY_IMG = "https://birdiesbayside.com.au/cdn/shop/files/Birdies_Golf.jpg?v=1751956878&width=3840";
 
 const features = [
-  { icon: Target, title: "High-Tech Simulators", body: "Tour-accurate launch data, 4K graphics and 1,700+ world-famous courses." },
+  { icon: Target, title: "High-Tech Simulators", body: "Tour-accurate launch data, 4K graphics and 2,300+ world-famous courses." },
   { icon: Clock, title: "Flexible 5am - 11pm Access", body: "Six fully automated bays, book any time, play any time." },
   { icon: DollarSign, title: "Affordable Memberships", body: "From $15/week. The more you play, the more you save." },
   { icon: Trophy, title: "Competitions & League", body: "Birdie & Eagle members get access to the Birdies League. Weekday members can still jump into our Wednesday local comp." },
