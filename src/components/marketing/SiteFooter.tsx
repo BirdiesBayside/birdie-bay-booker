@@ -38,7 +38,6 @@ const SiteFooter = () => {
           <ul className="space-y-2 text-sm">
             <li><Link to="/about" className="hover:text-accent transition-colors">About Us</Link></li>
             <li><Link to="/staffed-hours" className="hover:text-accent transition-colors">Staffed Hours</Link></li>
-            <li><Link to="/gate-access" className="hover:text-accent transition-colors">Gate Access</Link></li>
             <li><Link to="/faqs" className="hover:text-accent transition-colors">FAQs</Link></li>
           </ul>
         </div>
