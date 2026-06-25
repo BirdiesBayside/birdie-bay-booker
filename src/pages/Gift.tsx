@@ -357,3 +357,14 @@ function GiftContent() {
     </div>
   );
 }
+
+export default function Gift() {
+  if (isHubHost()) {
+    return <GiftContent />;
+  }
+  return (
+    <MarketingLayout>
+      <GiftContent />
+    </MarketingLayout>
+  );
+}
