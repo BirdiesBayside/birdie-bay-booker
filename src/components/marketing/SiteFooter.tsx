@@ -54,9 +54,10 @@ const SiteFooter = () => {
         </div>
 
         <div>
-          <h3 className="font-display tracking-wide uppercase text-accent mb-4">Members</h3>
+          <h3 className="font-display tracking-wide uppercase text-accent mb-4">Play</h3>
           <p className="text-sm text-primary-foreground/85 mb-4">
-            Book bays, view scores and manage your membership in The Birdies Hub.
+            Book and manage your sessions, become a member, all in The Birdies Hub.
+
           </p>
           <a
             href="https://hub.birdiesbayside.com.au/"
