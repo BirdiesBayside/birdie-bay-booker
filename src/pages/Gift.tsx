@@ -12,12 +12,18 @@ import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
-import birdieLogo from "@/assets/birdies-logo.png";
+import MarketingLayout from "@/components/marketing/MarketingLayout";
 
 const PRESET_AMOUNTS = [35, 70, 105, 175, 350];
 type DeliveryMethod = "email_recipient" | "print_to_sender" | "both";
 
-export default function Gift() {
+const isHubHost = () => {
+  if (typeof window === "undefined") return false;
+  const h = window.location.hostname;
+  return h.startsWith("hub.") || h === "hub.birdiesbayside.com.au";
+};
+
+function GiftContent() {
   const [params] = useSearchParams();
   const success = params.get("success") === "1";
   const cancelled = params.get("cancelled") === "1";
@@ -100,7 +106,7 @@ export default function Gift() {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-[#FFF5E4] flex items-center justify-center p-4">
+      <div className="min-h-[60vh] flex items-center justify-center p-4">
         <Card className="p-8 text-center max-w-md bg-white border-[#1F4C25]/15">
           <div className="h-16 w-16 bg-[#1F4C25] rounded-full flex items-center justify-center mx-auto mb-5">
             <Check className="h-9 w-9 text-[#EC622D]" />
@@ -120,14 +126,7 @@ export default function Gift() {
   }
 
   return (
-    <div className="min-h-screen bg-[#FFF5E4]">
-      {/* Header */}
-      <header className="bg-[#1F4C25] py-5 px-4">
-        <div className="max-w-2xl mx-auto flex items-center justify-center">
-          <img src={birdieLogo} alt="Birdies Bayside" className="h-10" />
-        </div>
-      </header>
-
+    <div className="bg-[#FFF5E4]">
       <main className="max-w-2xl mx-auto px-4 py-8 pb-16">
         <div className="text-center mb-8">
           <div className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-[#EC622D]/10 mb-3">
