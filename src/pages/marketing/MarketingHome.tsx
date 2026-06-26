@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import MarketingLayout from "@/components/marketing/MarketingLayout";
-import { Clock, DollarSign, Trophy, Target, ArrowRight } from "lucide-react";
+import { Check, Clock, DollarSign, Trophy, Target, ArrowRight } from "lucide-react";
 import heroVideo from "@/assets/hero-video.mp4.asset.json";
 import heroPoster from "@/assets/hero-poster.jpg.asset.json";
 import simulatorBay from "@/assets/simulator-bay.png.asset.json";
@@ -9,7 +9,7 @@ const COMMUNITY_IMG = "https://cdn.shopify.com/s/files/1/0758/7030/6550/files/Bi
 const features = [
   { icon: Target, title: "High-Tech Simulators", body: "Tour-accurate launch data, 4K graphics and 2,300+ world-famous courses." },
   { icon: Clock, title: "Flexible 5am - 11pm Access", body: "Six fully automated bays, book any time, play any time." },
-  { icon: DollarSign, title: "Affordable Memberships", body: "From $15/week. The more you play, the more you save." },
+  { icon: DollarSign, title: "Affordable Memberships", body: "Pay a simple weekly fee to unlock your member hourly rate." },
   { icon: Trophy, title: "Competitions & League", body: "Birdie & Eagle members get access to the Birdies League. Weekday members can still jump into our Wednesday local comp." },
 ];
 
@@ -132,12 +132,12 @@ const MarketingHome = () => {
             </h2>
           </div>
           <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-            <PriceCard tier="Weekday" rate="$10/hr" price="$15" tag="Mon,Thu before 4pm" perks={["Cancel anytime", "Peak charged at visitor rate"]} />
-            <PriceCard tier="Birdie" rate="$10/hr" price="$27" tag="Most popular" highlight perks={["Play anytime", "Birdies League access", "Cancel anytime"]} />
-            <PriceCard tier="Eagle" rate="$8/hr" price="$35" tag="Best value per round" perks={["Play anytime", "Birdies League access", "Priority booking"]} />
+            <PriceCard tier="Weekday" rate="$10/hr" price="$15" tag="Mon-Thu before 4pm only" perks={["Cancel any time", "Peak times charged at visitor rate"]} />
+            <PriceCard tier="Birdie" rate="$10/hr" price="$27" tag="Most popular" highlight perks={["Play anytime", "Birdies League access", "Cancel any time"]} />
+            <PriceCard tier="Eagle" rate="$8/hr" price="$35" tag="Best value per round" perks={["Play anytime", "Birdies League access", "Priority booking", "Cancel any time"]} />
           </div>
           <p className="text-center text-foreground/60 text-sm mt-8">
-            Visitor pricing: Peak $35/hr (Fri,Sun & Mon,Thu 4pm+) · Off-Peak $30/hr (Mon,Thu before 4pm) — per bay, up to 4 players
+            Visitor pricing: Peak $35/hr (Fri-Sun & Mon-Thu 4pm+) · Off-Peak $30/hr (Mon-Thu before 4pm) — per bay, up to 4 players
           </p>
         </div>
       </section>
@@ -184,10 +184,8 @@ const PriceCard = ({
   highlight?: boolean;
 }) => (
   <div
-    className={`relative rounded-2xl p-7 border transition-all ${
-      highlight
-        ? "bg-primary text-primary-foreground border-accent shadow-xl scale-[1.02]"
-        : "bg-card text-card-foreground border-border hover:shadow-lg"
+    className={`relative rounded-2xl p-7 border transition-all bg-card text-card-foreground hover:shadow-lg ${
+      highlight ? "border-accent ring-2 ring-accent/20" : "border-border"
     }`}
   >
     {highlight && (
@@ -195,28 +193,29 @@ const PriceCard = ({
         Most Popular
       </span>
     )}
-    <p className={`text-xs uppercase tracking-wider mb-2 ${highlight ? "text-accent" : "text-foreground/60"}`}>{tag}</p>
+    <p className="text-xs uppercase tracking-wider mb-2 text-foreground/60">{tag}</p>
     <h3 className="font-display text-3xl uppercase tracking-wide mb-1">{tier}</h3>
-    <p className={`text-sm mb-6 ${highlight ? "text-primary-foreground/70" : "text-foreground/60"}`}>{rate}</p>
+    <div className="mb-5">
+      <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold bg-accent/10 text-accent border border-accent/20">
+        <Clock className="h-3.5 w-3.5" />
+        {rate}
+      </span>
+    </div>
     <div className="mb-6">
       <span className="font-display text-5xl">{price}</span>
-      <span className={`text-sm ${highlight ? "text-primary-foreground/70" : "text-foreground/60"}`}> /week</span>
+      <span className="text-sm text-foreground/60"> /week</span>
     </div>
     <ul className="space-y-2 text-sm mb-6">
       {perks.map((p) => (
         <li key={p} className="flex gap-2">
-          <span className={highlight ? "text-accent" : "text-accent"}>✓</span>
+          <Check className="h-4 w-4 mt-0.5 text-accent shrink-0" />
           <span>{p}</span>
         </li>
       ))}
     </ul>
     <a
       href="https://hub.birdiesbayside.com.au/"
-      className={`block text-center font-display uppercase tracking-wide text-sm px-5 py-3 rounded-md transition-colors ${
-        highlight
-          ? "bg-accent hover:bg-accent/90 text-accent-foreground"
-          : "bg-primary hover:bg-primary/90 text-primary-foreground"
-      }`}
+      className="block text-center font-display uppercase tracking-wide text-sm px-5 py-3 rounded-md transition-colors bg-primary hover:bg-primary/90 text-primary-foreground"
     >
       Join
     </a>
