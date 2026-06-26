@@ -49,7 +49,7 @@ const MarketingWhatsOn = () => {
         </div>
       </section>
 
-      <section className="py-16 sm:py-20">
+      <section className="py-10 sm:py-20">
         <div className="container mx-auto px-4 max-w-5xl">
           <div className="text-center max-w-2xl mx-auto mb-12">
             <p className="text-accent font-display tracking-[0.2em] uppercase text-sm mb-3">Events & Specials</p>
@@ -62,7 +62,7 @@ const MarketingWhatsOn = () => {
           </div>
 
           {loading ? (
-            <div className="flex justify-center py-16">
+            <div className="flex justify-center py-10 sm:py-16">
               <Loader2 className="h-8 w-8 text-accent animate-spin" />
             </div>
           ) : events.length === 0 ? (

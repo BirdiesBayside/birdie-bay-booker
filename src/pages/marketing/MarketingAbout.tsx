@@ -44,7 +44,7 @@ const MarketingAbout = () => (
     </section>
 
     {/* WHAT IS BIRDIES */}
-    <section className="py-16 sm:py-20">
+    <section className="py-10 sm:py-20">
       <div className="container mx-auto px-4 max-w-6xl">
         <div className="text-center max-w-2xl mx-auto mb-12">
           <p className="text-accent font-display tracking-[0.2em] uppercase text-sm mb-3">What We Are</p>
@@ -74,7 +74,7 @@ const MarketingAbout = () => (
     </section>
 
     {/* OUR STORY */}
-    <section className="py-16 sm:py-20 bg-primary text-primary-foreground">
+    <section className="py-10 sm:py-20 bg-primary text-primary-foreground">
       <div className="container mx-auto px-4 grid lg:grid-cols-2 gap-12 items-center max-w-6xl">
         <div>
           <p className="text-accent font-display tracking-[0.2em] uppercase text-sm mb-3">Our Story</p>
@@ -105,7 +105,7 @@ const MarketingAbout = () => (
     </section>
 
     {/* CTA */}
-    <section className="py-20">
+    <section className="py-12 sm:py-20">
       <div className="container mx-auto px-4 text-center max-w-3xl">
         <h2 className="font-display text-3xl sm:text-5xl text-primary leading-tight mb-4">
           Ready to Play?

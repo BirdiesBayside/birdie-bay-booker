@@ -41,7 +41,7 @@ const MarketingMembership = () => (
       </div>
     </section>
 
-    <section className="py-16 sm:py-20">
+    <section className="py-10 sm:py-20">
       <div className="container mx-auto px-4 max-w-3xl text-center">
         <p className="text-lg text-foreground/80 leading-relaxed">
           Become a Birdies member for exclusive access, priority booking and discounted rates.
@@ -96,7 +96,7 @@ const MarketingMembership = () => (
       </div>
     </section>
 
-    <section className="bg-primary text-primary-foreground py-20">
+    <section className="bg-primary text-primary-foreground py-12 sm:py-20">
       <div className="container mx-auto px-4 grid md:grid-cols-2 gap-10 max-w-5xl">
         <div className="bg-primary-foreground/5 border border-primary-foreground/10 rounded-xl p-8">
           <Sparkles className="h-8 w-8 text-accent mb-4" />
@@ -124,7 +124,7 @@ const MarketingMembership = () => (
       </div>
     </section>
 
-    <section className="py-20">
+    <section className="py-12 sm:py-20">
       <div className="container mx-auto px-4 max-w-4xl text-center">
         <p className="text-accent font-display tracking-[0.2em] uppercase text-sm mb-3">Pay As You Go</p>
         <h2 className="font-display text-4xl sm:text-5xl text-primary leading-tight mb-4">

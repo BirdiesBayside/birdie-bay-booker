@@ -61,7 +61,7 @@ const MarketingLeague = () => (
       </div>
     </section>
 
-    <section className="py-20">
+    <section className="py-12 sm:py-20">
       <div className="container mx-auto px-4 max-w-3xl text-center">
         <p className="text-lg text-foreground/80 leading-relaxed mb-8">
           The Birdies League is the ultimate place to be for golfers looking to show off their skills. A perk of Birdie
@@ -77,7 +77,7 @@ const MarketingLeague = () => (
       </div>
     </section>
 
-    <section className="bg-primary text-primary-foreground py-20">
+    <section className="bg-primary text-primary-foreground py-12 sm:py-20">
       <div className="container mx-auto px-4 grid sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl">
         {features.map((f) => (
           <div key={f.title} className="bg-primary-foreground/5 border border-primary-foreground/10 rounded-xl p-6">
@@ -91,7 +91,7 @@ const MarketingLeague = () => (
       </div>
     </section>
 
-    <section className="py-20">
+    <section className="py-12 sm:py-20">
       <div className="container mx-auto px-4 max-w-3xl">
         <p className="text-accent font-display tracking-[0.2em] uppercase text-sm mb-3 text-center">How does it work?</p>
         <h2 className="font-display text-4xl sm:text-5xl text-primary text-center leading-tight mb-12">
