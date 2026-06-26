@@ -7,8 +7,8 @@ const APP_STORE_BADGE_URL =
 const SiteFooter = () => {
   return (
     <footer className="bg-primary text-primary-foreground mt-20">
-      <div className="container mx-auto px-4 py-14 grid gap-10 md:grid-cols-5">
-        <div className="md:col-span-1">
+      <div className="container mx-auto px-4 py-14 grid gap-10 md:grid-cols-3">
+        <div>
           <img src={birdiesLogo} alt="Birdies" className="h-14 mb-4" />
           <p className="text-primary-foreground/70 text-sm leading-relaxed">
             Redland Bay's premier indoor golf centre. Play, practice and compete, rain or shine.
@@ -48,24 +48,6 @@ const SiteFooter = () => {
         </div>
 
         <div>
-          <h3 className="font-display tracking-wide uppercase text-accent mb-4">Explore</h3>
-          <ul className="space-y-2 text-sm">
-            <li><Link to="/about" className="hover:text-accent transition-colors">About Us</Link></li>
-            <li><Link to="/staffed-hours" className="hover:text-accent transition-colors">Staffed Hours</Link></li>
-            <li><Link to="/faqs" className="hover:text-accent transition-colors">FAQs</Link></li>
-          </ul>
-        </div>
-
-        <div>
-          <h3 className="font-display tracking-wide uppercase text-accent mb-4">Join</h3>
-          <ul className="space-y-2 text-sm">
-            <li><Link to="/membership-info" className="hover:text-accent transition-colors">Membership Plans</Link></li>
-            <li><Link to="/compete-info" className="hover:text-accent transition-colors">Compete</Link></li>
-            <li><Link to="/gift" className="hover:text-accent transition-colors">Gift Cards</Link></li>
-          </ul>
-        </div>
-
-        <div>
           <h3 className="font-display tracking-wide uppercase text-accent mb-4">Visit</h3>
           <ul className="space-y-3 text-sm text-primary-foreground/85">
             <li className="flex gap-3"><MapPin className="h-4 w-4 mt-0.5 shrink-0 text-accent" /><span>Unit 2, 86 Jardine Drive, Redland Bay QLD 4165</span></li>
@@ -78,7 +60,6 @@ const SiteFooter = () => {
           <h3 className="font-display tracking-wide uppercase text-accent mb-4">Play</h3>
           <p className="text-sm text-primary-foreground/85 mb-4">
             Book and manage your sessions, become a member, all in The Birdies Hub.
-
           </p>
           <a
             href="https://hub.birdiesbayside.com.au/"
