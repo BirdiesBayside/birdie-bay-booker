@@ -1,5 +1,5 @@
 import MarketingLayout from "@/components/marketing/MarketingLayout";
-import { ArrowRight, Check, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowRight, Check, Clock, ShieldCheck, Sparkles } from "lucide-react";
 
 const HERO = "https://cdn.shopify.com/s/files/1/0758/7030/6550/files/Birdies_Golf.jpg?v=1751956878&width=3840";
 
@@ -8,7 +8,7 @@ const tiers = [
     name: "Weekday",
     price: "$15",
     rate: "$10/hr",
-    tag: "Mon,Thu before 4pm only",
+    tag: "Mon-Thu before 4pm only",
     perks: ["Cancel any time", "Peak times charged at visitor rate"],
   },
   {
@@ -68,7 +68,12 @@ const MarketingMembership = () => (
             )}
             <p className={`text-xs uppercase tracking-wider mb-2 ${t.highlight ? "text-accent" : "text-foreground/60"}`}>{t.tag}</p>
             <h3 className="font-display text-4xl uppercase tracking-wide mb-1">{t.name}</h3>
-            <p className={`text-sm mb-6 ${t.highlight ? "text-primary-foreground/70" : "text-foreground/60"}`}>{t.rate}</p>
+            <div className="mb-5">
+              <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold ${t.highlight ? "bg-accent text-accent-foreground" : "bg-accent/10 text-accent border border-accent/20"}`}>
+                <Clock className="h-3.5 w-3.5" />
+                {t.rate}
+              </span>
+            </div>
             <div className="mb-6">
               <span className="font-display text-6xl">{t.price}</span>
               <span className={`text-sm ${t.highlight ? "text-primary-foreground/70" : "text-foreground/60"}`}> /week</span>
@@ -137,12 +142,12 @@ const MarketingMembership = () => (
           <div className="bg-card border border-border rounded-xl p-7">
             <p className="text-sm uppercase tracking-wider text-foreground/60 mb-2">Off-Peak</p>
             <p className="font-display text-5xl text-primary">$30<span className="text-lg text-foreground/60">/hr</span></p>
-            <p className="text-sm text-foreground/60 mt-2">Mon,Thu before 4pm</p>
+            <p className="text-sm text-foreground/60 mt-2">Mon-Thu before 4pm</p>
           </div>
           <div className="bg-primary text-primary-foreground rounded-xl p-7">
             <p className="text-sm uppercase tracking-wider text-accent mb-2">Peak</p>
             <p className="font-display text-5xl">$35<span className="text-lg text-primary-foreground/70">/hr</span></p>
-            <p className="text-sm text-primary-foreground/70 mt-2">Fri,Sun & Mon,Thu 4pm+</p>
+            <p className="text-sm text-primary-foreground/70 mt-2">Fri-Sun & Mon-Thu 4pm+</p>
           </div>
         </div>
       </div>
