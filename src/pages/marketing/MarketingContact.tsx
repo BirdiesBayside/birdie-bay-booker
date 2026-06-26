@@ -1,8 +1,8 @@
 import MarketingLayout from "@/components/marketing/MarketingLayout";
 import { Phone, Mail, MapPin } from "lucide-react";
 
-const HERO = "https://birdiesbayside.com.au/cdn/shop/files/Birdies_Golf.jpg?v=1751956878&width=3840";
-const MAP_IMG = "https://birdiesbayside.com.au/cdn/shop/files/WE_ARE_HERE.png?v=1755590019&width=3840";
+const HERO = "https://cdn.shopify.com/s/files/1/0758/7030/6550/files/Birdies_Golf.jpg?v=1751956878&width=3840";
+const MAP_IMG = "https://cdn.shopify.com/s/files/1/0758/7030/6550/files/WE_ARE_HERE.png?v=1755590019&width=3840";
 
 const MarketingContact = () => (
   <MarketingLayout>

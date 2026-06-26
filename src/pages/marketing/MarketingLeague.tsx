@@ -2,7 +2,7 @@ import MarketingLayout from "@/components/marketing/MarketingLayout";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Globe, CalendarDays, Zap, Trophy, ArrowRight } from "lucide-react";
 
-const HERO = "https://birdiesbayside.com.au/cdn/shop/files/Untitled_design_42.png?v=1760070483&width=3840";
+const HERO = "https://cdn.shopify.com/s/files/1/0758/7030/6550/files/Untitled_design_42.png?v=1760070483&width=3840";
 
 const features = [
   { icon: Globe, title: "Web Portal Access", body: "See every stat, every shot, every round on the go with our SGT web portal." },

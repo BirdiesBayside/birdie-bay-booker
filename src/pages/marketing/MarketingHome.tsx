@@ -3,8 +3,8 @@ import MarketingLayout from "@/components/marketing/MarketingLayout";
 import { Clock, DollarSign, Trophy, Target, ArrowRight } from "lucide-react";
 import heroVideo from "@/assets/hero-video.mov.asset.json";
 
-const SIM_IMG = "https://birdiesbayside.com.au/cdn/shop/files/SCR-20250731-romi.jpg?v=1753956777&width=3840";
-const COMMUNITY_IMG = "https://birdiesbayside.com.au/cdn/shop/files/Birdies_Golf.jpg?v=1751956878&width=3840";
+const SIM_IMG = "https://cdn.shopify.com/s/files/1/0758/7030/6550/files/SCR-20250731-romi.jpg?v=1753956777&width=3840";
+const COMMUNITY_IMG = "https://cdn.shopify.com/s/files/1/0758/7030/6550/files/Birdies_Golf.jpg?v=1751956878&width=3840";
 
 const features = [
   { icon: Target, title: "High-Tech Simulators", body: "Tour-accurate launch data, 4K graphics and 2,300+ world-famous courses." },
