@@ -1,5 +1,5 @@
 import MarketingLayout from "@/components/marketing/MarketingLayout";
-import { ArrowRight, Check, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowRight, Check, Clock, ShieldCheck, Sparkles } from "lucide-react";
 
 const HERO = "https://cdn.shopify.com/s/files/1/0758/7030/6550/files/Birdies_Golf.jpg?v=1751956878&width=3840";
 
