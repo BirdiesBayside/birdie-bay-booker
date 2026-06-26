@@ -483,7 +483,7 @@ serve(async (req) => {
     } else if (notification_type === "cancellation") {
       // Cancellation
       subject = emailTemplate?.subject || "Booking Cancelled - Birdies Bayside";
-      smsMessage = `Birdies Bayside: Your booking for ${shortDate} ${startTime}-${endTime} has been cancelled. Questions? Contact us.`;
+      smsMessage = (await renderSmsTemplate("booking_cancellation")) ?? "";
       
       let bodyContent: string;
       if (emailTemplate?.html_content) {
