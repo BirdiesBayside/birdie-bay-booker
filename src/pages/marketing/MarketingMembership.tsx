@@ -8,7 +8,7 @@ const tiers = [
     name: "Weekday",
     price: "$15",
     rate: "$10/hr",
-    tag: "Mon,Thu before 4pm only",
+    tag: "Mon-Thu before 4pm only",
     perks: ["Cancel any time", "Peak times charged at visitor rate"],
   },
   {
