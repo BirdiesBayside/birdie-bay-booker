@@ -147,7 +147,7 @@ const MarketingMembership = () => (
           <div className="bg-primary text-primary-foreground rounded-xl p-7">
             <p className="text-sm uppercase tracking-wider text-accent mb-2">Peak</p>
             <p className="font-display text-5xl">$35<span className="text-lg text-primary-foreground/70">/hr</span></p>
-            <p className="text-sm text-primary-foreground/70 mt-2">Fri,Sun & Mon,Thu 4pm+</p>
+            <p className="text-sm text-primary-foreground/70 mt-2">Fri-Sun & Mon-Thu 4pm+</p>
           </div>
         </div>
       </div>
