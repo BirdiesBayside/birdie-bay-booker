@@ -2231,21 +2231,57 @@ export type Database = {
         }
         Relationships: []
       }
+      sms_templates: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          message: string
+          name: string
+          template_key: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          message: string
+          name: string
+          template_key: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          message?: string
+          name?: string
+          template_key?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       system_settings: {
         Row: {
           created_at: string
+          door_code: string
           id: string
           timezone: string
           updated_at: string
         }
         Insert: {
           created_at?: string
+          door_code?: string
           id?: string
           timezone?: string
           updated_at?: string
         }
         Update: {
           created_at?: string
+          door_code?: string
           id?: string
           timezone?: string
           updated_at?: string
