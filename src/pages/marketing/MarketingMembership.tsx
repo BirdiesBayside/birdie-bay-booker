@@ -1,5 +1,5 @@
 import MarketingLayout from "@/components/marketing/MarketingLayout";
-import { ArrowRight, BadgeDollarSign, Check, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowRight, Check, ShieldCheck, Sparkles } from "lucide-react";
 
 const HERO = "https://birdiesbayside.com.au/cdn/shop/files/Birdies_Golf.jpg?v=1751956878&width=3840";
 
