@@ -139,32 +139,34 @@ export default function EmbedCompete({ hideHero = false }: { hideHero?: boolean 
   return (
     <div className="min-h-screen" style={{ backgroundColor: CREAM, fontFamily: "Inter, system-ui, sans-serif" }}>
       {/* HERO */}
-      <section className="relative overflow-hidden" style={{ backgroundColor: GREEN }}>
-        <div
-          className="absolute inset-0 opacity-[0.08]"
-          style={{
-            backgroundImage:
-              "radial-gradient(circle at 20% 30%, white 1px, transparent 1px), radial-gradient(circle at 80% 70%, white 1px, transparent 1px)",
-            backgroundSize: "48px 48px, 36px 36px",
-          }}
-        />
-        <div className="relative max-w-6xl mx-auto px-4 sm:px-6 py-12 sm:py-16">
-          <div className="flex items-center gap-3 mb-4">
-            <img src={birdiesB} alt="" className="h-8 sm:h-10" />
-            <span className="text-white/70 font-semibold tracking-[0.2em] text-xs sm:text-sm uppercase">
-              Birdies Bayside
-            </span>
-          </div>
+      {!hideHero && (
+        <section className="relative overflow-hidden" style={{ backgroundColor: GREEN }}>
+          <div
+            className="absolute inset-0 opacity-[0.08]"
+            style={{
+              backgroundImage:
+                "radial-gradient(circle at 20% 30%, white 1px, transparent 1px), radial-gradient(circle at 80% 70%, white 1px, transparent 1px)",
+              backgroundSize: "48px 48px, 36px 36px",
+            }}
+          />
+          <div className="relative max-w-6xl mx-auto px-4 sm:px-6 py-12 sm:py-16">
+            <div className="flex items-center gap-3 mb-4">
+              <img src={birdiesB} alt="" className="h-8 sm:h-10" />
+              <span className="text-white/70 font-semibold tracking-[0.2em] text-xs sm:text-sm uppercase">
+                Birdies Bayside
+              </span>
+            </div>
 
-          <h1 className="font-display text-3xl sm:text-5xl text-white leading-none mb-4">
-            COMPETE.
-          </h1>
-          <p className="text-white/80 text-lg sm:text-xl max-w-2xl mb-8 leading-relaxed">
-            Every week. Every Wednesday. Every month. Live leaderboards, real prizes,
-            and a tour that runs all year long.
-          </p>
-        </div>
-      </section>
+            <h1 className="font-display text-3xl sm:text-5xl text-white leading-none mb-4">
+              COMPETE.
+            </h1>
+            <p className="text-white/80 text-lg sm:text-xl max-w-2xl mb-8 leading-relaxed">
+              Every week. Every Wednesday. Every month. Live leaderboards, real prizes,
+              and a tour that runs all year long.
+            </p>
+          </div>
+        </section>
+      )}
 
       {/* HOW IT WORKS */}
       <section className="max-w-6xl mx-auto px-4 sm:px-6 py-10">
