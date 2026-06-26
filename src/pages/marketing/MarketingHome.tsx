@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import MarketingLayout from "@/components/marketing/MarketingLayout";
-import { Clock, DollarSign, Trophy, Target, ArrowRight } from "lucide-react";
+import { Check, Clock, DollarSign, Trophy, Target, ArrowRight } from "lucide-react";
 import heroVideo from "@/assets/hero-video.mp4.asset.json";
 import heroPoster from "@/assets/hero-poster.jpg.asset.json";
 import simulatorBay from "@/assets/simulator-bay.png.asset.json";
