@@ -132,12 +132,12 @@ const MarketingHome = () => {
             </h2>
           </div>
           <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-            <PriceCard tier="Weekday" rate="$10/hr" price="$15" tag="Mon,Thu before 4pm" perks={["Cancel anytime", "Peak charged at visitor rate"]} />
-            <PriceCard tier="Birdie" rate="$10/hr" price="$27" tag="Most popular" highlight perks={["Play anytime", "Birdies League access", "Cancel anytime"]} />
-            <PriceCard tier="Eagle" rate="$8/hr" price="$35" tag="Best value per round" perks={["Play anytime", "Birdies League access", "Priority booking"]} />
+            <PriceCard tier="Weekday" rate="$10/hr" price="$15" tag="Mon-Thu before 4pm only" perks={["Cancel any time", "Peak times charged at visitor rate"]} />
+            <PriceCard tier="Birdie" rate="$10/hr" price="$27" tag="Most popular" highlight perks={["Play anytime", "Birdies League access", "Cancel any time"]} />
+            <PriceCard tier="Eagle" rate="$8/hr" price="$35" tag="Best value per round" perks={["Play anytime", "Birdies League access", "Priority booking", "Cancel any time"]} />
           </div>
           <p className="text-center text-foreground/60 text-sm mt-8">
-            Visitor pricing: Peak $35/hr (Fri,Sun & Mon,Thu 4pm+) · Off-Peak $30/hr (Mon,Thu before 4pm) — per bay, up to 4 players
+            Visitor pricing: Peak $35/hr (Fri-Sun & Mon-Thu 4pm+) · Off-Peak $30/hr (Mon-Thu before 4pm) — per bay, up to 4 players
           </p>
         </div>
       </section>
