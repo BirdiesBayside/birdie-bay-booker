@@ -80,7 +80,7 @@ const MarketingHome = () => {
             </Link>
           </div>
           <div className="relative rounded-2xl overflow-hidden shadow-xl aspect-[4/3]">
-            <img src={SIM_IMG} alt="Birdies simulator bay" className="w-full h-full object-cover" />
+            <img src={simulatorBay.url} alt="Birdies simulator bay" className="w-full h-full object-cover" />
           </div>
         </div>
       </section>
