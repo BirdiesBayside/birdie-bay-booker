@@ -55,10 +55,8 @@ const MarketingMembership = () => (
         {tiers.map((t) => (
           <div
             key={t.name}
-            className={`relative rounded-2xl p-8 border transition-all ${
-              t.highlight
-                ? "bg-primary text-primary-foreground border-accent shadow-2xl md:scale-105"
-                : "bg-card text-card-foreground border-border hover:shadow-lg"
+            className={`relative rounded-2xl p-8 border transition-all bg-card text-card-foreground hover:shadow-lg ${
+              t.highlight ? "border-accent ring-2 ring-accent/20" : "border-border"
             }`}
           >
             {t.highlight && (
@@ -66,17 +64,17 @@ const MarketingMembership = () => (
                 Most Popular
               </span>
             )}
-            <p className={`text-xs uppercase tracking-wider mb-2 ${t.highlight ? "text-accent" : "text-foreground/60"}`}>{t.tag}</p>
+            <p className="text-xs uppercase tracking-wider mb-2 text-foreground/60">{t.tag}</p>
             <h3 className="font-display text-4xl uppercase tracking-wide mb-1">{t.name}</h3>
             <div className="mb-5">
-              <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold ${t.highlight ? "bg-accent text-accent-foreground" : "bg-accent/10 text-accent border border-accent/20"}`}>
+              <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold bg-accent/10 text-accent border border-accent/20">
                 <Clock className="h-3.5 w-3.5" />
                 {t.rate}
               </span>
             </div>
             <div className="mb-6">
               <span className="font-display text-6xl">{t.price}</span>
-              <span className={`text-sm ${t.highlight ? "text-primary-foreground/70" : "text-foreground/60"}`}> /week</span>
+              <span className="text-sm text-foreground/60"> /week</span>
             </div>
             <ul className="space-y-3 text-sm mb-7">
               {t.perks.map((p) => (
@@ -88,11 +86,7 @@ const MarketingMembership = () => (
             </ul>
             <a
               href="https://hub.birdiesbayside.com.au/"
-              className={`block text-center font-display uppercase tracking-wide text-sm px-5 py-3 rounded-md transition-colors ${
-                t.highlight
-                  ? "bg-accent hover:bg-accent/90 text-accent-foreground"
-                  : "bg-primary hover:bg-primary/90 text-primary-foreground"
-              }`}
+              className="block text-center font-display uppercase tracking-wide text-sm px-5 py-3 rounded-md transition-colors bg-primary hover:bg-primary/90 text-primary-foreground"
             >
               Join
             </a>
