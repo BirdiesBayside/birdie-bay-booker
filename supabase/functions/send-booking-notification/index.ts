@@ -582,19 +582,31 @@ serve(async (req) => {
     let gateSmsResult: { success: boolean; response?: string; error?: string } | null = null;
     
     if ((notification_type === "confirmation" || notification_type === "reschedule") && profile.phone) {
-      // Send main booking SMS
-      smsResult = await sendSMS(profile.phone, smsMessage);
-      logStep("SMS send result", smsResult);
-      
-      // Send second SMS for boom gate access if needed (only at dark hours)
-      if (needsBoomGate && smsResult.success) {
-        const gateMessage = `IMPORTANT: You will require Boom gate access for your booking time. Download the Noke gate access app: birdiesbayside.com.au/pages/birdies-gate-access`;
-        gateSmsResult = await sendSMS(profile.phone, gateMessage);
-        logStep("Gate SMS send result", gateSmsResult);
+      // Send main booking SMS (skip silently if template was disabled in admin)
+      if (smsMessage && smsMessage.trim().length > 0) {
+        smsResult = await sendSMS(profile.phone, smsMessage);
+        logStep("SMS send result", smsResult);
+      } else {
+        logStep("SMS template disabled or empty, skipping main SMS");
+        smsResult = { success: false, error: "SMS template disabled" };
       }
 
+      // Send second SMS for boom gate access if needed (only at dark hours)
+      if (needsBoomGate && smsResult.success) {
+        const gateMessage = await renderSmsTemplate("boom_gate_access");
+        if (gateMessage && gateMessage.trim().length > 0) {
+          gateSmsResult = await sendSMS(profile.phone, gateMessage);
+          logStep("Gate SMS send result", gateSmsResult);
+        } else {
+          logStep("Boom gate SMS template disabled, skipping");
+        }
+      }
+
+    } else if (notification_type === "cancellation" && profile.phone && smsMessage && smsMessage.trim().length > 0) {
+      smsResult = await sendSMS(profile.phone, smsMessage);
+      logStep("Cancellation SMS send result", smsResult);
     } else if (notification_type === "cancellation") {
-      logStep("Cancellation - skipping SMS (email only)");
+      logStep("Cancellation SMS skipped (template disabled or no phone)");
     } else {
       logStep("No phone number, skipping SMS");
     }
