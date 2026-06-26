@@ -33,6 +33,7 @@ import { LoyaltyPromoSettings } from "@/components/admin/LoyaltyPromoSettings";
 import { ActivityLog } from "@/components/admin/ActivityLog";
 import { TableServiceSettings } from "@/components/admin/TableServiceSettings";
 import { PublicHolidaysSection } from "@/components/admin/PublicHolidaysSection";
+import { SmsTemplatesSection } from "@/components/admin/SmsTemplatesSection";
 import { format } from "date-fns";
 
 // Template types and their available placeholder tags
@@ -1100,21 +1101,7 @@ export default function AdminSettings() {
               </CollapsibleContent>
             </Collapsible>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>SMS Settings</CardTitle>
-                <CardDescription>Configure SMS notification settings</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="max-w-sm space-y-2">
-                  <Label>Sender Name (Alpha Tag)</Label>
-                  <Input value="Birdies" disabled />
-                  <p className="text-xs text-muted-foreground">
-                    Registered sender name for SMS messages
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
+            <SmsTemplatesSection />
           </TabsContent>
         </Tabs>
 

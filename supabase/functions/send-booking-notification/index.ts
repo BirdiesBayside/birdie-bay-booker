@@ -299,7 +299,22 @@ serve(async (req) => {
     const startHour = parseInt(booking.start_time.split(':')[0], 10);
     const needsBoomGate = (startHour >= 5 && startHour < 7) || startHour >= 17;
 
-    // Template replacement tags
+    // Load door code from system settings (falls back to 7675#)
+    const { data: sysSettings } = await supabaseClient
+      .from("system_settings")
+      .select("door_code")
+      .eq("id", "global")
+      .maybeSingle();
+    const doorCode = (sysSettings as any)?.door_code || "7675#";
+
+    // SMS-specific short date / 24h times (used by cancellation template)
+    const formattedSmsDate = new Date(booking.booking_date).toLocaleDateString("en-AU", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+
+    // Template replacement tags (shared by email + SMS)
     const templateTags: Record<string, string> = {
       '{first_name}': profile.first_name || '',
       '{last_name}': profile.last_name || '',
@@ -312,8 +327,27 @@ serve(async (req) => {
       '{bay_name}': bayName,
       '{player_count}': booking.player_count.toString(),
       '{total_price}': `$${booking.total_price.toFixed(2)}`,
-      '{door_code}': '7675#',
+      '{door_code}': doorCode,
+      '{short_date}': formattedSmsDate,
+      '{start_time_24}': startTime,
+      '{end_time_24}': endTime,
       '{refund_amount}': '', // Will be populated if refund occurred
+    };
+
+    // Helper to render an SMS template from the sms_templates table.
+    // Returns null when the template is missing or disabled (skip send).
+    const renderSmsTemplate = async (templateKey: string): Promise<string | null> => {
+      const { data: tpl } = await supabaseClient
+        .from("sms_templates")
+        .select("message, is_active")
+        .eq("template_key", templateKey)
+        .maybeSingle();
+      if (!tpl || !(tpl as any).is_active || !(tpl as any).message) return null;
+      let out = (tpl as any).message as string;
+      for (const [tag, value] of Object.entries(templateTags)) {
+        out = out.split(tag).join(value);
+      }
+      return out;
     };
 
     // Email content based on notification type
@@ -340,25 +374,10 @@ serve(async (req) => {
         ? "Booking Rescheduled - Birdies Bayside"
         : (emailTemplate?.subject || "Booking Confirmed - Birdies Bayside");
       
-      // Build SMS message matching SMS Broadcast template style (concise for SMS limits)
-      const formattedSmsDate = new Date(booking.booking_date).toLocaleDateString("en-AU", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-      });
-      
-      // Main booking SMS (keep under 160 chars for 1 unit)
-      smsMessage = isReschedule 
-        ? [
-            `Hi ${profile.first_name}, your Birdies booking has been rescheduled to ${formattedSmsDate} at ${startTime12hr} for Bay ${bayNumber}`,
-            ``,
-            `Your door code is: 7675#`
-          ].join('\n')
-        : [
-            `Hi ${profile.first_name} ${profile.last_name} thank you for your booking on ${formattedSmsDate} at ${startTime12hr} for Bay ${bayNumber}`,
-            ``,
-            `Your door code is: 7675#`
-          ].join('\n');
+      // Main booking SMS — pulled from editable sms_templates table
+      const smsKey = isReschedule ? "booking_reschedule" : "booking_confirmation";
+      smsMessage = (await renderSmsTemplate(smsKey)) ?? "";
+
 
       // Build Google Review CTA block (only for confirmations, not reschedules, and not if already rewarded)
       const reviewCtaHtml = (!isReschedule && !hasReviewReward) ? `
@@ -464,7 +483,7 @@ serve(async (req) => {
     } else if (notification_type === "cancellation") {
       // Cancellation
       subject = emailTemplate?.subject || "Booking Cancelled - Birdies Bayside";
-      smsMessage = `Birdies Bayside: Your booking for ${shortDate} ${startTime}-${endTime} has been cancelled. Questions? Contact us.`;
+      smsMessage = (await renderSmsTemplate("booking_cancellation")) ?? "";
       
       let bodyContent: string;
       if (emailTemplate?.html_content) {
@@ -563,19 +582,31 @@ serve(async (req) => {
     let gateSmsResult: { success: boolean; response?: string; error?: string } | null = null;
     
     if ((notification_type === "confirmation" || notification_type === "reschedule") && profile.phone) {
-      // Send main booking SMS
-      smsResult = await sendSMS(profile.phone, smsMessage);
-      logStep("SMS send result", smsResult);
-      
-      // Send second SMS for boom gate access if needed (only at dark hours)
-      if (needsBoomGate && smsResult.success) {
-        const gateMessage = `IMPORTANT: You will require Boom gate access for your booking time. Download the Noke gate access app: birdiesbayside.com.au/pages/birdies-gate-access`;
-        gateSmsResult = await sendSMS(profile.phone, gateMessage);
-        logStep("Gate SMS send result", gateSmsResult);
+      // Send main booking SMS (skip silently if template was disabled in admin)
+      if (smsMessage && smsMessage.trim().length > 0) {
+        smsResult = await sendSMS(profile.phone, smsMessage);
+        logStep("SMS send result", smsResult);
+      } else {
+        logStep("SMS template disabled or empty, skipping main SMS");
+        smsResult = { success: false, error: "SMS template disabled" };
       }
 
+      // Send second SMS for boom gate access if needed (only at dark hours)
+      if (needsBoomGate && smsResult.success) {
+        const gateMessage = await renderSmsTemplate("boom_gate_access");
+        if (gateMessage && gateMessage.trim().length > 0) {
+          gateSmsResult = await sendSMS(profile.phone, gateMessage);
+          logStep("Gate SMS send result", gateSmsResult);
+        } else {
+          logStep("Boom gate SMS template disabled, skipping");
+        }
+      }
+
+    } else if (notification_type === "cancellation" && profile.phone && smsMessage && smsMessage.trim().length > 0) {
+      smsResult = await sendSMS(profile.phone, smsMessage);
+      logStep("Cancellation SMS send result", smsResult);
     } else if (notification_type === "cancellation") {
-      logStep("Cancellation - skipping SMS (email only)");
+      logStep("Cancellation SMS skipped (template disabled or no phone)");
     } else {
       logStep("No phone number, skipping SMS");
     }
