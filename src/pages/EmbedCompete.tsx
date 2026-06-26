@@ -190,7 +190,7 @@ export default function EmbedCompete({ hideHero = false }: { hideHero?: boolean 
             icon={<Trophy className="h-6 w-6" />}
             tag="Monthly · Members"
             title="Monthly Winner"
-            desc="Earn points from every weekly tournament. Top of the table at month's end takes the title."
+            desc="Earn points from every weekly Birdies League tournament that follows the PGA tour. Top of the table at month's end takes the title."
             prize="Varied monthly prizes"
           />
           <HowCard
