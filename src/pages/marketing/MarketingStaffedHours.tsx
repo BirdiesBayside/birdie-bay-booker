@@ -26,7 +26,7 @@ const MarketingStaffedHours = () => {
       </section>
 
       {/* Opening + Staffed hours */}
-      <section className="py-16 md:py-24 bg-background">
+      <section className="py-10 md:py-24 bg-background">
         <div className="container mx-auto px-4 grid md:grid-cols-2 gap-8 max-w-5xl">
           <div className="rounded-xl border border-border bg-card p-8 shadow-sm">
             <div className="flex items-center gap-3 mb-4">
@@ -55,7 +55,7 @@ const MarketingStaffedHours = () => {
       </section>
 
       {/* Automated centre note */}
-      <section className="py-12 bg-muted/40">
+      <section className="py-8 sm:py-12 bg-muted/40">
         <div className="container mx-auto px-4 max-w-3xl text-center">
           <p className="text-muted-foreground">
             *Our centre is fully automated outside of staffed hours. This keeps our pricing low
@@ -74,9 +74,9 @@ const MarketingStaffedHours = () => {
       </section>
 
       {/* No BYO */}
-      <section className="py-16 bg-background">
+      <section className="py-10 sm:py-16 bg-background">
         <div className="container mx-auto px-4 max-w-3xl">
-          <div className="rounded-xl border-2 border-accent bg-accent/5 p-8 text-center">
+          <div className="rounded-xl border-2 border-accent bg-accent/5 p-6 sm:p-8 text-center">
             <div className="flex items-center justify-center gap-3 mb-3">
               <AlertTriangle className="h-6 w-6 text-accent" />
               <h2 className="font-display text-3xl uppercase tracking-wide text-primary">
@@ -88,7 +88,7 @@ const MarketingStaffedHours = () => {
             </p>
           </div>
 
-          <div className="text-center mt-10">
+          <div className="text-center mt-6 sm:mt-10">
             <Link
               to="/contact"
               className="font-display uppercase tracking-wide text-accent hover:underline"

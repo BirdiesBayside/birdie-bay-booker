@@ -41,7 +41,7 @@ const groups = [
 
 const MarketingFAQs = () => (
   <MarketingLayout>
-    <section className="bg-primary text-primary-foreground py-20">
+    <section className="bg-primary text-primary-foreground py-12 sm:py-20">
       <div className="container mx-auto px-4 max-w-3xl text-center">
         <p className="text-accent font-display tracking-[0.25em] uppercase text-sm mb-2">FAQs</p>
         <h1 className="font-display text-5xl sm:text-6xl leading-none mb-4">Questions, Answered.</h1>
@@ -51,7 +51,7 @@ const MarketingFAQs = () => (
       </div>
     </section>
 
-    <section className="py-20">
+    <section className="py-12 sm:py-20">
       <div className="container mx-auto px-4 max-w-3xl">
         {groups.map((group) => (
           <div key={group.section} className="mb-10">

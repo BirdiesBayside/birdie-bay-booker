@@ -53,7 +53,7 @@ const MarketingGateAccess = () => {
         </div>
       </section>
 
-      <section className="py-12 sm:py-16">
+      <section className="py-8 sm:py-16">
         <div className="container mx-auto px-4 max-w-2xl">
           <ol className="space-y-3 mb-8 text-foreground/85">
             <li className="flex gap-3">

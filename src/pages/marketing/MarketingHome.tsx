@@ -62,7 +62,7 @@ const MarketingHome = () => {
       </section>
 
       {/* WHAT IS BIRDIES */}
-      <section className="py-20 sm:py-28">
+      <section className="py-12 sm:py-28">
         <div className="container mx-auto px-4 grid lg:grid-cols-2 gap-12 items-center">
           <div>
             <p className="text-accent font-display tracking-[0.2em] uppercase text-sm mb-3">What is Birdies?</p>
@@ -87,7 +87,7 @@ const MarketingHome = () => {
       </section>
 
       {/* FEATURES */}
-      <section className="bg-primary text-primary-foreground py-20 sm:py-24">
+      <section className="bg-primary text-primary-foreground py-12 sm:py-24">
         <div className="container mx-auto px-4">
           <div className="text-center max-w-2xl mx-auto mb-14">
             <p className="text-accent font-display tracking-[0.2em] uppercase text-sm mb-3">Why Birdies</p>
@@ -121,7 +121,7 @@ const MarketingHome = () => {
       </section>
 
       {/* PRICING SNAPSHOT */}
-      <section className="py-20 sm:py-24">
+      <section className="py-12 sm:py-24">
         <div className="container mx-auto px-4">
           <div className="text-center max-w-2xl mx-auto mb-12">
             <p className="text-accent font-display tracking-[0.2em] uppercase text-sm mb-3">Pricing</p>
@@ -141,7 +141,7 @@ const MarketingHome = () => {
       </section>
 
       {/* CTA STRIP */}
-      <section className="relative py-24 overflow-hidden">
+      <section className="relative py-14 sm:py-24 overflow-hidden">
         <div
           className="absolute inset-0 bg-cover bg-center"
           style={{ backgroundImage: `url(${COMMUNITY_IMG})` }}
