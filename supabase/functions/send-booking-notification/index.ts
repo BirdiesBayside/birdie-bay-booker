@@ -299,7 +299,22 @@ serve(async (req) => {
     const startHour = parseInt(booking.start_time.split(':')[0], 10);
     const needsBoomGate = (startHour >= 5 && startHour < 7) || startHour >= 17;
 
-    // Template replacement tags
+    // Load door code from system settings (falls back to 7675#)
+    const { data: sysSettings } = await supabaseClient
+      .from("system_settings")
+      .select("door_code")
+      .eq("id", "global")
+      .maybeSingle();
+    const doorCode = (sysSettings as any)?.door_code || "7675#";
+
+    // SMS-specific short date / 24h times (used by cancellation template)
+    const formattedSmsDate = new Date(booking.booking_date).toLocaleDateString("en-AU", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+
+    // Template replacement tags (shared by email + SMS)
     const templateTags: Record<string, string> = {
       '{first_name}': profile.first_name || '',
       '{last_name}': profile.last_name || '',
@@ -312,8 +327,27 @@ serve(async (req) => {
       '{bay_name}': bayName,
       '{player_count}': booking.player_count.toString(),
       '{total_price}': `$${booking.total_price.toFixed(2)}`,
-      '{door_code}': '7675#',
+      '{door_code}': doorCode,
+      '{short_date}': formattedSmsDate,
+      '{start_time_24}': startTime,
+      '{end_time_24}': endTime,
       '{refund_amount}': '', // Will be populated if refund occurred
+    };
+
+    // Helper to render an SMS template from the sms_templates table.
+    // Returns null when the template is missing or disabled (skip send).
+    const renderSmsTemplate = async (templateKey: string): Promise<string | null> => {
+      const { data: tpl } = await supabaseClient
+        .from("sms_templates")
+        .select("message, is_active")
+        .eq("template_key", templateKey)
+        .maybeSingle();
+      if (!tpl || !(tpl as any).is_active || !(tpl as any).message) return null;
+      let out = (tpl as any).message as string;
+      for (const [tag, value] of Object.entries(templateTags)) {
+        out = out.split(tag).join(value);
+      }
+      return out;
     };
 
     // Email content based on notification type
