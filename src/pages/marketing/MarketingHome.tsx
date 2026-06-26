@@ -20,10 +20,12 @@ const MarketingHome = () => {
       <section className="relative h-[88vh] min-h-[560px] flex items-center overflow-hidden">
         <video
           src={heroVideo.url}
+          poster={heroPoster.url}
           autoPlay
           muted
           loop
           playsInline
+          preload="auto"
           className="absolute inset-0 w-full h-full object-cover"
         />
         <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/40 to-transparent" />
