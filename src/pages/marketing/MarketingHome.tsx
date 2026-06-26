@@ -184,10 +184,8 @@ const PriceCard = ({
   highlight?: boolean;
 }) => (
   <div
-    className={`relative rounded-2xl p-7 border transition-all ${
-      highlight
-        ? "bg-primary text-primary-foreground border-accent shadow-xl scale-[1.02]"
-        : "bg-card text-card-foreground border-border hover:shadow-lg"
+    className={`relative rounded-2xl p-7 border transition-all bg-card text-card-foreground hover:shadow-lg ${
+      highlight ? "border-accent ring-2 ring-accent/20" : "border-border"
     }`}
   >
     {highlight && (
@@ -195,28 +193,29 @@ const PriceCard = ({
         Most Popular
       </span>
     )}
-    <p className={`text-xs uppercase tracking-wider mb-2 ${highlight ? "text-accent" : "text-foreground/60"}`}>{tag}</p>
+    <p className="text-xs uppercase tracking-wider mb-2 text-foreground/60">{tag}</p>
     <h3 className="font-display text-3xl uppercase tracking-wide mb-1">{tier}</h3>
-    <p className={`text-sm mb-6 ${highlight ? "text-primary-foreground/70" : "text-foreground/60"}`}>{rate}</p>
+    <div className="mb-5">
+      <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold bg-accent/10 text-accent border border-accent/20">
+        <Clock className="h-3.5 w-3.5" />
+        {rate}
+      </span>
+    </div>
     <div className="mb-6">
       <span className="font-display text-5xl">{price}</span>
-      <span className={`text-sm ${highlight ? "text-primary-foreground/70" : "text-foreground/60"}`}> /week</span>
+      <span className="text-sm text-foreground/60"> /week</span>
     </div>
     <ul className="space-y-2 text-sm mb-6">
       {perks.map((p) => (
         <li key={p} className="flex gap-2">
-          <span className={highlight ? "text-accent" : "text-accent"}>✓</span>
+          <Check className="h-4 w-4 mt-0.5 text-accent shrink-0" />
           <span>{p}</span>
         </li>
       ))}
     </ul>
     <a
       href="https://hub.birdiesbayside.com.au/"
-      className={`block text-center font-display uppercase tracking-wide text-sm px-5 py-3 rounded-md transition-colors ${
-        highlight
-          ? "bg-accent hover:bg-accent/90 text-accent-foreground"
-          : "bg-primary hover:bg-primary/90 text-primary-foreground"
-      }`}
+      className="block text-center font-display uppercase tracking-wide text-sm px-5 py-3 rounded-md transition-colors bg-primary hover:bg-primary/90 text-primary-foreground"
     >
       Join
     </a>
