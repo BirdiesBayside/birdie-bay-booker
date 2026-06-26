@@ -374,25 +374,10 @@ serve(async (req) => {
         ? "Booking Rescheduled - Birdies Bayside"
         : (emailTemplate?.subject || "Booking Confirmed - Birdies Bayside");
       
-      // Build SMS message matching SMS Broadcast template style (concise for SMS limits)
-      const formattedSmsDate = new Date(booking.booking_date).toLocaleDateString("en-AU", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-      });
-      
-      // Main booking SMS (keep under 160 chars for 1 unit)
-      smsMessage = isReschedule 
-        ? [
-            `Hi ${profile.first_name}, your Birdies booking has been rescheduled to ${formattedSmsDate} at ${startTime12hr} for Bay ${bayNumber}`,
-            ``,
-            `Your door code is: 7675#`
-          ].join('\n')
-        : [
-            `Hi ${profile.first_name} ${profile.last_name} thank you for your booking on ${formattedSmsDate} at ${startTime12hr} for Bay ${bayNumber}`,
-            ``,
-            `Your door code is: 7675#`
-          ].join('\n');
+      // Main booking SMS — pulled from editable sms_templates table
+      const smsKey = isReschedule ? "booking_reschedule" : "booking_confirmation";
+      smsMessage = (await renderSmsTemplate(smsKey)) ?? "";
+
 
       // Build Google Review CTA block (only for confirmations, not reschedules, and not if already rewarded)
       const reviewCtaHtml = (!isReschedule && !hasReviewReward) ? `
