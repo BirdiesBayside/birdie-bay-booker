@@ -53,6 +53,7 @@ const MarketingContact = lazy(() => import("./pages/marketing/MarketingContact")
 const MarketingFAQs = lazy(() => import("./pages/marketing/MarketingFAQs"));
 const MarketingStaffedHours = lazy(() => import("./pages/marketing/MarketingStaffedHours"));
 const MarketingGateAccess = lazy(() => import("./pages/marketing/MarketingGateAccess"));
+const MarketingWhatsOn = lazy(() => import("./pages/marketing/MarketingWhatsOn"));
 
 // Admin pages
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
@@ -244,6 +245,7 @@ const App = () => (
             <Route path="/faqs" element={<MarketingFAQs />} />
             <Route path="/staffed-hours" element={<MarketingStaffedHours />} />
             <Route path="/gate-access" element={<MarketingGateAccess />} />
+            <Route path="/whats-on" element={<MarketingWhatsOn />} />
             {/* Admin Routes */}
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/admin/analytics" element={<AdminAnalytics />} />

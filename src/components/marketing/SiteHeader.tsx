@@ -13,6 +13,7 @@ const topNav = [
   { to: "/compete-info", label: "COMPETE" },
   { to: "/membership-info", label: "JOIN" },
   { to: "/gift", label: "Gift cards" },
+  { to: "/whats-on", label: "What's On" },
   { to: "/contact", label: "Contact" },
 ];
 
