@@ -2,8 +2,7 @@ import { Link } from "react-router-dom";
 import MarketingLayout from "@/components/marketing/MarketingLayout";
 import { Clock, DollarSign, Trophy, Target, ArrowRight } from "lucide-react";
 import heroVideo from "@/assets/hero-video.mov.asset.json";
-
-const SIM_IMG = "https://cdn.shopify.com/s/files/1/0758/7030/6550/files/SCR-20250731-romi.jpg?v=1753956777&width=3840";
+import simulatorBay from "@/assets/simulator-bay.png.asset.json";
 const COMMUNITY_IMG = "https://cdn.shopify.com/s/files/1/0758/7030/6550/files/Birdies_Golf.jpg?v=1751956878&width=3840";
 
 const features = [
@@ -81,7 +80,7 @@ const MarketingHome = () => {
             </Link>
           </div>
           <div className="relative rounded-2xl overflow-hidden shadow-xl aspect-[4/3]">
-            <img src={SIM_IMG} alt="Birdies simulator bay" className="w-full h-full object-cover" />
+            <img src={simulatorBay.url} alt="Birdies simulator bay" className="w-full h-full object-cover" />
           </div>
         </div>
       </section>
