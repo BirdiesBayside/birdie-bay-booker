@@ -9,6 +9,7 @@ const groups = [
       { q: "When is Birdies open?", a: "Members have access from 5am - 11pm via the automated bays. Staffed hours vary, check the banner at the top of the site or call (07) 2146 8442." },
       { q: "How many people can fit in a bay?", a: "Each bay comfortably fits up to 4 players. You can play stroke play, scramble, closest-to-pin and more, all on the same booking." },
       { q: "Do you provide clubs?", a: "Yes, we have rental clubs available at the centre. Just let us know when you book." },
+      { q: "Is there a bar on site?", a: "Yes, the Birdies Bar is open during staffed hours serving a range of drinks. Grab a cold one while you play or wind down after your round." },
     ],
   },
   {
