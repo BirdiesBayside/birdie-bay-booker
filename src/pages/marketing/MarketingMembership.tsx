@@ -51,7 +51,7 @@ const MarketingMembership = () => (
     </section>
 
     <section className="pb-20">
-      <div className="container mx-auto px-4 grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl">
+      <div className="container mx-auto px-4 grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl">
         {tiers.map((t) => (
           <div
             key={t.name}
@@ -93,15 +93,6 @@ const MarketingMembership = () => (
             </a>
           </div>
         ))}
-        <div className="relative rounded-2xl p-8 border bg-gradient-to-br from-primary to-primary/80 text-primary-foreground border-accent shadow-2xl flex flex-col justify-center items-center text-center">
-          <BadgeDollarSign className="h-10 w-10 text-accent mb-4" />
-          <h3 className="font-display text-3xl uppercase tracking-wide mb-2">Real Value</h3>
-          <p className="text-primary-foreground/80 text-sm mb-4">
-            Membership rates start from just $8 per hour. Compare that to $30-35/hr as a visitor.
-          </p>
-          <div className="font-display text-5xl text-accent mb-1">$8<span className="text-xl text-primary-foreground/70">/hr</span></div>
-          <p className="text-xs uppercase tracking-wider text-primary-foreground/60">Eagle member rate</p>
-        </div>
       </div>
     </section>
 
