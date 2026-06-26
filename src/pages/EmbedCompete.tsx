@@ -42,7 +42,7 @@ const toParColor = (s: string) => {
   return "bg-blue-100 text-blue-700";
 };
 
-export default function EmbedCompete() {
+export default function EmbedCompete({ hideHero = false }: { hideHero?: boolean } = {}) {
   useIframeAutoResize();
   const { activeTour, currentTournament, previousTournament, isLoading: tourLoading } = useActiveTourData();
   const [scoreType, setScoreType] = useState<"gross" | "net">("net");
