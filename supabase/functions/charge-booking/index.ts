@@ -137,17 +137,24 @@ serve(async (req) => {
     
     // No new payment method - check for existing customer/cards
     if (!customerId) {
-      // No Stripe customer - redirect to checkout
-      logStep("No Stripe customer found, creating checkout session");
-      
+      // No Stripe customer yet - create one so the card from this checkout
+      // gets saved persistently (setup_future_usage requires a real Customer
+      // attached to the session, not the guest customer_email mode).
+      const newCustomer = await stripe.customers.create({
+        email: user.email,
+        metadata: { supabase_user_id: user.id },
+      });
+      customerId = newCustomer.id;
+      logStep("Created new Stripe customer for first-time checkout", { customerId });
+
       const origin = req.headers.get("origin") || "https://hub.birdiesbayside.com.au";
-      
+
       // Always use HTTPS URLs - for native apps, the WebView handles the redirect naturally
       const successUrl = `${origin}/booking-success?booking_id=${bookingId}`;
       const cancelUrl = `${origin}/booking?booking_cancelled=true&booking_id=${bookingId}`;
-      
+
       const session = await stripe.checkout.sessions.create({
-        customer_email: user.email,
+        customer: customerId,
         payment_method_types: ["card"],
         payment_method_options: {
           card: {
