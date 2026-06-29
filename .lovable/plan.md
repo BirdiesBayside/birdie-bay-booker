@@ -1,105 +1,126 @@
-# Hub-Native Gift Card System
 
-Replace the Shopify gift card flow with a self-hosted gift card purchase page on the Hub, paid via existing Stripe checkout, with tailored delivery emails (recipient direct, or printable to sender).
+# AI Caddy — Admin Support Assistant
 
-## 1. Public Purchase Page
+A small, inconspicuous "?" icon in the admin layout opens a slide-out chat. The assistant reads project data and logs to diagnose issues, and can perform a vetted list of safe actions (each one requires a confirm tap). Threaded history is saved per admin so you can scroll back.
 
-New route: `hub.birdiesbayside.com.au/gift` (anonymous, no login required).
+Also covers renaming the unused OpenClaw gateway since we're not using it anymore.
 
-Form fields:
-- **Amount** — preset chips ($35, $70, $105, $175, $350) + custom amount
-- **Recipient name**
-- **Recipient email**
-- **Sender name** (pre-filled if logged in)
-- **Sender email** (for receipt + printable copy)
-- **Personal message** (optional, 280 chars)
-- **Delivery date** — defaults today; date picker for future
-- **Delivery method** — radio:
-  - "Email to recipient" (default)
-  - "Email to me to print & give in person"
-  - "Both"
+---
 
-Branded design matching Hub (cream/green/orange, Anton headings).
+## Scope (per your answers)
 
-Shopify side: replace the gift card product/page with a simple Shopify page that links to `https://hub.birdiesbayside.com.au/gift` (or `<iframe>` embed if preferred).
+- **Capabilities:** Diagnose + safe actions (no bulk ops, no code/schema changes)
+- **Audience:** Admins + `custom_segment = 'staff'`
+- **History:** Threaded, saved in DB
+- **OpenClaw:** rename functions/docs (no functional dependency anywhere else)
 
-## 2. Payment Flow
+---
 
-New edge function: `create-gift-checkout`
-- Validates input (Zod)
-- Generates short redemption code (e.g. `BIRDIE-X7K2-9QPL`)
-- Inserts row in `gift_cards` with `status='pending_payment'`, `source='web'`, plus new columns: `delivery_method`, `redemption_code`, `stripe_session_id`
-- Creates Stripe Checkout Session (`mode: payment`, dynamic price_data so any amount works)
-- Returns checkout URL
+## What it can do
 
-Stripe webhook (`stripe-webhook`) — add handler for `checkout.session.completed` where `metadata.purpose === 'gift_card'`:
-- Mark gift_card `status='scheduled'` if `scheduled_for > today`, else `status='pending'`
-- If `scheduled_for <= today`, invoke `issue-gift-card` immediately
-- Also send sender receipt with redemption code
+**Diagnose (read-only):**
+- Look up a customer, booking, membership, gift card, credit transaction
+- Read recent edge-function logs (`send-booking-notification`, `stripe-webhook`, `sgt-auto-register`, etc.)
+- Read `email_send_log`, `adhoc_sms_log`, `bay_controller_logs`
+- Pull recent Stripe events (charges, refunds, subscription changes) for a customer
+- Read SGT registrations / scorecards / monthly standings
+- Read recent local-comp results
 
-Daily cron (`process-scheduled-gift-cards`) — already exists; will continue to handle future-dated sends.
+**Safe actions (each requires "Confirm" in chat):**
+- Refund a booking (full or partial)
+- Add/deduct customer credit (with note)
+- Resend a booking-confirmation email
+- Toggle a customer's booking flag
+- Manually re-register a player for the active SGT tournament
+- Cancel a booking
+- Force-close a stuck SGT tournament
 
-## 3. Tailored Email Delivery
+**Explicitly off-limits:**
+- Schema/code changes
+- Mass email/SMS, bulk refunds, bulk membership changes
+- Deleting customers
+- Raw SQL
+- Reading or echoing secrets
 
-Update `issue-gift-card` to branch on `delivery_method` and recipient account status:
+---
 
-| Scenario | Email goes to | Template variant |
-|---|---|---|
-| Recipient has Hub account, method=email_recipient | Recipient | **"You've been gifted by {sender_name}"** — credit auto-applied, CTA "View Credit in Hub" |
-| Recipient has NO account, method=email_recipient | Recipient | **"{sender_name} sent you a gift"** — CTA "Create Account to Redeem" |
-| method=print_to_sender | Sender | **Printable gift card** — decorated HTML card with recipient name, amount, message, redemption code |
-| method=both | Recipient + Sender | Both above |
+## UX
 
-When recipient already has an account → the existing `auto_redeem_gift_cards` trigger has already added credit during account creation OR we manually apply it now (new path: if `recipient_email` matches a profile, credit immediately + send "You've been gifted" email).
+- Floating circular `?` button, bottom-right of every `/admin/*` route. Muted/ghost styling — easy to ignore.
+- Click → slide-out `Sheet` (right side, 420px wide) titled "AI Caddy".
+- Top: thread sidebar (collapsible) + "New chat" button.
+- Composer + transcript using AI Elements (`Conversation`, `Message`, `MessageResponse`, `Tool`, `PromptInput`, `Shimmer`).
+- Tool calls render as collapsed accordions inside the assistant message (shows tool name + status, expand for params/result).
+- Destructive tool calls render an inline "Confirm / Cancel" card before executing.
+- Markdown rendering for assistant text.
 
-Add new helper: `apply_gift_card_to_existing_user(gift_card_id)` — credits balance, marks redeemed, logs `deposit_transactions`, sends personalised email naming the sender.
+---
 
-## 4. Schema Changes
+## Technical details
 
-```sql
-ALTER TABLE gift_cards
-  ADD COLUMN delivery_method text DEFAULT 'email_recipient'
-    CHECK (delivery_method IN ('email_recipient','print_to_sender','both')),
-  ADD COLUMN redemption_code text UNIQUE,
-  ADD COLUMN stripe_session_id text,
-  ADD COLUMN paid_at timestamptz;
+```text
+src/components/admin/ai-caddy/
+  AiCaddyButton.tsx          # floating ? button, mounted in AdminLayout
+  AiCaddySheet.tsx           # slide-out container, thread list + chat
+  AiCaddyChat.tsx            # useChat + AI Elements composition
+  AiCaddyToolCard.tsx        # tool-result rendering w/ confirm gate
 
-CREATE INDEX idx_gift_cards_redemption_code ON gift_cards(redemption_code);
+src/components/ai-elements/  # installed via `bunx ai-elements add ...`
+
+supabase/functions/ai-caddy/index.ts   # streaming chat endpoint
+supabase/functions/_shared/ai-caddy-tools.ts  # tool definitions + executors
 ```
 
-Update `source` enum/check to include `'web'`.
+**Backend (`ai-caddy` edge function):**
+- AI SDK + Lovable AI Gateway via `_shared/ai-gateway.ts` helper (`google/gemini-3-flash-preview`)
+- Verifies the caller's JWT and checks they have `admin` role OR `custom_segment='staff'`
+- `streamText` with `stopWhen: stepCountIs(50)`
+- Tools defined with Zod schemas. Destructive tools use `needsApproval: true` so the AI SDK surfaces a confirmation step the client renders.
+- System prompt: hardcoded role/scope, lists allowed tools, forbids code changes, requires citing data row IDs, requires confirming destructive actions.
 
-## 5. Manual Redemption (for printed cards)
+**Database (one new migration):**
 
-Add small "Redeem a Gift Card" section in Hub `My Account`:
-- Input: redemption code
-- Calls new edge function `redeem-gift-card-by-code` → credits balance, marks redeemed, logs transaction
-- Works even if buyer didn't know recipient's email
+```text
+ai_caddy_threads
+  id, user_id, title, created_at, updated_at
 
-## 6. Cleanup
+ai_caddy_messages
+  id, thread_id, role, parts (jsonb — AI SDK UIMessage parts), created_at
 
-After confirming the new flow works end-to-end:
-- Delete `supabase/functions/shopify-gift-card-webhook/`
-- Delete `SHOPIFY_WEBHOOK_SECRET` (only used by gift cards)
-- Keep `shopify_*` columns on `gift_cards` for historical traceability (only 0 historical rows anyway, but harmless)
-- Delete the Liquid section file & remove the Shopify product
-- Remove the Shopify-side webhook config
+ai_caddy_actions  -- audit trail
+  id, thread_id, user_id, tool_name, args, result, status, created_at
+```
 
-## 7. Admin Visibility
+RLS: each user can only see their own threads/messages. `ai_caddy_actions` readable by admins for audit. Service role for the edge function.
 
-`GiftCardsSection.tsx` — add filter chip for `source: web` and surface `delivery_method` + `redemption_code` in the row detail so staff can look up printed-card codes if customers call.
+**Routing:**
+- Single thread URL pattern: `/admin/?caddy=<threadId>` (query param, so it overlays any admin page). Reload restores the open thread.
 
-## Technical Notes
+---
 
-- Stripe Checkout uses dynamic `price_data` (no Stripe product/price needed; mirrors deposit top-up pattern)
-- Idempotency key on `create-gift-checkout` = random UUID per attempt (matches existing checkout retry strategy)
-- All dates use Australia/Brisbane timezone for `scheduled_for` comparisons
-- Redemption code: 12 chars, uppercase, hyphenated, alphabet excludes ambiguous chars (0/O, 1/I)
-- Printable email styled as a card (cream background, orange amount, Anton heading) — looks good when printed on A4
+## OpenClaw cleanup (separate, ~5 min)
 
-## Out of Scope (for now)
+- Delete `supabase/functions/openclaw-api` and `supabase/functions/openclaw-mcp`
+- Remove their blocks from `supabase/config.toml`
+- Delete `public/openclaw-api-docs.md`
+- Update references in `public/bayside/sim-centre-setup-checklist.html` and `birdies-codebase-audit.html` (remove the OpenClaw section)
+- Leave the `OPENCLAW_API_KEY` secret in place for now (harmless, you can delete it from the dashboard if you want)
+- Update the project memory entry that references the OpenClaw gateway
 
-- PDF download (HTML print is fine per your call)
-- Custom card designs / images
-- Bulk corporate gift card purchases
-- Refunds via UI (handle in Stripe dashboard manually if needed)
+---
+
+## What I'd ship in this turn
+
+1. The OpenClaw cleanup (small, isolated).
+2. The DB migration for AI Caddy.
+3. The `ai-caddy` edge function with the **read-only diagnostic tools** and **2 safe actions** to start: `refund_booking`, `adjust_credit`. Approval-gated.
+4. The floating button + sheet + threaded chat UI with AI Elements.
+5. Update the project memory with the AI Caddy entry.
+
+**Follow-up turn:** add the remaining safe actions (resend email, toggle flag, re-register SGT, cancel booking, force-close tournament) once you've validated the v1 chat feels right.
+
+---
+
+## Open question (low-stakes, won't block)
+
+The "Diagnose + safe actions" v1 includes `refund_booking` and `adjust_credit` as the most-used. Want me to start with just those two and you can request more, or list all seven up-front?
