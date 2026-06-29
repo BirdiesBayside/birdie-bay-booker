@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import caddyIcon from "@/assets/ai-caddy-icon-1.png";
+import caddyIcon from "@/assets/ai-caddy-face.png";
 
 type Thread = { id: string; title: string; updated_at: string };
 type ToolCall = { id: string; name: string; args: any; result: any };
@@ -46,10 +46,10 @@ export function AiCaddy() {
           <TooltipTrigger asChild>
             <button
               onClick={() => setOpen(true)}
-              className="fixed bottom-4 right-4 z-40 h-12 w-12 rounded-full bg-background hover:bg-muted border border-border shadow-md flex items-center justify-center transition-colors overflow-hidden"
+              className="fixed bottom-4 right-4 z-40 h-11 w-11 rounded-full bg-background/60 hover:bg-background border border-border/50 hover:border-border shadow-sm flex items-center justify-center transition-all overflow-hidden opacity-60 hover:opacity-100"
               aria-label="Open AI Caddy"
             >
-              <img src={caddyIcon} alt="AI Caddy" className="h-10 w-10 object-contain" loading="lazy" width={40} height={40} />
+              <img src={caddyIcon} alt="AI Caddy" className="h-9 w-9 object-contain" loading="lazy" width={36} height={36} />
             </button>
           </TooltipTrigger>
           <TooltipContent side="left">AI Caddy — support assistant</TooltipContent>
@@ -237,13 +237,11 @@ function CaddyPanel({ onClose }: { onClose: () => void }) {
       <ScrollArea className="flex-1">
         <div ref={scrollRef as any} className="px-4 py-4 space-y-4">
           {messages.length === 0 && (
-            <div className="text-center text-muted-foreground text-sm py-12 space-y-2">
+            <div className="text-center text-muted-foreground text-sm py-8 space-y-3">
+              <img src={caddyIcon} alt="AI Caddy" className="h-20 w-20 mx-auto" width={80} height={80} />
               <div className="font-medium text-foreground">Hi — I'm AI Caddy.</div>
               <div className="text-xs max-w-[280px] mx-auto">
                 Ask me to look up customers, bookings, payments, or SGT data. I can also refund a booking or adjust a customer's credit — I'll ask you to confirm first.
-              </div>
-              <div className="text-[11px] mt-4 text-muted-foreground/70">
-                Try: "Why didn't Monica Kennell get the new gate link?"
               </div>
             </div>
           )}
