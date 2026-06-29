@@ -1340,7 +1340,28 @@ export default function AdminCustomers() {
                       {selectedCustomer.membership_tier || "Visitor"}
                     </Badge>
                   </div>
+                  <TooltipProvider delayDuration={150}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => toggleBookingFlag(selectedCustomer)}
+                          className={selectedCustomer.booking_flag_enabled ? "text-birdies-orange hover:text-birdies-orange" : "text-muted-foreground"}
+                          aria-label="Toggle booking flag"
+                        >
+                          <Flag className={`h-5 w-5 ${selectedCustomer.booking_flag_enabled ? "fill-current" : ""}`} />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="left" className="max-w-[240px] text-xs">
+                        {selectedCustomer.booking_flag_enabled
+                          ? "Booking flag ON — admin is emailed whenever this customer makes a booking. Click to disable."
+                          : "Enable booking flag to email the admin whenever this customer makes a booking."}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 </div>
+
 
                 <hr className="border-border" />
 
