@@ -267,7 +267,8 @@ function CaddyPanel({ onClose }: { onClose: () => void }) {
             }}
             placeholder="Ask AI Caddy…"
             rows={2}
-            className="resize-none text-sm min-h-[44px]"
+            className="resize-none text-base sm:text-sm min-h-[44px]"
+            style={{ fontSize: "16px" }}
             disabled={sending}
           />
           <Button onClick={send} disabled={sending || !input.trim()} size="icon" className="h-10 w-10 shrink-0">
