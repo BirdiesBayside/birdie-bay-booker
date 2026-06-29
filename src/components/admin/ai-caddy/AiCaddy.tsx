@@ -59,7 +59,7 @@ export function AiCaddy() {
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent
           side="right"
-          className="w-full sm:max-w-[480px] p-0 flex flex-col"
+          className="w-full sm:max-w-[480px] p-0 flex flex-col [&>button.absolute]:hidden"
           style={{
             paddingTop: "env(safe-area-inset-top)",
             paddingBottom: "env(safe-area-inset-bottom)",
