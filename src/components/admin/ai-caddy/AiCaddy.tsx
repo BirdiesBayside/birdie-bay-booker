@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import caddyIcon from "@/assets/ai-caddy-icon-1.png";
+import caddyIcon from "@/assets/ai-caddy-face.png";
 
 type Thread = { id: string; title: string; updated_at: string };
 type ToolCall = { id: string; name: string; args: any; result: any };
