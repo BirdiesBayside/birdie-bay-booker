@@ -57,7 +57,14 @@ export function AiCaddy() {
       </TooltipProvider>
 
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent side="right" className="w-full sm:max-w-[480px] p-0 flex flex-col">
+        <SheetContent
+          side="right"
+          className="w-full sm:max-w-[480px] p-0 flex flex-col"
+          style={{
+            paddingTop: "env(safe-area-inset-top)",
+            paddingBottom: "env(safe-area-inset-bottom)",
+          }}
+        >
           <CaddyPanel onClose={() => setOpen(false)} />
         </SheetContent>
       </Sheet>
