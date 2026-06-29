@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { HelpCircle, Send, Plus, Trash2, Loader2, Wrench, AlertTriangle } from "lucide-react";
+import { Send, Plus, Trash2, Loader2, Wrench, AlertTriangle } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import caddyIcon from "@/assets/ai-caddy-icon-1.png";
 
 type Thread = { id: string; title: string; updated_at: string };
 type ToolCall = { id: string; name: string; args: any; result: any };
@@ -45,10 +46,10 @@ export function AiCaddy() {
           <TooltipTrigger asChild>
             <button
               onClick={() => setOpen(true)}
-              className="fixed bottom-4 right-4 z-40 h-9 w-9 rounded-full bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground border border-border/60 flex items-center justify-center shadow-sm transition-colors"
+              className="fixed bottom-4 right-4 z-40 h-12 w-12 rounded-full bg-background hover:bg-muted border border-border shadow-md flex items-center justify-center transition-colors overflow-hidden"
               aria-label="Open AI Caddy"
             >
-              <HelpCircle className="h-4 w-4" />
+              <img src={caddyIcon} alt="AI Caddy" className="h-10 w-10 object-contain" loading="lazy" width={40} height={40} />
             </button>
           </TooltipTrigger>
           <TooltipContent side="left">AI Caddy — support assistant</TooltipContent>
@@ -196,17 +197,15 @@ function CaddyPanel({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="flex flex-col h-full">
-      <SheetHeader className="px-4 py-3 border-b flex-row items-center justify-between space-y-0">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowThreads((s) => !s)}
-            className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
-          >
-            {showThreads ? "Hide history" : `History (${threads.length})`}
-          </button>
-        </div>
-        <SheetTitle className="text-sm font-semibold">AI Caddy</SheetTitle>
-        <Button size="sm" variant="ghost" onClick={newThread} className="h-7 px-2">
+      <SheetHeader className="px-4 py-3 pr-12 border-b flex-row items-center justify-between space-y-0 gap-2">
+        <button
+          onClick={() => setShowThreads((s) => !s)}
+          className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline shrink-0"
+        >
+          {showThreads ? "Hide" : `History (${threads.length})`}
+        </button>
+        <SheetTitle className="text-sm font-semibold flex-1 text-center">AI Caddy</SheetTitle>
+        <Button size="sm" variant="ghost" onClick={newThread} className="h-7 px-2 shrink-0">
           <Plus className="h-3.5 w-3.5 mr-1" /> New
         </Button>
       </SheetHeader>
@@ -268,7 +267,8 @@ function CaddyPanel({ onClose }: { onClose: () => void }) {
             }}
             placeholder="Ask AI Caddy…"
             rows={2}
-            className="resize-none text-sm min-h-[44px]"
+            className="resize-none text-base sm:text-sm min-h-[44px]"
+            style={{ fontSize: "16px" }}
             disabled={sending}
           />
           <Button onClick={send} disabled={sending || !input.trim()} size="icon" className="h-10 w-10 shrink-0">
