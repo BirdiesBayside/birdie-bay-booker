@@ -1,0 +1,1 @@
+UPDATE public.sgt_members SET exempt_from_cleanup = true WHERE user_id = 45355;
