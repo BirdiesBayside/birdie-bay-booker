@@ -237,13 +237,11 @@ function CaddyPanel({ onClose }: { onClose: () => void }) {
       <ScrollArea className="flex-1">
         <div ref={scrollRef as any} className="px-4 py-4 space-y-4">
           {messages.length === 0 && (
-            <div className="text-center text-muted-foreground text-sm py-12 space-y-2">
+            <div className="text-center text-muted-foreground text-sm py-8 space-y-3">
+              <img src={caddyIcon} alt="AI Caddy" className="h-20 w-20 mx-auto" width={80} height={80} />
               <div className="font-medium text-foreground">Hi — I'm AI Caddy.</div>
               <div className="text-xs max-w-[280px] mx-auto">
                 Ask me to look up customers, bookings, payments, or SGT data. I can also refund a booking or adjust a customer's credit — I'll ask you to confirm first.
-              </div>
-              <div className="text-[11px] mt-4 text-muted-foreground/70">
-                Try: "Why didn't Monica Kennell get the new gate link?"
               </div>
             </div>
           )}
