@@ -461,7 +461,7 @@ serve(async (req) => {
                     ${needsBoomGate ? `
                     <p style="margin:0; font-size:14px;">
                       <strong>IMPORTANT:</strong> You will require Boom gate access for your booking time.<br/>
-                      <a href="https://birdiesbayside.com.au/pages/birdies-gate-access" style="color:#EC622D;">Download the app here</a>
+                      <a href="https://birdiesbayside.com.au/gate-access" style="color:#EC622D;">Request gate access here</a>
                     </p>
                     ` : ''}
                   </td>
