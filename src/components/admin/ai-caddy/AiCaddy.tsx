@@ -46,10 +46,10 @@ export function AiCaddy() {
           <TooltipTrigger asChild>
             <button
               onClick={() => setOpen(true)}
-              className="fixed bottom-4 right-4 z-40 h-12 w-12 rounded-full bg-background hover:bg-muted border border-border shadow-md flex items-center justify-center transition-colors overflow-hidden"
+              className="fixed bottom-4 right-4 z-40 h-11 w-11 rounded-full bg-background/60 hover:bg-background border border-border/50 hover:border-border shadow-sm flex items-center justify-center transition-all overflow-hidden opacity-60 hover:opacity-100"
               aria-label="Open AI Caddy"
             >
-              <img src={caddyIcon} alt="AI Caddy" className="h-10 w-10 object-contain" loading="lazy" width={40} height={40} />
+              <img src={caddyIcon} alt="AI Caddy" className="h-9 w-9 object-contain" loading="lazy" width={36} height={36} />
             </button>
           </TooltipTrigger>
           <TooltipContent side="left">AI Caddy — support assistant</TooltipContent>
