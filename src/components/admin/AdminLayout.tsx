@@ -22,6 +22,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import birdieLogo from "@/assets/birdies-logo.png";
 import { AdminOrderNotifications } from "./AdminOrderNotifications";
+import { AiCaddy } from "./ai-caddy/AiCaddy";
+
 
 interface AdminLayoutProps {
   children: ReactNode;
