@@ -738,7 +738,39 @@ export default function AdminCustomers() {
   };
 
   // Toggle membership hold for a customer (optimistic)
+  const toggleBookingFlag = async (customer: Customer) => {
+    const newValue = !customer.booking_flag_enabled;
+    setCustomers(prev =>
+      prev.map(c => (c.id === customer.id ? { ...c, booking_flag_enabled: newValue } : c))
+    );
+    if (selectedCustomer?.id === customer.id) {
+      setSelectedCustomer({ ...selectedCustomer, booking_flag_enabled: newValue });
+    }
+    const { error } = await supabase
+      .from("profiles")
+      .update({ booking_flag_enabled: newValue })
+      .eq("id", customer.id);
+    if (error) {
+      setCustomers(prev =>
+        prev.map(c => (c.id === customer.id ? { ...c, booking_flag_enabled: !newValue } : c))
+      );
+      if (selectedCustomer?.id === customer.id) {
+        setSelectedCustomer({ ...selectedCustomer, booking_flag_enabled: !newValue });
+      }
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({
+      title: newValue ? "Booking flag enabled" : "Booking flag disabled",
+      description: newValue
+        ? `Admin will be emailed whenever ${customer.first_name} makes a booking.`
+        : `Booking alerts for ${customer.first_name} are off.`,
+      duration: 3500,
+    });
+  };
+
   const toggleMembershipHold = async (customer: Customer) => {
+
     const newValue = !customer.membership_on_hold;
 
     // Optimistic UI update, flip the switch immediately
