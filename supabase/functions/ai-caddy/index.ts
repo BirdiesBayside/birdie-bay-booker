@@ -507,6 +507,9 @@ async function execTool(name: string, args: any, userId: string, threadId: strin
         await log("success", result);
         return result;
       }
+      case "run_report": {
+        return await runReport(args);
+      }
       default:
         return { error: "unknown tool" };
     }
