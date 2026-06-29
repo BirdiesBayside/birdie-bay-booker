@@ -90,7 +90,9 @@ interface Customer {
   custom_billing?: boolean;
   custom_segment?: string | null;
   membership_on_hold?: boolean;
+  booking_flag_enabled?: boolean;
 }
+
 
 interface ColumnConfig {
   key: keyof Customer | "full_name";
