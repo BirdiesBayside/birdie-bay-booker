@@ -329,29 +329,28 @@ async function registerAllMembersForTournament(
   console.log(`[SGT-TOURN-REG] Found ${customHcpMap.size} members with local handicap data`);
 
   // CRITICAL: Filter to only eligible members
-  // Eligible = has Birdies membership (linked profile with non-visitor tier) OR is exempt_from_cleanup
+  // Eligible = linked profile with non-visitor tier, OR custom_segment='staff', OR exempt_from_cleanup
   if (!supabaseClient) {
     throw new Error("Supabase client not initialized");
   }
 
-  // Get all SGT user IDs that are eligible:
-  // 1. Linked to a profile with non-visitor membership
-  // 2. OR marked as exempt_from_cleanup in sgt_members
-  const { data: linkedProfiles } = await supabaseClient
+  // Eligible profiles: non-visitor membership OR staff segment
+  const { data: eligibleProfiles } = await supabaseClient
     .from("profiles")
-    .select("sgt_user_id, membership_tier")
+    .select("sgt_user_id, membership_tier, custom_segment")
     .not("sgt_user_id", "is", null)
-    .neq("membership_tier", "visitor");
+    .or("membership_tier.neq.visitor,custom_segment.eq.staff");
 
   const { data: exemptMembers } = await supabaseClient
     .from("sgt_members")
     .select("user_id")
     .eq("exempt_from_cleanup", true);
 
-  const linkedSgtUserIds = new Set((linkedProfiles || []).map((p: { sgt_user_id: number }) => p.sgt_user_id));
+  const linkedSgtUserIds = new Set((eligibleProfiles || []).map((p: { sgt_user_id: number }) => p.sgt_user_id));
   const exemptSgtUserIds = new Set((exemptMembers || []).map((m: { user_id: number }) => m.user_id));
+  const staffCount = (eligibleProfiles || []).filter((p: { custom_segment: string | null }) => p.custom_segment === 'staff').length;
 
-  console.log(`[SGT-TOURN-REG] Found ${linkedSgtUserIds.size} members with Birdies memberships`);
+  console.log(`[SGT-TOURN-REG] Found ${linkedSgtUserIds.size} eligible profiles (members + ${staffCount} staff)`);
   console.log(`[SGT-TOURN-REG] Found ${exemptSgtUserIds.size} exempt members`);
 
   // Filter tour members to only eligible ones
