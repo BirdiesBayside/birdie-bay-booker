@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { HelpCircle, Send, Plus, Trash2, Loader2, Wrench, AlertTriangle } from "lucide-react";
+import { Send, Plus, Trash2, Loader2, Wrench, AlertTriangle } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import caddyIcon from "@/assets/ai-caddy-icon-1.png";
 
 type Thread = { id: string; title: string; updated_at: string };
 type ToolCall = { id: string; name: string; args: any; result: any };
