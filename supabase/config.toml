@@ -118,11 +118,10 @@ verify_jwt = false
 [functions.approve-monthly-prize]
 verify_jwt = false
 
-[functions.openclaw-api]
+[functions.ai-caddy]
 verify_jwt = false
 
-[functions.openclaw-mcp]
-verify_jwt = false
+
 
 [functions.send-payment-retry-warning]
 verify_jwt = false
