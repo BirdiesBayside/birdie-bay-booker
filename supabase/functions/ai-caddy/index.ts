@@ -121,7 +121,270 @@ const tools = [
       },
     },
   },
+  // -------- REPORTING --------
+  {
+    type: "function",
+    function: {
+      name: "run_report",
+      description: `Generate a flexible read-only report. Use for any "how many", "show me", "list", "breakdown", "total", "top X", or marketing contact-list questions.
+
+Entities:
+- bookings — date_col: booking_date. metrics: count, revenue, avg_price, total_players. dims: status, bay_id, peak_pricing, player_count, user_id
+- customer_contacts — profiles for marketing exports. date_col: created_at. dims: membership_tier, custom_segment, booking_flag_enabled. Returns full contact rows (email, name, phone) UNLESS group_by is set.
+- pos_transactions — date_col: created_at. metrics: count, revenue. dims: payment_method, status
+- membership_payments — date_col: created_at. metrics: count, revenue. dims: status, tier
+- membership_changes — date_col: created_at. metrics: count. dims: previous_tier, new_tier
+- gift_cards — date_col: created_at. metrics: count, revenue. dims: status
+- deposit_transactions — date_col: created_at. metrics: count, revenue. dims: transaction_type
+- sgt_scorecards — date_col: created_at. metrics: count, avg_gross, avg_net. dims: tournament_id, is_complete
+- local_competitions — date_col: date. metrics: count. dims: status
+
+group_by_date grain: day, week, month, dow, hour — grouped in Australia/Brisbane.
+Filters: array of { column, op, value }; op ∈ eq, neq, gte, lte, in, ilike.
+For marketing: entity=customer_contacts, set filters (e.g. membership_tier in ['member_birdie']), do NOT set group_by — returns contact rows directly. Always includes a CSV download.`,
+      parameters: {
+        type: "object",
+        properties: {
+          entity: { type: "string", enum: ["bookings","customer_contacts","pos_transactions","membership_payments","membership_changes","gift_cards","deposit_transactions","sgt_scorecards","local_competitions"] },
+          from_date: { type: "string", description: "YYYY-MM-DD Brisbane. Default 90 days ago." },
+          to_date: { type: "string", description: "YYYY-MM-DD Brisbane. Default today." },
+          filters: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                column: { type: "string" },
+                op: { type: "string", enum: ["eq","neq","gte","lte","in","ilike"] },
+                value: {},
+              },
+              required: ["column","op","value"],
+            },
+          },
+          group_by: { type: "array", items: { type: "string" } },
+          group_by_date: { type: "string", enum: ["day","week","month","dow","hour"] },
+          metrics: { type: "array", items: { type: "string" } },
+          order_by: { type: "string" },
+          order_desc: { type: "boolean" },
+          limit: { type: "number", description: "default 100, max 1000 (contacts max 5000)" },
+        },
+        required: ["entity"],
+      },
+    },
+  },
 ];
+
+// ---------- Report entity catalog ----------
+const ENTITIES: Record<string, any> = {
+  bookings: {
+    table: "bookings",
+    select: "id,user_id,bay_id,booking_date,start_time,end_time,status,total_price,player_count,peak_pricing,created_at",
+    date_col: "booking_date",
+    dims: ["status","bay_id","peak_pricing","player_count","user_id"],
+    metrics: {
+      count:         (rows: any[]) => rows.length,
+      revenue:       (rows: any[]) => round(rows.reduce((s,r) => s + Number(r.total_price ?? 0), 0)),
+      avg_price:     (rows: any[]) => rows.length ? round(rows.reduce((s,r) => s + Number(r.total_price ?? 0), 0) / rows.length) : 0,
+      total_players: (rows: any[]) => rows.reduce((s,r) => s + Number(r.player_count ?? 0), 0),
+    },
+  },
+  customer_contacts: {
+    table: "profiles",
+    select: "user_id,first_name,last_name,email,phone,membership_tier,custom_segment,deposit_balance,total_bookings,booking_flag_enabled,payment_failed_at,created_at",
+    date_col: "created_at",
+    dims: ["membership_tier","custom_segment","booking_flag_enabled"],
+    metrics: { count: (rows: any[]) => rows.length },
+    is_contact_list: true,
+  },
+  pos_transactions: {
+    table: "pos_transactions",
+    select: "id,amount,payment_method,status,created_at",
+    date_col: "created_at",
+    dims: ["payment_method","status"],
+    metrics: {
+      count:   (rows: any[]) => rows.length,
+      revenue: (rows: any[]) => round(rows.reduce((s,r) => s + Number(r.amount ?? 0), 0)),
+    },
+  },
+  membership_payments: {
+    table: "membership_payments",
+    select: "id,user_id,amount,status,tier,created_at",
+    date_col: "created_at",
+    dims: ["status","tier"],
+    metrics: {
+      count:   (rows: any[]) => rows.length,
+      revenue: (rows: any[]) => round(rows.reduce((s,r) => s + Number(r.amount ?? 0), 0)),
+    },
+  },
+  membership_changes: {
+    table: "membership_changes",
+    select: "id,user_id,previous_tier,new_tier,created_at",
+    date_col: "created_at",
+    dims: ["previous_tier","new_tier"],
+    metrics: { count: (rows: any[]) => rows.length },
+  },
+  gift_cards: {
+    table: "gift_cards",
+    select: "id,recipient_email,amount,status,created_at",
+    date_col: "created_at",
+    dims: ["status"],
+    metrics: {
+      count:   (rows: any[]) => rows.length,
+      revenue: (rows: any[]) => round(rows.reduce((s,r) => s + Number(r.amount ?? 0), 0)),
+    },
+  },
+  deposit_transactions: {
+    table: "deposit_transactions",
+    select: "id,user_id,amount,transaction_type,created_at",
+    date_col: "created_at",
+    dims: ["transaction_type"],
+    metrics: {
+      count:   (rows: any[]) => rows.length,
+      revenue: (rows: any[]) => round(rows.reduce((s,r) => s + Number(r.amount ?? 0), 0)),
+    },
+  },
+  sgt_scorecards: {
+    table: "sgt_scorecards",
+    select: "id,sgt_user_id,tournament_id,gross_score,net_score,is_complete,created_at",
+    date_col: "created_at",
+    dims: ["tournament_id","is_complete"],
+    metrics: {
+      count:     (rows: any[]) => rows.length,
+      avg_gross: (rows: any[]) => avg(rows.map((r:any) => Number(r.gross_score)).filter(Number.isFinite)),
+      avg_net:   (rows: any[]) => avg(rows.map((r:any) => Number(r.net_score)).filter(Number.isFinite)),
+    },
+  },
+  local_competitions: {
+    table: "local_competitions",
+    select: "id,name,date,status,created_at",
+    date_col: "date",
+    dims: ["status"],
+    metrics: { count: (rows: any[]) => rows.length },
+  },
+};
+
+function round(n: number) { return Math.round(n * 100) / 100; }
+function avg(arr: number[]) { return arr.length ? round(arr.reduce((s,n) => s+n, 0) / arr.length) : 0; }
+
+function toBrisbaneDate(value: any): Date | null {
+  if (!value) return null;
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) return new Date(value + "T00:00:00+10:00");
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return null;
+  return new Date(d.getTime() + 10 * 3600 * 1000);
+}
+function bzFormat(d: Date, grain: string): string {
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  const h = String(d.getUTCHours()).padStart(2, "0");
+  if (grain === "day")   return `${y}-${m}-${day}`;
+  if (grain === "month") return `${y}-${m}`;
+  if (grain === "hour")  return `${y}-${m}-${day} ${h}:00`;
+  if (grain === "dow")   return ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][d.getUTCDay()];
+  if (grain === "week") {
+    const dow = (d.getUTCDay() + 6) % 7;
+    const monday = new Date(d.getTime() - dow * 86400000);
+    return `${monday.getUTCFullYear()}-${String(monday.getUTCMonth()+1).padStart(2,"0")}-${String(monday.getUTCDate()).padStart(2,"0")}`;
+  }
+  return `${y}-${m}-${day}`;
+}
+
+function toCsv(columns: string[], rows: any[]): string {
+  const esc = (v: any) => {
+    if (v === null || v === undefined) return "";
+    const s = String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  return columns.join(",") + "\n" + rows.map(r => columns.map(c => esc(r[c])).join(",")).join("\n");
+}
+
+async function runReport(args: any) {
+  const ent = ENTITIES[args.entity];
+  if (!ent) return { error: `unknown entity: ${args.entity}` };
+
+  const today     = new Date(Date.now() + 10*3600*1000).toISOString().slice(0,10);
+  const ninetyAgo = new Date(Date.now() - 90*86400000 + 10*3600*1000).toISOString().slice(0,10);
+  const from = args.from_date || ninetyAgo;
+  const to   = args.to_date   || today;
+
+  let q = admin.from(ent.table).select(ent.select).gte(ent.date_col, from).lte(ent.date_col, to);
+
+  const validCols = new Set(ent.select.split(",").map((c: string) => c.trim()));
+  for (const f of (args.filters ?? [])) {
+    if (!validCols.has(f.column)) return { error: `filter column not allowed: ${f.column}` };
+    switch (f.op) {
+      case "eq":    q = q.eq(f.column, f.value); break;
+      case "neq":   q = q.neq(f.column, f.value); break;
+      case "gte":   q = q.gte(f.column, f.value); break;
+      case "lte":   q = q.lte(f.column, f.value); break;
+      case "in":    q = q.in(f.column, Array.isArray(f.value) ? f.value : [f.value]); break;
+      case "ilike": q = q.ilike(f.column, `%${f.value}%`); break;
+      default: return { error: `unsupported op: ${f.op}` };
+    }
+  }
+
+  const { data: rawRows, error } = await q.limit(10000);
+  if (error) return { error: error.message };
+  const source = rawRows ?? [];
+
+  if (ent.is_contact_list && !args.group_by?.length && !args.group_by_date) {
+    const limit = Math.min(args.limit ?? 1000, 5000);
+    const cols = ["first_name","last_name","email","phone","membership_tier","custom_segment","deposit_balance","total_bookings","created_at"];
+    const out = source.slice(0, limit).map((r: any) => Object.fromEntries(cols.map(c => [c, r[c]])));
+    return { mode: "contacts", columns: cols, rows: out, total_rows: source.length, returned_rows: out.length, csv: toCsv(cols, out) };
+  }
+
+  const metrics: string[] = args.metrics?.length ? args.metrics : ["count"];
+  for (const m of metrics) {
+    if (!ent.metrics[m]) return { error: `metric not supported on ${args.entity}: ${m}` };
+  }
+  const dims: string[] = (args.group_by ?? []).filter((d: string) => ent.dims.includes(d));
+  const dateGrain: string | null = args.group_by_date || null;
+
+  const buckets = new Map<string, { keyParts: Record<string,any>, items: any[] }>();
+  for (const r of source) {
+    const keyParts: Record<string,any> = {};
+    for (const d of dims) keyParts[d] = r[d];
+    if (dateGrain) {
+      const bz = toBrisbaneDate(r[ent.date_col]);
+      keyParts[`period_${dateGrain}`] = bz ? bzFormat(bz, dateGrain) : null;
+    }
+    const key = JSON.stringify(keyParts);
+    if (!buckets.has(key)) buckets.set(key, { keyParts, items: [] });
+    buckets.get(key)!.items.push(r);
+  }
+
+  const rows = Array.from(buckets.values()).map(b => {
+    const out: Record<string,any> = { ...b.keyParts };
+    for (const m of metrics) out[m] = ent.metrics[m](b.items);
+    return out;
+  });
+
+  const sortKey = args.order_by || metrics[0];
+  const desc = args.order_desc ?? true;
+  rows.sort((a,b) => {
+    const av = a[sortKey], bv = b[sortKey];
+    if (typeof av === "number" && typeof bv === "number") return desc ? bv - av : av - bv;
+    return desc ? String(bv ?? "").localeCompare(String(av ?? "")) : String(av ?? "").localeCompare(String(bv ?? ""));
+  });
+
+  const limit = Math.min(args.limit ?? 100, 1000);
+  const limited = rows.slice(0, limit);
+  const columns = Object.keys(limited[0] ?? { ...Object.fromEntries(dims.map(d => [d,null])), ...Object.fromEntries(metrics.map(m => [m,null])) });
+
+  return {
+    mode: "aggregate",
+    entity: args.entity,
+    from_date: from,
+    to_date: to,
+    source_rows: source.length,
+    columns,
+    rows: limited,
+    total_groups: rows.length,
+    csv: toCsv(columns, limited),
+  };
+}
+
 
 // ---------- Tool executors ----------
 async function execTool(name: string, args: any, userId: string, threadId: string | null) {
@@ -244,6 +507,9 @@ async function execTool(name: string, args: any, userId: string, threadId: strin
         await log("success", result);
         return result;
       }
+      case "run_report": {
+        return await runReport(args);
+      }
       default:
         return { error: "unknown tool" };
     }
@@ -259,10 +525,12 @@ const SYSTEM_PROMPT = `You are AI Caddy, the in-admin support assistant for Bird
 You help admin & staff users investigate issues and perform a vetted list of safe actions. You CANNOT change code, schemas, or settings — you ONLY use the tools provided.
 
 Rules:
-- Always cite the data row IDs you used (booking id, user id, stripe id) in your final answer.
-- For DESTRUCTIVE tools (refund_booking, adjust_customer_credit), first call the tool WITHOUT confirmed=true to surface a preview, then tell the user exactly what will happen ("I'm about to refund $87.50 to Monica Kennell on booking abc123. Reply 'confirm' to proceed.") and wait for them to say confirm/yes/do it before re-calling with confirmed=true.
-- Never reveal secrets, env vars, or raw SQL.
-- Never invent data. If a tool returns nothing, say so.
+- For data questions ("how many", "show me", "breakdown", "top X", marketing contact lists), use run_report. Prefer it over reading individual rows.
+- After run_report returns, summarise the result in 1-3 sentences with the key numbers. Don't paste the whole table — the UI shows it. Mention the row/group count and that a CSV download is available.
+- For marketing/contact-list requests, use entity=customer_contacts WITHOUT group_by; apply filters to narrow the audience. Confirm the audience size in your reply.
+- Always cite IDs you used (booking id, user id, stripe id) when investigating issues.
+- For DESTRUCTIVE tools (refund_booking, adjust_customer_credit), first call WITHOUT confirmed=true, then summarise exactly what will happen and wait for explicit confirmation before re-calling with confirmed=true.
+- Never reveal secrets, env vars, or raw SQL. Never invent data.
 - Keep replies short. Markdown allowed.
 - All times are Australia/Brisbane (AEST/UTC+10).
 - If asked to do something outside your tools (bulk ops, code changes, schema, deleting customers), refuse and explain why.`;
