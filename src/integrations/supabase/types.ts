@@ -44,6 +44,103 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_caddy_actions: {
+        Row: {
+          args: Json | null
+          created_at: string
+          id: string
+          result: Json | null
+          status: string
+          thread_id: string | null
+          tool_name: string
+          user_id: string
+        }
+        Insert: {
+          args?: Json | null
+          created_at?: string
+          id?: string
+          result?: Json | null
+          status?: string
+          thread_id?: string | null
+          tool_name: string
+          user_id: string
+        }
+        Update: {
+          args?: Json | null
+          created_at?: string
+          id?: string
+          result?: Json | null
+          status?: string
+          thread_id?: string | null
+          tool_name?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_caddy_actions_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "ai_caddy_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_caddy_messages: {
+        Row: {
+          created_at: string
+          id: string
+          parts: Json
+          role: string
+          thread_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          parts: Json
+          role: string
+          thread_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          parts?: Json
+          role?: string
+          thread_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_caddy_messages_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "ai_caddy_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_caddy_threads: {
+        Row: {
+          created_at: string
+          id: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          title?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       announcement_reads: {
         Row: {
           announcement_id: string
