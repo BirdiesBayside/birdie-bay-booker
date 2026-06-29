@@ -197,17 +197,15 @@ function CaddyPanel({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="flex flex-col h-full">
-      <SheetHeader className="px-4 py-3 border-b flex-row items-center justify-between space-y-0">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowThreads((s) => !s)}
-            className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
-          >
-            {showThreads ? "Hide history" : `History (${threads.length})`}
-          </button>
-        </div>
-        <SheetTitle className="text-sm font-semibold">AI Caddy</SheetTitle>
-        <Button size="sm" variant="ghost" onClick={newThread} className="h-7 px-2">
+      <SheetHeader className="px-4 py-3 pr-12 border-b flex-row items-center justify-between space-y-0 gap-2">
+        <button
+          onClick={() => setShowThreads((s) => !s)}
+          className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline shrink-0"
+        >
+          {showThreads ? "Hide" : `History (${threads.length})`}
+        </button>
+        <SheetTitle className="text-sm font-semibold flex-1 text-center">AI Caddy</SheetTitle>
+        <Button size="sm" variant="ghost" onClick={newThread} className="h-7 px-2 shrink-0">
           <Plus className="h-3.5 w-3.5 mr-1" /> New
         </Button>
       </SheetHeader>
