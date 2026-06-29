@@ -34,6 +34,7 @@ import { ActivityLog } from "@/components/admin/ActivityLog";
 import { TableServiceSettings } from "@/components/admin/TableServiceSettings";
 import { PublicHolidaysSection } from "@/components/admin/PublicHolidaysSection";
 import { SmsTemplatesSection } from "@/components/admin/SmsTemplatesSection";
+import { AiCaddy } from "@/components/admin/ai-caddy/AiCaddy";
 import { format } from "date-fns";
 
 // Template types and their available placeholder tags
@@ -733,7 +734,10 @@ export default function AdminSettings() {
 
           {/* General Settings */}
           <TabsContent value="general" className="space-y-4">
-            {/* Activity Log - First */}
+            {/* AI Caddy launcher */}
+            <AiCaddy variant="card" />
+
+            {/* Activity Log */}
             <ActivityLog />
 
             {/* Bay Management - Second */}

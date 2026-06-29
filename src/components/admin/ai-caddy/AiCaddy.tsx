@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { Send, Plus, Trash2, Loader2, Wrench, AlertTriangle, Download, FileSpreadsheet, X } from "lucide-react";
+import { Send, Plus, Trash2, Loader2, Wrench, AlertTriangle, Download, FileSpreadsheet, X, Sparkles } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -21,7 +21,12 @@ type Msg = {
   created_at: string;
 };
 
-export function AiCaddy() {
+interface AiCaddyProps {
+  /** "card" renders an inline launcher card (for Settings). "floating" renders the fixed bottom-right button. */
+  variant?: "floating" | "card";
+}
+
+export function AiCaddy({ variant = "card" }: AiCaddyProps) {
   const [open, setOpen] = useState(false);
   const [allowed, setAllowed] = useState<boolean | null>(null);
 
@@ -41,20 +46,41 @@ export function AiCaddy() {
 
   return (
     <>
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              onClick={() => setOpen(true)}
-              className="fixed bottom-4 right-4 z-40 h-11 w-11 rounded-full bg-background/60 hover:bg-background border border-border/50 hover:border-border shadow-sm flex items-center justify-center transition-all overflow-hidden opacity-60 hover:opacity-100"
-              aria-label="Open AI Caddy"
-            >
-              <img src={caddyIcon} alt="AI Caddy" className="h-9 w-9 object-contain" loading="lazy" width={36} height={36} />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="left">AI Caddy — support assistant</TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+      {variant === "floating" ? (
+        <button
+          onClick={() => setOpen(true)}
+          className="fixed bottom-4 right-4 z-40 h-11 w-11 rounded-full bg-background/60 hover:bg-background border border-border/50 hover:border-border shadow-sm flex items-center justify-center transition-all overflow-hidden opacity-60 hover:opacity-100"
+          aria-label="Open AI Caddy"
+        >
+          <img src={caddyIcon} alt="AI Caddy" className="h-9 w-9 object-contain" loading="lazy" width={36} height={36} />
+        </button>
+      ) : (
+        <Card className="overflow-hidden border-primary/20 bg-gradient-to-br from-primary/5 via-background to-background">
+          <CardContent className="p-5 flex items-center gap-4">
+            <img
+              src={caddyIcon}
+              alt="AI Caddy"
+              className="h-14 w-14 object-contain shrink-0"
+              width={56}
+              height={56}
+            />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <h3 className="font-semibold text-base">AI Caddy</h3>
+                <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-primary/15 text-primary">
+                  <Sparkles className="h-3 w-3" /> Assistant
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Ask about customers, bookings, payments, SGT. Pull reports, refund a booking, or adjust credit — with your approval.
+              </p>
+            </div>
+            <Button onClick={() => setOpen(true)} className="shrink-0">
+              Open Caddy
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent
