@@ -561,7 +561,8 @@ Deno.serve(async (req) => {
     // Tool-call loop
     const convo: any[] = [{ role: "system", content: SYSTEM_PROMPT }, ...messages];
     const toolCallsTrace: any[] = [];
-    for (let step = 0; step < 12; step++) {
+    const MAX_STEPS = 25;
+    for (let step = 0; step < MAX_STEPS; step++) {
       const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -580,11 +581,11 @@ Deno.serve(async (req) => {
       if (res.status === 402) return new Response(JSON.stringify({ error: "credits_exhausted", message: "AI credits exhausted. Add credits in Workspace settings." }), { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       if (!res.ok) {
         const txt = await res.text();
-        return new Response(JSON.stringify({ error: "gateway_error", status: res.status, detail: txt }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        return new Response(JSON.stringify({ error: "gateway_error", status: res.status, detail: txt, assistant: `⚠️ AI gateway error (${res.status}). ${txt.slice(0, 200)}`, tool_calls: toolCallsTrace }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
       const data = await res.json();
       const msg = data.choices?.[0]?.message;
-      if (!msg) return new Response(JSON.stringify({ error: "no choice" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      if (!msg) return new Response(JSON.stringify({ assistant: "⚠️ No response from AI. Try again.", tool_calls: toolCallsTrace }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       convo.push(msg);
 
       if (msg.tool_calls && msg.tool_calls.length) {
@@ -603,7 +604,11 @@ Deno.serve(async (req) => {
         tool_calls: toolCallsTrace,
       }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
-    return new Response(JSON.stringify({ error: "max steps reached", tool_calls: toolCallsTrace }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    // Max steps — return partial with explanation so the UI still renders the tool trace
+    return new Response(JSON.stringify({
+      assistant: `⚠️ I ran ${MAX_STEPS} tool calls without reaching a final answer — likely got stuck looping. Try narrowing the question (e.g. "bookings on Thursdays between 12pm and 4pm over the last 90 days") or ask me to look at one specific date.`,
+      tool_calls: toolCallsTrace,
+    }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e: any) {
     console.error("[ai-caddy] error", e);
     return new Response(JSON.stringify({ error: e?.message ?? "unknown" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
