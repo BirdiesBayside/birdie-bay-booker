@@ -1460,6 +1460,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          booking_flag_enabled: boolean
           created_at: string
           custom_billing: boolean
           custom_hourly_rate: number | null
@@ -1482,6 +1483,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          booking_flag_enabled?: boolean
           created_at?: string
           custom_billing?: boolean
           custom_hourly_rate?: number | null
@@ -1504,6 +1506,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          booking_flag_enabled?: boolean
           created_at?: string
           custom_billing?: boolean
           custom_hourly_rate?: number | null

@@ -537,45 +537,48 @@ serve(async (req) => {
 
     logStep("Email sent successfully", { emailResponse });
 
-    // Send admin alert for watched customers
-    const watchedEmails = [
-      "luke.p.taylor81@gmail.com",
-      "jannie2909@gmail.com",
-    ];
-    
-    if (notification_type === "confirmation" && watchedEmails.includes(profile.email.toLowerCase())) {
+    // Send admin alert if this customer has the booking flag enabled
+    if (notification_type === "confirmation" && (profile as any).booking_flag_enabled === true) {
       try {
-        logStep("Watched customer booked - sending admin alert", { email: profile.email });
-        await resend.emails.send({
-          from: "Birdies Bayside <info@birdiesbayside.com.au>",
-          to: ["admin@birdiesbayside.com.au"],
-          subject: `⚠️ Watched Customer Booking: ${profile.first_name} ${profile.last_name}`,
-          html: buildEmailTemplate("Watched Customer Alert", `
-            <p style="margin:0 0 18px; font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">
-              <strong>${profile.first_name} ${profile.last_name}</strong> (${profile.email}) has just made a new booking.
-            </p>
-            
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FFFFFF; border-radius:12px; margin:18px 0; border-left:4px solid #EC622D;">
-              <tr>
-                <td style="padding:20px; font-family:Inter, Arial, sans-serif; font-size:15px; color:#1F4C25;">
-                  <p style="margin:5px 0;"><strong>Date:</strong> ${bookingDate}</p>
-                  <p style="margin:5px 0;"><strong>Time:</strong> ${startTime12hr} - ${endTime12hr}</p>
-                  <p style="margin:5px 0;"><strong>Duration:</strong> ${booking.duration_hours} hour${booking.duration_hours > 1 ? "s" : ""}</p>
-                  <p style="margin:5px 0;"><strong>Bay:</strong> ${bayName}</p>
-                  <p style="margin:5px 0;"><strong>Players:</strong> ${booking.player_count}</p>
-                  <p style="margin:5px 0;"><strong>Total:</strong> $${booking.total_price.toFixed(2)}</p>
-                  <p style="margin:5px 0;"><strong>Phone:</strong> ${profile.phone || 'Not provided'}</p>
-                  <p style="margin:5px 0;"><strong>Membership:</strong> ${profile.membership_tier}</p>
-                </td>
-              </tr>
-            </table>
-          `),
-        });
-        logStep("Admin alert sent for watched customer");
+        logStep("Flagged customer booked - sending admin alert", { email: profile.email });
+
+        const { data: alertTpl } = await supabaseClient
+          .from("email_templates")
+          .select("subject, html_content, is_active")
+          .eq("template_key", "watched_customer_alert")
+          .maybeSingle();
+
+        if (alertTpl && (alertTpl as any).is_active === false) {
+          logStep("Watched customer alert template disabled, skipping");
+        } else {
+          const alertTagsExt = {
+            ...templateTags,
+            '{phone}': profile.phone || 'Not provided',
+            '{membership_tier}': profile.membership_tier || 'Visitor',
+          };
+          const alertSubject = replaceTemplateTags(
+            (alertTpl as any)?.subject || `⚠️ Watched Customer Booking: {first_name} {last_name}`,
+            alertTagsExt,
+          );
+          const alertBody = replaceTemplateTags(
+            (alertTpl as any)?.html_content ||
+              `<p style="font-family:Inter, Arial, sans-serif; color:#1F4C25; text-align:center;"><strong>{first_name} {last_name}</strong> ({email}) has just made a new booking.</p>`,
+            alertTagsExt,
+          );
+
+          await resend.emails.send({
+            from: "Birdies Bayside <info@birdiesbayside.com.au>",
+            to: ["admin@birdiesbayside.com.au"],
+            subject: alertSubject,
+            html: buildEmailTemplate("Watched Customer Alert", alertBody),
+          });
+          logStep("Admin alert sent for flagged customer");
+        }
       } catch (alertError: any) {
         logStep("Failed to send admin alert (non-blocking)", { error: alertError.message });
       }
     }
+
 
     // Send SMS for confirmations and reschedules (not cancellations)
     let smsResult: { success: boolean; response?: string; error?: string } = { success: false, error: "SMS not sent" };

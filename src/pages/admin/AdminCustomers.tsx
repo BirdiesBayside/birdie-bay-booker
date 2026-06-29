@@ -64,8 +64,11 @@ import {
   FileText,
   Users,
   Shield,
-  Pause
+  Pause,
+  Flag
 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
 import { Switch } from "@/components/ui/switch";
 import { GiftCardsSection } from "@/components/admin/GiftCardsSection";
 import { CreditTransactionHistory } from "@/components/admin/CreditTransactionHistory";
@@ -87,7 +90,9 @@ interface Customer {
   custom_billing?: boolean;
   custom_segment?: string | null;
   membership_on_hold?: boolean;
+  booking_flag_enabled?: boolean;
 }
+
 
 interface ColumnConfig {
   key: keyof Customer | "full_name";
@@ -733,7 +738,39 @@ export default function AdminCustomers() {
   };
 
   // Toggle membership hold for a customer (optimistic)
+  const toggleBookingFlag = async (customer: Customer) => {
+    const newValue = !customer.booking_flag_enabled;
+    setCustomers(prev =>
+      prev.map(c => (c.id === customer.id ? { ...c, booking_flag_enabled: newValue } : c))
+    );
+    if (selectedCustomer?.id === customer.id) {
+      setSelectedCustomer({ ...selectedCustomer, booking_flag_enabled: newValue });
+    }
+    const { error } = await supabase
+      .from("profiles")
+      .update({ booking_flag_enabled: newValue })
+      .eq("id", customer.id);
+    if (error) {
+      setCustomers(prev =>
+        prev.map(c => (c.id === customer.id ? { ...c, booking_flag_enabled: !newValue } : c))
+      );
+      if (selectedCustomer?.id === customer.id) {
+        setSelectedCustomer({ ...selectedCustomer, booking_flag_enabled: !newValue });
+      }
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({
+      title: newValue ? "Booking flag enabled" : "Booking flag disabled",
+      description: newValue
+        ? `Admin will be emailed whenever ${customer.first_name} makes a booking.`
+        : `Booking alerts for ${customer.first_name} are off.`,
+      duration: 3500,
+    });
+  };
+
   const toggleMembershipHold = async (customer: Customer) => {
+
     const newValue = !customer.membership_on_hold;
 
     // Optimistic UI update, flip the switch immediately
@@ -1303,7 +1340,28 @@ export default function AdminCustomers() {
                       {selectedCustomer.membership_tier || "Visitor"}
                     </Badge>
                   </div>
+                  <TooltipProvider delayDuration={150}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => toggleBookingFlag(selectedCustomer)}
+                          className={selectedCustomer.booking_flag_enabled ? "text-birdies-orange hover:text-birdies-orange" : "text-muted-foreground"}
+                          aria-label="Toggle booking flag"
+                        >
+                          <Flag className={`h-5 w-5 ${selectedCustomer.booking_flag_enabled ? "fill-current" : ""}`} />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="left" className="max-w-[240px] text-xs">
+                        {selectedCustomer.booking_flag_enabled
+                          ? "Booking flag ON — admin is emailed whenever this customer makes a booking. Click to disable."
+                          : "Enable booking flag to email the admin whenever this customer makes a booking."}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 </div>
+
 
                 <hr className="border-border" />
 
