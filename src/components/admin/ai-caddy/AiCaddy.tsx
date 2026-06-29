@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Send, Plus, Trash2, Loader2, Wrench, AlertTriangle, Download, FileSpreadsheet } from "lucide-react";
+import { Send, Plus, Trash2, Loader2, Wrench, AlertTriangle, Download, FileSpreadsheet, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -57,7 +57,14 @@ export function AiCaddy() {
       </TooltipProvider>
 
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent side="right" className="w-full sm:max-w-[480px] p-0 flex flex-col">
+        <SheetContent
+          side="right"
+          className="w-full sm:max-w-[480px] p-0 flex flex-col [&>button.absolute]:hidden"
+          style={{
+            paddingTop: "env(safe-area-inset-top)",
+            paddingBottom: "env(safe-area-inset-bottom)",
+          }}
+        >
           <CaddyPanel onClose={() => setOpen(false)} />
         </SheetContent>
       </Sheet>
@@ -197,18 +204,24 @@ function CaddyPanel({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="flex flex-col h-full">
-      <SheetHeader className="px-4 py-3 pr-12 border-b flex-row items-center justify-between space-y-0 gap-2">
+      <SheetHeader className="px-3 py-2 border-b flex-row items-center justify-between space-y-0 gap-2">
         <button
           onClick={() => setShowThreads((s) => !s)}
-          className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline shrink-0"
+          className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline shrink-0 px-1"
         >
           {showThreads ? "Hide" : `History (${threads.length})`}
         </button>
         <SheetTitle className="text-sm font-semibold flex-1 text-center">AI Caddy</SheetTitle>
-        <Button size="sm" variant="ghost" onClick={newThread} className="h-7 px-2 shrink-0">
-          <Plus className="h-3.5 w-3.5 mr-1" /> New
-        </Button>
+        <div className="flex items-center gap-1 shrink-0">
+          <Button size="sm" variant="ghost" onClick={newThread} className="h-8 px-2">
+            <Plus className="h-3.5 w-3.5 mr-1" /> New
+          </Button>
+          <Button size="icon" variant="ghost" onClick={onClose} className="h-8 w-8" aria-label="Close">
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
       </SheetHeader>
+
 
       {showThreads && (
         <div className="border-b max-h-48 overflow-y-auto bg-muted/30">
