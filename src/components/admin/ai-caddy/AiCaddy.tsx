@@ -307,20 +307,45 @@ function ToolCard({ tc }: { tc: ToolCall }) {
   const isDestructive = DESTRUCTIVE.has(tc.name);
   const pending = tc.result?.pending_confirmation;
   const errored = !!tc.result?.error;
+  const isReport = tc.name === "run_report" && !errored && !pending && tc.result?.rows;
+
+  // Auto-open reports so the table is visible
+  useEffect(() => { if (isReport && !open) setOpen(true); /* eslint-disable-next-line */ }, []);
+
+  const downloadCsv = () => {
+    const csv = tc.result?.csv;
+    if (!csv) return;
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const name = `${tc.args?.entity ?? "report"}_${new Date().toISOString().slice(0,10)}.csv`;
+    a.href = url; a.download = name; a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className={cn(
       "border rounded-md text-xs overflow-hidden",
       pending && "border-amber-500/40 bg-amber-500/5",
       errored && "border-destructive/40 bg-destructive/5",
-      !pending && !errored && "border-border bg-muted/30"
+      isReport && "border-primary/30 bg-primary/5",
+      !pending && !errored && !isReport && "border-border bg-muted/30"
     )}>
       <button
         onClick={() => setOpen((o) => !o)}
         className="w-full px-3 py-2 flex items-center gap-2 hover:bg-muted/50 text-left"
       >
-        {pending ? <AlertTriangle className="h-3.5 w-3.5 text-amber-500" /> : <Wrench className="h-3.5 w-3.5 text-muted-foreground" />}
+        {pending ? <AlertTriangle className="h-3.5 w-3.5 text-amber-500" /> :
+         isReport ? <FileSpreadsheet className="h-3.5 w-3.5 text-primary" /> :
+         <Wrench className="h-3.5 w-3.5 text-muted-foreground" />}
         <span className="font-mono">{tc.name}</span>
+        {isReport && (
+          <span className="text-[11px] text-muted-foreground">
+            {tc.result.mode === "contacts"
+              ? `${tc.result.returned_rows} contacts`
+              : `${tc.result.total_groups} rows · ${tc.result.source_rows} records`}
+          </span>
+        )}
         {isDestructive && !pending && !errored && <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-700 dark:text-amber-400">action</span>}
         {pending && <span className="text-amber-600 dark:text-amber-400 text-[11px]">awaiting confirm</span>}
         {errored && <span className="text-destructive text-[11px]">error</span>}
@@ -328,14 +353,62 @@ function ToolCard({ tc }: { tc: ToolCall }) {
       </button>
       {open && (
         <div className="px-3 pb-3 space-y-2 border-t border-border/50">
-          <div>
-            <div className="text-[10px] uppercase text-muted-foreground mt-2 mb-1">Args</div>
-            <pre className="bg-background/60 rounded p-2 overflow-x-auto text-[11px]">{JSON.stringify(tc.args, null, 2)}</pre>
-          </div>
-          <div>
-            <div className="text-[10px] uppercase text-muted-foreground mb-1">Result</div>
-            <pre className="bg-background/60 rounded p-2 overflow-x-auto text-[11px] max-h-64">{JSON.stringify(tc.result, null, 2)}</pre>
-          </div>
+          {isReport ? (
+            <>
+              <div className="flex items-center justify-between mt-2">
+                <div className="text-[11px] text-muted-foreground">
+                  {tc.result.from_date && tc.result.to_date && (
+                    <span>{tc.result.from_date} → {tc.result.to_date} · Brisbane</span>
+                  )}
+                </div>
+                <Button size="sm" variant="outline" onClick={downloadCsv} className="h-7 px-2 text-xs">
+                  <Download className="h-3 w-3 mr-1" /> CSV
+                </Button>
+              </div>
+              <div className="overflow-x-auto border rounded">
+                <table className="w-full text-[11px]">
+                  <thead className="bg-muted/50">
+                    <tr>
+                      {tc.result.columns.map((c: string) => (
+                        <th key={c} className="text-left px-2 py-1.5 font-medium">{c}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tc.result.rows.slice(0, 50).map((r: any, i: number) => (
+                      <tr key={i} className="border-t">
+                        {tc.result.columns.map((c: string) => (
+                          <td key={c} className="px-2 py-1 truncate max-w-[160px]">
+                            {r[c] === null || r[c] === undefined ? <span className="text-muted-foreground">—</span> : String(r[c])}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {tc.result.rows.length > 50 && (
+                  <div className="px-2 py-1.5 text-[10px] text-muted-foreground bg-muted/30 border-t">
+                    Showing first 50 of {tc.result.rows.length}. Download CSV for full data.
+                  </div>
+                )}
+              </div>
+              <details className="text-[10px]">
+                <summary className="cursor-pointer text-muted-foreground hover:text-foreground">Query args</summary>
+                <pre className="bg-background/60 rounded p-2 overflow-x-auto mt-1">{JSON.stringify(tc.args, null, 2)}</pre>
+              </details>
+            </>
+          ) : (
+            <>
+              <div>
+                <div className="text-[10px] uppercase text-muted-foreground mt-2 mb-1">Args</div>
+                <pre className="bg-background/60 rounded p-2 overflow-x-auto text-[11px]">{JSON.stringify(tc.args, null, 2)}</pre>
+              </div>
+              <div>
+                <div className="text-[10px] uppercase text-muted-foreground mb-1">Result</div>
+                <pre className="bg-background/60 rounded p-2 overflow-x-auto text-[11px] max-h-64">{JSON.stringify(tc.result, null, 2)}</pre>
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>
