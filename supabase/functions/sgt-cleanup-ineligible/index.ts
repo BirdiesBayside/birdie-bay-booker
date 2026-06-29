@@ -164,15 +164,15 @@ serve(async (req) => {
     const exemptUserIds = new Set((exemptMembers || []).map(m => m.user_id));
     console.log(`[SGT-CLEANUP] Found ${exemptUserIds.size} exempt members`);
 
-    // 7. Get linked profiles with paying memberships (birdie or eagle)
+    // 7. Get linked profiles with paying memberships (birdie or eagle) OR staff
     const { data: linkedProfiles } = await supabase
       .from("profiles")
-      .select("sgt_user_id, membership_tier, email, first_name, last_name")
+      .select("sgt_user_id, membership_tier, custom_segment, email, first_name, last_name")
       .not("sgt_user_id", "is", null)
-      .in("membership_tier", ["birdie", "eagle"]);
+      .or("membership_tier.in.(birdie,eagle),custom_segment.eq.staff");
 
     const payingMemberIds = new Set((linkedProfiles || []).map(p => p.sgt_user_id));
-    console.log(`[SGT-CLEANUP] Found ${payingMemberIds.size} paying Birdie/Eagle members`);
+    console.log(`[SGT-CLEANUP] Found ${payingMemberIds.size} eligible profiles (paying + staff)`);
 
     // 8. Find ineligible members across all three: club, tour, and registrations
     const allMemberIds = new Map<number, string>();
