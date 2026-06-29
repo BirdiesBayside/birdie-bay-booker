@@ -64,8 +64,11 @@ import {
   FileText,
   Users,
   Shield,
-  Pause
+  Pause,
+  Flag
 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
 import { Switch } from "@/components/ui/switch";
 import { GiftCardsSection } from "@/components/admin/GiftCardsSection";
 import { CreditTransactionHistory } from "@/components/admin/CreditTransactionHistory";
