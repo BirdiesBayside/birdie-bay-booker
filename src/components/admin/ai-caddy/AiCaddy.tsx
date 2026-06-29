@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Send, Plus, Trash2, Loader2, Wrench, AlertTriangle } from "lucide-react";
+import { Send, Plus, Trash2, Loader2, Wrench, AlertTriangle, Download, FileSpreadsheet } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
