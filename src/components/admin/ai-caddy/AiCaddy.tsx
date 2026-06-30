@@ -317,7 +317,7 @@ function CaddyPanel({ onClose }: { onClose: () => void }) {
   );
 }
 
-const DESTRUCTIVE = new Set(["refund_booking", "adjust_customer_credit"]);
+const DESTRUCTIVE = new Set(["refund_booking", "adjust_customer_credit", "create_booking", "update_customer", "create_customer", "cancel_membership"]);
 
 function MsgRow({ msg }: { msg: Msg }) {
   if (msg.role === "user") {
