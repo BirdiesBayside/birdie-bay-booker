@@ -86,18 +86,26 @@ const tools = [
       parameters: { type: "object", properties: { user_id: { type: "string", description: "optional" } } },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "list_bays",
+      description: "List all bays (id, number, name, location) — use this to resolve a bay name/number to its uuid before create_booking.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
   // -------- ACTIONS (require confirmed=true) --------
   {
     type: "function",
     function: {
       name: "refund_booking",
-      description: "Refund a booking via Stripe and mark cancelled. DESTRUCTIVE — requires confirmed=true. If amount_cents omitted, full refund.",
+      description: "Refund a booking via Stripe (full refund) AND cancel it, via the admin refund-booking edge function (same path used by the admin UI — sends customer notification). DESTRUCTIVE — requires confirmed=true.",
       parameters: {
         type: "object",
         properties: {
           booking_id: { type: "string" },
-          amount_cents: { type: "number", description: "optional partial refund in cents" },
           reason: { type: "string" },
+          send_notification: { type: "boolean", description: "default true — emails the customer" },
           confirmed: { type: "boolean", description: "must be true to actually execute" },
         },
         required: ["booking_id", "reason"],
@@ -118,6 +126,83 @@ const tools = [
           confirmed: { type: "boolean" },
         },
         required: ["user_id", "amount", "note"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "create_booking",
+      description: "Create an admin booking for a customer (mirrors the admin Add Booking dialog: confirmed status, payment_method=pending, sends booking confirmation email). DESTRUCTIVE — requires confirmed=true. Checks for overlaps; will fail if the slot is already taken.",
+      parameters: {
+        type: "object",
+        properties: {
+          user_id: { type: "string", description: "customer profile user_id (uuid)" },
+          bay_id: { type: "string", description: "bay uuid" },
+          booking_date: { type: "string", description: "YYYY-MM-DD" },
+          start_time: { type: "string", description: "HH:MM (24h)" },
+          duration_hours: { type: "number", description: "1, 2, 3 or 4" },
+          player_count: { type: "number", description: "1-6, default 1" },
+          hourly_rate: { type: "number", description: "$/hr — if omitted, defaults to $35 (admin can adjust later)" },
+          confirmed: { type: "boolean" },
+        },
+        required: ["user_id", "bay_id", "booking_date", "start_time", "duration_hours"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "update_customer",
+      description: "Update a customer profile (same fields exposed in the admin Customers UI). DESTRUCTIVE — requires confirmed=true. Allowed fields: first_name, last_name, phone, custom_segment ('staff'|'vip'|'comp'|null), booking_flag_enabled (alerts staff on booking), membership_on_hold, custom_billing, custom_hourly_rate.",
+      parameters: {
+        type: "object",
+        properties: {
+          user_id: { type: "string" },
+          first_name: { type: "string" },
+          last_name: { type: "string" },
+          phone: { type: "string" },
+          custom_segment: { type: "string" },
+          booking_flag_enabled: { type: "boolean" },
+          membership_on_hold: { type: "boolean" },
+          custom_billing: { type: "boolean" },
+          custom_hourly_rate: { type: "number" },
+          confirmed: { type: "boolean" },
+        },
+        required: ["user_id", "confirmed"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "create_customer",
+      description: "Create a new customer account via the admin create-customer edge function (same path used by the admin UI: creates auth user + profile, sends a welcome/onboarding email). DESTRUCTIVE — requires confirmed=true.",
+      parameters: {
+        type: "object",
+        properties: {
+          email: { type: "string" },
+          firstName: { type: "string" },
+          lastName: { type: "string" },
+          phone: { type: "string" },
+          confirmed: { type: "boolean" },
+        },
+        required: ["email", "firstName", "lastName"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "cancel_membership",
+      description: "Cancel a customer's membership subscription via the cancel-membership edge function (same path as the admin/customer-facing UI: cancels Stripe subscription, downgrades tier). DESTRUCTIVE — requires confirmed=true.",
+      parameters: {
+        type: "object",
+        properties: {
+          user_id: { type: "string" },
+          confirmed: { type: "boolean" },
+        },
+        required: ["user_id"],
       },
     },
   },
@@ -387,7 +472,23 @@ async function runReport(args: any) {
 
 
 // ---------- Tool executors ----------
-async function execTool(name: string, args: any, userId: string, threadId: string | null) {
+async function callEdgeFn(name: string, body: any, authHeader: string) {
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/${name}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": authHeader,
+    },
+    body: JSON.stringify(body),
+  });
+  const text = await res.text();
+  let parsed: any = text;
+  try { parsed = JSON.parse(text); } catch {}
+  if (!res.ok) return { error: parsed?.error || parsed?.message || `edge fn ${name} failed (${res.status})`, status: res.status, detail: parsed };
+  return parsed;
+}
+
+async function execTool(name: string, args: any, userId: string, threadId: string | null, authHeader: string) {
   const log = async (status: string, result: any) => {
     await admin.from("ai_caddy_actions").insert({
       thread_id: threadId, user_id: userId, tool_name: name, args, result, status,
@@ -476,20 +577,18 @@ async function execTool(name: string, args: any, userId: string, threadId: strin
         }
         return { active_tour: tour, recent_tournaments: tournaments, registration, scorecard };
       }
+      case "list_bays": {
+        const { data, error } = await admin.from("bays").select("id,bay_number,name,is_active").order("bay_number", { ascending: true });
+        if (error) return { error: error.message };
+        return { bays: data };
+      }
       case "refund_booking": {
         if (!args.confirmed) return { pending_confirmation: true, message: "Awaiting user confirmation. Re-invoke with confirmed=true after user agrees." };
-        const { data: b } = await admin.from("bookings").select("*").eq("id", args.booking_id).maybeSingle();
-        if (!b) { const r = { error: "booking not found" }; await log("error", r); return r; }
-        if (!b.stripe_payment_intent_id) { const r = { error: "no stripe payment intent on this booking" }; await log("error", r); return r; }
-        const refund = await stripe.refunds.create({
-          payment_intent: b.stripe_payment_intent_id,
-          ...(args.amount_cents ? { amount: args.amount_cents } : {}),
-          reason: "requested_by_customer",
-          metadata: { booking_id: b.id, ai_caddy_reason: args.reason, admin_user_id: userId },
-        });
-        await admin.from("bookings").update({ status: "cancelled" }).eq("id", b.id);
-        const result = { ok: true, refund_id: refund.id, amount: (refund.amount||0)/100, booking_id: b.id };
-        await log("success", result);
+        const result = await callEdgeFn("refund-booking", {
+          booking_id: args.booking_id,
+          send_notification: args.send_notification !== false,
+        }, authHeader);
+        await log(result?.error ? "error" : "success", { ...result, reason: args.reason });
         return result;
       }
       case "adjust_customer_credit": {
@@ -505,6 +604,72 @@ async function execTool(name: string, args: any, userId: string, threadId: strin
         });
         const result = { ok: true, before, after, delta: args.amount };
         await log("success", result);
+        return result;
+      }
+      case "create_booking": {
+        if (!args.confirmed) return { pending_confirmation: true, message: "Awaiting user confirmation. Re-invoke with confirmed=true after user agrees." };
+        const duration = Number(args.duration_hours);
+        if (!duration || duration < 1 || duration > 4) { const r = { error: "duration_hours must be 1-4" }; await log("error", r); return r; }
+        const [hh, mm] = String(args.start_time).split(":").map(Number);
+        if (Number.isNaN(hh) || Number.isNaN(mm)) { const r = { error: "start_time must be HH:MM" }; await log("error", r); return r; }
+        const endHh = hh + duration;
+        const endTime = `${String(endHh).padStart(2,"0")}:${String(mm).padStart(2,"0")}`;
+        // Overlap check — mirror admin UI
+        const { data: clash } = await admin.from("bookings")
+          .select("id,start_time,end_time,status")
+          .eq("bay_id", args.bay_id)
+          .eq("booking_date", args.booking_date)
+          .in("status", ["pending","confirmed"])
+          .lt("start_time", endTime)
+          .gt("end_time", args.start_time);
+        if (clash && clash.length) { const r = { error: "Time slot overlaps existing booking", existing: clash }; await log("error", r); return r; }
+        const hourlyRate = Number(args.hourly_rate ?? 35);
+        const totalPrice = hourlyRate * duration;
+        const { data: booking, error } = await admin.from("bookings").insert({
+          user_id: args.user_id,
+          bay_id: args.bay_id,
+          booking_date: args.booking_date,
+          start_time: args.start_time,
+          end_time: endTime,
+          duration_hours: duration,
+          player_count: Number(args.player_count ?? 1),
+          hourly_rate: hourlyRate,
+          total_price: totalPrice,
+          status: "confirmed",
+          payment_method: "pending",
+        }).select().single();
+        if (error) { const r = { error: error.message }; await log("error", r); return r; }
+        try {
+          await callEdgeFn("send-booking-notification", { booking_id: booking.id, notification_type: "confirmation" }, authHeader);
+        } catch (_) { /* don't fail booking on notify */ }
+        const result = { ok: true, booking_id: booking.id, total_price: totalPrice, end_time: endTime };
+        await log("success", result);
+        return result;
+      }
+      case "update_customer": {
+        if (!args.confirmed) return { pending_confirmation: true, message: "Awaiting user confirmation. Re-invoke with confirmed=true after user agrees." };
+        const allowed = ["first_name","last_name","phone","custom_segment","booking_flag_enabled","membership_on_hold","custom_billing","custom_hourly_rate"];
+        const patch: Record<string, any> = {};
+        for (const k of allowed) if (args[k] !== undefined) patch[k] = args[k];
+        if (!Object.keys(patch).length) { const r = { error: "no allowed fields provided" }; await log("error", r); return r; }
+        const { data, error } = await admin.from("profiles").update(patch).eq("user_id", args.user_id).select("user_id,first_name,last_name,phone,custom_segment,booking_flag_enabled,membership_on_hold,custom_billing,custom_hourly_rate").maybeSingle();
+        if (error) { const r = { error: error.message }; await log("error", r); return r; }
+        const result = { ok: true, updated: patch, profile: data };
+        await log("success", result);
+        return result;
+      }
+      case "create_customer": {
+        if (!args.confirmed) return { pending_confirmation: true, message: "Awaiting user confirmation. Re-invoke with confirmed=true after user agrees." };
+        const result = await callEdgeFn("create-customer", {
+          email: args.email, firstName: args.firstName, lastName: args.lastName, phone: args.phone,
+        }, authHeader);
+        await log(result?.error ? "error" : "success", result);
+        return result;
+      }
+      case "cancel_membership": {
+        if (!args.confirmed) return { pending_confirmation: true, message: "Awaiting user confirmation. Re-invoke with confirmed=true after user agrees." };
+        const result = await callEdgeFn("cancel-membership", { user_id: args.user_id }, authHeader);
+        await log(result?.error ? "error" : "success", result);
         return result;
       }
       case "run_report": {
@@ -580,10 +745,13 @@ For business/strategic questions ("is it worth staffing X", "should we run a pro
 
 ## General rules
 - Always cite IDs (booking id, user id, stripe id) when investigating individual issues.
-- For DESTRUCTIVE tools (refund_booking, adjust_customer_credit): first call WITHOUT confirmed=true, summarise exactly what will happen, wait for explicit user confirmation, then re-call with confirmed=true.
+- DESTRUCTIVE tools (refund_booking, adjust_customer_credit, create_booking, update_customer, create_customer, cancel_membership): ALWAYS first call WITHOUT confirmed=true so the UI flags it; summarise exactly what will happen in plain English (who/what/when/$), wait for explicit user confirmation ("yes", "do it", "go ahead"), then re-call with confirmed=true.
+- Prefer the dedicated action tools over telling the user to do it manually — they go through the same backend the admin UI uses (so notifications, Stripe, audit logs all fire correctly).
+- When creating a booking: confirm bay (find via get_recent_edge_logs or ask), date, start time, duration, customer name + user_id, and hourly rate. Use $35/hr default unless the user specifies.
+- When updating a customer: only touch the field(s) explicitly requested. Never change email — that's not in the toolset.
 - Never reveal secrets, env vars, or raw SQL. Never invent data — if you don't have it, say so.
 - All times = Australia/Brisbane.
-- Refuse politely if asked to do bulk ops, code changes, schema changes, or delete customers — those aren't in your toolset.
+- Refuse politely if asked to delete customers, change membership tier directly, or do bulk ops — those aren't in your toolset.
 - Keep replies tight. Markdown allowed. Lead with the answer, then the numbers.`;
 
 Deno.serve(async (req) => {
@@ -643,7 +811,7 @@ Deno.serve(async (req) => {
         for (const tc of msg.tool_calls) {
           let parsedArgs: any = {};
           try { parsedArgs = JSON.parse(tc.function.arguments || "{}"); } catch {}
-          const result = await execTool(tc.function.name, parsedArgs, user.id, thread_id ?? null);
+          const result = await execTool(tc.function.name, parsedArgs, user.id, thread_id ?? null, authHeader);
           toolCallsTrace.push({ id: tc.id, name: tc.function.name, args: parsedArgs, result });
           convo.push({ role: "tool", tool_call_id: tc.id, content: JSON.stringify(result) });
         }
