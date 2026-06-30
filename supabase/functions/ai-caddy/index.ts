@@ -91,13 +91,13 @@ const tools = [
     type: "function",
     function: {
       name: "refund_booking",
-      description: "Refund a booking via Stripe and mark cancelled. DESTRUCTIVE — requires confirmed=true. If amount_cents omitted, full refund.",
+      description: "Refund a booking via Stripe (full refund) AND cancel it, via the admin refund-booking edge function (same path used by the admin UI — sends customer notification). DESTRUCTIVE — requires confirmed=true.",
       parameters: {
         type: "object",
         properties: {
           booking_id: { type: "string" },
-          amount_cents: { type: "number", description: "optional partial refund in cents" },
           reason: { type: "string" },
+          send_notification: { type: "boolean", description: "default true — emails the customer" },
           confirmed: { type: "boolean", description: "must be true to actually execute" },
         },
         required: ["booking_id", "reason"],
@@ -118,6 +118,83 @@ const tools = [
           confirmed: { type: "boolean" },
         },
         required: ["user_id", "amount", "note"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "create_booking",
+      description: "Create an admin booking for a customer (mirrors the admin Add Booking dialog: confirmed status, payment_method=pending, sends booking confirmation email). DESTRUCTIVE — requires confirmed=true. Checks for overlaps; will fail if the slot is already taken.",
+      parameters: {
+        type: "object",
+        properties: {
+          user_id: { type: "string", description: "customer profile user_id (uuid)" },
+          bay_id: { type: "string", description: "bay uuid" },
+          booking_date: { type: "string", description: "YYYY-MM-DD" },
+          start_time: { type: "string", description: "HH:MM (24h)" },
+          duration_hours: { type: "number", description: "1, 2, 3 or 4" },
+          player_count: { type: "number", description: "1-6, default 1" },
+          hourly_rate: { type: "number", description: "$/hr — if omitted, defaults to $35 (admin can adjust later)" },
+          confirmed: { type: "boolean" },
+        },
+        required: ["user_id", "bay_id", "booking_date", "start_time", "duration_hours"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "update_customer",
+      description: "Update a customer profile (same fields exposed in the admin Customers UI). DESTRUCTIVE — requires confirmed=true. Allowed fields: first_name, last_name, phone, custom_segment ('staff'|'vip'|'comp'|null), booking_flag_enabled (alerts staff on booking), membership_on_hold, custom_billing, custom_hourly_rate.",
+      parameters: {
+        type: "object",
+        properties: {
+          user_id: { type: "string" },
+          first_name: { type: "string" },
+          last_name: { type: "string" },
+          phone: { type: "string" },
+          custom_segment: { type: "string" },
+          booking_flag_enabled: { type: "boolean" },
+          membership_on_hold: { type: "boolean" },
+          custom_billing: { type: "boolean" },
+          custom_hourly_rate: { type: "number" },
+          confirmed: { type: "boolean" },
+        },
+        required: ["user_id", "confirmed"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "create_customer",
+      description: "Create a new customer account via the admin create-customer edge function (same path used by the admin UI: creates auth user + profile, sends a welcome/onboarding email). DESTRUCTIVE — requires confirmed=true.",
+      parameters: {
+        type: "object",
+        properties: {
+          email: { type: "string" },
+          firstName: { type: "string" },
+          lastName: { type: "string" },
+          phone: { type: "string" },
+          confirmed: { type: "boolean" },
+        },
+        required: ["email", "firstName", "lastName"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "cancel_membership",
+      description: "Cancel a customer's membership subscription via the cancel-membership edge function (same path as the admin/customer-facing UI: cancels Stripe subscription, downgrades tier). DESTRUCTIVE — requires confirmed=true.",
+      parameters: {
+        type: "object",
+        properties: {
+          user_id: { type: "string" },
+          confirmed: { type: "boolean" },
+        },
+        required: ["user_id"],
       },
     },
   },
