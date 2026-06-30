@@ -464,7 +464,23 @@ async function runReport(args: any) {
 
 
 // ---------- Tool executors ----------
-async function execTool(name: string, args: any, userId: string, threadId: string | null) {
+async function callEdgeFn(name: string, body: any, authHeader: string) {
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/${name}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": authHeader,
+    },
+    body: JSON.stringify(body),
+  });
+  const text = await res.text();
+  let parsed: any = text;
+  try { parsed = JSON.parse(text); } catch {}
+  if (!res.ok) return { error: parsed?.error || parsed?.message || `edge fn ${name} failed (${res.status})`, status: res.status, detail: parsed };
+  return parsed;
+}
+
+async function execTool(name: string, args: any, userId: string, threadId: string | null, authHeader: string) {
   const log = async (status: string, result: any) => {
     await admin.from("ai_caddy_actions").insert({
       thread_id: threadId, user_id: userId, tool_name: name, args, result, status,
