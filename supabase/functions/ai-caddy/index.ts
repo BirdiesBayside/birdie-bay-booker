@@ -86,6 +86,14 @@ const tools = [
       parameters: { type: "object", properties: { user_id: { type: "string", description: "optional" } } },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "list_bays",
+      description: "List all bays (id, number, name, location) — use this to resolve a bay name/number to its uuid before create_booking.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
   // -------- ACTIONS (require confirmed=true) --------
   {
     type: "function",
