@@ -577,6 +577,11 @@ async function execTool(name: string, args: any, userId: string, threadId: strin
         }
         return { active_tour: tour, recent_tournaments: tournaments, registration, scorecard };
       }
+      case "list_bays": {
+        const { data, error } = await admin.from("bays").select("id,bay_number,name,location_id,is_active").order("bay_number", { ascending: true });
+        if (error) return { error: error.message };
+        return { bays: data };
+      }
       case "refund_booking": {
         if (!args.confirmed) return { pending_confirmation: true, message: "Awaiting user confirmation. Re-invoke with confirmed=true after user agrees." };
         const result = await callEdgeFn("refund-booking", {
