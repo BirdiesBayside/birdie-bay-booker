@@ -795,7 +795,7 @@ Deno.serve(async (req) => {
         for (const tc of msg.tool_calls) {
           let parsedArgs: any = {};
           try { parsedArgs = JSON.parse(tc.function.arguments || "{}"); } catch {}
-          const result = await execTool(tc.function.name, parsedArgs, user.id, thread_id ?? null);
+          const result = await execTool(tc.function.name, parsedArgs, user.id, thread_id ?? null, authHeader);
           toolCallsTrace.push({ id: tc.id, name: tc.function.name, args: parsedArgs, result });
           convo.push({ role: "tool", tool_call_id: tc.id, content: JSON.stringify(result) });
         }
