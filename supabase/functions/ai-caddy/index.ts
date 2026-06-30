@@ -571,18 +571,11 @@ async function execTool(name: string, args: any, userId: string, threadId: strin
       }
       case "refund_booking": {
         if (!args.confirmed) return { pending_confirmation: true, message: "Awaiting user confirmation. Re-invoke with confirmed=true after user agrees." };
-        const { data: b } = await admin.from("bookings").select("*").eq("id", args.booking_id).maybeSingle();
-        if (!b) { const r = { error: "booking not found" }; await log("error", r); return r; }
-        if (!b.stripe_payment_intent_id) { const r = { error: "no stripe payment intent on this booking" }; await log("error", r); return r; }
-        const refund = await stripe.refunds.create({
-          payment_intent: b.stripe_payment_intent_id,
-          ...(args.amount_cents ? { amount: args.amount_cents } : {}),
-          reason: "requested_by_customer",
-          metadata: { booking_id: b.id, ai_caddy_reason: args.reason, admin_user_id: userId },
-        });
-        await admin.from("bookings").update({ status: "cancelled" }).eq("id", b.id);
-        const result = { ok: true, refund_id: refund.id, amount: (refund.amount||0)/100, booking_id: b.id };
-        await log("success", result);
+        const result = await callEdgeFn("refund-booking", {
+          booking_id: args.booking_id,
+          send_notification: args.send_notification !== false,
+        }, authHeader);
+        await log(result?.error ? "error" : "success", { ...result, reason: args.reason });
         return result;
       }
       case "adjust_customer_credit": {
@@ -598,6 +591,72 @@ async function execTool(name: string, args: any, userId: string, threadId: strin
         });
         const result = { ok: true, before, after, delta: args.amount };
         await log("success", result);
+        return result;
+      }
+      case "create_booking": {
+        if (!args.confirmed) return { pending_confirmation: true, message: "Awaiting user confirmation. Re-invoke with confirmed=true after user agrees." };
+        const duration = Number(args.duration_hours);
+        if (!duration || duration < 1 || duration > 4) { const r = { error: "duration_hours must be 1-4" }; await log("error", r); return r; }
+        const [hh, mm] = String(args.start_time).split(":").map(Number);
+        if (Number.isNaN(hh) || Number.isNaN(mm)) { const r = { error: "start_time must be HH:MM" }; await log("error", r); return r; }
+        const endHh = hh + duration;
+        const endTime = `${String(endHh).padStart(2,"0")}:${String(mm).padStart(2,"0")}`;
+        // Overlap check — mirror admin UI
+        const { data: clash } = await admin.from("bookings")
+          .select("id,start_time,end_time,status")
+          .eq("bay_id", args.bay_id)
+          .eq("booking_date", args.booking_date)
+          .in("status", ["pending","confirmed"])
+          .lt("start_time", endTime)
+          .gt("end_time", args.start_time);
+        if (clash && clash.length) { const r = { error: "Time slot overlaps existing booking", existing: clash }; await log("error", r); return r; }
+        const hourlyRate = Number(args.hourly_rate ?? 35);
+        const totalPrice = hourlyRate * duration;
+        const { data: booking, error } = await admin.from("bookings").insert({
+          user_id: args.user_id,
+          bay_id: args.bay_id,
+          booking_date: args.booking_date,
+          start_time: args.start_time,
+          end_time: endTime,
+          duration_hours: duration,
+          player_count: Number(args.player_count ?? 1),
+          hourly_rate: hourlyRate,
+          total_price: totalPrice,
+          status: "confirmed",
+          payment_method: "pending",
+        }).select().single();
+        if (error) { const r = { error: error.message }; await log("error", r); return r; }
+        try {
+          await callEdgeFn("send-booking-notification", { booking_id: booking.id, notification_type: "confirmation" }, authHeader);
+        } catch (_) { /* don't fail booking on notify */ }
+        const result = { ok: true, booking_id: booking.id, total_price: totalPrice, end_time: endTime };
+        await log("success", result);
+        return result;
+      }
+      case "update_customer": {
+        if (!args.confirmed) return { pending_confirmation: true, message: "Awaiting user confirmation. Re-invoke with confirmed=true after user agrees." };
+        const allowed = ["first_name","last_name","phone","custom_segment","booking_flag_enabled","membership_on_hold","custom_billing","custom_hourly_rate"];
+        const patch: Record<string, any> = {};
+        for (const k of allowed) if (args[k] !== undefined) patch[k] = args[k];
+        if (!Object.keys(patch).length) { const r = { error: "no allowed fields provided" }; await log("error", r); return r; }
+        const { data, error } = await admin.from("profiles").update(patch).eq("user_id", args.user_id).select("user_id,first_name,last_name,phone,custom_segment,booking_flag_enabled,membership_on_hold,custom_billing,custom_hourly_rate").maybeSingle();
+        if (error) { const r = { error: error.message }; await log("error", r); return r; }
+        const result = { ok: true, updated: patch, profile: data };
+        await log("success", result);
+        return result;
+      }
+      case "create_customer": {
+        if (!args.confirmed) return { pending_confirmation: true, message: "Awaiting user confirmation. Re-invoke with confirmed=true after user agrees." };
+        const result = await callEdgeFn("create-customer", {
+          email: args.email, firstName: args.firstName, lastName: args.lastName, phone: args.phone,
+        }, authHeader);
+        await log(result?.error ? "error" : "success", result);
+        return result;
+      }
+      case "cancel_membership": {
+        if (!args.confirmed) return { pending_confirmation: true, message: "Awaiting user confirmation. Re-invoke with confirmed=true after user agrees." };
+        const result = await callEdgeFn("cancel-membership", { user_id: args.user_id }, authHeader);
+        await log(result?.error ? "error" : "success", result);
         return result;
       }
       case "run_report": {
