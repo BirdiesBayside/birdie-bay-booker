@@ -160,32 +160,48 @@ export default function RangeSessions() {
   }
 
   const unitBar = (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
-      <div className="inline-flex rounded-full border border-border overflow-hidden">
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button className="flex items-center gap-1.5 bg-card border border-border rounded-lg px-3 py-1.5 shadow-sm active:scale-[0.98] transition-transform text-xs">
+          <Settings2 className="h-3.5 w-3.5 text-accent" />
+          <span className="font-medium text-foreground">{activeDist} · {activeSpd}</span>
+          <ChevronDown className="h-3 w-3 text-muted-foreground" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-[180px]">
+        <DropdownMenuLabel className="text-[10px] uppercase tracking-widest text-muted-foreground">Distance</DropdownMenuLabel>
         {(["m", "yd"] as DistanceUnit[]).map((u) => (
-          <button
+          <DropdownMenuItem
             key={u}
-            onClick={() => setDistUnit(u)}
-            className={`px-3 py-1 font-medium ${activeDist === u ? "bg-accent text-accent-foreground" : "bg-background text-muted-foreground"}`}
-          >{u}</button>
+            onSelect={() => setDistUnit(u)}
+            className={`cursor-pointer flex items-center justify-between ${activeDist === u ? "text-accent" : ""}`}
+          >
+            <span>{u === "m" ? "Meters (m)" : "Yards (yd)"}</span>
+            {activeDist === u && <Check className="h-4 w-4 text-accent" />}
+          </DropdownMenuItem>
         ))}
-      </div>
-      <div className="inline-flex rounded-full border border-border overflow-hidden">
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel className="text-[10px] uppercase tracking-widest text-muted-foreground">Speed</DropdownMenuLabel>
         {(["kph", "mph"] as SpeedUnit[]).map((u) => (
-          <button
+          <DropdownMenuItem
             key={u}
-            onClick={() => setSpdUnit(u)}
-            className={`px-3 py-1 font-medium ${activeSpd === u ? "bg-accent text-accent-foreground" : "bg-background text-muted-foreground"}`}
-          >{u}</button>
+            onSelect={() => setSpdUnit(u)}
+            className={`cursor-pointer flex items-center justify-between ${activeSpd === u ? "text-accent" : ""}`}
+          >
+            <span>{u === "kph" ? "km/h" : "mph"}</span>
+            {activeSpd === u && <Check className="h-4 w-4 text-accent" />}
+          </DropdownMenuItem>
         ))}
-      </div>
-      <div className="flex items-center gap-2">
-        <Switch id="trim" checked={trim} onCheckedChange={setTrim} />
-        <Label htmlFor="trim" className="cursor-pointer text-muted-foreground text-xs">
-          {trim ? "Outliers hidden" : "All shots"}
-        </Label>
-      </div>
-    </div>
+        <DropdownMenuSeparator />
+        <DropdownMenuCheckboxItem
+          checked={trim}
+          onCheckedChange={(v) => setTrim(!!v)}
+          className="cursor-pointer [&_[data-state=checked]]:text-accent"
+        >
+          Hide outliers
+        </DropdownMenuCheckboxItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 
   const TABS: { value: string; label: string }[] = [
