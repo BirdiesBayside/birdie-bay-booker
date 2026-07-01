@@ -27,6 +27,61 @@ export type Shot = {
   shot_timestamp: string | null;
 };
 
+// ---------- Units ----------
+export type DistanceUnit = "m" | "yd";
+export type SpeedUnit = "mph" | "kph";
+
+export const M_TO_YD = 1.09361;
+export const YD_TO_M = 0.9144;
+export const MPH_TO_KPH = 1.60934;
+export const KPH_TO_MPH = 0.621371;
+
+/**
+ * Auto-detect whether GSPro exported in metres or yards, using the driver's
+ * average carry as the tell (drivers metric ≈ 200–260 yd / 180–240 m).
+ * Falls back to metres.
+ */
+export function detectDistanceUnit(shots: Shot[]): DistanceUnit {
+  const driver = shots.filter((s) => {
+    const c = (s.club_type || "").toLowerCase();
+    return c === "dr" || c === "driver";
+  });
+  const carries = driver.map((s) => s.carry).filter((v): v is number => typeof v === "number" && v > 0);
+  if (carries.length >= 3) {
+    const avg = carries.reduce((a, b) => a + b, 0) / carries.length;
+    // Real-world driver carries: yards ≈ 200-280, metres ≈ 180-255.
+    // Split at ~215: above → yards, below → metres.
+    return avg > 215 ? "yd" : "m";
+  }
+  return "m";
+}
+
+export function detectSpeedUnit(shots: Shot[]): SpeedUnit {
+  // GSPro exports mph natively regardless of distance unit choice on most rigs;
+  // detect by checking ball speed against a plausible mph driver range.
+  const driver = shots.filter((s) => {
+    const c = (s.club_type || "").toLowerCase();
+    return c === "dr" || c === "driver";
+  });
+  const bs = driver.map((s) => s.ball_speed).filter((v): v is number => typeof v === "number" && v > 0);
+  if (bs.length >= 3) {
+    const avg = bs.reduce((a, b) => a + b, 0) / bs.length;
+    return avg > 210 ? "kph" : "mph";
+  }
+  return "mph";
+}
+
+export function convertDistance(v: number | null | undefined, from: DistanceUnit, to: DistanceUnit): number | null {
+  if (v === null || v === undefined || !Number.isFinite(v)) return null;
+  if (from === to) return v;
+  return from === "m" ? v * M_TO_YD : v * YD_TO_M;
+}
+export function convertSpeed(v: number | null | undefined, from: SpeedUnit, to: SpeedUnit): number | null {
+  if (v === null || v === undefined || !Number.isFinite(v)) return null;
+  if (from === to) return v;
+  return from === "mph" ? v * MPH_TO_KPH : v * KPH_TO_MPH;
+}
+
 // Canonical club ordering (long -> short)
 const CLUB_ORDER = [
   "Dr", "Driver", "3W", "5W", "7W", "2H", "3H", "4H", "5H",
@@ -42,6 +97,17 @@ export function sortClubs(clubs: string[]): string[] {
   return [...clubs].sort((a, b) => idx(a) - idx(b) || a.localeCompare(b));
 }
 
+// Deterministic color per club — brand-adjacent palette
+const CLUB_PALETTE = [
+  "#1F4C25", "#EC622D", "#3E7C40", "#B8480F", "#5FA365", "#F7A26B",
+  "#2E623A", "#D24E1F", "#7BB682", "#8B5CF6", "#0EA5E9", "#F59E0B",
+];
+export function clubColor(club: string): string {
+  let h = 0;
+  for (let i = 0; i < club.length; i++) h = (h * 31 + club.charCodeAt(i)) >>> 0;
+  return CLUB_PALETTE[h % CLUB_PALETTE.length];
+}
+
 const nums = (arr: (number | null | undefined)[]): number[] =>
   arr.filter((v): v is number => typeof v === "number" && Number.isFinite(v));
 
@@ -50,18 +116,47 @@ export function mean(arr: (number | null | undefined)[]): number | null {
   if (n.length === 0) return null;
   return n.reduce((a, b) => a + b, 0) / n.length;
 }
-
 export function max(arr: (number | null | undefined)[]): number | null {
   const n = nums(arr);
   return n.length === 0 ? null : Math.max(...n);
 }
-
+export function median(arr: (number | null | undefined)[]): number | null {
+  const n = nums(arr).sort((a, b) => a - b);
+  if (n.length === 0) return null;
+  const mid = Math.floor(n.length / 2);
+  return n.length % 2 ? n[mid] : (n[mid - 1] + n[mid]) / 2;
+}
 export function stddev(arr: (number | null | undefined)[]): number | null {
   const n = nums(arr);
   if (n.length < 2) return null;
   const m = n.reduce((a, b) => a + b, 0) / n.length;
   const v = n.reduce((a, b) => a + (b - m) ** 2, 0) / (n.length - 1);
   return Math.sqrt(v);
+}
+
+/**
+ * Trim per-club outliers: any shot whose carry is <60% or >140% of that club's
+ * median carry is treated as a mishit and removed. Shots without a carry are kept.
+ */
+export function trimOutliers(shots: Shot[]): Shot[] {
+  const byClub = new Map<string, Shot[]>();
+  for (const s of shots) {
+    const c = s.club_type || "Unknown";
+    const arr = byClub.get(c) ?? [];
+    arr.push(s);
+    byClub.set(c, arr);
+  }
+  const keep: Shot[] = [];
+  for (const [, arr] of byClub) {
+    const med = median(arr.map((s) => s.carry));
+    if (med === null || med <= 0) { keep.push(...arr); continue; }
+    for (const s of arr) {
+      const c = s.carry;
+      if (c === null || c === undefined || !Number.isFinite(c)) { keep.push(s); continue; }
+      if (c >= med * 0.6 && c <= med * 1.4) keep.push(s);
+    }
+  }
+  return keep;
 }
 
 export type ClubStats = {
@@ -76,8 +171,8 @@ export type ClubStats = {
   avgSmash: number | null;
   avgLaunch: number | null;
   avgSpin: number | null;
-  lateralSd: number | null; // dispersion (side carry stddev)
-  smashSd: number | null;   // consistency
+  lateralSd: number | null;
+  smashSd: number | null;
 };
 
 export function statsByClub(shots: Shot[]): ClubStats[] {
@@ -88,8 +183,7 @@ export function statsByClub(shots: Shot[]): ClubStats[] {
     arr.push(s);
     groups.set(club, arr);
   }
-  const clubs = sortClubs(Array.from(groups.keys()));
-  return clubs.map((club) => {
+  return sortClubs(Array.from(groups.keys())).map((club) => {
     const g = groups.get(club)!;
     return {
       club,
@@ -107,6 +201,103 @@ export function statsByClub(shots: Shot[]): ClubStats[] {
       smashSd: stddev(g.map((s) => s.smash_factor)),
     };
   });
+}
+
+export type SwingStats = {
+  club: string;
+  shots: number;
+  avgPath: number | null;
+  avgFace: number | null;
+  avgFaceToPath: number | null;
+  avgAoA: number | null;
+  avgLaunch: number | null;
+  avgSpinAxis: number | null;
+};
+export function swingStatsByClub(shots: Shot[]): SwingStats[] {
+  const groups = new Map<string, Shot[]>();
+  for (const s of shots) {
+    const club = s.club_type || "Unknown";
+    const arr = groups.get(club) ?? [];
+    arr.push(s);
+    groups.set(club, arr);
+  }
+  return sortClubs(Array.from(groups.keys())).map((club) => {
+    const g = groups.get(club)!;
+    return {
+      club,
+      shots: g.length,
+      avgPath: mean(g.map((s) => s.club_path)),
+      avgFace: mean(g.map((s) => s.face_angle)),
+      avgFaceToPath: mean(g.map((s) => s.face_to_path)),
+      avgAoA: mean(g.map((s) => s.angle_of_attack)),
+      avgLaunch: mean(g.map((s) => s.launch_angle)),
+      avgSpinAxis: mean(g.map((s) => s.spin_axis)),
+    };
+  });
+}
+
+/**
+ * 2D dispersion ellipse. Computes centroid + 2×2 covariance of (side, carry),
+ * returns semi-axes (kσ) and rotation angle in radians.
+ * Also classifies the dominant shot shape.
+ */
+export type Ellipse = {
+  cx: number; cy: number;
+  rx: number; ry: number; // semi-axes at k*sigma (world units)
+  angleRad: number;        // rotation of major axis
+  n: number;
+  shape: "Straight" | "Draw" | "Fade" | "Push" | "Pull" | "Hook" | "Slice" | "Mixed";
+  shapePct: number;        // % of shots in dominant shape bucket
+};
+
+export function fitEllipse(points: { side: number; carry: number }[], k = 2): Ellipse | null {
+  const pts = points.filter((p) => Number.isFinite(p.side) && Number.isFinite(p.carry));
+  if (pts.length < 3) return null;
+  const n = pts.length;
+  const mx = pts.reduce((a, b) => a + b.side, 0) / n;
+  const my = pts.reduce((a, b) => a + b.carry, 0) / n;
+  let sxx = 0, syy = 0, sxy = 0;
+  for (const p of pts) {
+    const dx = p.side - mx, dy = p.carry - my;
+    sxx += dx * dx; syy += dy * dy; sxy += dx * dy;
+  }
+  sxx /= (n - 1); syy /= (n - 1); sxy /= (n - 1);
+
+  // Eigenvalues of [[sxx, sxy],[sxy, syy]]
+  const tr = sxx + syy;
+  const det = sxx * syy - sxy * sxy;
+  const disc = Math.max(0, (tr * tr) / 4 - det);
+  const l1 = tr / 2 + Math.sqrt(disc);
+  const l2 = tr / 2 - Math.sqrt(disc);
+  const rx = k * Math.sqrt(Math.max(0, l1));
+  const ry = k * Math.sqrt(Math.max(0, l2));
+  const angleRad = 0.5 * Math.atan2(2 * sxy, sxx - syy);
+
+  // Shot shape: classify each shot on side & side/carry ratio
+  let straight = 0, draw = 0, fade = 0, push = 0, pull = 0, hook = 0, slice = 0;
+  for (const p of pts) {
+    const ratio = p.side / Math.max(1, Math.abs(p.carry));
+    const abs = Math.abs(p.side);
+    if (abs < 3) straight++;
+    else if (ratio < -0.15) hook++;
+    else if (ratio > 0.15) slice++;
+    else if (ratio < -0.05) draw++;
+    else if (ratio > 0.05) fade++;
+    else if (p.side < 0) pull++;
+    else push++;
+  }
+  const buckets: [Ellipse["shape"], number][] = [
+    ["Straight", straight], ["Draw", draw], ["Fade", fade],
+    ["Pull", pull], ["Push", push], ["Hook", hook], ["Slice", slice],
+  ];
+  buckets.sort((a, b) => b[1] - a[1]);
+  const [topShape, topN] = buckets[0];
+  const pct = (topN / n) * 100;
+  return {
+    cx: mx, cy: my, rx, ry, angleRad, n,
+    shape: pct >= 40 ? topShape : "Mixed",
+    shapePct: pct,
+  };
 }
 
 export function fmt(n: number | null | undefined, digits = 1, suffix = ""): string {
