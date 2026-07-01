@@ -230,7 +230,7 @@ export default function BayOrder() {
   return (
     <div className="min-h-screen bg-background pb-32">
       {/* Header */}
-      <header className="bg-primary text-primary-foreground p-4 sticky top-0 z-10">
+      <header className="bg-primary text-primary-foreground p-4 sticky top-0 z-10 safe-area-top">
         <div className="flex items-center justify-between max-w-lg mx-auto">
           <img src={birdieLogo} alt="Birdies" className="h-8" />
           <span className="font-display text-lg">Bay {bay}</span>
