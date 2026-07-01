@@ -8,11 +8,18 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
-import { ArrowLeft, Target, TrendingUp, LineChart as LineIcon } from "lucide-react";
-import { statsByClub, sortClubs, fmt, mean, max, type Shot } from "@/lib/range-stats";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { ArrowLeft, Target, TrendingUp } from "lucide-react";
+import {
+  statsByClub, swingStatsByClub, sortClubs, fmt, mean, max,
+  detectDistanceUnit, detectSpeedUnit, convertDistance, convertSpeed,
+  trimOutliers, fitEllipse, clubColor,
+  type Shot, type DistanceUnit, type SpeedUnit,
+} from "@/lib/range-stats";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
-  ScatterChart, Scatter, ReferenceLine, Cell,
+  ScatterChart, Scatter, ReferenceLine, Customized,
   LineChart, Line, Legend,
 } from "recharts";
 import { format, parseISO } from "date-fns";
@@ -29,17 +36,13 @@ type Session = {
   created_at: string;
 };
 
-const CLUB_COLOR = (club: string) => {
-  // Deterministic color per club using brand-adjacent palette
-  const palette = ["#1F4C25", "#EC622D", "#3E7C40", "#B8480F", "#5FA365", "#F7A26B", "#2E623A", "#D24E1F", "#7BB682"];
-  let h = 0; for (let i = 0; i < club.length; i++) h = (h * 31 + club.charCodeAt(i)) >>> 0;
-  return palette[h % palette.length];
-};
-
 export default function RangeSessions() {
   const { user, isAuthenticated, isLoading } = useAuth();
   const navigate = useNavigate();
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [distUnit, setDistUnit] = useState<DistanceUnit | null>(null);
+  const [spdUnit, setSpdUnit] = useState<SpeedUnit | null>(null);
+  const [trim, setTrim] = useState(true);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) navigate("/");
@@ -61,7 +64,7 @@ export default function RangeSessions() {
 
   const sessionIds = useMemo(() => sessions.map((s) => s.id), [sessions]);
 
-  const { data: allShots = [] } = useQuery({
+  const { data: allShotsRaw = [] } = useQuery({
     queryKey: ["range-shots-all", user?.id, sessionIds.length],
     enabled: !!user?.id && sessionIds.length > 0,
     queryFn: async (): Promise<Shot[]> => {
@@ -74,16 +77,40 @@ export default function RangeSessions() {
     },
   });
 
+  // Detect source units once when data first loads
+  const sourceDistUnit = useMemo(() => detectDistanceUnit(allShotsRaw), [allShotsRaw]);
+  const sourceSpdUnit = useMemo(() => detectSpeedUnit(allShotsRaw), [allShotsRaw]);
+  useEffect(() => { if (distUnit === null && allShotsRaw.length) setDistUnit(sourceDistUnit); }, [sourceDistUnit, allShotsRaw.length, distUnit]);
+  useEffect(() => { if (spdUnit === null && allShotsRaw.length) setSpdUnit(sourceSpdUnit); }, [sourceSpdUnit, allShotsRaw.length, spdUnit]);
+
+  const activeDist: DistanceUnit = distUnit ?? sourceDistUnit;
+  const activeSpd: SpeedUnit = spdUnit ?? sourceSpdUnit;
+
+  // Convert every shot to the display unit, then optionally trim outliers.
+  const allShots = useMemo(() => {
+    const converted = allShotsRaw.map((s) => ({
+      ...s,
+      ball_speed: convertSpeed(s.ball_speed, sourceSpdUnit, activeSpd),
+      club_speed: convertSpeed(s.club_speed, sourceSpdUnit, activeSpd),
+      carry: convertDistance(s.carry, sourceDistUnit, activeDist),
+      total: convertDistance(s.total, sourceDistUnit, activeDist),
+      side_carry: convertDistance(s.side_carry, sourceDistUnit, activeDist),
+      side_total: convertDistance(s.side_total, sourceDistUnit, activeDist),
+      apex_height: convertDistance(s.apex_height, sourceDistUnit, activeDist),
+    }));
+    return trim ? trimOutliers(converted) : converted;
+  }, [allShotsRaw, sourceDistUnit, sourceSpdUnit, activeDist, activeSpd, trim]);
+
+  const dLbl = activeDist;
+  const sLbl = activeSpd;
+
   const totalShots = allShots.length;
   const bestCarry = max(allShots.map((s) => s.carry));
   const avgBallSpeed = mean(allShots.map((s) => s.ball_speed));
   const avgSmash = mean(allShots.map((s) => s.smash_factor));
   const clubCounts = useMemo(() => {
     const m = new Map<string, number>();
-    for (const s of allShots) {
-      const c = s.club_type || "Unknown";
-      m.set(c, (m.get(c) ?? 0) + 1);
-    }
+    for (const s of allShots) m.set(s.club_type || "Unknown", (m.get(s.club_type || "Unknown") ?? 0) + 1);
     return m;
   }, [allShots]);
   const mostUsedClub = useMemo(() => {
@@ -93,8 +120,8 @@ export default function RangeSessions() {
   }, [clubCounts]);
 
   const clubStats = useMemo(() => statsByClub(allShots), [allShots]);
+  const swingStats = useMemo(() => swingStatsByClub(allShots), [allShots]);
 
-  // Selected session view
   const selectedSession = useMemo(
     () => sessions.find((s) => s.id === selectedSessionId) ?? null,
     [sessions, selectedSessionId]
@@ -108,6 +135,43 @@ export default function RangeSessions() {
     return <div className="min-h-screen flex items-center justify-center text-muted-foreground">Loading range data…</div>;
   }
 
+  const unitControls = (
+    <div className="flex flex-wrap items-center gap-4 text-sm">
+      <div className="flex items-center gap-2">
+        <span className="text-muted-foreground">Distance</span>
+        <div className="inline-flex rounded-md border border-border overflow-hidden">
+          <button
+            onClick={() => setDistUnit("m")}
+            className={`px-2 py-1 text-xs ${activeDist === "m" ? "bg-primary text-primary-foreground" : "bg-background"}`}
+          >m</button>
+          <button
+            onClick={() => setDistUnit("yd")}
+            className={`px-2 py-1 text-xs ${activeDist === "yd" ? "bg-primary text-primary-foreground" : "bg-background"}`}
+          >yd</button>
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="text-muted-foreground">Speed</span>
+        <div className="inline-flex rounded-md border border-border overflow-hidden">
+          <button
+            onClick={() => setSpdUnit("kph")}
+            className={`px-2 py-1 text-xs ${activeSpd === "kph" ? "bg-primary text-primary-foreground" : "bg-background"}`}
+          >kph</button>
+          <button
+            onClick={() => setSpdUnit("mph")}
+            className={`px-2 py-1 text-xs ${activeSpd === "mph" ? "bg-primary text-primary-foreground" : "bg-background"}`}
+          >mph</button>
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <Switch id="trim" checked={trim} onCheckedChange={setTrim} />
+        <Label htmlFor="trim" className="cursor-pointer text-muted-foreground">
+          {trim ? "Hiding outliers" : "Showing all shots"}
+        </Label>
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="border-b border-border/50 sticky top-0 bg-background/95 backdrop-blur z-10 safe-area-top">
@@ -115,13 +179,11 @@ export default function RangeSessions() {
           <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")}>
             <ArrowLeft className="h-4 w-4 mr-1" /> Back
           </Button>
-          <h1 className="font-anton text-2xl tracking-wide" style={{ color: "hsl(var(--foreground))" }}>
-            My Range Sessions
-          </h1>
+          <h1 className="font-anton text-2xl tracking-wide">My Range Sessions</h1>
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 py-6">
+      <main className="max-w-6xl mx-auto px-4 py-6 space-y-4">
         {sessions.length === 0 ? (
           <Card>
             <CardContent className="py-12 text-center space-y-3">
@@ -134,114 +196,144 @@ export default function RangeSessions() {
             </CardContent>
           </Card>
         ) : selectedSession ? (
-          <SessionDetail
-            session={selectedSession}
-            shots={selectedShots}
-            onBack={() => setSelectedSessionId(null)}
-          />
+          <>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <Button variant="ghost" size="sm" onClick={() => setSelectedSessionId(null)}>
+                <ArrowLeft className="h-4 w-4 mr-1" /> Back
+              </Button>
+              {unitControls}
+            </div>
+            <SessionDetail
+              session={selectedSession}
+              shots={selectedShots}
+              dLbl={dLbl}
+              sLbl={sLbl}
+            />
+          </>
         ) : (
-          <Tabs defaultValue="overview">
-            <TabsList>
-              <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="sessions">Sessions</TabsTrigger>
-              <TabsTrigger value="gapping">Club Gapping</TabsTrigger>
-              <TabsTrigger value="dispersion">Dispersion</TabsTrigger>
-              <TabsTrigger value="consistency">Consistency</TabsTrigger>
-            </TabsList>
+          <>
+            {/* My Averages selector */}
+            <Card className="border-primary/40">
+              <CardContent className="p-4 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">All-time view</div>
+                  <div className="font-anton text-xl">My Averages</div>
+                  <div className="text-xs text-muted-foreground">
+                    Every session combined · {totalShots} shots across {sessions.length} sessions
+                  </div>
+                </div>
+                {unitControls}
+              </CardContent>
+            </Card>
 
-            <TabsContent value="overview" className="space-y-4 pt-4">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <Kpi label="Sessions" value={sessions.length.toString()} icon={<TrendingUp className="h-4 w-4" />} />
-                <Kpi label="Shots" value={totalShots.toString()} icon={<Target className="h-4 w-4" />} />
-                <Kpi label="Best carry" value={fmt(bestCarry, 0, " yd")} />
-                <Kpi label="Avg smash" value={fmt(avgSmash, 2)} />
-                <Kpi label="Avg ball speed" value={fmt(avgBallSpeed, 1, " mph")} />
-                <Kpi label="Most used" value={mostUsedClub || "—"} />
-              </div>
+            <Tabs defaultValue="overview">
+              <TabsList className="flex-wrap h-auto">
+                <TabsTrigger value="overview">Overview</TabsTrigger>
+                <TabsTrigger value="gapping">Club Gapping</TabsTrigger>
+                <TabsTrigger value="dispersion">Dispersion</TabsTrigger>
+                <TabsTrigger value="swing">Swing</TabsTrigger>
+                <TabsTrigger value="consistency">Consistency</TabsTrigger>
+                <TabsTrigger value="sessions">Sessions</TabsTrigger>
+              </TabsList>
 
-              <Card>
-                <CardHeader><CardTitle className="text-base">Avg carry per session</CardTitle></CardHeader>
-                <CardContent>
-                  <SessionTrendChart sessions={sessions.slice(0, 20).reverse()} shots={allShots} />
-                </CardContent>
-              </Card>
-            </TabsContent>
+              <TabsContent value="overview" className="space-y-4 pt-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <Kpi label="Sessions" value={sessions.length.toString()} icon={<TrendingUp className="h-4 w-4" />} />
+                  <Kpi label="Shots" value={totalShots.toString()} icon={<Target className="h-4 w-4" />} />
+                  <Kpi label="Best carry" value={fmt(bestCarry, 0, ` ${dLbl}`)} />
+                  <Kpi label="Avg smash" value={fmt(avgSmash, 2)} />
+                  <Kpi label="Avg ball speed" value={fmt(avgBallSpeed, 1, ` ${sLbl}`)} />
+                  <Kpi label="Most used" value={mostUsedClub || "—"} />
+                </div>
 
-            <TabsContent value="sessions" className="space-y-3 pt-4">
-              <div className="space-y-2">
-                {sessions.map((s) => (
-                  <button
-                    key={s.id}
-                    onClick={() => setSelectedSessionId(s.id)}
-                    className="w-full text-left border border-border rounded-md p-3 hover:bg-muted/50 transition"
-                  >
-                    <div className="flex items-center justify-between gap-3 flex-wrap">
-                      <div>
-                        <div className="font-medium">
-                          {format(parseISO(s.session_date), "EEE d MMM yyyy")}
-                          {s.started_at && (
-                            <span className="text-muted-foreground text-sm ml-2">
-                              {format(parseISO(s.started_at), "h:mma").toLowerCase()}
-                            </span>
-                          )}
+                <Card>
+                  <CardHeader><CardTitle className="text-base">Avg carry per session</CardTitle></CardHeader>
+                  <CardContent>
+                    <SessionTrendChart sessions={sessions.slice(0, 20).reverse()} shots={allShots} dLbl={dLbl} sLbl={sLbl} />
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="gapping" className="space-y-4 pt-4">
+                <Card>
+                  <CardHeader><CardTitle className="text-base">Carry by club ({dLbl})</CardTitle></CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={320}>
+                      <BarChart data={clubStats.map((c) => ({ club: c.club, avg: c.avgCarry ?? 0, max: c.maxCarry ?? 0 }))}>
+                        <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                        <XAxis dataKey="club" />
+                        <YAxis label={{ value: dLbl, angle: -90, position: "insideLeft" }} />
+                        <Tooltip />
+                        <Legend />
+                        <Bar dataKey="avg" fill="#1F4C25" name="Avg carry" />
+                        <Bar dataKey="max" fill="#EC622D" name="Max carry" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+
+                <ClubStatsTable rows={clubStats} dLbl={dLbl} sLbl={sLbl} />
+              </TabsContent>
+
+              <TabsContent value="dispersion" className="space-y-4 pt-4">
+                <DispersionChart shots={allShots} dLbl={dLbl} />
+              </TabsContent>
+
+              <TabsContent value="swing" className="space-y-4 pt-4">
+                <SwingStatsTable rows={swingStats} />
+              </TabsContent>
+
+              <TabsContent value="consistency" className="space-y-4 pt-4">
+                <Card>
+                  <CardHeader><CardTitle className="text-base">Strike consistency (lower = tighter)</CardTitle></CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={320}>
+                      <BarChart data={clubStats.map((c) => ({ club: c.club, smashSd: c.smashSd ?? 0, lateralSd: c.lateralSd ?? 0 }))}>
+                        <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                        <XAxis dataKey="club" />
+                        <YAxis />
+                        <Tooltip />
+                        <Legend />
+                        <Bar dataKey="smashSd" fill="#1F4C25" name="Smash factor SD" />
+                        <Bar dataKey="lateralSd" fill="#EC622D" name={`Lateral SD (${dLbl})`} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="sessions" className="space-y-3 pt-4">
+                <div className="space-y-2">
+                  {sessions.map((s) => (
+                    <button
+                      key={s.id}
+                      onClick={() => setSelectedSessionId(s.id)}
+                      className="w-full text-left border border-border rounded-md p-3 hover:bg-muted/50 transition"
+                    >
+                      <div className="flex items-center justify-between gap-3 flex-wrap">
+                        <div>
+                          <div className="font-medium">
+                            {format(parseISO(s.session_date), "EEE d MMM yyyy")}
+                            {s.started_at && (
+                              <span className="text-muted-foreground text-sm ml-2">
+                                {format(parseISO(s.started_at), "h:mma").toLowerCase()}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {s.shot_count} shots
+                            {s.duration_minutes ? ` · ${Math.round(s.duration_minutes)} min` : ""}
+                            {s.source_filename ? ` · ${s.source_filename}` : ""}
+                          </div>
                         </div>
-                        <div className="text-xs text-muted-foreground">
-                          {s.shot_count} shots
-                          {s.duration_minutes ? ` · ${Math.round(s.duration_minutes)} min` : ""}
-                          {s.source_filename ? ` · ${s.source_filename}` : ""}
-                        </div>
+                        <Badge variant="secondary">View</Badge>
                       </div>
-                      <Badge variant="secondary">View</Badge>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </TabsContent>
-
-            <TabsContent value="gapping" className="space-y-4 pt-4">
-              <Card>
-                <CardHeader><CardTitle className="text-base">Carry by club</CardTitle></CardHeader>
-                <CardContent>
-                  <ResponsiveContainer width="100%" height={320}>
-                    <BarChart data={clubStats.map((c) => ({ club: c.club, avg: c.avgCarry ?? 0, max: c.maxCarry ?? 0 }))}>
-                      <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                      <XAxis dataKey="club" />
-                      <YAxis label={{ value: "yards", angle: -90, position: "insideLeft" }} />
-                      <Tooltip />
-                      <Legend />
-                      <Bar dataKey="avg" fill="#1F4C25" name="Avg carry" />
-                      <Bar dataKey="max" fill="#EC622D" name="Max carry" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
-
-              <ClubStatsTable rows={clubStats} />
-            </TabsContent>
-
-            <TabsContent value="dispersion" className="space-y-4 pt-4">
-              <DispersionChart shots={allShots} />
-            </TabsContent>
-
-            <TabsContent value="consistency" className="space-y-4 pt-4">
-              <Card>
-                <CardHeader><CardTitle className="text-base">Strike consistency (lower = tighter)</CardTitle></CardHeader>
-                <CardContent>
-                  <ResponsiveContainer width="100%" height={320}>
-                    <BarChart data={clubStats.map((c) => ({ club: c.club, smashSd: c.smashSd ?? 0, lateralSd: c.lateralSd ?? 0 }))}>
-                      <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                      <XAxis dataKey="club" />
-                      <YAxis />
-                      <Tooltip />
-                      <Legend />
-                      <Bar dataKey="smashSd" fill="#1F4C25" name="Smash factor SD" />
-                      <Bar dataKey="lateralSd" fill="#EC622D" name="Lateral SD (yd)" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
+                    </button>
+                  ))}
+                </div>
+              </TabsContent>
+            </Tabs>
+          </>
         )}
       </main>
     </div>
@@ -261,7 +353,7 @@ function Kpi({ label, value, icon }: { label: string; value: string; icon?: Reac
   );
 }
 
-function ClubStatsTable({ rows }: { rows: ReturnType<typeof statsByClub> }) {
+function ClubStatsTable({ rows, dLbl, sLbl }: { rows: ReturnType<typeof statsByClub>; dLbl: string; sLbl: string }) {
   return (
     <Card>
       <CardHeader><CardTitle className="text-base">Per-club statistics</CardTitle></CardHeader>
@@ -271,13 +363,13 @@ function ClubStatsTable({ rows }: { rows: ReturnType<typeof statsByClub> }) {
             <TableRow>
               <TableHead>Club</TableHead>
               <TableHead className="text-right">Shots</TableHead>
-              <TableHead className="text-right">Avg carry</TableHead>
-              <TableHead className="text-right">Max carry</TableHead>
-              <TableHead className="text-right">Avg total</TableHead>
-              <TableHead className="text-right">Ball spd</TableHead>
-              <TableHead className="text-right">Club spd</TableHead>
+              <TableHead className="text-right">Avg carry ({dLbl})</TableHead>
+              <TableHead className="text-right">Max carry ({dLbl})</TableHead>
+              <TableHead className="text-right">Avg total ({dLbl})</TableHead>
+              <TableHead className="text-right">Ball ({sLbl})</TableHead>
+              <TableHead className="text-right">Club ({sLbl})</TableHead>
               <TableHead className="text-right">Smash</TableHead>
-              <TableHead className="text-right">Launch</TableHead>
+              <TableHead className="text-right">Launch°</TableHead>
               <TableHead className="text-right">Spin</TableHead>
               <TableHead className="text-right">Lat. SD</TableHead>
             </TableRow>
@@ -285,7 +377,7 @@ function ClubStatsTable({ rows }: { rows: ReturnType<typeof statsByClub> }) {
           <TableBody>
             {rows.map((r) => (
               <TableRow key={r.club}>
-                <TableCell className="font-medium">{r.club}</TableCell>
+                <TableCell className="font-medium" style={{ color: clubColor(r.club) }}>{r.club}</TableCell>
                 <TableCell className="text-right">{r.shots}</TableCell>
                 <TableCell className="text-right">{fmt(r.avgCarry, 0)}</TableCell>
                 <TableCell className="text-right">{fmt(r.maxCarry, 0)}</TableCell>
@@ -305,53 +397,229 @@ function ClubStatsTable({ rows }: { rows: ReturnType<typeof statsByClub> }) {
   );
 }
 
-function DispersionChart({ shots }: { shots: Shot[] }) {
-  const clubs = sortClubs(Array.from(new Set(shots.map((s) => s.club_type || "Unknown"))));
-  const [club, setClub] = useState<string>(clubs[0] ?? "");
-  useEffect(() => { if (!club && clubs[0]) setClub(clubs[0]); }, [clubs, club]);
-
-  const points = shots
-    .filter((s) => (s.club_type || "Unknown") === club)
-    .map((s) => ({
-      side: s.side_carry ?? s.side_total ?? 0,
-      carry: s.carry ?? s.total ?? 0,
-    }))
-    .filter((p) => Number.isFinite(p.side) && Number.isFinite(p.carry) && p.carry > 0);
-
+function SwingStatsTable({ rows }: { rows: ReturnType<typeof swingStatsByClub> }) {
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="text-base">Dispersion — {club}</CardTitle>
-        <div className="flex gap-1 flex-wrap">
-          {clubs.map((c) => (
-            <Button
-              key={c}
-              size="sm"
-              variant={c === club ? "default" : "outline"}
-              onClick={() => setClub(c)}
-            >
-              {c}
-            </Button>
-          ))}
-        </div>
+      <CardHeader>
+        <CardTitle className="text-base">Swing dynamics</CardTitle>
+        <p className="text-xs text-muted-foreground">
+          Positive = right / out-to-in for right-handers. Face-to-path shows shape tendency.
+        </p>
       </CardHeader>
-      <CardContent>
-        <ResponsiveContainer width="100%" height={360}>
-          <ScatterChart>
-            <CartesianGrid opacity={0.2} />
-            <XAxis type="number" dataKey="side" name="Side (yd)" label={{ value: "Side (yd)", position: "insideBottom", offset: -5 }} />
-            <YAxis type="number" dataKey="carry" name="Carry (yd)" label={{ value: "Carry (yd)", angle: -90, position: "insideLeft" }} />
-            <ReferenceLine x={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="4 4" />
-            <Tooltip cursor={{ strokeDasharray: "3 3" }} />
-            <Scatter data={points} fill={CLUB_COLOR(club)} />
-          </ScatterChart>
-        </ResponsiveContainer>
+      <CardContent className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Club</TableHead>
+              <TableHead className="text-right">Shots</TableHead>
+              <TableHead className="text-right">Path°</TableHead>
+              <TableHead className="text-right">Face°</TableHead>
+              <TableHead className="text-right">Face-to-Path°</TableHead>
+              <TableHead className="text-right">AoA°</TableHead>
+              <TableHead className="text-right">Launch°</TableHead>
+              <TableHead className="text-right">Spin axis°</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((r) => (
+              <TableRow key={r.club}>
+                <TableCell className="font-medium" style={{ color: clubColor(r.club) }}>{r.club}</TableCell>
+                <TableCell className="text-right">{r.shots}</TableCell>
+                <TableCell className="text-right">{fmt(r.avgPath, 1)}</TableCell>
+                <TableCell className="text-right">{fmt(r.avgFace, 1)}</TableCell>
+                <TableCell className="text-right">{fmt(r.avgFaceToPath, 1)}</TableCell>
+                <TableCell className="text-right">{fmt(r.avgAoA, 1)}</TableCell>
+                <TableCell className="text-right">{fmt(r.avgLaunch, 1)}</TableCell>
+                <TableCell className="text-right">{fmt(r.avgSpinAxis, 1)}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       </CardContent>
     </Card>
   );
 }
 
-function SessionTrendChart({ sessions, shots }: { sessions: Session[]; shots: Shot[] }) {
+function DispersionChart({ shots, dLbl }: { shots: Shot[]; dLbl: string }) {
+  const allClubs = useMemo(
+    () => sortClubs(Array.from(new Set(shots.map((s) => s.club_type || "Unknown")))),
+    [shots]
+  );
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (selected.size === 0 && allClubs.length) setSelected(new Set([allClubs[0]]));
+  }, [allClubs, selected.size]);
+
+  const toggle = (c: string) => {
+    const next = new Set(selected);
+    next.has(c) ? next.delete(c) : next.add(c);
+    setSelected(next);
+  };
+
+  // Build per-club data + ellipse
+  const clubData = useMemo(() => {
+    return Array.from(selected).map((club) => {
+      const pts = shots
+        .filter((s) => (s.club_type || "Unknown") === club)
+        .map((s) => ({
+          side: (s.side_carry ?? s.side_total ?? 0) as number,
+          carry: (s.carry ?? s.total ?? 0) as number,
+        }))
+        .filter((p) => Number.isFinite(p.side) && Number.isFinite(p.carry) && p.carry > 0);
+      const ellipse = fitEllipse(pts, 2);
+      return { club, color: clubColor(club), pts, ellipse };
+    });
+  }, [selected, shots]);
+
+  // Chart bounds
+  const bounds = useMemo(() => {
+    const all = clubData.flatMap((c) => c.pts);
+    if (all.length === 0) return { xMin: -20, xMax: 20, yMin: 0, yMax: 100 };
+    const sides = all.map((p) => p.side);
+    const carries = all.map((p) => p.carry);
+    const pad = 10;
+    const xMin = Math.min(...sides) - pad;
+    const xMax = Math.max(...sides) + pad;
+    const spread = Math.max(Math.abs(xMin), Math.abs(xMax));
+    return {
+      xMin: -spread, xMax: spread,
+      yMin: Math.max(0, Math.min(...carries) - pad),
+      yMax: Math.max(...carries) + pad,
+    };
+  }, [clubData]);
+
+  return (
+    <Card>
+      <CardHeader className="space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <CardTitle className="text-base">Shot dispersion ({dLbl})</CardTitle>
+          <div className="flex gap-2 text-xs">
+            <button
+              onClick={() => setSelected(new Set(allClubs))}
+              className="px-2 py-1 rounded border border-border hover:bg-muted"
+            >Select all</button>
+            <button
+              onClick={() => setSelected(new Set())}
+              className="px-2 py-1 rounded border border-border hover:bg-muted"
+            >Clear</button>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {allClubs.map((c) => {
+            const on = selected.has(c);
+            const color = clubColor(c);
+            return (
+              <button
+                key={c}
+                onClick={() => toggle(c)}
+                className="text-xs px-2 py-1 rounded-full border transition"
+                style={{
+                  borderColor: color,
+                  backgroundColor: on ? color : "transparent",
+                  color: on ? "white" : color,
+                }}
+              >{c}</button>
+            );
+          })}
+        </div>
+      </CardHeader>
+      <CardContent>
+        <ResponsiveContainer width="100%" height={420}>
+          <ScatterChart margin={{ top: 10, right: 20, left: 10, bottom: 20 }}>
+            <CartesianGrid opacity={0.2} />
+            <XAxis
+              type="number" dataKey="side" name={`Side (${dLbl})`}
+              domain={[bounds.xMin, bounds.xMax]}
+              label={{ value: `Side (${dLbl})`, position: "insideBottom", offset: -5 }}
+            />
+            <YAxis
+              type="number" dataKey="carry" name={`Carry (${dLbl})`}
+              domain={[bounds.yMin, bounds.yMax]}
+              label={{ value: `Carry (${dLbl})`, angle: -90, position: "insideLeft" }}
+            />
+            <ReferenceLine x={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="4 4" />
+            <Tooltip
+              cursor={{ strokeDasharray: "3 3" }}
+              formatter={(v: number) => v.toFixed(1)}
+            />
+            {/* Ellipses drawn via SVG using axis scales */}
+            <Customized component={(props: any) => {
+              const { xAxisMap, yAxisMap } = props;
+              const xAxis = xAxisMap && Object.values(xAxisMap)[0] as any;
+              const yAxis = yAxisMap && Object.values(yAxisMap)[0] as any;
+              if (!xAxis || !yAxis) return null;
+              const xScale = xAxis.scale;
+              const yScale = yAxis.scale;
+              return (
+                <g>
+                  {clubData.map(({ club, color, ellipse }) => {
+                    if (!ellipse) return null;
+                    const cx = xScale(ellipse.cx);
+                    const cy = yScale(ellipse.cy);
+                    // Convert world semi-axes to pixel space via scale slope
+                    const xUnit = Math.abs(xScale(1) - xScale(0));
+                    const yUnit = Math.abs(yScale(1) - yScale(0));
+                    const rxPx = ellipse.rx * xUnit;
+                    const ryPx = ellipse.ry * yUnit;
+                    const angleDeg = (ellipse.angleRad * 180) / Math.PI;
+                    return (
+                      <g key={club} transform={`translate(${cx} ${cy}) rotate(${-angleDeg})`}>
+                        <ellipse
+                          cx={0} cy={0} rx={rxPx} ry={ryPx}
+                          fill={color} fillOpacity={0.12}
+                          stroke={color} strokeOpacity={0.6} strokeWidth={1.5}
+                          strokeDasharray="4 3"
+                        />
+                        <circle cx={0} cy={0} r={3} fill={color} />
+                      </g>
+                    );
+                  })}
+                </g>
+              );
+            }} />
+            {clubData.map(({ club, color, pts }) => (
+              <Scatter key={club} name={club} data={pts} fill={color} />
+            ))}
+            <Legend />
+          </ScatterChart>
+        </ResponsiveContainer>
+
+        {/* Shape summary per selected club */}
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-4">
+          {clubData.map(({ club, color, ellipse, pts }) => (
+            <div key={club} className="border border-border rounded-md p-3">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="inline-block w-3 h-3 rounded-full" style={{ background: color }} />
+                <span className="font-medium">{club}</span>
+                <span className="text-xs text-muted-foreground ml-auto">{pts.length} shots</span>
+              </div>
+              {ellipse ? (
+                <>
+                  <div className="text-xs text-muted-foreground">
+                    Pattern: <span className="text-foreground font-medium">{ellipse.shape}</span>
+                    {" "}({ellipse.shapePct.toFixed(0)}%)
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Landing zone: {(ellipse.rx * 2).toFixed(0)} × {(ellipse.ry * 2).toFixed(0)} {dLbl} (95%)
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Centre: {ellipse.cx.toFixed(0)} side / {ellipse.cy.toFixed(0)} carry
+                  </div>
+                </>
+              ) : (
+                <div className="text-xs text-muted-foreground">Need at least 3 shots for a pattern.</div>
+              )}
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function SessionTrendChart({
+  sessions, shots, dLbl, sLbl,
+}: { sessions: Session[]; shots: Shot[]; dLbl: string; sLbl: string }) {
   const data = sessions.map((s) => {
     const ss = shots.filter((x) => x.session_id === s.id);
     return {
@@ -368,68 +636,77 @@ function SessionTrendChart({ sessions, shots }: { sessions: Session[]; shots: Sh
         <YAxis />
         <Tooltip />
         <Legend />
-        <Line type="monotone" dataKey="carry" stroke="#1F4C25" name="Avg carry (yd)" strokeWidth={2} dot={false} />
-        <Line type="monotone" dataKey="ball" stroke="#EC622D" name="Avg ball spd (mph)" strokeWidth={2} dot={false} />
+        <Line type="monotone" dataKey="carry" stroke="#1F4C25" name={`Avg carry (${dLbl})`} strokeWidth={2} dot={false} />
+        <Line type="monotone" dataKey="ball" stroke="#EC622D" name={`Avg ball spd (${sLbl})`} strokeWidth={2} dot={false} />
       </LineChart>
     </ResponsiveContainer>
   );
 }
 
 function SessionDetail({
-  session, shots, onBack,
-}: { session: Session; shots: Shot[]; onBack: () => void }) {
+  session, shots, dLbl, sLbl,
+}: { session: Session; shots: Shot[]; dLbl: string; sLbl: string }) {
   const stats = useMemo(() => statsByClub(shots), [shots]);
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <Button variant="ghost" size="sm" onClick={onBack}><ArrowLeft className="h-4 w-4 mr-1" /> All sessions</Button>
-        <div className="text-sm text-muted-foreground">
-          {format(parseISO(session.session_date), "EEE d MMM yyyy")}
-          {session.started_at ? ` · ${format(parseISO(session.started_at), "h:mma").toLowerCase()}` : ""}
-          {session.duration_minutes ? ` · ${Math.round(session.duration_minutes)} min` : ""}
-          {" · "}{session.shot_count} shots
-        </div>
+      <div className="text-sm text-muted-foreground">
+        {format(parseISO(session.session_date), "EEE d MMM yyyy")}
+        {session.started_at ? ` · ${format(parseISO(session.started_at), "h:mma").toLowerCase()}` : ""}
+        {session.duration_minutes ? ` · ${Math.round(session.duration_minutes)} min` : ""}
+        {" · "}{session.shot_count} shots
       </div>
 
-      <ClubStatsTable rows={stats} />
-
-      <Card>
-        <CardHeader><CardTitle className="text-base">Every shot</CardTitle></CardHeader>
-        <CardContent className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>#</TableHead>
-                <TableHead>Club</TableHead>
-                <TableHead className="text-right">Ball spd</TableHead>
-                <TableHead className="text-right">Club spd</TableHead>
-                <TableHead className="text-right">Smash</TableHead>
-                <TableHead className="text-right">Launch</TableHead>
-                <TableHead className="text-right">Spin</TableHead>
-                <TableHead className="text-right">Carry</TableHead>
-                <TableHead className="text-right">Total</TableHead>
-                <TableHead className="text-right">Side</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {shots.map((s) => (
-                <TableRow key={s.id}>
-                  <TableCell>{s.shot_number ?? ""}</TableCell>
-                  <TableCell>{s.club_type ?? "—"}</TableCell>
-                  <TableCell className="text-right">{fmt(s.ball_speed, 1)}</TableCell>
-                  <TableCell className="text-right">{fmt(s.club_speed, 1)}</TableCell>
-                  <TableCell className="text-right">{fmt(s.smash_factor, 2)}</TableCell>
-                  <TableCell className="text-right">{fmt(s.launch_angle, 1)}</TableCell>
-                  <TableCell className="text-right">{fmt(s.spin_rate, 0)}</TableCell>
-                  <TableCell className="text-right">{fmt(s.carry, 0)}</TableCell>
-                  <TableCell className="text-right">{fmt(s.total, 0)}</TableCell>
-                  <TableCell className="text-right">{fmt(s.side_carry ?? s.side_total, 1)}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      <Tabs defaultValue="stats">
+        <TabsList>
+          <TabsTrigger value="stats">Stats</TabsTrigger>
+          <TabsTrigger value="dispersion">Dispersion</TabsTrigger>
+          <TabsTrigger value="shots">Every shot</TabsTrigger>
+        </TabsList>
+        <TabsContent value="stats" className="pt-4">
+          <ClubStatsTable rows={stats} dLbl={dLbl} sLbl={sLbl} />
+        </TabsContent>
+        <TabsContent value="dispersion" className="pt-4">
+          <DispersionChart shots={shots} dLbl={dLbl} />
+        </TabsContent>
+        <TabsContent value="shots" className="pt-4">
+          <Card>
+            <CardContent className="overflow-x-auto p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>#</TableHead>
+                    <TableHead>Club</TableHead>
+                    <TableHead className="text-right">Ball ({sLbl})</TableHead>
+                    <TableHead className="text-right">Club ({sLbl})</TableHead>
+                    <TableHead className="text-right">Smash</TableHead>
+                    <TableHead className="text-right">Launch°</TableHead>
+                    <TableHead className="text-right">Spin</TableHead>
+                    <TableHead className="text-right">Carry ({dLbl})</TableHead>
+                    <TableHead className="text-right">Total ({dLbl})</TableHead>
+                    <TableHead className="text-right">Side ({dLbl})</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {shots.map((s) => (
+                    <TableRow key={s.id}>
+                      <TableCell>{s.shot_number ?? ""}</TableCell>
+                      <TableCell style={{ color: clubColor(s.club_type || "") }}>{s.club_type ?? "—"}</TableCell>
+                      <TableCell className="text-right">{fmt(s.ball_speed, 1)}</TableCell>
+                      <TableCell className="text-right">{fmt(s.club_speed, 1)}</TableCell>
+                      <TableCell className="text-right">{fmt(s.smash_factor, 2)}</TableCell>
+                      <TableCell className="text-right">{fmt(s.launch_angle, 1)}</TableCell>
+                      <TableCell className="text-right">{fmt(s.spin_rate, 0)}</TableCell>
+                      <TableCell className="text-right">{fmt(s.carry, 0)}</TableCell>
+                      <TableCell className="text-right">{fmt(s.total, 0)}</TableCell>
+                      <TableCell className="text-right">{fmt(s.side_carry ?? s.side_total, 1)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
