@@ -455,9 +455,7 @@ function DispersionChart({ shots, dLbl }: { shots: Shot[]; dLbl: string }) {
     [shots]
   );
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  useEffect(() => {
-    if (selected.size === 0 && allClubs.length) setSelected(new Set([allClubs[0]]));
-  }, [allClubs, selected.size]);
+
 
   const toggle = (c: string) => {
     const next = new Set(selected);
