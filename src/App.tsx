@@ -24,7 +24,7 @@ const LeagueProfile = lazy(() => import("./pages/LeagueProfile"));
 const LeagueRegister = lazy(() => import("./pages/LeagueRegister"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
-const Clubhouse = lazy(() => import("./pages/Clubhouse"));
+
 const BayController = lazy(() => import("./pages/BayController"));
 const EmbedLeaderboard = lazy(() => import("./pages/EmbedLeaderboard"));
 const EmbedTVCurrentWeek = lazy(() => import("./pages/EmbedTVCurrentWeek"));
