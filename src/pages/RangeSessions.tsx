@@ -285,12 +285,10 @@ export default function RangeSessions() {
                         <div key={c.club} className="flex items-center justify-between px-4 py-3">
                           <div className="flex items-center gap-3 min-w-0">
                             <div
-                              className="h-8 w-8 rounded-full flex items-center justify-center shrink-0"
-                              style={{ backgroundColor: `${clubColor(c.club)}22`, color: clubColor(c.club) }}
-                            >
-                              <Target className="h-4 w-4" />
-                            </div>
-                            <span className="font-anton text-lg uppercase tracking-wide text-accent truncate">
+                              className="h-3 w-3 rounded-full shrink-0"
+                              style={{ backgroundColor: clubColor(c.club) }}
+                            />
+                            <span className="font-anton text-lg font-bold uppercase tracking-wide text-accent truncate">
                               {c.club}
                             </span>
                           </div>
