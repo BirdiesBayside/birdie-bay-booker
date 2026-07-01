@@ -264,13 +264,16 @@ const Dashboard = () => {
             {/* Range Sessions */}
             <button
               onClick={() => navigate("/range")}
-              className="bg-card rounded-xl p-4 shadow-sm border border-accent/30 hover:border-accent/60 hover:shadow-md transition-all text-left active:scale-[0.98]"
+              className="bg-card rounded-xl p-4 shadow-sm border border-muted hover:border-muted-foreground/40 hover:shadow-md transition-all text-left active:scale-[0.98] relative"
             >
+              <span className="absolute top-2 right-2 text-[10px] font-semibold tracking-wide uppercase bg-muted text-muted-foreground px-2 py-0.5 rounded-full">
+                Coming Soon
+              </span>
               <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
-                  <Target className="h-5 w-5 text-accent" />
+                <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                  <Target className="h-5 w-5 text-muted-foreground" />
                 </div>
-                <h2 className="font-semibold text-base">Range Sessions</h2>
+                <h2 className="font-semibold text-base text-muted-foreground">Range Sessions</h2>
               </div>
             </button>
 
