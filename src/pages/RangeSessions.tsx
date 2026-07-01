@@ -16,7 +16,7 @@ import {
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, ChevronDown, Target, TrendingUp } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, Target, TrendingUp } from "lucide-react";
 import {
   statsByClub, swingStatsByClub, sortClubs, fmt, mean, max,
   detectDistanceUnit, detectSpeedUnit, convertDistance, convertSpeed,
