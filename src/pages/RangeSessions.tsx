@@ -274,12 +274,6 @@ export default function RangeSessions() {
                   <Kpi label="Most used" value={mostUsedClub || "—"} />
                 </div>
 
-                <Card className="overflow-hidden">
-                  <CardHeader><CardTitle className="text-base">Avg carry per session</CardTitle></CardHeader>
-                  <CardContent className="min-w-0">
-                    <SessionTrendChart sessions={sessions.slice(0, 20).reverse()} shots={allShots} dLbl={dLbl} sLbl={sLbl} />
-                  </CardContent>
-                </Card>
               </TabsContent>
 
               <TabsContent value="gapping" className="space-y-4">
