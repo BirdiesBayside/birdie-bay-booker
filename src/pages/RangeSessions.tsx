@@ -278,19 +278,32 @@ export default function RangeSessions() {
 
               <TabsContent value="gapping" className="space-y-4">
                 <Card className="overflow-hidden">
-                  <CardHeader><CardTitle className="text-base">Carry by club ({dLbl})</CardTitle></CardHeader>
-                  <CardContent className="min-w-0">
-                    <ResponsiveContainer width="100%" height={320}>
-                      <BarChart data={clubStats.map((c) => ({ club: c.club, avg: Math.round(c.avgCarry ?? 0), max: Math.round(c.maxCarry ?? 0) }))}>
-                        <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                        <XAxis dataKey="club" />
-                        <YAxis label={{ value: dLbl, angle: -90, position: "insideLeft" }} />
-                        <Tooltip />
-                        <Legend />
-                        <Bar dataKey="avg" fill="#1F4C25" name="Avg carry" />
-                        <Bar dataKey="max" fill="#EC622D" name="Max carry" />
-                      </BarChart>
-                    </ResponsiveContainer>
+                  <CardHeader><CardTitle className="text-base">Average carry by club ({dLbl})</CardTitle></CardHeader>
+                  <CardContent className="p-0">
+                    <div className="divide-y divide-border/60">
+                      {clubStats.map((c) => (
+                        <div key={c.club} className="flex items-center justify-between px-4 py-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div
+                              className="h-8 w-8 rounded-full flex items-center justify-center shrink-0"
+                              style={{ backgroundColor: `${clubColor(c.club)}22`, color: clubColor(c.club) }}
+                            >
+                              <Target className="h-4 w-4" />
+                            </div>
+                            <span className="font-anton text-lg uppercase tracking-wide text-accent truncate">
+                              {c.club}
+                            </span>
+                          </div>
+                          <div className="font-anton text-xl text-foreground tabular-nums">
+                            {c.avgCarry != null ? Math.round(c.avgCarry) : "—"}
+                            <span className="text-xs text-muted-foreground font-sans ml-1">{dLbl}</span>
+                          </div>
+                        </div>
+                      ))}
+                      {clubStats.length === 0 && (
+                        <div className="px-4 py-6 text-center text-sm text-muted-foreground">No club data yet</div>
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
 
