@@ -707,7 +707,7 @@ function SessionDetail({
 
                       <TableCell className="text-right">{fmt(s.carry, 0)}</TableCell>
                       <TableCell className="text-right">{fmt(s.total, 0)}</TableCell>
-                      <TableCell className="text-right">{fmt(s.side_carry ?? s.side_total, 1)}</TableCell>
+                      <TableCell className="text-right">{fmt(s.side_carry ?? s.side_total, 0)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
