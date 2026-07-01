@@ -234,17 +234,22 @@ const Dashboard = () => {
 
             {/* Range Sessions */}
             <button
-              onClick={() => navigate("/range")}
-              className="bg-card rounded-xl p-4 shadow-sm border border-muted hover:border-muted-foreground/40 hover:shadow-md transition-all text-left active:scale-[0.98] relative"
+              onClick={() => hasRangeAccess ? navigate("/range") : navigate("/membership")}
+              className={`bg-card rounded-xl p-4 shadow-sm border text-left active:scale-[0.98] transition-all relative ${
+                hasRangeAccess ? "border-border hover:border-accent/50 hover:shadow-md" : "border-border opacity-60"
+              }`}
             >
-              <span className="absolute top-2 right-2 text-[10px] font-semibold tracking-wide uppercase bg-muted text-muted-foreground px-2 py-0.5 rounded-full">
-                Coming Soon
-              </span>
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center shrink-0">
-                  <Target className="h-5 w-5 text-muted-foreground" />
+              {!hasRangeAccess && (
+                <div className="absolute top-3 right-3 flex items-center gap-1 text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                  <Lock className="h-3 w-3" />
+                  <span>Members</span>
                 </div>
-                <h2 className="font-semibold text-base text-muted-foreground">Range Sessions</h2>
+              )}
+              <div className="flex items-center gap-3">
+                <div className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 ${hasRangeAccess ? "bg-accent/10" : "bg-muted"}`}>
+                  <Target className={`h-5 w-5 ${hasRangeAccess ? "text-accent" : "text-muted-foreground"}`} />
+                </div>
+                <h2 className={`font-semibold text-base ${hasRangeAccess ? "" : "text-muted-foreground"}`}>Range Sessions</h2>
               </div>
             </button>
 
