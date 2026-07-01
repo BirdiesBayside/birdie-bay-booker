@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { buildEmailTemplate } from "../_shared/email-wrapper.ts";
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -211,13 +213,18 @@ serve(async (req) => {
         '{guide_url}': guideUrl,
       };
 
-      let htmlContent = emailTemplate.html_content;
+      let bodyContent = emailTemplate.html_content;
       let subject = emailTemplate.subject || "Welcome to the Birdies League!";
       for (const [tag, value] of Object.entries(tags)) {
         const escaped = tag.replace(/[{}]/g, '\\$&');
-        htmlContent = htmlContent.replace(new RegExp(escaped, 'g'), value);
+        bodyContent = bodyContent.replace(new RegExp(escaped, 'g'), value);
         subject = subject.replace(new RegExp(escaped, 'g'), value);
       }
+
+      const wrappedHtml = buildEmailTemplate("Welcome to the Birdies League!", bodyContent, {
+        text: "Read the Player Guide",
+        url: guideUrl,
+      });
 
       const resendKey = Deno.env.get("RESEND_API_KEY");
       const emailRes = await fetch("https://api.resend.com/emails", {
@@ -227,9 +234,10 @@ serve(async (req) => {
           from: "Birdies Bayside <info@birdiesbayside.com.au>",
           to: [profile.email],
           subject,
-          html: htmlContent,
+          html: wrappedHtml,
         }),
       });
+
       const emailResult = await emailRes.json();
       console.log(`[SGT-AUTO-REG] Force email sent to ${profile.email}:`, emailResult);
 
@@ -477,13 +485,18 @@ serve(async (req) => {
               '{guide_url}': guideUrl,
             };
 
-            let htmlContent = emailTemplate.html_content;
+            let bodyContent = emailTemplate.html_content;
             let subject = emailTemplate.subject || "Welcome to the Birdies League!";
             for (const [tag, value] of Object.entries(tags)) {
               const escaped = tag.replace(/[{}]/g, '\\$&');
-              htmlContent = htmlContent.replace(new RegExp(escaped, 'g'), value);
+              bodyContent = bodyContent.replace(new RegExp(escaped, 'g'), value);
               subject = subject.replace(new RegExp(escaped, 'g'), value);
             }
+
+            const wrappedHtml = buildEmailTemplate("Welcome to the Birdies League!", bodyContent, {
+              text: "Read the Player Guide",
+              url: guideUrl,
+            });
 
             // Send via Resend
             const resendKey = Deno.env.get("RESEND_API_KEY");
@@ -498,13 +511,14 @@ serve(async (req) => {
                   from: "Birdies Bayside <info@birdiesbayside.com.au>",
                   to: [profile.email],
                   subject,
-                  html: htmlContent,
+                  html: wrappedHtml,
                 }),
               });
               const emailResult = await emailRes.json();
               console.log(`[SGT-AUTO-REG] League welcome email sent to ${profile.email}:`, emailResult);
             } else {
               console.warn("[SGT-AUTO-REG] RESEND_API_KEY not set, skipping league welcome email");
+
             }
           } else {
             console.warn("[SGT-AUTO-REG] No active league_welcome email template found");
