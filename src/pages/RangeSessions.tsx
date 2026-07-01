@@ -135,55 +135,61 @@ export default function RangeSessions() {
     return <div className="min-h-screen flex items-center justify-center text-muted-foreground">Loading range data…</div>;
   }
 
-  const unitControls = (
-    <div className="flex flex-wrap items-center gap-4 text-sm">
-      <div className="flex items-center gap-2">
-        <span className="text-muted-foreground">Distance</span>
-        <div className="inline-flex rounded-md border border-border overflow-hidden">
+  const unitBar = (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
+      <div className="inline-flex rounded-full border border-border overflow-hidden">
+        {(["m", "yd"] as DistanceUnit[]).map((u) => (
           <button
-            onClick={() => setDistUnit("m")}
-            className={`px-2 py-1 text-xs ${activeDist === "m" ? "bg-primary text-primary-foreground" : "bg-background"}`}
-          >m</button>
-          <button
-            onClick={() => setDistUnit("yd")}
-            className={`px-2 py-1 text-xs ${activeDist === "yd" ? "bg-primary text-primary-foreground" : "bg-background"}`}
-          >yd</button>
-        </div>
+            key={u}
+            onClick={() => setDistUnit(u)}
+            className={`px-3 py-1 font-medium ${activeDist === u ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground"}`}
+          >{u}</button>
+        ))}
       </div>
-      <div className="flex items-center gap-2">
-        <span className="text-muted-foreground">Speed</span>
-        <div className="inline-flex rounded-md border border-border overflow-hidden">
+      <div className="inline-flex rounded-full border border-border overflow-hidden">
+        {(["kph", "mph"] as SpeedUnit[]).map((u) => (
           <button
-            onClick={() => setSpdUnit("kph")}
-            className={`px-2 py-1 text-xs ${activeSpd === "kph" ? "bg-primary text-primary-foreground" : "bg-background"}`}
-          >kph</button>
-          <button
-            onClick={() => setSpdUnit("mph")}
-            className={`px-2 py-1 text-xs ${activeSpd === "mph" ? "bg-primary text-primary-foreground" : "bg-background"}`}
-          >mph</button>
-        </div>
+            key={u}
+            onClick={() => setSpdUnit(u)}
+            className={`px-3 py-1 font-medium ${activeSpd === u ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground"}`}
+          >{u}</button>
+        ))}
       </div>
       <div className="flex items-center gap-2">
         <Switch id="trim" checked={trim} onCheckedChange={setTrim} />
-        <Label htmlFor="trim" className="cursor-pointer text-muted-foreground">
-          {trim ? "Hiding outliers" : "Showing all shots"}
+        <Label htmlFor="trim" className="cursor-pointer text-muted-foreground text-xs">
+          {trim ? "Outliers hidden" : "All shots"}
         </Label>
       </div>
     </div>
   );
 
+  const TABS: { value: string; label: string }[] = [
+    { value: "overview", label: "Overview" },
+    { value: "gapping", label: "Gapping" },
+    { value: "dispersion", label: "Dispersion" },
+    { value: "swing", label: "Swing" },
+    { value: "consistency", label: "Consistency" },
+    { value: "sessions", label: "Sessions" },
+  ];
+
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen bg-background text-foreground overflow-x-hidden">
       <header className="border-b border-border/50 sticky top-0 bg-background/95 backdrop-blur z-10 safe-area-top">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center gap-3">
-          <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")}>
-            <ArrowLeft className="h-4 w-4 mr-1" /> Back
-          </Button>
-          <h1 className="font-anton text-2xl tracking-wide">My Range Sessions</h1>
+        <div className="max-w-6xl mx-auto px-4 pt-3 pb-2 space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <Button variant="ghost" size="sm" className="-ml-2" onClick={() => navigate("/dashboard")}>
+              <ArrowLeft className="h-4 w-4 mr-1" /> Back
+            </Button>
+            <h1 className="font-anton text-lg md:text-xl tracking-wide uppercase text-primary">
+              Range Hub
+            </h1>
+            <div className="w-16" />
+          </div>
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 py-6 space-y-4">
+      <main className="max-w-6xl mx-auto px-4 py-4 space-y-4">
         {sessions.length === 0 ? (
           <Card>
             <CardContent className="py-12 text-center space-y-3">
@@ -199,9 +205,9 @@ export default function RangeSessions() {
           <>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <Button variant="ghost" size="sm" onClick={() => setSelectedSessionId(null)}>
-                <ArrowLeft className="h-4 w-4 mr-1" /> Back
+                <ArrowLeft className="h-4 w-4 mr-1" /> All sessions
               </Button>
-              {unitControls}
+              {unitBar}
             </div>
             <SessionDetail
               session={selectedSession}
@@ -212,54 +218,57 @@ export default function RangeSessions() {
           </>
         ) : (
           <>
-            {/* My Averages selector */}
-            <Card className="border-primary/40">
-              <CardContent className="p-4 flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <div className="text-xs uppercase tracking-wide text-muted-foreground">All-time view</div>
-                  <div className="font-anton text-xl">My Averages</div>
-                  <div className="text-xs text-muted-foreground">
-                    Every session combined · {totalShots} shots across {sessions.length} sessions
+            <Tabs defaultValue="overview" className="space-y-4">
+              {/* Menu-style top nav */}
+              <div className="-mx-4 px-4 overflow-x-auto scrollbar-none">
+                <TabsList className="inline-flex h-auto p-1 bg-muted/60 rounded-full">
+                  {TABS.map((t) => (
+                    <TabsTrigger
+                      key={t.value}
+                      value={t.value}
+                      className="rounded-full px-4 py-1.5 text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow"
+                    >
+                      {t.label}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </div>
+
+              {/* Context row: averages label + units */}
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/50 pb-3">
+                <div className="min-w-0">
+                  <div className="text-[10px] uppercase tracking-widest text-muted-foreground">My Averages</div>
+                  <div className="text-sm text-foreground">
+                    {totalShots} shots · {sessions.length} sessions
                   </div>
                 </div>
-                {unitControls}
-              </CardContent>
-            </Card>
+                {unitBar}
+              </div>
 
-            <Tabs defaultValue="overview">
-              <TabsList className="flex-wrap h-auto">
-                <TabsTrigger value="overview">Overview</TabsTrigger>
-                <TabsTrigger value="gapping">Club Gapping</TabsTrigger>
-                <TabsTrigger value="dispersion">Dispersion</TabsTrigger>
-                <TabsTrigger value="swing">Swing</TabsTrigger>
-                <TabsTrigger value="consistency">Consistency</TabsTrigger>
-                <TabsTrigger value="sessions">Sessions</TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="overview" className="space-y-4 pt-4">
+              <TabsContent value="overview" className="space-y-4">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   <Kpi label="Sessions" value={sessions.length.toString()} icon={<TrendingUp className="h-4 w-4" />} />
                   <Kpi label="Shots" value={totalShots.toString()} icon={<Target className="h-4 w-4" />} />
                   <Kpi label="Best carry" value={fmt(bestCarry, 0, ` ${dLbl}`)} />
                   <Kpi label="Avg smash" value={fmt(avgSmash, 2)} />
-                  <Kpi label="Avg ball speed" value={fmt(avgBallSpeed, 1, ` ${sLbl}`)} />
+                  <Kpi label="Avg ball speed" value={fmt(avgBallSpeed, 0, ` ${sLbl}`)} />
                   <Kpi label="Most used" value={mostUsedClub || "—"} />
                 </div>
 
-                <Card>
+                <Card className="overflow-hidden">
                   <CardHeader><CardTitle className="text-base">Avg carry per session</CardTitle></CardHeader>
-                  <CardContent>
+                  <CardContent className="min-w-0">
                     <SessionTrendChart sessions={sessions.slice(0, 20).reverse()} shots={allShots} dLbl={dLbl} sLbl={sLbl} />
                   </CardContent>
                 </Card>
               </TabsContent>
 
-              <TabsContent value="gapping" className="space-y-4 pt-4">
-                <Card>
+              <TabsContent value="gapping" className="space-y-4">
+                <Card className="overflow-hidden">
                   <CardHeader><CardTitle className="text-base">Carry by club ({dLbl})</CardTitle></CardHeader>
-                  <CardContent>
+                  <CardContent className="min-w-0">
                     <ResponsiveContainer width="100%" height={320}>
-                      <BarChart data={clubStats.map((c) => ({ club: c.club, avg: c.avgCarry ?? 0, max: c.maxCarry ?? 0 }))}>
+                      <BarChart data={clubStats.map((c) => ({ club: c.club, avg: Math.round(c.avgCarry ?? 0), max: Math.round(c.maxCarry ?? 0) }))}>
                         <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
                         <XAxis dataKey="club" />
                         <YAxis label={{ value: dLbl, angle: -90, position: "insideLeft" }} />
@@ -275,18 +284,18 @@ export default function RangeSessions() {
                 <ClubStatsTable rows={clubStats} dLbl={dLbl} sLbl={sLbl} />
               </TabsContent>
 
-              <TabsContent value="dispersion" className="space-y-4 pt-4">
+              <TabsContent value="dispersion" className="space-y-4">
                 <DispersionChart shots={allShots} dLbl={dLbl} />
               </TabsContent>
 
-              <TabsContent value="swing" className="space-y-4 pt-4">
+              <TabsContent value="swing" className="space-y-4">
                 <SwingStatsTable rows={swingStats} />
               </TabsContent>
 
-              <TabsContent value="consistency" className="space-y-4 pt-4">
-                <Card>
+              <TabsContent value="consistency" className="space-y-4">
+                <Card className="overflow-hidden">
                   <CardHeader><CardTitle className="text-base">Strike consistency (lower = tighter)</CardTitle></CardHeader>
-                  <CardContent>
+                  <CardContent className="min-w-0">
                     <ResponsiveContainer width="100%" height={320}>
                       <BarChart data={clubStats.map((c) => ({ club: c.club, smashSd: c.smashSd ?? 0, lateralSd: c.lateralSd ?? 0 }))}>
                         <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
@@ -302,7 +311,7 @@ export default function RangeSessions() {
                 </Card>
               </TabsContent>
 
-              <TabsContent value="sessions" className="space-y-3 pt-4">
+              <TabsContent value="sessions" className="space-y-3">
                 <div className="space-y-2">
                   {sessions.map((s) => (
                     <button
