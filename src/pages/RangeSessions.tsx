@@ -391,8 +391,9 @@ function ClubStatsTable({ rows, dLbl, sLbl }: { rows: ReturnType<typeof statsByC
                 <TableCell className="text-right">{fmt(r.avgCarry, 0)}</TableCell>
                 <TableCell className="text-right">{fmt(r.maxCarry, 0)}</TableCell>
                 <TableCell className="text-right">{fmt(r.avgTotal, 0)}</TableCell>
-                <TableCell className="text-right">{fmt(r.avgBallSpeed, 1)}</TableCell>
-                <TableCell className="text-right">{fmt(r.avgClubSpeed, 1)}</TableCell>
+                <TableCell className="text-right">{fmt(r.avgBallSpeed, 0)}</TableCell>
+                <TableCell className="text-right">{fmt(r.avgClubSpeed, 0)}</TableCell>
+
                 <TableCell className="text-right">{fmt(r.avgSmash, 2)}</TableCell>
                 <TableCell className="text-right">{fmt(r.avgLaunch, 1)}</TableCell>
                 <TableCell className="text-right">{fmt(r.avgSpin, 0)}</TableCell>
