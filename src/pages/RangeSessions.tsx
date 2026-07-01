@@ -163,8 +163,7 @@ export default function RangeSessions() {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button className="flex items-center gap-1.5 bg-card border border-border rounded-lg px-3 py-1.5 shadow-sm active:scale-[0.98] transition-transform text-xs">
-          <Settings2 className="h-3.5 w-3.5 text-accent" />
-          <span className="font-medium text-foreground">{activeDist} · {activeSpd}</span>
+          <Settings2 className="h-6 w-6 text-accent" />
           <ChevronDown className="h-3 w-3 text-muted-foreground" />
         </button>
       </DropdownMenuTrigger>
@@ -322,8 +321,7 @@ export default function RangeSessions() {
                       {clubStats.map((c) => (
                         <div key={c.club} className="grid grid-cols-[1fr_6rem_6rem] items-center px-4 py-3">
                           <div className="flex items-center gap-3 min-w-0">
-                            <div className="h-3 w-3 rounded-full shrink-0 border-2 border-accent" />
-                            <span className="font-anton text-lg font-bold uppercase tracking-wide text-accent truncate">
+                            <span className="font-anton text-lg font-bold uppercase tracking-wide text-accent truncate border-2 border-accent rounded-full px-3 py-0.5">
                               {c.club}
                             </span>
                           </div>
