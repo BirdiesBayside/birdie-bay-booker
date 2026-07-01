@@ -699,11 +699,12 @@ function SessionDetail({
                     <TableRow key={s.id}>
                       <TableCell>{s.shot_number ?? ""}</TableCell>
                       <TableCell style={{ color: clubColor(s.club_type || "") }}>{s.club_type ?? "—"}</TableCell>
-                      <TableCell className="text-right">{fmt(s.ball_speed, 1)}</TableCell>
-                      <TableCell className="text-right">{fmt(s.club_speed, 1)}</TableCell>
+                      <TableCell className="text-right">{fmt(s.ball_speed, 0)}</TableCell>
+                      <TableCell className="text-right">{fmt(s.club_speed, 0)}</TableCell>
                       <TableCell className="text-right">{fmt(s.smash_factor, 2)}</TableCell>
                       <TableCell className="text-right">{fmt(s.launch_angle, 1)}</TableCell>
                       <TableCell className="text-right">{fmt(s.spin_rate, 0)}</TableCell>
+
                       <TableCell className="text-right">{fmt(s.carry, 0)}</TableCell>
                       <TableCell className="text-right">{fmt(s.total, 0)}</TableCell>
                       <TableCell className="text-right">{fmt(s.side_carry ?? s.side_total, 1)}</TableCell>
