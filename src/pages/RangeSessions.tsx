@@ -533,23 +533,26 @@ function DispersionChart({ shots, dLbl }: { shots: Shot[]; dLbl: string }) {
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={560}>
-          <ScatterChart margin={{ top: 10, right: 20, left: 10, bottom: 20 }}>
-            <CartesianGrid opacity={0.2} />
+          <ScatterChart margin={{ top: 10, right: 20, left: 10, bottom: 10 }}>
+            <CartesianGrid opacity={0.15} />
             <XAxis
-              type="number" dataKey="side" name={`Side (${dLbl})`}
+              type="number" dataKey="side"
               domain={[bounds.xMin, bounds.xMax]}
-              label={{ value: `Side (${dLbl})`, position: "insideBottom", offset: -5 }}
+              hide
             />
             <YAxis
-              type="number" dataKey="carry" name={`Carry (${dLbl})`}
+              type="number" dataKey="carry"
               domain={[bounds.yMin, bounds.yMax]}
-              label={{ value: `Carry (${dLbl})`, angle: -90, position: "insideLeft" }}
+              tickFormatter={(v: number) => `${Math.round(v)}`}
+              width={44}
+              label={{ value: `Carry (${dLbl})`, angle: -90, position: "insideLeft", style: { textAnchor: "middle" } }}
             />
             <ReferenceLine x={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="4 4" />
             <Tooltip
               cursor={{ strokeDasharray: "3 3" }}
-              formatter={(v: number) => v.toFixed(1)}
+              formatter={(v: number) => Math.round(v)}
             />
+
             {/* Ellipses drawn via SVG using axis scales */}
             <Customized component={(props: any) => {
               const { xAxisMap, yAxisMap } = props;
