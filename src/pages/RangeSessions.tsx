@@ -49,6 +49,7 @@ export default function RangeSessions() {
   const [distUnit, setDistUnit] = useState<DistanceUnit | null>(null);
   const [spdUnit, setSpdUnit] = useState<SpeedUnit | null>(null);
   const [trim, setTrim] = useState(true);
+  const [activeTab, setActiveTab] = useState("overview");
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) navigate("/");
