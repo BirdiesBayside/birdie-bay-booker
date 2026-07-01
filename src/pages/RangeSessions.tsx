@@ -278,22 +278,28 @@ export default function RangeSessions() {
 
               <TabsContent value="gapping" className="space-y-4">
                 <Card className="overflow-hidden">
-                  <CardHeader><CardTitle className="text-base">Average carry by club ({dLbl})</CardTitle></CardHeader>
+                  <CardHeader><CardTitle className="text-base">Average distances by club ({dLbl})</CardTitle></CardHeader>
                   <CardContent className="p-0">
                     <div className="divide-y divide-border/60">
+                      <div className="grid grid-cols-[1fr_6rem_6rem] items-center px-4 py-2 text-xs text-muted-foreground font-sans uppercase tracking-wider">
+                        <div>Club</div>
+                        <div className="text-center">Carry</div>
+                        <div className="text-right">Total</div>
+                      </div>
                       {clubStats.map((c) => (
-                        <div key={c.club} className="flex items-center justify-between px-4 py-3">
+                        <div key={c.club} className="grid grid-cols-[1fr_6rem_6rem] items-center px-4 py-3">
                           <div className="flex items-center gap-3 min-w-0">
-                            <div
-                              className="h-3 w-3 rounded-full shrink-0"
-                              style={{ backgroundColor: clubColor(c.club) }}
-                            />
+                            <div className="h-3 w-3 rounded-full shrink-0 border-2 border-accent" />
                             <span className="font-anton text-lg font-bold uppercase tracking-wide text-accent truncate">
                               {c.club}
                             </span>
                           </div>
-                          <div className="font-anton text-xl text-foreground tabular-nums">
+                          <div className="font-anton text-xl text-foreground tabular-nums text-center">
                             {c.avgCarry != null ? Math.round(c.avgCarry) : "—"}
+                            <span className="text-xs text-muted-foreground font-sans ml-1">{dLbl}</span>
+                          </div>
+                          <div className="font-anton text-xl text-foreground tabular-nums text-right">
+                            {c.avgTotal != null ? Math.round(c.avgTotal) : "—"}
                             <span className="text-xs text-muted-foreground font-sans ml-1">{dLbl}</span>
                           </div>
                         </div>
