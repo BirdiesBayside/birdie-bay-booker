@@ -311,8 +311,9 @@ export default function RangeSessions() {
               </TabsContent>
 
               <TabsContent value="dispersion" className="space-y-4">
-                <DispersionChart shots={allShots} dLbl={dLbl} />
+                <DispersionChart shots={allShots} dLbl={dLbl} sessions={sessions} />
               </TabsContent>
+
 
               <TabsContent value="swing" className="space-y-4">
                 <SwingStatsTable rows={swingStats} />
