@@ -110,7 +110,7 @@ export default function RangeSessions() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <header className="border-b border-border/50 sticky top-0 bg-background/95 backdrop-blur z-10">
+      <header className="border-b border-border/50 sticky top-0 bg-background/95 backdrop-blur z-10 safe-area-top">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center gap-3">
           <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")}>
             <ArrowLeft className="h-4 w-4 mr-1" /> Back
