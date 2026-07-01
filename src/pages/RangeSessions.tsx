@@ -230,11 +230,11 @@ export default function RangeSessions() {
               <div className="flex items-center">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button className="flex items-center gap-2 bg-card border border-border rounded-xl px-4 py-2.5 shadow-sm active:scale-[0.98] transition-transform">
-                      <span className="font-anton text-xl uppercase tracking-wide text-primary">
+                    <button className="flex items-center gap-1.5 bg-card border border-border rounded-lg px-3 py-1.5 shadow-sm active:scale-[0.98] transition-transform">
+                      <span className="font-anton text-sm uppercase tracking-wide text-primary">
                         {TABS.find((t) => t.value === activeTab)?.label}
                       </span>
-                      <ChevronDown className="h-5 w-5 text-accent" />
+                      <ChevronDown className="h-3.5 w-3.5 text-accent" />
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start" className="min-w-[180px]">
