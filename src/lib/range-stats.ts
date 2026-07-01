@@ -82,19 +82,43 @@ export function convertSpeed(v: number | null | undefined, from: SpeedUnit, to: 
   return from === "mph" ? v * MPH_TO_KPH : v * KPH_TO_MPH;
 }
 
-// Canonical club ordering (long -> short)
-const CLUB_ORDER = [
-  "Dr", "Driver", "3W", "5W", "7W", "2H", "3H", "4H", "5H",
-  "2i", "3i", "4i", "5i", "6i", "7i", "8i", "9i",
-  "PW", "GW", "AW", "SW", "LW", "P",
-];
+/**
+ * Canonical club ordering: Driver first, then Fairway Woods, Hybrids,
+ * Irons (low → high number), then wedges (PW, GW/AW, SW, LW).
+ * Matches the on-course/gapping convention. Also tolerates GSPro naming
+ * variants (Dr, Driver, D, 3W, 3w, 3-wood, 5H, H5, 7I, 7i, 60°, etc.).
+ */
+function clubSortKey(raw: string): [number, number, string] {
+  const c = (raw || "").trim().toLowerCase().replace(/\s|-/g, "");
+  // 0: Driver
+  if (/^(dr|driver|d1|d)$/.test(c)) return [0, 0, c];
+  // 1: Fairway Woods (lower number = longer = first)
+  let m = c.match(/^(\d+)w(ood)?$/) || c.match(/^w(\d+)$/) || c.match(/^(\d+)wood$/);
+  if (m) return [1, parseInt(m[1], 10), c];
+  // 2: Hybrids
+  m = c.match(/^(\d+)h(yb(rid)?)?$/) || c.match(/^h(\d+)$/) || c.match(/^hybrid(\d+)?$/);
+  if (m) return [2, parseInt(m[1] || "0", 10), c];
+  // 3: Irons (lowest number first: 3i, 4i ... 9i)
+  m = c.match(/^(\d+)i(ron)?$/) || c.match(/^i(\d+)$/) || c.match(/^iron(\d+)$/);
+  if (m) return [3, parseInt(m[1], 10), c];
+  // 4: Wedges — PW → GW/AW → SW → LW; loft-labelled wedges sort by loft
+  if (/^p(w|itch(ing)?)?$/.test(c)) return [4, 46, c];
+  if (/^(gw|aw|gap|approach)$/.test(c)) return [4, 51, c];
+  if (/^(sw|sand)$/.test(c)) return [4, 56, c];
+  if (/^(lw|lob)$/.test(c)) return [4, 60, c];
+  const lm = c.match(/^(\d{2})[°d]?$/); // e.g. "52", "56°"
+  if (lm) {
+    const loft = parseInt(lm[1], 10);
+    if (loft >= 44 && loft <= 64) return [4, loft, c];
+  }
+  return [9, 0, c];
+}
 
 export function sortClubs(clubs: string[]): string[] {
-  const idx = (c: string) => {
-    const i = CLUB_ORDER.findIndex((n) => n.toLowerCase() === c.toLowerCase());
-    return i === -1 ? 999 : i;
-  };
-  return [...clubs].sort((a, b) => idx(a) - idx(b) || a.localeCompare(b));
+  return [...clubs].sort((a, b) => {
+    const ka = clubSortKey(a), kb = clubSortKey(b);
+    return ka[0] - kb[0] || ka[1] - kb[1] || ka[2].localeCompare(kb[2]);
+  });
 }
 
 // Deterministic color per club — brand-adjacent palette
