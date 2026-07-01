@@ -149,7 +149,7 @@ export default function RangeSessions() {
           <button
             key={u}
             onClick={() => setDistUnit(u)}
-            className={`px-3 py-1 font-medium ${activeDist === u ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground"}`}
+            className={`px-3 py-1 font-medium ${activeDist === u ? "bg-accent text-accent-foreground" : "bg-background text-muted-foreground"}`}
           >{u}</button>
         ))}
       </div>
@@ -158,7 +158,7 @@ export default function RangeSessions() {
           <button
             key={u}
             onClick={() => setSpdUnit(u)}
-            className={`px-3 py-1 font-medium ${activeSpd === u ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground"}`}
+            className={`px-3 py-1 font-medium ${activeSpd === u ? "bg-accent text-accent-foreground" : "bg-background text-muted-foreground"}`}
           >{u}</button>
         ))}
       </div>
