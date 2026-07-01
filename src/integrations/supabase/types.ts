@@ -1684,6 +1684,164 @@ export type Database = {
         }
         Relationships: []
       }
+      range_sessions: {
+        Row: {
+          bay_id: string | null
+          booking_id: string | null
+          created_at: string
+          csv_path: string | null
+          duration_minutes: number | null
+          ended_at: string | null
+          id: string
+          session_date: string
+          shot_count: number
+          source_filename: string | null
+          started_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          bay_id?: string | null
+          booking_id?: string | null
+          created_at?: string
+          csv_path?: string | null
+          duration_minutes?: number | null
+          ended_at?: string | null
+          id?: string
+          session_date?: string
+          shot_count?: number
+          source_filename?: string | null
+          started_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          bay_id?: string | null
+          booking_id?: string | null
+          created_at?: string
+          csv_path?: string | null
+          duration_minutes?: number | null
+          ended_at?: string | null
+          id?: string
+          session_date?: string
+          shot_count?: number
+          source_filename?: string | null
+          started_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "range_sessions_bay_id_fkey"
+            columns: ["bay_id"]
+            isOneToOne: false
+            referencedRelation: "bays"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "range_sessions_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      range_shots: {
+        Row: {
+          angle_of_attack: number | null
+          apex_height: number | null
+          back_spin: number | null
+          ball_speed: number | null
+          carry: number | null
+          club_path: number | null
+          club_speed: number | null
+          club_type: string | null
+          created_at: string
+          descent_angle: number | null
+          face_angle: number | null
+          face_to_path: number | null
+          id: string
+          launch_angle: number | null
+          launch_direction: number | null
+          raw: Json | null
+          session_id: string
+          shot_number: number | null
+          shot_timestamp: string | null
+          side_carry: number | null
+          side_spin: number | null
+          side_total: number | null
+          smash_factor: number | null
+          spin_axis: number | null
+          spin_rate: number | null
+          total: number | null
+        }
+        Insert: {
+          angle_of_attack?: number | null
+          apex_height?: number | null
+          back_spin?: number | null
+          ball_speed?: number | null
+          carry?: number | null
+          club_path?: number | null
+          club_speed?: number | null
+          club_type?: string | null
+          created_at?: string
+          descent_angle?: number | null
+          face_angle?: number | null
+          face_to_path?: number | null
+          id?: string
+          launch_angle?: number | null
+          launch_direction?: number | null
+          raw?: Json | null
+          session_id: string
+          shot_number?: number | null
+          shot_timestamp?: string | null
+          side_carry?: number | null
+          side_spin?: number | null
+          side_total?: number | null
+          smash_factor?: number | null
+          spin_axis?: number | null
+          spin_rate?: number | null
+          total?: number | null
+        }
+        Update: {
+          angle_of_attack?: number | null
+          apex_height?: number | null
+          back_spin?: number | null
+          ball_speed?: number | null
+          carry?: number | null
+          club_path?: number | null
+          club_speed?: number | null
+          club_type?: string | null
+          created_at?: string
+          descent_angle?: number | null
+          face_angle?: number | null
+          face_to_path?: number | null
+          id?: string
+          launch_angle?: number | null
+          launch_direction?: number | null
+          raw?: Json | null
+          session_id?: string
+          shot_number?: number | null
+          shot_timestamp?: string | null
+          side_carry?: number | null
+          side_spin?: number | null
+          side_total?: number | null
+          smash_factor?: number | null
+          spin_axis?: number | null
+          spin_rate?: number | null
+          total?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "range_shots_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "range_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sgt_api_config: {
         Row: {
           api_key: string

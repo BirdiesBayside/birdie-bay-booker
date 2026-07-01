@@ -16,6 +16,7 @@ import { SGTPlayerOverlay } from "@/components/bay-controller/SGTPlayerOverlay";
 import { SGTIconButton } from "@/components/bay-controller/SGTIconButton";
 import { AppRestoreSettings } from "@/components/bay-controller/AppRestoreSettings";
 import { PlugDiagnostics } from "@/components/bay-controller/PlugDiagnostics";
+import { restoreUserGsproSettings, saveUserGsproSettings, sweepAndUploadRangeCsvs } from "@/lib/range-sync";
 
 interface Booking {
   id: string;
@@ -364,12 +365,28 @@ export default function BayController() {
     });
     
     // Listen for unexpected GSPro closure (closed externally, not by our automation)
-    const cleanupGsproClosed = window.electronAPI.onGsproClosed?.(() => {
+    const cleanupGsproClosed = window.electronAPI.onGsproClosed?.(async () => {
       console.log('[BayController] GSPro closed detected, intentionalClose:', intentionalCloseInProgressRef.current);
-      // Only log as unexpected if we thought apps were running AND this wasn't an intentional close (changeover/end-of-session)
       if (appsRunning && !intentionalCloseInProgressRef.current) {
         bayLogger.logAppClose('GSPro', 'unexpected', activeBooking?.id);
         addLog('GSPro closed unexpectedly (not by automation)', 'error');
+      }
+      // Range session capture + per-customer GSPro settings snapshot
+      const userId = activeBooking?.user_id;
+      if (userId) {
+        try {
+          const saved = await saveUserGsproSettings(userId);
+          if (saved.saved.length) addLog(`Saved GSPro settings snapshot: ${saved.saved.join(', ')}`, 'info');
+          const swept = await sweepAndUploadRangeCsvs({
+            userId,
+            bookingId: activeBooking?.id ?? null,
+            bayId: null,
+          });
+          if (swept.uploaded.length) addLog(`Uploaded ${swept.uploaded.length} range CSV${swept.uploaded.length > 1 ? 's' : ''}`, 'success');
+          if (swept.failed.length) addLog(`Failed to upload ${swept.failed.length} range CSV${swept.failed.length > 1 ? 's' : ''}`, 'error');
+        } catch (err) {
+          console.error('[BayController] Range/settings sync on close failed:', err);
+        }
       }
     });
     
@@ -1680,7 +1697,17 @@ export default function BayController() {
                 
                 try {
                   console.log(`[Changeover] Launching apps with display labels: GSPro="${appLaunchConfig.gsproDisplayLabel}", Protee="${appLaunchConfig.proteeDisplayLabel}"`);
-                  
+
+                  // Restore next customer's saved GSPro settings (SGT login, prefs) if they have any.
+                  if (nextBooking.user_id) {
+                    try {
+                      const restored = await restoreUserGsproSettings(nextBooking.user_id);
+                      if (restored.restored.length) addLog(`[Changeover] Restored ${firstName}'s GSPro settings: ${restored.restored.join(', ')}`, 'info');
+                    } catch (e) {
+                      console.error('[Changeover] restoreUserGsproSettings failed:', e);
+                    }
+                  }
+
                   const result = await window.electronAPI.runAppSequence({
                     gsproPath: appLaunchConfig.gsproPath,
                     proteeLabsPath: appLaunchConfig.proteeLabsPath,
@@ -2702,7 +2729,17 @@ export default function BayController() {
       addLog(`GSPRO Display: ${appLaunchConfig.gsproDisplayLabel || 'default'}`, 'info');
       addLog(`Protee Display: ${appLaunchConfig.proteeDisplayLabel || 'default'}`, 'info');
       addLog(`Customer: ${launchConfig.firstName}`, 'info');
-      
+
+      // Restore this customer's saved GSPro settings (SGT login, prefs) if any.
+      if (activeBooking?.user_id) {
+        try {
+          const restored = await restoreUserGsproSettings(activeBooking.user_id);
+          if (restored.restored.length) addLog(`Restored customer GSPro settings: ${restored.restored.join(', ')}`, 'info');
+        } catch (e) {
+          console.error('[BayController] restoreUserGsproSettings failed:', e);
+        }
+      }
+
       const result = await window.electronAPI.runAppSequence(launchConfig);
       
       if (result.cancelled) {
