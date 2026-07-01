@@ -213,13 +213,18 @@ serve(async (req) => {
         '{guide_url}': guideUrl,
       };
 
-      let htmlContent = emailTemplate.html_content;
+      let bodyContent = emailTemplate.html_content;
       let subject = emailTemplate.subject || "Welcome to the Birdies League!";
       for (const [tag, value] of Object.entries(tags)) {
         const escaped = tag.replace(/[{}]/g, '\\$&');
-        htmlContent = htmlContent.replace(new RegExp(escaped, 'g'), value);
+        bodyContent = bodyContent.replace(new RegExp(escaped, 'g'), value);
         subject = subject.replace(new RegExp(escaped, 'g'), value);
       }
+
+      const wrappedHtml = buildEmailTemplate("Welcome to the Birdies League!", bodyContent, {
+        text: "Read the Player Guide",
+        url: guideUrl,
+      });
 
       const resendKey = Deno.env.get("RESEND_API_KEY");
       const emailRes = await fetch("https://api.resend.com/emails", {
@@ -229,9 +234,10 @@ serve(async (req) => {
           from: "Birdies Bayside <info@birdiesbayside.com.au>",
           to: [profile.email],
           subject,
-          html: htmlContent,
+          html: wrappedHtml,
         }),
       });
+
       const emailResult = await emailRes.json();
       console.log(`[SGT-AUTO-REG] Force email sent to ${profile.email}:`, emailResult);
 
