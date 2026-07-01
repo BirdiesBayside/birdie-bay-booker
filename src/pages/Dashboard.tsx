@@ -218,19 +218,6 @@ const Dashboard = () => {
               </button>
             )}
 
-            {/* My Bookings */}
-            <button
-              onClick={() => navigate("/my-bookings")}
-              className="bg-card rounded-xl p-4 shadow-sm border border-border hover:border-accent/50 hover:shadow-md transition-all text-left active:scale-[0.98]"
-            >
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
-                  <ClipboardList className="h-5 w-5 text-accent" />
-                </div>
-                <h2 className="font-semibold text-base">My Bookings</h2>
-              </div>
-            </button>
-
             {/* Birdies League */}
             <button
               onClick={() => hasLeagueAccess ? navigate(hasSgtAccount ? "/league" : "/league/register") : navigate("/membership")}
@@ -274,6 +261,19 @@ const Dashboard = () => {
                   <Target className="h-5 w-5 text-muted-foreground" />
                 </div>
                 <h2 className="font-semibold text-base text-muted-foreground">Range Sessions</h2>
+              </div>
+            </button>
+
+            {/* My Bookings */}
+            <button
+              onClick={() => navigate("/my-bookings")}
+              className="bg-card rounded-xl p-4 shadow-sm border border-border hover:border-accent/50 hover:shadow-md transition-all text-left active:scale-[0.98]"
+            >
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
+                  <ClipboardList className="h-5 w-5 text-accent" />
+                </div>
+                <h2 className="font-semibold text-base">My Bookings</h2>
               </div>
             </button>
 
