@@ -321,8 +321,7 @@ export default function RangeSessions() {
                       {clubStats.map((c) => (
                         <div key={c.club} className="grid grid-cols-[1fr_6rem_6rem] items-center px-4 py-3">
                           <div className="flex items-center gap-3 min-w-0">
-                            <div className="h-3 w-3 rounded-full shrink-0 border-2 border-accent" />
-                            <span className="font-anton text-lg font-bold uppercase tracking-wide text-accent truncate">
+                            <span className="font-anton text-lg font-bold uppercase tracking-wide text-accent truncate border-2 border-accent rounded-full px-3 py-0.5">
                               {c.club}
                             </span>
                           </div>
