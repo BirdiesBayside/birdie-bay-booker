@@ -261,19 +261,6 @@ const Dashboard = () => {
               </div>
             </button>
 
-            {/* Weekly Comp */}
-            <button
-              onClick={() => navigate("/comp")}
-              className="bg-card rounded-xl p-4 shadow-sm border border-primary/30 hover:border-primary/60 hover:shadow-md transition-all text-left active:scale-[0.98]"
-            >
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
-                  <Users className="h-5 w-5 text-primary" />
-                </div>
-                <h2 className="font-semibold text-base">Weekly Comp</h2>
-              </div>
-            </button>
-
             {/* Range Sessions */}
             <button
               onClick={() => navigate("/range")}
@@ -284,6 +271,19 @@ const Dashboard = () => {
                   <Target className="h-5 w-5 text-accent" />
                 </div>
                 <h2 className="font-semibold text-base">Range Sessions</h2>
+              </div>
+            </button>
+
+            {/* Weekly Comp */}
+            <button
+              onClick={() => navigate("/comp")}
+              className="bg-card rounded-xl p-4 shadow-sm border border-primary/30 hover:border-primary/60 hover:shadow-md transition-all text-left active:scale-[0.98]"
+            >
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
+                  <Users className="h-5 w-5 text-primary" />
+                </div>
+                <h2 className="font-semibold text-base">Weekly Comp</h2>
               </div>
             </button>
 
@@ -314,26 +314,6 @@ const Dashboard = () => {
               </div>
             </button>
 
-            {/* Birdies Clubhouse */}
-            <button
-              onClick={() => membershipTier !== "visitor" ? navigate("/clubhouse") : navigate("/membership")}
-              className={`bg-card rounded-xl p-4 shadow-sm border text-left active:scale-[0.98] transition-all relative ${
-                membershipTier !== "visitor" ? "border-primary/30 hover:border-primary/60 hover:shadow-md" : "border-border opacity-60"
-              }`}
-            >
-              {membershipTier === "visitor" && (
-                <div className="absolute top-3 right-3 flex items-center gap-1 text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
-                  <Lock className="h-3 w-3" />
-                  <span>Members</span>
-                </div>
-              )}
-              <div className="flex items-center gap-3">
-                <div className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 ${membershipTier !== "visitor" ? "bg-primary/15" : "bg-muted"}`}>
-                  <Users className={`h-5 w-5 ${membershipTier !== "visitor" ? "text-primary" : "text-muted-foreground"}`} />
-                </div>
-                <h2 className="font-semibold text-base">Birdies Clubhouse</h2>
-              </div>
-            </button>
           </div>
         </div>
       </main>
