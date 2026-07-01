@@ -1,126 +1,104 @@
+# Plan: Range Session Data + Per-Customer GSPro Continuity
 
-# AI Caddy — Admin Support Assistant
+Three linked pieces, all triggered from the existing "GSPro close" automation in the Bay Controller.
 
-A small, inconspicuous "?" icon in the admin layout opens a slide-out chat. The assistant reads project data and logs to diagnose issues, and can perform a vetted list of safe actions (each one requires a confirm tap). Threaded history is saved per admin so you can scroll back.
+## 1. Bay Controller — on GSPro close
 
-Also covers renaming the unused OpenClaw gateway since we're not using it anymore.
+Extend the existing baseline-restore hook in `electron/main.js` so, before restoring the shared baseline files, it does the following in order for the **active booking's customer** at that bay:
 
----
+1. **Save per-customer GSPro settings snapshot**
+  - Read the current `dpsV2x3.gss` and `Settings.vgs` from the GSPro folder.
+  - Upload both to Cloud Storage bucket `gspro-user-settings/{user_id}/dpsV2x3.gss` and `.../Settings.vgs` (overwrite each session so it's always the latest).
+2. **Scan Desktop for new range CSVs**
+  - Watch `%USERPROFILE%\Desktop` for `*.csv` files created/modified since GSPro launched this session (track launch timestamp when we spawn GSPro).
+  - Validate each as a GSPro range export (header sniff: expected columns like ClubType, BallSpeed, ClubSpeed, SmashFactor, LaunchAngle, LaunchDirection, SpinRate, SpinAxis, Carry, Total, Side, etc.).
+  - For each valid CSV: POST to new edge function `ingest-range-session` with `{ user_id, booking_id, bay_id, csv_base64, filename }`. On 200 OK, delete the CSV from Desktop. On failure, leave the file and log — retry next close.
+3. **Restore baseline** (existing behavior) so next customer starts clean if they have no snapshot yet.
 
-## Scope (per your answers)
+**Customer resolution:** reuse the same "active booking at this bay" lookup the SGT overlay currently uses. If no active booking (walk-in / staff testing), skip both uploads and skip baseline restore of user settings (baseline still runs).
 
-- **Capabilities:** Diagnose + safe actions (no bulk ops, no code/schema changes)
-- **Audience:** Admins + `custom_segment = 'staff'`
-- **History:** Threaded, saved in DB
-- **OpenClaw:** rename functions/docs (no functional dependency anywhere else)
+Players messing with settings will ultimately have those settings replaced next time they're in, which is great, always saves their names and settings. We must however always remember the baseline file gets replaced if the customer has no current settings file associated with then
 
----
+## 2. Bay Controller — on GSPro launch (per-customer settings injection)
 
-## What it can do
+In the existing pre-launch sequence, **after** baseline restore but **before** spawning `GSPro.exe`:
 
-**Diagnose (read-only):**
-- Look up a customer, booking, membership, gift card, credit transaction
-- Read recent edge-function logs (`send-booking-notification`, `stripe-webhook`, `sgt-auto-register`, etc.)
-- Read `email_send_log`, `adhoc_sms_log`, `bay_controller_logs`
-- Pull recent Stripe events (charges, refunds, subscription changes) for a customer
-- Read SGT registrations / scorecards / monthly standings
-- Read recent local-comp results
+- Look up active booking's `user_id`.
+- If `gspro-user-settings/{user_id}/dpsV2x3.gss` and `Settings.vgs` exist in Cloud Storage, download and overwrite the two files in the GSPro folder.
+- If either is missing (first-ever session), leave the baseline in place — customer will get the shared login for this one session, and their snapshot will be captured on close.
 
-**Safe actions (each requires "Confirm" in chat):**
-- Refund a booking (full or partial)
-- Add/deduct customer credit (with note)
-- Resend a booking-confirmation email
-- Toggle a customer's booking flag
-- Manually re-register a player for the active SGT tournament
-- Cancel a booking
-- Force-close a stuck SGT tournament
+This makes SGT login and GSPro preferences persistent across sessions.
 
-**Explicitly off-limits:**
-- Schema/code changes
-- Mass email/SMS, bulk refunds, bulk membership changes
-- Deleting customers
-- Raw SQL
-- Reading or echoing secrets
+**SGT icon overlay removal:** delete SGT icon/info overlay windows, IPC, hotkeys (F7/F9 icon toggles stay for info overlay only if we want, otherwise removed), and the `sgtIconClicked/Hidden` plumbing in `electron/main.js`, `preload.js`, `src/types/electron.d.ts`, `SGTIconButton.tsx`, `SGTPlayerOverlay.tsx`. Bay Controller admin UI loses the SGT icon settings block.
 
----
+## 3. Backend — ingest + storage
 
-## UX
+**New storage bucket** `gspro-user-settings` (private, RLS: users read their own, service role write).
+**New storage bucket** `range-session-csv` (private, archives raw CSV per session for reprocessing).
 
-- Floating circular `?` button, bottom-right of every `/admin/*` route. Muted/ghost styling — easy to ignore.
-- Click → slide-out `Sheet` (right side, 420px wide) titled "AI Caddy".
-- Top: thread sidebar (collapsible) + "New chat" button.
-- Composer + transcript using AI Elements (`Conversation`, `Message`, `MessageResponse`, `Tool`, `PromptInput`, `Shimmer`).
-- Tool calls render as collapsed accordions inside the assistant message (shows tool name + status, expand for params/result).
-- Destructive tool calls render an inline "Confirm / Cancel" card before executing.
-- Markdown rendering for assistant text.
+**New table `range_sessions**`
 
----
+- `id`, `user_id` (fk profiles.user_id), `booking_id` (fk bookings, nullable), `bay_id`, `session_date`, `csv_path`, `shot_count`, `duration_minutes`, `created_at`.
+- Standard grants (`authenticated` SELECT own, `service_role` ALL). RLS: `user_id = auth.uid()` OR admin.
 
-## Technical details
+**New table `range_shots**`
 
-```text
-src/components/admin/ai-caddy/
-  AiCaddyButton.tsx          # floating ? button, mounted in AdminLayout
-  AiCaddySheet.tsx           # slide-out container, thread list + chat
-  AiCaddyChat.tsx            # useChat + AI Elements composition
-  AiCaddyToolCard.tsx        # tool-result rendering w/ confirm gate
+- `id`, `session_id` (fk cascade), `shot_number`, `club_type`, `ball_speed`, `club_speed`, `smash_factor`, `launch_angle`, `launch_direction`, `spin_rate`, `spin_axis`, `back_spin`, `side_spin`, `carry`, `total`, `side_carry`, `side_total`, `apex_height`, `descent_angle`, `angle_of_attack`, `club_path`, `face_angle`, `face_to_path`, `shot_timestamp`.
+- Indexed on `(session_id)` and `(session_id, club_type)`. Same RLS pattern via join to `range_sessions`.
 
-src/components/ai-elements/  # installed via `bunx ai-elements add ...`
+**New edge function `ingest-range-session**`
 
-supabase/functions/ai-caddy/index.ts   # streaming chat endpoint
-supabase/functions/_shared/ai-caddy-tools.ts  # tool definitions + executors
-```
+- Auth: shared bay-controller secret header (like existing bay endpoints).
+- Parse CSV (Deno CSV lib), upsert `range_sessions` row, bulk insert `range_shots`, archive raw CSV to `range-session-csv/{user_id}/{session_id}.csv`.
 
-**Backend (`ai-caddy` edge function):**
-- AI SDK + Lovable AI Gateway via `_shared/ai-gateway.ts` helper (`google/gemini-3-flash-preview`)
-- Verifies the caller's JWT and checks they have `admin` role OR `custom_segment='staff'`
-- `streamText` with `stopWhen: stepCountIs(50)`
-- Tools defined with Zod schemas. Destructive tools use `needsApproval: true` so the AI SDK surfaces a confirmation step the client renders.
-- System prompt: hardcoded role/scope, lists allowed tools, forbids code changes, requires citing data row IDs, requires confirming destructive actions.
+## 4. Customer Hub — Range Sessions section (Trackman-style)
 
-**Database (one new migration):**
+New route `/range` in the Hub (link in main nav next to League/Bookings). Uses shared design tokens — Anton headings, base green `#1F4C25`, orange `#EC622D` accents.
 
-```text
-ai_caddy_threads
-  id, user_id, title, created_at, updated_at
+**Overview tab**
 
-ai_caddy_messages
-  id, thread_id, role, parts (jsonb — AI SDK UIMessage parts), created_at
+- KPI cards: total sessions, total shots, avg ball speed, avg smash factor, longest carry, most-used club.
+- Trend chart (last 20 sessions): avg carry per session, colored per club.
 
-ai_caddy_actions  -- audit trail
-  id, thread_id, user_id, tool_name, args, result, status, created_at
-```
+**Club Gapping tab**
 
-RLS: each user can only see their own threads/messages. `ai_caddy_actions` readable by admins for audit. Service role for the edge function.
+- Per-club table: shots, avg/max carry, avg/max total, avg ball speed, avg spin, avg launch, dispersion (lateral SD).
+- Bar/whisker chart of carry by club (Trackman-style gapping chart).
 
-**Routing:**
-- Single thread URL pattern: `/admin/?caddy=<threadId>` (query param, so it overlays any admin page). Reload restores the open thread.
+**Dispersion tab**
 
----
+- Per-club scatter plot: side vs carry, with 1σ ellipse. Filter by club and session range.
+- Shot trails (top-down view) rendered with SVG.
 
-## OpenClaw cleanup (separate, ~5 min)
+**Sessions tab**
 
-- Delete `supabase/functions/openclaw-api` and `supabase/functions/openclaw-mcp`
-- Remove their blocks from `supabase/config.toml`
-- Delete `public/openclaw-api-docs.md`
-- Update references in `public/bayside/sim-centre-setup-checklist.html` and `birdies-codebase-audit.html` (remove the OpenClaw section)
-- Leave the `OPENCLAW_API_KEY` secret in place for now (harmless, you can delete it from the dashboard if you want)
-- Update the project memory entry that references the OpenClaw gateway
+- List of sessions (date, bay, shot count, duration, top clubs used). Click into session detail.
+- **Session detail:** shot-by-shot table (sortable), per-club summary for that session, dispersion plot, ability to filter clubs.
 
----
+**Consistency tab**
 
-## What I'd ship in this turn
+- Strike consistency score per club (smash factor SD, launch angle SD).
+- Session-over-session comparison picker (two sessions side by side).
 
-1. The OpenClaw cleanup (small, isolated).
-2. The DB migration for AI Caddy.
-3. The `ai-caddy` edge function with the **read-only diagnostic tools** and **2 safe actions** to start: `refund_booking`, `adjust_credit`. Approval-gated.
-4. The floating button + sheet + threaded chat UI with AI Elements.
-5. Update the project memory with the AI Caddy entry.
+Charts: Recharts (already in stack). Ellipse math client-side.
 
-**Follow-up turn:** add the remaining safe actions (resend email, toggle flag, re-register SGT, cancel booking, force-close tournament) once you've validated the v1 chat feels right.
+## 5. Rollout order
 
----
+1. Migration: tables + buckets + grants + RLS.
+2. Edge function `ingest-range-session` + tests.
+3. Bay Controller: capture-on-close (CSV upload + settings snapshot) — shipped in next Electron build.
+4. Bay Controller: settings injection on launch + SGT overlay removal — same build.
+5. Hub `/range` section — Overview + Sessions first, then Gapping/Dispersion/Consistency in follow-up commits within same milestone.
 
-## Open question (low-stakes, won't block)
+## Open items to confirm during build
 
-The "Diagnose + safe actions" v1 includes `refund_booking` and `adjust_credit` as the most-used. Want me to start with just those two and you can request more, or list all seven up-front?
+- CSV column names/order in a real GSPro range export — will confirm from a sample file before finalizing parser (safe fallback: store all columns as JSONB alongside typed columns).
+- Whether admins should see any customer's range data in Admin → Customers (assume yes, read-only tab).
+
+## Technical notes
+
+- Storage bucket creation via `supabase--storage_create_bucket` (private).
+- Bay Controller CSV upload uses same shared secret pattern as `bay_commands` endpoints; no user JWT on the bay PC.
+- Range shot ingest batched (single insert with array) to keep function under time limit — GSPro range sessions rarely exceed a few hundred shots.
+- File watcher not needed since we only sweep on GSPro close per your answer.
+- SGT overlay removal is a hard delete, not a feature flag, per your confirmation.

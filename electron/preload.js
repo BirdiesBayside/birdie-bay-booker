@@ -262,5 +262,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setProteeDisplay: (label, devicePath) => ipcRenderer.invoke('set-protee-display', { label, devicePath }),
   
   // Read the current CurrentStartupScreen value from the live Protee config
-  readProteeCurrentScreen: () => ipcRenderer.invoke('read-protee-current-screen')
+  readProteeCurrentScreen: () => ipcRenderer.invoke('read-protee-current-screen'),
+
+  // =====================================================
+  // RANGE SESSION / PER-CUSTOMER GSPRO SETTINGS FILE IPCs
+  // =====================================================
+  readGsproUserSettings: () => ipcRenderer.invoke('read-gspro-user-settings'),
+  writeGsproUserSettings: (files) => ipcRenderer.invoke('write-gspro-user-settings', { files }),
+  getGsproLaunchTs: () => ipcRenderer.invoke('get-gspro-launch-ts'),
+  scanDesktopCsvs: (sinceMs) => ipcRenderer.invoke('scan-desktop-csvs', { sinceMs }),
+  deleteDesktopCsv: (filename) => ipcRenderer.invoke('delete-desktop-csv', { filename }),
 });

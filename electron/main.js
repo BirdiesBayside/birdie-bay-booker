@@ -1185,6 +1185,10 @@ async function runAppLaunchSequence(config) {
     const gsproLaunch = await launchApp(gsproPath);
     console.log('GSPRO launch result:', JSON.stringify(gsproLaunch));
     results.push({ step: 'launch_gspro', ...gsproLaunch });
+    if (gsproLaunch.success) {
+      global.__gsproLaunchTs = Date.now();
+      console.log('[Range] Recorded GSPro launch timestamp:', new Date(global.__gsproLaunchTs).toISOString());
+    }
     
     if (!gsproLaunch.success) {
       await closeWelcomeWindows();
@@ -3327,3 +3331,108 @@ ipcMain.handle('is-gspro-running', async () => {
 if (baselineConfig.enabled) {
   startGsproWatcher();
 }
+
+// =====================================================
+// PER-CUSTOMER GSPRO SETTINGS + RANGE CSV FILE IPCs
+// Renderer performs the network calls; main only does file I/O.
+// =====================================================
+
+const USER_SETTINGS_FILES = ['dpsV2x3.gss', 'Settings.vgs'];
+
+function getDesktopPath() {
+  try { return app.getPath('desktop'); }
+  catch { return path.join(require('os').homedir(), 'Desktop'); }
+}
+
+function readFileBase64(filePath) {
+  const buf = fs.readFileSync(filePath);
+  return buf.toString('base64');
+}
+
+// Read current GSPro user settings files (returns base64 for each present file)
+ipcMain.handle('read-gspro-user-settings', async () => {
+  try {
+    if (!baselineConfig.gsproFolderPath) return { success: false, error: 'GSPro folder not configured' };
+    const files = {};
+    for (const name of USER_SETTINGS_FILES) {
+      const p = path.join(baselineConfig.gsproFolderPath, name);
+      if (fs.existsSync(p)) files[name] = readFileBase64(p);
+    }
+    return { success: true, files };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Write GSPro user settings files (base64 map: { 'dpsV2x3.gss': '...', 'Settings.vgs': '...' })
+ipcMain.handle('write-gspro-user-settings', async (_e, { files } = {}) => {
+  try {
+    if (!baselineConfig.gsproFolderPath) return { success: false, error: 'GSPro folder not configured' };
+    if (!files || typeof files !== 'object') return { success: false, error: 'No files provided' };
+    const written = [];
+    for (const name of USER_SETTINGS_FILES) {
+      if (typeof files[name] !== 'string') continue;
+      const p = path.join(baselineConfig.gsproFolderPath, name);
+      fs.writeFileSync(p, Buffer.from(files[name], 'base64'));
+      written.push(name);
+    }
+    console.log('[Range] Wrote user GSPro settings:', written);
+    return { success: true, written };
+  } catch (error) {
+    console.error('[Range] write-gspro-user-settings failed:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Return the timestamp GSPro was last launched by our automation (ms since epoch, or null)
+ipcMain.handle('get-gspro-launch-ts', async () => {
+  return { ts: global.__gsproLaunchTs || null };
+});
+
+// Scan desktop for CSV files (optionally newer than sinceMs). Returns [{filename, base64, mtime}]
+ipcMain.handle('scan-desktop-csvs', async (_e, { sinceMs } = {}) => {
+  try {
+    const desk = getDesktopPath();
+    if (!fs.existsSync(desk)) return { success: false, error: 'Desktop path not found', csvs: [] };
+    const entries = fs.readdirSync(desk);
+    const csvs = [];
+    for (const name of entries) {
+      if (!name.toLowerCase().endsWith('.csv')) continue;
+      const full = path.join(desk, name);
+      let stat;
+      try { stat = fs.statSync(full); } catch { continue; }
+      if (!stat.isFile()) continue;
+      if (sinceMs && stat.mtimeMs < sinceMs) continue;
+      // Cap size at 5MB to avoid absurd payloads
+      if (stat.size > 5 * 1024 * 1024) continue;
+      const content = fs.readFileSync(full);
+      csvs.push({
+        filename: name,
+        base64: content.toString('base64'),
+        mtime: stat.mtimeMs,
+        size: stat.size,
+      });
+    }
+    return { success: true, csvs };
+  } catch (error) {
+    console.error('[Range] scan-desktop-csvs failed:', error);
+    return { success: false, error: error.message, csvs: [] };
+  }
+});
+
+// Delete a CSV file from the desktop by filename (safety: filename must not contain path separators)
+ipcMain.handle('delete-desktop-csv', async (_e, { filename } = {}) => {
+  try {
+    if (!filename || typeof filename !== 'string') return { success: false, error: 'No filename' };
+    if (filename.includes('/') || filename.includes('\\') || filename.includes('..')) {
+      return { success: false, error: 'Invalid filename' };
+    }
+    if (!filename.toLowerCase().endsWith('.csv')) return { success: false, error: 'Not a CSV' };
+    const full = path.join(getDesktopPath(), filename);
+    if (!fs.existsSync(full)) return { success: false, error: 'Not found' };
+    fs.unlinkSync(full);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
