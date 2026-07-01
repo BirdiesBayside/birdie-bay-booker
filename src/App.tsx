@@ -213,7 +213,7 @@ const App = () => (
             <Route path="/league/profile" element={<LeagueProfile />} />
             <Route path="/league/register" element={<LeagueRegister />} />
             <Route path="/reset-password" element={<ResetPassword />} />
-            <Route path="/clubhouse" element={<Clubhouse />} />
+            
             <Route path="/embed/leaderboard" element={<EmbedLeaderboard />} />
             <Route path="/embed/tv-current-week" element={<EmbedTVCurrentWeek />} />
             <Route path="/embed/tv-previous-week" element={<EmbedTVPreviousWeek />} />
