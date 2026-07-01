@@ -43,6 +43,7 @@ const CompFindPartner = lazy(() => import("./pages/CompFindPartner"));
 const CompLeaderboard = lazy(() => import("./pages/CompLeaderboard"));
 const EmbedLocalCompLeaderboard = lazy(() => import("./pages/EmbedLocalCompLeaderboard"));
 const Gift = lazy(() => import("./pages/Gift"));
+const RangeSessions = lazy(() => import("./pages/RangeSessions"));
 
 // Public marketing site pages
 const MarketingAbout = lazy(() => import("./pages/marketing/MarketingAbout"));
