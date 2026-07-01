@@ -26,7 +26,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Setup Python
@@ -87,7 +87,7 @@ jobs:
           "
 
       - name: Install web app dependencies
-        run: npm ci
+        run: npm install --no-audit --no-fund
 
       - name: Build bay controller app
         run: npx vite build --config vite.config.electron.ts

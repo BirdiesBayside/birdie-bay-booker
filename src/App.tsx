@@ -24,7 +24,7 @@ const LeagueProfile = lazy(() => import("./pages/LeagueProfile"));
 const LeagueRegister = lazy(() => import("./pages/LeagueRegister"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
-const Clubhouse = lazy(() => import("./pages/Clubhouse"));
+
 const BayController = lazy(() => import("./pages/BayController"));
 const EmbedLeaderboard = lazy(() => import("./pages/EmbedLeaderboard"));
 const EmbedTVCurrentWeek = lazy(() => import("./pages/EmbedTVCurrentWeek"));
@@ -213,7 +213,7 @@ const App = () => (
             <Route path="/league/profile" element={<LeagueProfile />} />
             <Route path="/league/register" element={<LeagueRegister />} />
             <Route path="/reset-password" element={<ResetPassword />} />
-            <Route path="/clubhouse" element={<Clubhouse />} />
+            
             <Route path="/embed/leaderboard" element={<EmbedLeaderboard />} />
             <Route path="/embed/tv-current-week" element={<EmbedTVCurrentWeek />} />
             <Route path="/embed/tv-previous-week" element={<EmbedTVPreviousWeek />} />
