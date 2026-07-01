@@ -12,10 +12,12 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuCheckboxItem,
 } from "@/components/ui/dropdown-menu";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
+import { Settings2 } from "lucide-react";
 import { ArrowLeft, Check, ChevronDown, Target, TrendingUp } from "lucide-react";
 import {
   statsByClub, swingStatsByClub, sortClubs, fmt, mean, max,
