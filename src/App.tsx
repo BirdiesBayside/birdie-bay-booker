@@ -237,6 +237,7 @@ const App = () => (
             <Route path="/comp/leaderboard" element={<CompLeaderboard />} />
             <Route path="/embed/local-comp-leaderboard" element={<EmbedLocalCompLeaderboard />} />
             <Route path="/gift" element={<Gift />} />
+            <Route path="/range" element={<RangeSessions />} />
             {/* Public Marketing Site Routes */}
             <Route path="/about" element={<MarketingAbout />} />
             <Route path="/membership-info" element={<MarketingMembership />} />
