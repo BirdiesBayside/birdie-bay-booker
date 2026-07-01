@@ -230,11 +230,11 @@ export default function RangeSessions() {
               <div className="flex items-center">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button className="flex items-center gap-2 bg-card border border-border rounded-xl px-4 py-2.5 shadow-sm active:scale-[0.98] transition-transform">
-                      <span className="font-anton text-xl uppercase tracking-wide text-primary">
+                    <button className="flex items-center gap-1.5 bg-card border border-border rounded-lg px-3 py-1.5 shadow-sm active:scale-[0.98] transition-transform">
+                      <span className="font-anton text-sm uppercase tracking-wide text-primary">
                         {TABS.find((t) => t.value === activeTab)?.label}
                       </span>
-                      <ChevronDown className="h-5 w-5 text-accent" />
+                      <ChevronDown className="h-3.5 w-3.5 text-accent" />
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start" className="min-w-[180px]">
@@ -274,29 +274,36 @@ export default function RangeSessions() {
                   <Kpi label="Most used" value={mostUsedClub || "—"} />
                 </div>
 
-                <Card className="overflow-hidden">
-                  <CardHeader><CardTitle className="text-base">Avg carry per session</CardTitle></CardHeader>
-                  <CardContent className="min-w-0">
-                    <SessionTrendChart sessions={sessions.slice(0, 20).reverse()} shots={allShots} dLbl={dLbl} sLbl={sLbl} />
-                  </CardContent>
-                </Card>
               </TabsContent>
 
               <TabsContent value="gapping" className="space-y-4">
                 <Card className="overflow-hidden">
-                  <CardHeader><CardTitle className="text-base">Carry by club ({dLbl})</CardTitle></CardHeader>
-                  <CardContent className="min-w-0">
-                    <ResponsiveContainer width="100%" height={320}>
-                      <BarChart data={clubStats.map((c) => ({ club: c.club, avg: Math.round(c.avgCarry ?? 0), max: Math.round(c.maxCarry ?? 0) }))}>
-                        <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                        <XAxis dataKey="club" />
-                        <YAxis label={{ value: dLbl, angle: -90, position: "insideLeft" }} />
-                        <Tooltip />
-                        <Legend />
-                        <Bar dataKey="avg" fill="#1F4C25" name="Avg carry" />
-                        <Bar dataKey="max" fill="#EC622D" name="Max carry" />
-                      </BarChart>
-                    </ResponsiveContainer>
+                  <CardHeader><CardTitle className="text-base">Average carry by club ({dLbl})</CardTitle></CardHeader>
+                  <CardContent className="p-0">
+                    <div className="divide-y divide-border/60">
+                      {clubStats.map((c) => (
+                        <div key={c.club} className="flex items-center justify-between px-4 py-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div
+                              className="h-8 w-8 rounded-full flex items-center justify-center shrink-0"
+                              style={{ backgroundColor: `${clubColor(c.club)}22`, color: clubColor(c.club) }}
+                            >
+                              <Target className="h-4 w-4" />
+                            </div>
+                            <span className="font-anton text-lg uppercase tracking-wide text-accent truncate">
+                              {c.club}
+                            </span>
+                          </div>
+                          <div className="font-anton text-xl text-foreground tabular-nums">
+                            {c.avgCarry != null ? Math.round(c.avgCarry) : "—"}
+                            <span className="text-xs text-muted-foreground font-sans ml-1">{dLbl}</span>
+                          </div>
+                        </div>
+                      ))}
+                      {clubStats.length === 0 && (
+                        <div className="px-4 py-6 text-center text-sm text-muted-foreground">No club data yet</div>
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
 
