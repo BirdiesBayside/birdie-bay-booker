@@ -48,9 +48,24 @@ export default function RangeSessions() {
   const { user, isAuthenticated, isLoading } = useAuth();
   const navigate = useNavigate();
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
-  const [distUnit, setDistUnit] = useState<DistanceUnit | null>(null);
-  const [spdUnit, setSpdUnit] = useState<SpeedUnit | null>(null);
-  const [trim, setTrim] = useState(true);
+  const [distUnit, setDistUnit] = useState<DistanceUnit | null>(() => {
+    if (typeof window === "undefined") return null;
+    const v = localStorage.getItem("range.distUnit");
+    return v === "m" || v === "yd" ? (v as DistanceUnit) : null;
+  });
+  const [spdUnit, setSpdUnit] = useState<SpeedUnit | null>(() => {
+    if (typeof window === "undefined") return null;
+    const v = localStorage.getItem("range.spdUnit");
+    return v === "kph" || v === "mph" ? (v as SpeedUnit) : null;
+  });
+  const [trim, setTrim] = useState(() => {
+    if (typeof window === "undefined") return true;
+    const v = localStorage.getItem("range.trim");
+    return v === null ? true : v === "1";
+  });
+  useEffect(() => { if (distUnit) localStorage.setItem("range.distUnit", distUnit); }, [distUnit]);
+  useEffect(() => { if (spdUnit) localStorage.setItem("range.spdUnit", spdUnit); }, [spdUnit]);
+  useEffect(() => { localStorage.setItem("range.trim", trim ? "1" : "0"); }, [trim]);
   const [activeTab, setActiveTab] = useState("overview");
 
   useEffect(() => {
