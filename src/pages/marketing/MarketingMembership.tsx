@@ -113,6 +113,37 @@ const MarketingMembership = () => (
         </div>
       </div>
       <div className="text-center mt-12">
+        <p className="text-accent font-display tracking-[0.2em] uppercase text-sm mb-4">Not ready to join?</p>
+        <div className="grid sm:grid-cols-2 gap-6 max-w-2xl mx-auto mb-10">
+          <div className="bg-card border border-border rounded-2xl p-7 text-card-foreground hover:shadow-lg transition-all text-left">
+            <p className="text-xs uppercase tracking-wider mb-2 text-foreground/60">Off-Peak</p>
+            <h3 className="font-display text-3xl uppercase tracking-wide mb-1">Visitor</h3>
+            <div className="mb-5">
+              <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold bg-accent/10 text-accent border border-accent/20">
+                <Clock className="h-3.5 w-3.5" />
+                $30/hr
+              </span>
+            </div>
+            <p className="text-sm text-foreground/60 mb-6">Mon-Thu before 4pm</p>
+            <a href="https://hub.birdiesbayside.com.au/" className="block text-center font-display uppercase tracking-wide text-sm px-5 py-3 rounded-md transition-colors bg-primary hover:bg-primary/90 text-primary-foreground">
+              Book Now
+            </a>
+          </div>
+          <div className="bg-card border border-border rounded-2xl p-7 text-card-foreground hover:shadow-lg transition-all text-left">
+            <p className="text-xs uppercase tracking-wider mb-2 text-foreground/60">Peak</p>
+            <h3 className="font-display text-3xl uppercase tracking-wide mb-1">Visitor</h3>
+            <div className="mb-5">
+              <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold bg-accent/10 text-accent border border-accent/20">
+                <Clock className="h-3.5 w-3.5" />
+                $35/hr
+              </span>
+            </div>
+            <p className="text-sm text-foreground/60 mb-6">Fri-Sun & Mon-Thu 4pm+</p>
+            <a href="https://hub.birdiesbayside.com.au/" className="block text-center font-display uppercase tracking-wide text-sm px-5 py-3 rounded-md transition-colors bg-primary hover:bg-primary/90 text-primary-foreground">
+              Book Now
+            </a>
+          </div>
+        </div>
         <a
           href="https://hub.birdiesbayside.com.au/"
           className="inline-flex items-center gap-2 bg-accent hover:bg-accent/90 text-accent-foreground font-display tracking-wide uppercase px-8 py-4 rounded-md"
