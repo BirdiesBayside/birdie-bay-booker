@@ -12,10 +12,12 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuCheckboxItem,
 } from "@/components/ui/dropdown-menu";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
+import { Settings2 } from "lucide-react";
 import { ArrowLeft, Check, ChevronDown, Target, TrendingUp } from "lucide-react";
 import {
   statsByClub, swingStatsByClub, sortClubs, fmt, mean, max,
@@ -46,9 +48,24 @@ export default function RangeSessions() {
   const { user, isAuthenticated, isLoading } = useAuth();
   const navigate = useNavigate();
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
-  const [distUnit, setDistUnit] = useState<DistanceUnit | null>(null);
-  const [spdUnit, setSpdUnit] = useState<SpeedUnit | null>(null);
-  const [trim, setTrim] = useState(true);
+  const [distUnit, setDistUnit] = useState<DistanceUnit | null>(() => {
+    if (typeof window === "undefined") return null;
+    const v = localStorage.getItem("range.distUnit");
+    return v === "m" || v === "yd" ? (v as DistanceUnit) : null;
+  });
+  const [spdUnit, setSpdUnit] = useState<SpeedUnit | null>(() => {
+    if (typeof window === "undefined") return null;
+    const v = localStorage.getItem("range.spdUnit");
+    return v === "kph" || v === "mph" ? (v as SpeedUnit) : null;
+  });
+  const [trim, setTrim] = useState(() => {
+    if (typeof window === "undefined") return true;
+    const v = localStorage.getItem("range.trim");
+    return v === null ? true : v === "1";
+  });
+  useEffect(() => { if (distUnit) localStorage.setItem("range.distUnit", distUnit); }, [distUnit]);
+  useEffect(() => { if (spdUnit) localStorage.setItem("range.spdUnit", spdUnit); }, [spdUnit]);
+  useEffect(() => { localStorage.setItem("range.trim", trim ? "1" : "0"); }, [trim]);
   const [activeTab, setActiveTab] = useState("overview");
 
   useEffect(() => {
@@ -143,32 +160,48 @@ export default function RangeSessions() {
   }
 
   const unitBar = (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
-      <div className="inline-flex rounded-full border border-border overflow-hidden">
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button className="flex items-center gap-1.5 bg-card border border-border rounded-lg px-3 py-1.5 shadow-sm active:scale-[0.98] transition-transform text-xs">
+          <Settings2 className="h-3.5 w-3.5 text-accent" />
+          <span className="font-medium text-foreground">{activeDist} · {activeSpd}</span>
+          <ChevronDown className="h-3 w-3 text-muted-foreground" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-[180px]">
+        <DropdownMenuLabel className="text-[10px] uppercase tracking-widest text-muted-foreground">Distance</DropdownMenuLabel>
         {(["m", "yd"] as DistanceUnit[]).map((u) => (
-          <button
+          <DropdownMenuItem
             key={u}
-            onClick={() => setDistUnit(u)}
-            className={`px-3 py-1 font-medium ${activeDist === u ? "bg-accent text-accent-foreground" : "bg-background text-muted-foreground"}`}
-          >{u}</button>
+            onSelect={() => setDistUnit(u)}
+            className={`cursor-pointer flex items-center justify-between ${activeDist === u ? "text-accent" : ""}`}
+          >
+            <span>{u === "m" ? "Meters (m)" : "Yards (yd)"}</span>
+            {activeDist === u && <Check className="h-4 w-4 text-accent" />}
+          </DropdownMenuItem>
         ))}
-      </div>
-      <div className="inline-flex rounded-full border border-border overflow-hidden">
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel className="text-[10px] uppercase tracking-widest text-muted-foreground">Speed</DropdownMenuLabel>
         {(["kph", "mph"] as SpeedUnit[]).map((u) => (
-          <button
+          <DropdownMenuItem
             key={u}
-            onClick={() => setSpdUnit(u)}
-            className={`px-3 py-1 font-medium ${activeSpd === u ? "bg-accent text-accent-foreground" : "bg-background text-muted-foreground"}`}
-          >{u}</button>
+            onSelect={() => setSpdUnit(u)}
+            className={`cursor-pointer flex items-center justify-between ${activeSpd === u ? "text-accent" : ""}`}
+          >
+            <span>{u === "kph" ? "km/h" : "mph"}</span>
+            {activeSpd === u && <Check className="h-4 w-4 text-accent" />}
+          </DropdownMenuItem>
         ))}
-      </div>
-      <div className="flex items-center gap-2">
-        <Switch id="trim" checked={trim} onCheckedChange={setTrim} />
-        <Label htmlFor="trim" className="cursor-pointer text-muted-foreground text-xs">
-          {trim ? "Outliers hidden" : "All shots"}
-        </Label>
-      </div>
-    </div>
+        <DropdownMenuSeparator />
+        <DropdownMenuCheckboxItem
+          checked={trim}
+          onCheckedChange={(v) => setTrim(!!v)}
+          className="cursor-pointer [&_[data-state=checked]]:text-accent"
+        >
+          Hide outliers
+        </DropdownMenuCheckboxItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 
   const TABS: { value: string; label: string }[] = [
