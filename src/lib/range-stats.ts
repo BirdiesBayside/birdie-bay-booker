@@ -135,8 +135,11 @@ export function stddev(arr: (number | null | undefined)[]): number | null {
 }
 
 /**
- * Trim per-club outliers: any shot whose carry is <60% or >140% of that club's
- * median carry is treated as a mishit and removed. Shots without a carry are kept.
+ * Trim per-club outliers. A shot is dropped if either:
+ *  - carry is <65% or >135% of the club's median carry (mishit / topped / thin), or
+ *  - lateral (|side|) is more than 2.5× the median |side| AND beyond 3× the club median lateral
+ *    (catches shanks / big pushes that still carry a normal distance).
+ * Shots without a carry are kept.
  */
 export function trimOutliers(shots: Shot[]): Shot[] {
   const byClub = new Map<string, Shot[]>();
@@ -149,15 +152,26 @@ export function trimOutliers(shots: Shot[]): Shot[] {
   const keep: Shot[] = [];
   for (const [, arr] of byClub) {
     const med = median(arr.map((s) => s.carry));
-    if (med === null || med <= 0) { keep.push(...arr); continue; }
+    const sideAbs = arr.map((s) => {
+      const side = s.side_carry ?? s.side_total;
+      return side == null ? null : Math.abs(side);
+    });
+    const medSide = median(sideAbs) ?? 0;
+    // Fallback lateral cap: max(2.5× median lateral, 15% of median carry, 8 units)
+    const lateralCap = Math.max(medSide * 2.5, (med ?? 0) * 0.15, 8);
     for (const s of arr) {
       const c = s.carry;
-      if (c === null || c === undefined || !Number.isFinite(c)) { keep.push(s); continue; }
-      if (c >= med * 0.6 && c <= med * 1.4) keep.push(s);
+      if (c !== null && c !== undefined && Number.isFinite(c) && med && med > 0) {
+        if (c < med * 0.65 || c > med * 1.35) continue;
+      }
+      const side = s.side_carry ?? s.side_total;
+      if (side != null && Number.isFinite(side) && Math.abs(side) > lateralCap) continue;
+      keep.push(s);
     }
   }
   return keep;
 }
+
 
 export type ClubStats = {
   club: string;
