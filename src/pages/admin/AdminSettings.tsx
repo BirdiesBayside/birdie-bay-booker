@@ -104,7 +104,13 @@ const TEMPLATE_TAGS: Record<string, { tag: string; description: string }[]> = {
     { tag: "{total_visits}", description: "Total number of visits/bookings" },
     { tag: "{next_milestone}", description: "Number of visits for next loyalty credit" },
   ],
+  league_welcome: [
+    { tag: "{first_name}", description: "Player's first name" },
+    { tag: "{handicap}", description: "Starting handicap that was applied (e.g. 12.5 or 'Combo (auto)')" },
+    { tag: "{guide_url}", description: "Link to the Birdies League player guide" },
+  ],
 };
+
 
 interface EmailTemplateDB {
   id: string;
