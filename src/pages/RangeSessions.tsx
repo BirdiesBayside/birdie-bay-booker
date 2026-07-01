@@ -16,7 +16,7 @@ import {
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, ChevronDown, Target, TrendingUp } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, Target, TrendingUp } from "lucide-react";
 import {
   statsByClub, swingStatsByClub, sortClubs, fmt, mean, max,
   detectDistanceUnit, detectSpeedUnit, convertDistance, convertSpeed,
@@ -311,8 +311,9 @@ export default function RangeSessions() {
               </TabsContent>
 
               <TabsContent value="dispersion" className="space-y-4">
-                <DispersionChart shots={allShots} dLbl={dLbl} />
+                <DispersionChart shots={allShots} dLbl={dLbl} sessions={sessions} />
               </TabsContent>
+
 
               <TabsContent value="swing" className="space-y-4">
                 <SwingStatsTable rows={swingStats} />
@@ -476,13 +477,46 @@ function SwingStatsTable({ rows }: { rows: ReturnType<typeof swingStatsByClub> }
   );
 }
 
-function DispersionChart({ shots, dLbl }: { shots: Shot[]; dLbl: string }) {
+function DispersionChart({ shots, dLbl, sessions }: { shots: Shot[]; dLbl: string; sessions?: Session[] }) {
+  type DateRange = "all" | "30" | "60" | "90" | "180" | "365";
+  const [dateRange, setDateRange] = useState<DateRange>("all");
+
+  // Session id -> date map
+  const sessionDateMap = useMemo(() => {
+    const m = new Map<string, string>();
+    (sessions ?? []).forEach((s) => m.set(s.id, s.session_date));
+    return m;
+  }, [sessions]);
+
+  // Sessions in scope after applying date range (or all if no sessions prop)
+  const sessionsInRange = useMemo(() => {
+    if (!sessions) return [];
+    if (dateRange === "all") return sessions;
+    const days = parseInt(dateRange, 10);
+    const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+    return sessions.filter((s) => {
+      const t = new Date(s.session_date).getTime();
+      return Number.isFinite(t) && t >= cutoff;
+    });
+  }, [sessions, dateRange]);
+
+  // Selected sessions (default = all in range). Reset when range changes.
+  const [selectedSessions, setSelectedSessions] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    setSelectedSessions(new Set(sessionsInRange.map((s) => s.id)));
+  }, [sessionsInRange]);
+
+  // Filter shots by selected sessions (only when sessions prop provided)
+  const filteredShots = useMemo(() => {
+    if (!sessions) return shots;
+    return shots.filter((s) => s.session_id && selectedSessions.has(s.session_id));
+  }, [shots, sessions, selectedSessions]);
+
   const allClubs = useMemo(
-    () => sortClubs(Array.from(new Set(shots.map((s) => s.club_type || "Unknown")))),
-    [shots]
+    () => sortClubs(Array.from(new Set(filteredShots.map((s) => s.club_type || "Unknown")))),
+    [filteredShots]
   );
   const [selected, setSelected] = useState<Set<string>>(new Set());
-
 
   const toggle = (c: string) => {
     const next = new Set(selected);
@@ -490,10 +524,16 @@ function DispersionChart({ shots, dLbl }: { shots: Shot[]; dLbl: string }) {
     setSelected(next);
   };
 
+  const toggleSession = (id: string) => {
+    const next = new Set(selectedSessions);
+    next.has(id) ? next.delete(id) : next.add(id);
+    setSelectedSessions(next);
+  };
+
   // Build per-club data + ellipse
   const clubData = useMemo(() => {
     return Array.from(selected).map((club) => {
-      const pts = shots
+      const pts = filteredShots
         .filter((s) => (s.club_type || "Unknown") === club)
         .map((s) => ({
           side: (s.side_carry ?? s.side_total ?? 0) as number,
@@ -503,7 +543,7 @@ function DispersionChart({ shots, dLbl }: { shots: Shot[]; dLbl: string }) {
       const ellipse = fitEllipse(pts, 2);
       return { club, color: clubColor(club), pts, ellipse };
     });
-  }, [selected, shots]);
+  }, [selected, filteredShots]);
 
   // Chart bounds
   const bounds = useMemo(() => {
@@ -522,9 +562,94 @@ function DispersionChart({ shots, dLbl }: { shots: Shot[]; dLbl: string }) {
     };
   }, [clubData]);
 
+  const DATE_RANGES: { value: DateRange; label: string }[] = [
+    { value: "all", label: "All time" },
+    { value: "30", label: "Last 30 days" },
+    { value: "60", label: "Last 60 days" },
+    { value: "90", label: "Last 3 months" },
+    { value: "180", label: "Last 6 months" },
+    { value: "365", label: "Last 12 months" },
+  ];
+  const activeRangeLabel = DATE_RANGES.find((r) => r.value === dateRange)?.label ?? "All time";
+  const allSelected = sessionsInRange.length > 0 && selectedSessions.size === sessionsInRange.length;
+  const sessionsLabel =
+    !sessions || sessionsInRange.length === 0
+      ? "Sessions"
+      : allSelected
+      ? `All sessions (${sessionsInRange.length})`
+      : `${selectedSessions.size} / ${sessionsInRange.length}`;
+
   return (
     <Card>
       <CardHeader className="space-y-2">
+        {sessions && sessions.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Sessions multi-select */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="flex items-center gap-1.5 bg-background border border-border rounded-md px-2.5 py-1.5 text-xs font-medium">
+                  <span className="truncate max-w-[160px]">{sessionsLabel}</span>
+                  <ChevronDown className="h-3 w-3 text-accent" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="max-h-72 overflow-auto min-w-[200px]">
+                <div className="flex gap-2 px-2 py-1.5 border-b border-border/60">
+                  <button
+                    onClick={() => setSelectedSessions(new Set(sessionsInRange.map((s) => s.id)))}
+                    className="text-xs px-2 py-0.5 rounded border border-border hover:bg-muted"
+                  >All</button>
+                  <button
+                    onClick={() => setSelectedSessions(new Set())}
+                    className="text-xs px-2 py-0.5 rounded border border-border hover:bg-muted"
+                  >None</button>
+                </div>
+                {sessionsInRange.map((s) => {
+                  const on = selectedSessions.has(s.id);
+                  return (
+                    <button
+                      key={s.id}
+                      onClick={() => toggleSession(s.id)}
+                      className="flex items-center gap-2 w-full px-2 py-1.5 text-sm hover:bg-muted text-left"
+                    >
+                      <span
+                        className={`h-4 w-4 rounded border flex items-center justify-center shrink-0 ${
+                          on ? "bg-accent border-accent text-accent-foreground" : "border-border bg-background"
+                        }`}
+                      >
+                        {on && <Check className="h-3 w-3" />}
+                      </span>
+                      <span className="tabular-nums">{format(parseISO(s.session_date), "dd/MM")}</span>
+                    </button>
+                  );
+                })}
+                {sessionsInRange.length === 0 && (
+                  <div className="px-3 py-2 text-xs text-muted-foreground">No sessions in range</div>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Date range filter */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="flex items-center gap-1.5 bg-background border border-border rounded-md px-2.5 py-1.5 text-xs font-medium">
+                  <span>{activeRangeLabel}</span>
+                  <ChevronDown className="h-3 w-3 text-accent" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="min-w-[160px]">
+                {DATE_RANGES.map((r) => (
+                  <DropdownMenuItem
+                    key={r.value}
+                    onSelect={() => setDateRange(r.value)}
+                    className={`text-sm cursor-pointer ${dateRange === r.value ? "text-accent bg-accent/10" : ""}`}
+                  >
+                    {r.label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        )}
         <div className="flex flex-wrap items-center justify-between gap-2">
           <CardTitle className="text-base">Shot dispersion ({dLbl})</CardTitle>
           <div className="flex gap-2 text-xs">
@@ -557,6 +682,7 @@ function DispersionChart({ shots, dLbl }: { shots: Shot[]; dLbl: string }) {
           })}
         </div>
       </CardHeader>
+
       <CardContent>
         <ResponsiveContainer width="100%" height={560}>
           <ScatterChart margin={{ top: 10, right: 20, left: 10, bottom: 10 }}>
