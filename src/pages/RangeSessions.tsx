@@ -7,10 +7,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Target, TrendingUp } from "lucide-react";
+import { ArrowLeft, ChevronDown, Target, TrendingUp } from "lucide-react";
 import {
   statsByClub, swingStatsByClub, sortClubs, fmt, mean, max,
   detectDistanceUnit, detectSpeedUnit, convertDistance, convertSpeed,
@@ -43,6 +49,7 @@ export default function RangeSessions() {
   const [distUnit, setDistUnit] = useState<DistanceUnit | null>(null);
   const [spdUnit, setSpdUnit] = useState<SpeedUnit | null>(null);
   const [trim, setTrim] = useState(true);
+  const [activeTab, setActiveTab] = useState("overview");
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) navigate("/");
@@ -142,7 +149,7 @@ export default function RangeSessions() {
           <button
             key={u}
             onClick={() => setDistUnit(u)}
-            className={`px-3 py-1 font-medium ${activeDist === u ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground"}`}
+            className={`px-3 py-1 font-medium ${activeDist === u ? "bg-accent text-accent-foreground" : "bg-background text-muted-foreground"}`}
           >{u}</button>
         ))}
       </div>
@@ -151,7 +158,7 @@ export default function RangeSessions() {
           <button
             key={u}
             onClick={() => setSpdUnit(u)}
-            className={`px-3 py-1 font-medium ${activeSpd === u ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground"}`}
+            className={`px-3 py-1 font-medium ${activeSpd === u ? "bg-accent text-accent-foreground" : "bg-background text-muted-foreground"}`}
           >{u}</button>
         ))}
       </div>
@@ -218,20 +225,32 @@ export default function RangeSessions() {
           </>
         ) : (
           <>
-            <Tabs defaultValue="overview" className="space-y-4">
-              {/* Menu-style top nav */}
-              <div className="-mx-4 px-4 overflow-x-auto scrollbar-none">
-                <TabsList className="inline-flex h-auto p-1 bg-muted/60 rounded-full">
-                  {TABS.map((t) => (
-                    <TabsTrigger
-                      key={t.value}
-                      value={t.value}
-                      className="rounded-full px-4 py-1.5 text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow"
-                    >
-                      {t.label}
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+              {/* Menu-style top nav — dropdown */}
+              <div className="flex items-center">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="flex items-center gap-2 bg-card border border-border rounded-xl px-4 py-2.5 shadow-sm active:scale-[0.98] transition-transform">
+                      <span className="font-anton text-xl uppercase tracking-wide text-primary">
+                        {TABS.find((t) => t.value === activeTab)?.label}
+                      </span>
+                      <ChevronDown className="h-5 w-5 text-accent" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="min-w-[180px]">
+                    {TABS.map((t) => (
+                      <DropdownMenuItem
+                        key={t.value}
+                        onSelect={() => setActiveTab(t.value)}
+                        className={`font-medium cursor-pointer ${
+                          activeTab === t.value ? "text-accent bg-accent/10" : "text-foreground"
+                        }`}
+                      >
+                        {t.label}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
 
               {/* Context row: averages label + units */}
