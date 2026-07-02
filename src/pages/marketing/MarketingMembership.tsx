@@ -124,8 +124,9 @@ const MarketingMembership = () => (
                 $30/hr
               </span>
             </div>
-            <p className="text-sm text-foreground/60 mb-6">Mon-Thu before 4pm</p>
-            <a href="https://hub.birdiesbayside.com.au/" className="block text-center font-display uppercase tracking-wide text-sm px-5 py-3 rounded-md transition-colors bg-primary hover:bg-primary/90 text-primary-foreground">
+            <p className="text-sm text-foreground/60 mb-2">Mon-Thu before 4pm</p>
+            <p className="text-sm text-foreground/60 mb-6">Per bay, up to 4 players</p>
+            <a href="https://hub.birdiesbayside.com.au/" className="block text-center font-display uppercase tracking-wide text-sm px-5 py-3 rounded-md transition-colors bg-accent hover:bg-accent/90 text-accent-foreground">
               Book Now
             </a>
           </div>
@@ -138,8 +139,9 @@ const MarketingMembership = () => (
                 $35/hr
               </span>
             </div>
-            <p className="text-sm text-foreground/60 mb-6">Fri-Sun & Mon-Thu 4pm+</p>
-            <a href="https://hub.birdiesbayside.com.au/" className="block text-center font-display uppercase tracking-wide text-sm px-5 py-3 rounded-md transition-colors bg-primary hover:bg-primary/90 text-primary-foreground">
+            <p className="text-sm text-foreground/60 mb-2">Fri-Sun & Mon-Thu 4pm+</p>
+            <p className="text-sm text-foreground/60 mb-6">Per bay, up to 4 players</p>
+            <a href="https://hub.birdiesbayside.com.au/" className="block text-center font-display uppercase tracking-wide text-sm px-5 py-3 rounded-md transition-colors bg-accent hover:bg-accent/90 text-accent-foreground">
               Book Now
             </a>
           </div>
@@ -167,11 +169,13 @@ const MarketingMembership = () => (
             <p className="text-sm uppercase tracking-wider text-foreground/60 mb-2">Off-Peak</p>
             <p className="font-display text-5xl text-primary">$30<span className="text-lg text-foreground/60">/hr</span></p>
             <p className="text-sm text-foreground/60 mt-2">Mon-Thu before 4pm</p>
+            <p className="text-sm text-foreground/60 mt-1">Per bay, up to 4 players</p>
           </div>
-          <div className="bg-primary text-primary-foreground rounded-xl p-7">
-            <p className="text-sm uppercase tracking-wider text-accent mb-2">Peak</p>
-            <p className="font-display text-5xl">$35<span className="text-lg text-primary-foreground/70">/hr</span></p>
-            <p className="text-sm text-primary-foreground/70 mt-2">Fri-Sun & Mon-Thu 4pm+</p>
+          <div className="bg-card border border-border rounded-xl p-7">
+            <p className="text-sm uppercase tracking-wider text-foreground/60 mb-2">Peak</p>
+            <p className="font-display text-5xl text-primary">$35<span className="text-lg text-foreground/60">/hr</span></p>
+            <p className="text-sm text-foreground/60 mt-2">Fri-Sun & Mon-Thu 4pm+</p>
+            <p className="text-sm text-foreground/60 mt-1">Per bay, up to 4 players</p>
           </div>
         </div>
       </div>
