@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
 import { LogOut, Calendar, Settings, ClipboardList, Trophy, Lock, Users, Info, Megaphone, Plus, Trash2, CalendarDays, FlaskConical } from "lucide-react";
 import birdiesLogo from "@/assets/birdies-logo.png";
+import swingLabBadge from "@/assets/swing-lab-badge.png.asset.json";
 import { supabase } from "@/integrations/supabase/client";
 import { NotificationBell } from "@/components/NotificationBell";
 import { QUERY_KEYS, STALE_TIMES } from "@/lib/query-keys";
@@ -246,8 +247,8 @@ const Dashboard = () => {
                 </div>
               )}
               <div className="flex items-center gap-3">
-                <div className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 relative ${hasRangeAccess ? "bg-accent/10" : "bg-muted"}`}>
-                  <FlaskConical className={`h-5 w-5 ${hasRangeAccess ? "text-accent" : "text-muted-foreground"}`} />
+                <div className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 relative overflow-hidden ${hasRangeAccess ? "bg-accent/10" : "bg-muted"}`}>
+                  <img src={swingLabBadge.url} alt="Swing Lab" className="h-8 w-8 object-contain" />
                 </div>
                 <h2 className={`font-semibold text-base ${hasRangeAccess ? "" : "text-muted-foreground"}`}>Swing Lab</h2>
               </div>
