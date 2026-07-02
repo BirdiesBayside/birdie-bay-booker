@@ -56,6 +56,7 @@ type Session = {
 export default function RangeSessions() {
   const { user, isAuthenticated, isLoading } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [distUnit, setDistUnit] = useState<DistanceUnit | null>(() => {
     if (typeof window === "undefined") return null;
