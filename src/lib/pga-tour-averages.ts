@@ -34,18 +34,19 @@ export function matchTourClub(club: string): TourAverage | null {
   const c = (club || "").toLowerCase().replace(/[^a-z0-9]/g, "");
   const lookups: [RegExp, string][] = [
     [/^driver$|^dr$|^1w$/, "Driver"],
-    [/^3w$|3wood/, "3 Wood"],
-    [/^5w$|5wood/, "5 Wood"],
-    [/hybrid|^h[0-9]?$/, "Hybrid"],
-    [/^3i$|3iron/, "3 Iron"],
-    [/^4i$|4iron/, "4 Iron"],
-    [/^5i$|5iron/, "5 Iron"],
-    [/^6i$|6iron/, "6 Iron"],
-    [/^7i$|7iron/, "7 Iron"],
-    [/^8i$|8iron/, "8 Iron"],
-    [/^9i$|9iron/, "9 Iron"],
+    [/^3w$|^w3$|3wood/, "3 Wood"],
+    [/^5w$|^w5$|5wood/, "5 Wood"],
+    [/hybrid|^h[0-9]?$|^[0-9]h$/, "Hybrid"],
+    [/^3i$|^i3$|3iron/, "3 Iron"],
+    [/^4i$|^i4$|4iron/, "4 Iron"],
+    [/^5i$|^i5$|5iron/, "5 Iron"],
+    [/^6i$|^i6$|6iron/, "6 Iron"],
+    [/^7i$|^i7$|7iron/, "7 Iron"],
+    [/^8i$|^i8$|8iron/, "8 Iron"],
+    [/^9i$|^i9$|9iron/, "9 Iron"],
     [/^pw$|pitching/, "PW"],
   ];
+
   for (const [re, name] of lookups) {
     if (re.test(c)) return PGA_TOUR_AVERAGES.find((t) => t.club === name) ?? null;
   }
