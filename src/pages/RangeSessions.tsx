@@ -392,55 +392,87 @@ export default function RangeSessions() {
                 <SwingStatsTable rows={swingStats} />
               </TabsContent>
 
-              <TabsContent value="consistency" className="space-y-4">
-                <Card className="overflow-hidden">
-                  <CardHeader><CardTitle className="text-base">Strike consistency (lower = tighter)</CardTitle></CardHeader>
-                  <CardContent className="min-w-0">
-                    <ResponsiveContainer width="100%" height={320}>
-                      <BarChart data={clubStats.map((c) => ({ club: c.club, smashSd: c.smashSd ?? 0, lateralSd: c.lateralSd ?? 0 }))}>
-                        <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                        <XAxis dataKey="club" />
-                        <YAxis />
-                        <Tooltip />
-                        <Legend />
-                        <Bar dataKey="smashSd" fill="#1F4C25" name="Smash factor SD" />
-                        <Bar dataKey="lateralSd" fill="#EC622D" name={`Lateral SD (${dLbl})`} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </CardContent>
-                </Card>
+              <TabsContent value="optimise" className="space-y-4">
+                <OptimiseTab
+                  clubStats={clubStats}
+                  swingStats={swingStats}
+                  activeDist={activeDist}
+                  activeSpd={activeSpd}
+                />
               </TabsContent>
 
               <TabsContent value="sessions" className="space-y-3">
                 <div className="space-y-2">
                   {sessions.map((s) => (
-                    <button
+                    <div
                       key={s.id}
-                      onClick={() => setSelectedSessionId(s.id)}
-                      className="w-full text-left border border-border rounded-md p-3 hover:bg-muted/50 transition"
+                      className="w-full border border-border rounded-md p-3 hover:bg-muted/50 transition flex items-center justify-between gap-3"
                     >
-                      <div className="flex items-center justify-between gap-3 flex-wrap">
-                        <div>
-                          <div className="font-medium">
-                            {format(parseISO(s.session_date), "EEE d MMM yyyy")}
-                            {s.started_at && (
-                              <span className="text-muted-foreground text-sm ml-2">
-                                {format(parseISO(s.started_at), "h:mma").toLowerCase()}
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            {s.shot_count} shots
-                            {s.duration_minutes ? ` · ${Math.round(s.duration_minutes)} min` : ""}
-                            {s.source_filename ? ` · ${s.source_filename}` : ""}
-                          </div>
+                      <button
+                        onClick={() => setSelectedSessionId(s.id)}
+                        className="flex-1 text-left min-w-0"
+                      >
+                        <div className="font-medium">
+                          {format(parseISO(s.session_date), "EEE d MMM yyyy")}
+                          {s.started_at && (
+                            <span className="text-muted-foreground text-sm ml-2">
+                              {format(parseISO(s.started_at), "h:mma").toLowerCase()}
+                            </span>
+                          )}
                         </div>
-                        <Badge variant="secondary">View</Badge>
+                        <div className="text-xs text-muted-foreground">
+                          {s.shot_count} shots
+                          {s.duration_minutes ? ` · ${Math.round(s.duration_minutes)} min` : ""}
+                          {s.source_filename ? ` · ${s.source_filename}` : ""}
+                        </div>
+                      </button>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Badge variant="secondary" className="cursor-pointer" onClick={() => setSelectedSessionId(s.id)}>View</Badge>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-destructive">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete this session?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This will permanently delete the session from{" "}
+                                <strong>{format(parseISO(s.session_date), "EEE d MMM yyyy")}</strong>
+                                {" "}and all {s.shot_count} of its shots from the server. This can't be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                onClick={async () => {
+                                  const { error } = await supabase
+                                    .from("range_sessions")
+                                    .delete()
+                                    .eq("id", s.id);
+                                  if (error) {
+                                    toast.error("Couldn't delete session: " + error.message);
+                                    return;
+                                  }
+                                  if (selectedSessionId === s.id) setSelectedSessionId(null);
+                                  toast.success("Session deleted");
+                                  queryClient.invalidateQueries({ queryKey: ["range-sessions"] });
+                                  queryClient.invalidateQueries({ queryKey: ["range-shots-all"] });
+                                }}
+                              >
+                                Delete permanently
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </div>
-                    </button>
+                    </div>
                   ))}
                 </div>
               </TabsContent>
+
             </Tabs>
           </>
         )}
