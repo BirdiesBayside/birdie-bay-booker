@@ -489,7 +489,9 @@ function OverviewTiles({
   activeDist: DistanceUnit;
   activeSpd: SpeedUnit;
 }) {
+  const navigate = useNavigate();
   const dLbl = activeDist;
+
 
   // Session date lookup for shot attribution
   const sessionDateById = useMemo(() => {
