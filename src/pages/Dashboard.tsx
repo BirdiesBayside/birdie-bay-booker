@@ -248,8 +248,10 @@ const Dashboard = () => {
                   <span>Members</span>
                 </div>
               )}
-              <button
+              <a
+                href="#"
                 onClick={(e) => {
+                  e.preventDefault();
                   e.stopPropagation();
                   setSwingLabInfoOpen(true);
                 }}
@@ -258,7 +260,7 @@ const Dashboard = () => {
                 title="How to use Swing Lab"
               >
                 <Info className="h-4 w-4 text-muted-foreground" />
-              </button>
+              </a>
               <div className="flex items-center gap-3">
                 <img
                   src={swingLabBadge.url}
