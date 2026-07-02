@@ -146,27 +146,28 @@ const MarketingHome = () => {
                   $30/hr
                 </span>
               </div>
-              <p className="text-sm text-foreground/60 mb-6">Mon-Thu before 4pm</p>
-              <a href="https://hub.birdiesbayside.com.au/" className="block text-center font-display uppercase tracking-wide text-sm px-5 py-3 rounded-md transition-colors bg-primary hover:bg-primary/90 text-primary-foreground">
+              <p className="text-sm text-foreground/60 mb-2">Mon-Thu before 4pm</p>
+              <p className="text-sm text-foreground/60 mb-6">Per bay, up to 4 players</p>
+              <a href="https://hub.birdiesbayside.com.au/" className="block text-center font-display uppercase tracking-wide text-sm px-5 py-3 rounded-md transition-colors bg-accent hover:bg-accent/90 text-accent-foreground">
                 Book Now
               </a>
             </div>
-            <div className="bg-primary text-primary-foreground rounded-2xl p-7 hover:shadow-lg transition-all">
-              <p className="text-xs uppercase tracking-wider mb-2 text-accent">Peak</p>
+            <div className="bg-card border border-border rounded-2xl p-7 text-card-foreground hover:shadow-lg transition-all">
+              <p className="text-xs uppercase tracking-wider mb-2 text-foreground/60">Peak</p>
               <h3 className="font-display text-3xl uppercase tracking-wide mb-1">Visitor</h3>
               <div className="mb-5">
-                <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold bg-accent/15 text-accent border border-accent/20">
+                <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold bg-accent/10 text-accent border border-accent/20">
                   <Clock className="h-3.5 w-3.5" />
                   $35/hr
                 </span>
               </div>
-              <p className="text-sm text-primary-foreground/70 mb-6">Fri-Sun & Mon-Thu 4pm+</p>
+              <p className="text-sm text-foreground/60 mb-2">Fri-Sun & Mon-Thu 4pm+</p>
+              <p className="text-sm text-foreground/60 mb-6">Per bay, up to 4 players</p>
               <a href="https://hub.birdiesbayside.com.au/" className="block text-center font-display uppercase tracking-wide text-sm px-5 py-3 rounded-md transition-colors bg-accent hover:bg-accent/90 text-accent-foreground">
                 Book Now
               </a>
             </div>
           </div>
-          <p className="text-center text-foreground/60 text-sm mt-6">Per bay, up to 4 players</p>
         </div>
       </section>
 
