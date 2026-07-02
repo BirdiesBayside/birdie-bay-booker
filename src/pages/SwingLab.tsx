@@ -652,7 +652,7 @@ function OverviewTiles({
         label="Longest Carry"
         value={longest ? `${Math.round(longest.carry)} ${dLbl}` : "—"}
         sub={longest ? `${longest.club}${longest.date ? ` · ${format(parseISO(longest.date.slice(0, 10)), "d MMM")}` : ""}` : "Not enough data"}
-        info={`Furthest carry (${dLbl}) — the distance the ball flew in the air, not roll. We filter out unrealistic readings by checking carry against ball speed, so a mishit spike can't become your record.`}
+        info={`Furthest carry (${dLbl}). The distance the ball flew in the air, not roll.`}
       />
 
       {/* Tile 4 — Best club vs tour */}
@@ -660,7 +660,7 @@ function OverviewTiles({
         label="Best Club (vs Tour)"
         value={bestVsTour ? `${Math.round(bestVsTour.pct)}%` : "—"}
         sub={bestVsTour ? `${bestVsTour.club} smash efficiency` : "Need 10+ shots per club"}
-        info="Your best club by smash factor (ball speed ÷ club speed) shown as a percentage of the PGA Tour average for that club. Smash measures strike quality, so it rewards a pure contact over raw speed — a 70-year-old can still score 95%+."
+        info="Your best club by smash factor (ball speed ÷ club speed) shown as a percentage of the PGA Tour average for that club. Smash measures strike quality, so it rewards pure contact over raw speed. A 70-year-old can still score 95%+."
       />
 
       {/* Tile 5 — Consistency */}
@@ -677,7 +677,7 @@ function OverviewTiles({
                 : `${consistency.trend > 0 ? "▲" : "▼"} ${Math.abs(consistency.trend)} vs last month`
         }
         highlight={consistency.trend != null && consistency.trend > 0}
-        info="How repeatable your carry distances are, scored 0–100 (higher = tighter). We take the carry standard deviation for your three most-hit clubs, express it as a percent of each club's average, then convert to a score: 0% variation = 100, 20%+ variation = 0. Consistency is the number that actually moves with practice — averages barely budge month to month, this does."
+        info="How repeatable your carry distances are, scored 0–100 (higher = tighter). We take the carry standard deviation for your three most-hit clubs, express it as a percent of each club's average, then convert to a score: 0% variation = 100, 20%+ variation = 0. Consistency is the number that actually moves with practice. Averages barely budge month to month, this does."
       />
 
       {/* Tile 6 — Focus Point */}
@@ -747,7 +747,7 @@ function FocusPointCard({ focus }: { focus: { club: string; pct: number; avgSmas
               </button>
             </PopoverTrigger>
             <PopoverContent side="top" className="max-w-[260px] text-xs leading-relaxed">
-              One coaching cue, auto-picked. We compare each of your clubs' smash factor to the PGA Tour average for that club and surface the biggest gap — the club that would benefit most from cleaner strikes. It rotates as you improve or as a bigger leak appears.
+              One coaching cue, auto-picked. We compare each of your clubs' smash factor to the PGA Tour average for that club and surface the biggest gap, the club that would benefit most from cleaner strikes. It rotates as you improve or as a bigger leak appears.
             </PopoverContent>
           </Popover>
         </div>
@@ -757,7 +757,7 @@ function FocusPointCard({ focus }: { focus: { club: string; pct: number; avgSmas
               {focus.club}: {Math.round(focus.pct)}% of tour smash
             </div>
             <div className="text-xs text-muted-foreground mt-1">
-              Averaging {focus.avgSmash.toFixed(2)} vs tour {focus.tourSmash.toFixed(2)} — focus on centre-face strikes with this club.
+              Averaging {focus.avgSmash.toFixed(2)} vs tour {focus.tourSmash.toFixed(2)}. Focus on centre-face strikes with this club.
             </div>
           </>
         ) : (
