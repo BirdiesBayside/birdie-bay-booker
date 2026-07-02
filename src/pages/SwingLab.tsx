@@ -365,14 +365,15 @@ export default function SwingLab() {
                               {c.club}
                             </span>
                           </div>
-                          <div className="font-anton text-xl text-foreground tabular-nums text-center">
+                          <div className="font-anton text-xl text-primary tabular-nums text-center">
                             {c.avgCarry != null ? Math.round(c.avgCarry) : "—"}
                             <span className="text-xs text-muted-foreground font-sans ml-1">{dLbl}</span>
                           </div>
-                          <div className="font-anton text-xl text-foreground tabular-nums text-right">
+                          <div className="font-anton text-xl text-primary tabular-nums text-right">
                             {c.avgTotal != null ? Math.round(c.avgTotal) : "—"}
                             <span className="text-xs text-muted-foreground font-sans ml-1">{dLbl}</span>
                           </div>
+
                         </div>
                       ))}
                       {clubStats.length === 0 && (
