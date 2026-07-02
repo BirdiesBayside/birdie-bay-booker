@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import swingLabBadge from "@/assets/swing-lab-badge.png.asset.json";
-import { detectDistanceUnit, detectSpeedUnit, convertDistance, convertSpeed, type Shot } from "@/lib/range-stats";
+import { detectDistanceUnit, detectSpeedUnit, convertDistance, convertSpeed, type Shot, type DistanceUnit, type SpeedUnit } from "@/lib/range-stats";
 
 type Session = { id: string; session_date: string };
 
