@@ -27,6 +27,7 @@ const Dashboard = () => {
   const [membershipOnHold, setMembershipOnHold] = useState(false);
   const [hasSgtAccount, setHasSgtAccount] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [accountAccessLoading, setAccountAccessLoading] = useState(true);
   const [whatsOnOpen, setWhatsOnOpen] = useState(false);
   const [swingLabInfoOpen, setSwingLabInfoOpen] = useState(false);
   const [showEventForm, setShowEventForm] = useState(false);
@@ -44,33 +45,61 @@ const Dashboard = () => {
   const [isStaff, setIsStaff] = useState(false);
 
   useEffect(() => {
-    const fetchProfile = async () => {
-      if (!user) return;
-      const { data } = await supabase
-        .from("profiles")
-        .select("membership_tier, sgt_user_id, membership_on_hold, custom_segment")
-        .eq("user_id", user.id)
-        .single();
-      if (data?.membership_tier) {
-        setMembershipTier(data.membership_tier as MembershipTier);
-      }
-      setMembershipOnHold(!!data?.membership_on_hold);
-      setHasSgtAccount(!!data?.sgt_user_id);
-      setIsStaff((data as any)?.custom_segment === "staff");
-    };
-    fetchProfile();
-  }, [user]);
+    let cancelled = false;
 
-  useEffect(() => {
-    const checkAdminStatus = async () => {
-      if (!user) return;
-      const { data } = await supabase.rpc('has_role', { 
-        _user_id: user.id, 
-        _role: 'admin' 
-      });
-      setIsAdmin(!!data);
+    const fetchAccountAccess = async () => {
+      if (!user) {
+        setMembershipTier("visitor");
+        setMembershipOnHold(false);
+        setHasSgtAccount(false);
+        setIsStaff(false);
+        setIsAdmin(false);
+        setAccountAccessLoading(false);
+        return;
+      }
+
+      setAccountAccessLoading(true);
+
+      try {
+        const [profileResult, adminResult] = await Promise.all([
+          supabase
+            .from("profiles")
+            .select("membership_tier, sgt_user_id, membership_on_hold, custom_segment")
+            .eq("user_id", user.id)
+            .maybeSingle(),
+          supabase.rpc('has_role', {
+            _user_id: user.id,
+            _role: 'admin'
+          }),
+        ]);
+
+        if (cancelled) return;
+
+        const profile = profileResult.data;
+        setMembershipTier((profile?.membership_tier as MembershipTier) || "visitor");
+        setMembershipOnHold(!!profile?.membership_on_hold);
+        setHasSgtAccount(!!profile?.sgt_user_id);
+        setIsStaff((profile as any)?.custom_segment === "staff");
+        setIsAdmin(!!adminResult.data);
+      } catch (error) {
+        if (!cancelled) {
+          console.error("Error fetching account access:", error);
+          setMembershipTier("visitor");
+          setMembershipOnHold(false);
+          setHasSgtAccount(false);
+          setIsStaff(false);
+          setIsAdmin(false);
+        }
+      } finally {
+        if (!cancelled) setAccountAccessLoading(false);
+      }
     };
-    checkAdminStatus();
+
+    fetchAccountAccess();
+
+    return () => {
+      cancelled = true;
+    };
   }, [user]);
 
   useEffect(() => {
@@ -142,11 +171,12 @@ const Dashboard = () => {
     setMembershipOnHold(false);
     setHasSgtAccount(false);
     setIsAdmin(false);
+    setAccountAccessLoading(false);
     await signOut();
     navigate("/", { replace: true });
   };
 
-  if (isLoading) {
+  if (isLoading || (isAuthenticated && accountAccessLoading)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="animate-pulse text-muted-foreground">Loading...</div>
@@ -157,8 +187,8 @@ const Dashboard = () => {
   if (!isAuthenticated) return null;
 
   const firstName = user?.user_metadata?.first_name || "Member";
-  const hasLeagueAccess = ["birdie", "eagle"].includes(membershipTier) || isStaff;
-  const hasRangeAccess = ["weekday", "birdie", "eagle"].includes(membershipTier) || isStaff;
+  const hasLeagueAccess = ["birdie", "eagle"].includes(membershipTier) || isStaff || isAdmin;
+  const hasRangeAccess = ["weekday", "birdie", "eagle"].includes(membershipTier) || isStaff || isAdmin;
 
   return (
     <div className="min-h-screen flex flex-col">
