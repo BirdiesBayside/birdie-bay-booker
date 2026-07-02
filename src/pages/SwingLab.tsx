@@ -14,6 +14,7 @@ import { Trash2, Info as InfoIcon } from "lucide-react";
 import { PGA_TOUR_AVERAGES, matchTourClub, matchBenchmarkClub, METRIC_TOOLTIPS, BENCHMARK_LABELS, type TourAverage, type BenchmarkSet } from "@/lib/pga-tour-averages";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { supabase } from "@/integrations/supabase/client";
+import swingLabBadge from "@/assets/swing-lab-badge.png.asset.json";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
