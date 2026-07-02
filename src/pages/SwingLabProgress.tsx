@@ -255,7 +255,7 @@ export default function SwingLabProgress() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-40 bg-background/95 backdrop-blur border-b">
+      <header className="sticky top-0 z-40 bg-background/95 backdrop-blur border-b safe-area-top">
         <div className="container mx-auto px-4 py-3 flex items-center justify-between">
           <Button variant="ghost" size="sm" onClick={() => navigate("/swing-lab")} className="gap-1">
             <ArrowLeft className="h-4 w-4" /> Back
