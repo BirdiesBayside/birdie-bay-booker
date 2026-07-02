@@ -772,7 +772,7 @@ function FocusPointCard({ focus }: { focus: { club: string; pct: number; avgSmas
           <span className="flex items-center gap-1"><FlaskConical className="h-3.5 w-3.5" />Focus Point</span>
           <InfoIcon className="h-3.5 w-3.5 opacity-80" />
         </div>
-        <div className="text-2xl font-anton mt-1 leading-tight">{headline}</div>
+        <div className="text-2xl font-anton text-primary mt-1 leading-tight">{headline}</div>
         <div className="text-xs text-muted-foreground mt-1">{sub}</div>
       </button>
 
