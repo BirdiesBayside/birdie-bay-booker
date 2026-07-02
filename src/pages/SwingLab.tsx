@@ -365,14 +365,15 @@ export default function SwingLab() {
                               {c.club}
                             </span>
                           </div>
-                          <div className="font-anton text-xl text-foreground tabular-nums text-center">
+                          <div className="font-anton text-xl text-primary tabular-nums text-center">
                             {c.avgCarry != null ? Math.round(c.avgCarry) : "—"}
                             <span className="text-xs text-muted-foreground font-sans ml-1">{dLbl}</span>
                           </div>
-                          <div className="font-anton text-xl text-foreground tabular-nums text-right">
+                          <div className="font-anton text-xl text-primary tabular-nums text-right">
                             {c.avgTotal != null ? Math.round(c.avgTotal) : "—"}
                             <span className="text-xs text-muted-foreground font-sans ml-1">{dLbl}</span>
                           </div>
+
                         </div>
                       ))}
                       {clubStats.length === 0 && (
@@ -747,7 +748,7 @@ function TileCard({
             </Popover>
           )}
         </div>
-        <div className="text-2xl font-anton mt-1 leading-tight">{value}</div>
+        <div className="text-2xl font-anton text-primary mt-1 leading-tight">{value}</div>
         {sub && (
           <div className={`text-xs mt-1 ${highlight ? "text-accent" : "text-muted-foreground"}`}>{sub}</div>
         )}
@@ -771,7 +772,7 @@ function FocusPointCard({ focus }: { focus: { club: string; pct: number; avgSmas
           <span className="flex items-center gap-1"><FlaskConical className="h-3.5 w-3.5" />Focus Point</span>
           <InfoIcon className="h-3.5 w-3.5 opacity-80" />
         </div>
-        <div className="text-2xl font-anton mt-1 leading-tight">{headline}</div>
+        <div className="text-2xl font-anton text-primary mt-1 leading-tight">{headline}</div>
         <div className="text-xs text-muted-foreground mt-1">{sub}</div>
       </button>
 
@@ -819,7 +820,7 @@ function Kpi({ label, value, icon }: { label: string; value: string; icon?: Reac
         <div className="text-xs uppercase tracking-wide text-muted-foreground flex items-center gap-1">
           {icon}{label}
         </div>
-        <div className="text-2xl font-anton mt-1">{value}</div>
+        <div className="text-2xl font-anton text-primary mt-1">{value}</div>
       </CardContent>
     </Card>
   );
