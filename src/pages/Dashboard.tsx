@@ -12,6 +12,7 @@ import { NotificationBell } from "@/components/NotificationBell";
 import { QUERY_KEYS, STALE_TIMES } from "@/lib/query-keys";
 import { useToast } from "@/hooks/use-toast";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 
