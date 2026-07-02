@@ -67,7 +67,7 @@ function byClub(shots: Shot[], minShots: number, filter?: (c: string) => boolean
 export default function SwingLabProgress() {
   const navigate = useNavigate();
   const { user, isAuthenticated, isLoading } = useAuth();
-  const [tf, setTf] = useState<Timeframe>("90");
+  const [tf, setTf] = useState<Timeframe>("30");
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) navigate("/");
