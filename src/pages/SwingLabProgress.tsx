@@ -316,36 +316,9 @@ function computeTile(
   t: TileDef,
   w: { current: Shot[]; prior: Shot[]; currentSess: Session[]; priorSess: Session[]; days: number },
 ): TileResult {
-  const calc = (shots: Shot[], sessCount: number) => {
-    if (t.fromSessions) {
-      const weeks = w.days / 7;
-      return weeks > 0 ? sessCount / weeks : null;
-    }
-    const vals: number[] = [];
-    for (const s of shots) {
-      if (t.filter && !t.filter(s)) continue;
-      const v = t.value(s);
-      if (v == null || !Number.isFinite(v)) continue;
-      vals.push(v);
-    }
-    if (vals.length < t.minShots) return null;
-    if (t.agg === "sd") {
-      const m = vals.reduce((a, b) => a + b, 0) / vals.length;
-      const variance = vals.reduce((a, b) => a + (b - m) * (b - m), 0) / vals.length;
-      const sd = Math.sqrt(variance);
-      if (t.key === "consistency") {
-        // Convert CV to 0-100 score (same formula as overview tile)
-        if (m <= 0) return null;
-        const cv = sd / m;
-        return Math.max(0, Math.min(100, 100 - cv * 500));
-      }
-      return sd;
-    }
-    return vals.reduce((a, b) => a + b, 0) / vals.length;
-  };
+  const current = t.compute(w.current, w.currentSess.length, w.days);
+  const prior = t.compute(w.prior, w.priorSess.length, w.days);
 
-  const current = calc(w.current, w.currentSess.length);
-  const prior = calc(w.prior, w.priorSess.length);
 
   let deltaPct: number | null = null;
   let direction: Direction | null = null;
