@@ -105,11 +105,27 @@ Deno.serve(async (req) => {
 
   const colMap: (string | null)[] = headers.map((h) => FIELD_MAP[canonical(h)] ?? null);
 
+  // Derive session date/time from a gspro-export MM-DD-YY-HH-MM-SS filename if present.
+  // Falls back to DB default (today in Brisbane) when the filename isn't parseable.
+  const parseFilenameDate = (name: string | null | undefined): { date: string; iso: string } | null => {
+    if (!name) return null;
+    const m = String(name).match(/(\d{2})-(\d{2})-(\d{2})-(\d{2})-(\d{2})-(\d{2})/);
+    if (!m) return null;
+    const [, mm, dd, yy, hh, mi, ss] = m;
+    const year = 2000 + Number(yy);
+    // Interpret as Brisbane local time (AEST/UTC+10, no DST) then convert to UTC ISO.
+    const utcMs = Date.UTC(year, Number(mm) - 1, Number(dd), Number(hh) - 10, Number(mi), Number(ss));
+    if (!Number.isFinite(utcMs)) return null;
+    return { date: `${year}-${mm}-${dd}`, iso: new Date(utcMs).toISOString() };
+  };
+  const filenameStamp = parseFilenameDate(filename);
+
   const { data: session, error: sessErr } = await admin
     .from("range_sessions")
     .insert({
       user_id, booking_id: booking_id ?? null, bay_id: bay_id ?? null,
       shot_count: rows.length, source_filename: filename ?? null,
+      ...(filenameStamp ? { session_date: filenameStamp.date, started_at: filenameStamp.iso } : {}),
     })
     .select("id")
     .single();
@@ -153,10 +169,13 @@ Deno.serve(async (req) => {
   const { error: upErr } = await admin.storage.from("range-session-csv").upload(csvPath, new Blob([csvText], { type: "text/csv" }), { upsert: true });
   const finalCsvPath = upErr ? null : csvPath;
 
-  await admin.from("range_sessions").update({
-    started_at: started, ended_at: ended,
-    duration_minutes: durationMin, csv_path: finalCsvPath,
-  }).eq("id", sessionId);
+  const updatePayload: Record<string, unknown> = { csv_path: finalCsvPath };
+  // Only overwrite started/ended if the CSV actually had timestamps — otherwise we keep
+  // the filename-derived started_at (or DB default) intact.
+  if (started) updatePayload.started_at = started;
+  if (ended) updatePayload.ended_at = ended;
+  if (durationMin != null) updatePayload.duration_minutes = durationMin;
+  await admin.from("range_sessions").update(updatePayload).eq("id", sessionId);
 
   return json({ ok: true, session_id: sessionId, shot_count: shotRows.length, started_at: started, ended_at: ended, csv_path: finalCsvPath });
 });
