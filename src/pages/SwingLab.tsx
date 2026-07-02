@@ -11,7 +11,8 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Trash2, Info as InfoIcon } from "lucide-react";
-import { PGA_TOUR_AVERAGES, matchTourClub, METRIC_TOOLTIPS, type TourAverage } from "@/lib/pga-tour-averages";
+import { PGA_TOUR_AVERAGES, matchTourClub, matchBenchmarkClub, METRIC_TOOLTIPS, BENCHMARK_LABELS, type TourAverage, type BenchmarkSet } from "@/lib/pga-tour-averages";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
