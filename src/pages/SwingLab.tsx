@@ -4,6 +4,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
@@ -1126,14 +1128,15 @@ function MetricRow({
     <>
       <div className="py-2 border-t border-border/60 flex items-center gap-1.5">
         <span>{label}</span>
-        <UITooltip>
-          <TooltipTrigger asChild>
-            <button type="button" className="text-muted-foreground hover:text-foreground">
+        <Popover>
+          <PopoverTrigger asChild>
+            <button type="button" className="text-muted-foreground hover:text-foreground active:text-accent p-1 -m-1" aria-label={`About ${label}`}>
               <InfoIcon className="h-3.5 w-3.5" />
             </button>
-          </TooltipTrigger>
-          <TooltipContent className="max-w-[240px] text-xs">{tip}</TooltipContent>
-        </UITooltip>
+          </PopoverTrigger>
+          <PopoverContent side="top" className="max-w-[260px] text-xs leading-relaxed">{tip}</PopoverContent>
+        </Popover>
+
       </div>
       <div className={`py-2 border-t border-border/60 text-right font-medium ${cls}`}>
         {formatVal(you)}
