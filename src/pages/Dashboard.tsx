@@ -246,10 +246,11 @@ const Dashboard = () => {
                 </div>
               )}
               <div className="flex items-center gap-3">
-                <div className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 ${hasRangeAccess ? "bg-accent/10" : "bg-muted"}`}>
-                  <Target className={`h-5 w-5 ${hasRangeAccess ? "text-accent" : "text-muted-foreground"}`} />
+                <div className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 relative ${hasRangeAccess ? "bg-accent/10" : "bg-muted"}`}>
+                  <FlaskConical className={`h-5 w-5 ${hasRangeAccess ? "text-accent" : "text-muted-foreground"}`} />
+                  <span className={`absolute bottom-[9px] left-1/2 -translate-x-1/2 h-1.5 w-1.5 rounded-full ${hasRangeAccess ? "bg-accent" : "bg-muted-foreground"}`} />
                 </div>
-                <h2 className={`font-semibold text-base ${hasRangeAccess ? "" : "text-muted-foreground"}`}>Range Sessions</h2>
+                <h2 className={`font-semibold text-base ${hasRangeAccess ? "" : "text-muted-foreground"}`}>Swing Lab</h2>
               </div>
             </button>
 
