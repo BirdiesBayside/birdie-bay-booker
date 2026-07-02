@@ -754,47 +754,60 @@ function TileCard({
 }
 
 function FocusPointCard({ focus }: { focus: { club: string; pct: number; avgSmash: number; tourSmash: number } | null }) {
+  const [open, setOpen] = useState(false);
+  const headline = focus ? `${focus.club} · ${Math.round(focus.pct)}%` : "All clean";
+  const sub = focus ? "Tap for coaching cue" : "No clubs lagging tour";
   return (
-    <Card className="col-span-2 md:col-span-1">
-      <CardContent className="p-4">
-        <div className="text-xs uppercase tracking-wide text-muted-foreground flex items-center justify-between gap-1">
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="text-left rounded-lg border-2 border-accent bg-card p-4 transition-colors hover:bg-accent/5 active:bg-accent/10"
+      >
+        <div className="text-xs uppercase tracking-wide text-accent flex items-center justify-between gap-1">
           <span className="flex items-center gap-1"><FlaskConical className="h-3.5 w-3.5" />Focus Point</span>
-          <Popover>
-            <PopoverTrigger asChild>
-              <button
-                type="button"
-                aria-label="About Focus Point"
-                className="text-muted-foreground hover:text-accent active:text-accent transition-colors"
-              >
-                <InfoIcon className="h-3.5 w-3.5" />
-              </button>
-            </PopoverTrigger>
-            <PopoverContent side="top" className="max-w-[260px] text-xs leading-relaxed">
-              One coaching cue, auto-picked. We compare each of your clubs' smash factor to the PGA Tour average for that club and surface the biggest gap, the club that would benefit most from cleaner strikes. It rotates as you improve or as a bigger leak appears.
-            </PopoverContent>
-          </Popover>
+          <InfoIcon className="h-3.5 w-3.5 opacity-80" />
         </div>
-        {focus ? (
-          <>
-            <div className="text-lg font-anton mt-1 leading-tight">
-              {focus.club}: {Math.round(focus.pct)}% of tour smash
-            </div>
-            <div className="text-xs text-muted-foreground mt-1">
-              Averaging {focus.avgSmash.toFixed(2)} vs tour {focus.tourSmash.toFixed(2)}. Focus on centre-face strikes with this club.
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="text-lg font-anton mt-1">All clean</div>
-            <div className="text-xs text-muted-foreground mt-1">
-              No clubs are lagging tour benchmarks. Keep grinding.
-            </div>
-          </>
-        )}
-      </CardContent>
-    </Card>
+        <div className="text-2xl font-anton mt-1 leading-tight">{headline}</div>
+        <div className="text-xs text-muted-foreground mt-1">{sub}</div>
+      </button>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FlaskConical className="h-4 w-4 text-accent" />
+              Focus Point
+            </DialogTitle>
+            <DialogDescription asChild>
+              <div className="space-y-3 text-sm text-foreground/90 pt-2">
+                {focus ? (
+                  <>
+                    <p className="font-anton text-lg text-foreground">
+                      {focus.club}: {Math.round(focus.pct)}% of tour smash
+                    </p>
+                    <p>
+                      You're averaging a smash factor of <span className="font-semibold">{focus.avgSmash.toFixed(2)}</span> with your {focus.club}, versus the PGA Tour average of <span className="font-semibold">{focus.tourSmash.toFixed(2)}</span>.
+                    </p>
+                    <p>
+                      Smash factor (ball speed ÷ club speed) is the purest measure of strike quality. Closing this gap means more ball speed and carry for the exact same swing effort, no extra club speed needed.
+                    </p>
+                    <p className="text-muted-foreground">
+                      Next session: hit a focused block with this club. Slow your tempo, aim for centre-face contact, and watch the smash number climb.
+                    </p>
+                  </>
+                ) : (
+                  <p>Every club you've hit enough shots with is meeting or beating the PGA Tour smash benchmark. Keep grinding, a new focus point will appear as you build more data.</p>
+                )}
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
+
 
 function Kpi({ label, value, icon }: { label: string; value: string; icon?: React.ReactNode }) {
   return (
