@@ -28,7 +28,22 @@ export const MEMBERSHIP_TIERS: Record<MembershipTier, MembershipPricing> = {
     hourlyRate: 10,
     description: 'Perfect for daytime players',
     features: ['$10/hr weekdays before 4pm', 'Swing Lab access', 'No weekend commitment', 'Cancel any time'],
-
+  },
+  birdie: {
+    tier: 'birdie',
+    name: 'Birdie Member',
+    weeklyFee: 27,
+    hourlyRate: 10,
+    description: 'Play anytime',
+    features: ['$10/hr anytime', 'Birdies League Access', 'Swing Lab access', 'Cancel any time'],
+  },
+  eagle: {
+    tier: 'eagle',
+    name: 'Eagle Member',
+    weeklyFee: 35,
+    hourlyRate: 8,
+    description: 'Best value for regulars',
+    features: ['$8/hr anytime', 'Birdies League Access', 'Swing Lab access', 'Priority booking', 'Cancel any time'],
   },
 };
 
