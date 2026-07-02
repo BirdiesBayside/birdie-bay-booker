@@ -9,7 +9,7 @@ const tiers = [
     price: "$15",
     rate: "$10/hr",
     tag: "Mon-Thu before 4pm only",
-    perks: ["Cancel any time", "Peak times charged at visitor rate"],
+    perks: ["Swing Lab access", "Cancel any time", "Peak times charged at visitor rate"],
   },
   {
     name: "Birdie",
@@ -17,14 +17,14 @@ const tiers = [
     rate: "$10/hr",
     tag: "Most popular",
     highlight: true,
-    perks: ["Play anytime", "Birdies League access", "Cancel any time"],
+    perks: ["Play anytime", "Birdies League access", "Swing Lab access", "Cancel any time"],
   },
   {
     name: "Eagle",
     price: "$35",
     rate: "$8/hr",
     tag: "Best value per round",
-    perks: ["Play anytime", "Birdies League access", "Priority booking", "Cancel any time"],
+    perks: ["Play anytime", "Birdies League access", "Swing Lab access", "Priority booking", "Cancel any time"],
   },
 ];
 

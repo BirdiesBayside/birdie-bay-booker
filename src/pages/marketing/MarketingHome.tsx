@@ -132,9 +132,9 @@ const MarketingHome = () => {
             </h2>
           </div>
           <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-            <PriceCard tier="Weekday" rate="$10/hr" price="$15" tag="Mon-Thu before 4pm only" perks={["Cancel any time", "Peak times charged at visitor rate"]} />
-            <PriceCard tier="Birdie" rate="$10/hr" price="$27" tag="Most popular" highlight perks={["Play anytime", "Birdies League access", "Cancel any time"]} />
-            <PriceCard tier="Eagle" rate="$8/hr" price="$35" tag="Best value per round" perks={["Play anytime", "Birdies League access", "Priority booking", "Cancel any time"]} />
+            <PriceCard tier="Weekday" rate="$10/hr" price="$15" tag="Mon-Thu before 4pm only" perks={["Swing Lab access", "Cancel any time", "Peak times charged at visitor rate"]} />
+            <PriceCard tier="Birdie" rate="$10/hr" price="$27" tag="Most popular" highlight perks={["Play anytime", "Birdies League access", "Swing Lab access", "Cancel any time"]} />
+            <PriceCard tier="Eagle" rate="$8/hr" price="$35" tag="Best value per round" perks={["Play anytime", "Birdies League access", "Swing Lab access", "Priority booking", "Cancel any time"]} />
           </div>
           <div className="grid sm:grid-cols-2 gap-6 max-w-2xl mx-auto mt-8">
             <div className="bg-card border border-border rounded-2xl p-7 text-card-foreground hover:shadow-lg transition-all">
