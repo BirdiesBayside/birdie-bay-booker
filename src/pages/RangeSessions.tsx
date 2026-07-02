@@ -17,7 +17,7 @@ import {
   DropdownMenuCheckboxItem,
 } from "@/components/ui/dropdown-menu";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
-import { Settings2 } from "lucide-react";
+import { Settings2, FlaskConical } from "lucide-react";
 import { ArrowLeft, Check, ChevronDown, Target, TrendingUp } from "lucide-react";
 import {
   statsByClub, swingStatsByClub, sortClubs, fmt, mean, max,
