@@ -747,7 +747,7 @@ function TileCard({
             </Popover>
           )}
         </div>
-        <div className="text-2xl font-anton mt-1 leading-tight">{value}</div>
+        <div className="text-2xl font-anton text-primary mt-1 leading-tight">{value}</div>
         {sub && (
           <div className={`text-xs mt-1 ${highlight ? "text-accent" : "text-muted-foreground"}`}>{sub}</div>
         )}
