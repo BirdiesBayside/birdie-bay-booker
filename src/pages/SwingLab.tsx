@@ -379,8 +379,6 @@ export default function SwingLab() {
                     </div>
                   </CardContent>
                 </Card>
-
-                <ClubStatsTable rows={clubStats} dLbl={dLbl} sLbl={sLbl} />
               </TabsContent>
 
               <TabsContent value="dispersion" className="space-y-4">
@@ -389,8 +387,10 @@ export default function SwingLab() {
 
 
               <TabsContent value="swing" className="space-y-4">
+                <ClubStatsTable rows={clubStats} dLbl={dLbl} sLbl={sLbl} />
                 <SwingStatsTable rows={swingStats} />
               </TabsContent>
+
 
               <TabsContent value="optimise" className="space-y-4">
                 <OptimiseTab
