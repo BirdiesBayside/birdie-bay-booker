@@ -14,6 +14,7 @@ import { Trash2, Info as InfoIcon } from "lucide-react";
 import { PGA_TOUR_AVERAGES, matchTourClub, matchBenchmarkClub, METRIC_TOOLTIPS, BENCHMARK_LABELS, type TourAverage, type BenchmarkSet } from "@/lib/pga-tour-averages";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { supabase } from "@/integrations/supabase/client";
+import swingLabBadge from "@/assets/swing-lab-badge.png.asset.json";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -261,9 +262,8 @@ export default function SwingLab() {
             <Button variant="ghost" size="sm" className="-ml-2" onClick={() => navigate("/dashboard")}>
               <ArrowLeft className="h-4 w-4 mr-1" /> Back
             </Button>
-            <h1 className="font-anton text-lg md:text-xl tracking-wide uppercase text-primary">
-              Swing Lab
-            </h1>
+            <img src={swingLabBadge.url} alt="Swing Lab" className="h-9 md:h-10 w-auto object-contain" />
+
             <div className="w-16" />
           </div>
         </div>
