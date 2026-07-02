@@ -169,10 +169,13 @@ Deno.serve(async (req) => {
   const { error: upErr } = await admin.storage.from("range-session-csv").upload(csvPath, new Blob([csvText], { type: "text/csv" }), { upsert: true });
   const finalCsvPath = upErr ? null : csvPath;
 
-  await admin.from("range_sessions").update({
-    started_at: started, ended_at: ended,
-    duration_minutes: durationMin, csv_path: finalCsvPath,
-  }).eq("id", sessionId);
+  const updatePayload: Record<string, unknown> = { csv_path: finalCsvPath };
+  // Only overwrite started/ended if the CSV actually had timestamps — otherwise we keep
+  // the filename-derived started_at (or DB default) intact.
+  if (started) updatePayload.started_at = started;
+  if (ended) updatePayload.ended_at = ended;
+  if (durationMin != null) updatePayload.duration_minutes = durationMin;
+  await admin.from("range_sessions").update(updatePayload).eq("id", sessionId);
 
   return json({ ok: true, session_id: sessionId, shot_count: shotRows.length, started_at: started, ended_at: ended, csv_path: finalCsvPath });
 });
