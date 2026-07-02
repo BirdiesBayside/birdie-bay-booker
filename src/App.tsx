@@ -44,6 +44,8 @@ const CompLeaderboard = lazy(() => import("./pages/CompLeaderboard"));
 const EmbedLocalCompLeaderboard = lazy(() => import("./pages/EmbedLocalCompLeaderboard"));
 const Gift = lazy(() => import("./pages/Gift"));
 const SwingLab = lazy(() => import("./pages/SwingLab"));
+const SwingLabProgress = lazy(() => import("./pages/SwingLabProgress"));
+
 
 // Public marketing site pages
 const MarketingAbout = lazy(() => import("./pages/marketing/MarketingAbout"));
