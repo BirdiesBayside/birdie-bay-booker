@@ -105,11 +105,27 @@ Deno.serve(async (req) => {
 
   const colMap: (string | null)[] = headers.map((h) => FIELD_MAP[canonical(h)] ?? null);
 
+  // Derive session date/time from a gspro-export MM-DD-YY-HH-MM-SS filename if present.
+  // Falls back to DB default (today in Brisbane) when the filename isn't parseable.
+  const parseFilenameDate = (name: string | null | undefined): { date: string; iso: string } | null => {
+    if (!name) return null;
+    const m = String(name).match(/(\d{2})-(\d{2})-(\d{2})-(\d{2})-(\d{2})-(\d{2})/);
+    if (!m) return null;
+    const [, mm, dd, yy, hh, mi, ss] = m;
+    const year = 2000 + Number(yy);
+    // Interpret as Brisbane local time (AEST/UTC+10, no DST) then convert to UTC ISO.
+    const utcMs = Date.UTC(year, Number(mm) - 1, Number(dd), Number(hh) - 10, Number(mi), Number(ss));
+    if (!Number.isFinite(utcMs)) return null;
+    return { date: `${year}-${mm}-${dd}`, iso: new Date(utcMs).toISOString() };
+  };
+  const filenameStamp = parseFilenameDate(filename);
+
   const { data: session, error: sessErr } = await admin
     .from("range_sessions")
     .insert({
       user_id, booking_id: booking_id ?? null, bay_id: bay_id ?? null,
       shot_count: rows.length, source_filename: filename ?? null,
+      ...(filenameStamp ? { session_date: filenameStamp.date, started_at: filenameStamp.iso } : {}),
     })
     .select("id")
     .single();
