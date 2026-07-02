@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
-import { LogOut, Calendar, Settings, ClipboardList, Trophy, Lock, Users, Info, Megaphone, Plus, Trash2, CalendarDays, FlaskConical } from "lucide-react";
+import { LogOut, Calendar, Settings, ClipboardList, Trophy, Lock, Users, Info, Megaphone, Plus, Trash2, CalendarDays } from "lucide-react";
 import birdiesLogo from "@/assets/birdies-logo.png";
 import swingLabBadge from "@/assets/swing-lab-badge.png.asset.json";
 import { supabase } from "@/integrations/supabase/client";
@@ -247,9 +247,11 @@ const Dashboard = () => {
                 </div>
               )}
               <div className="flex items-center gap-3">
-                <div className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 relative overflow-hidden ${hasRangeAccess ? "bg-accent/10" : "bg-muted"}`}>
-                  <img src={swingLabBadge.url} alt="Swing Lab" className="h-8 w-8 object-contain" />
-                </div>
+                <img
+                  src={swingLabBadge.url}
+                  alt="Swing Lab"
+                  className="h-12 w-12 rounded-full object-cover shrink-0"
+                />
                 <h2 className={`font-semibold text-base ${hasRangeAccess ? "" : "text-muted-foreground"}`}>Swing Lab</h2>
               </div>
             </button>
