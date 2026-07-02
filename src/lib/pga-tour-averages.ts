@@ -89,9 +89,9 @@ export const METRIC_TOOLTIPS: Record<string, string> = {
   clubSpeed:
     "How fast the club head is moving at impact. More speed = more potential distance. Tour drivers swing around 113 mph.",
   ballSpeed:
-    "The speed of the ball right after impact. It's the single biggest driver of distance — every 1 mph of ball speed is roughly 2 yards of carry.",
+    "The speed of the ball right after impact. It's the single biggest driver of distance. Every 1 mph of ball speed is roughly 2 yards of carry.",
   smashFactor:
-    "Ball speed divided by club speed — a measure of strike quality. 1.50 is the practical max with a driver; irons drop as loft increases.",
+    "Ball speed divided by club speed. A measure of strike quality. 1.50 is the practical max with a driver; irons drop as loft increases.",
   launchAngle:
     "The angle the ball leaves the club face. Too low with a driver = you lose carry; too high with a wedge = you lose distance and control.",
   spin:
@@ -99,5 +99,5 @@ export const METRIC_TOOLTIPS: Record<string, string> = {
   carry:
     "How far the ball flies through the air before it lands. This is the number that actually matters for clearing hazards.",
   aoa:
-    "Angle of Attack — whether the club is moving up (+) or down (−) at impact. Tour players hit up on the driver and down on irons.",
+    "Angle of Attack. Whether the club is moving up (+) or down (−) at impact. Tour players hit up on the driver and down on irons.",
 };

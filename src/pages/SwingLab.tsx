@@ -747,7 +747,7 @@ function FocusPointCard({ focus }: { focus: { club: string; pct: number; avgSmas
               </button>
             </PopoverTrigger>
             <PopoverContent side="top" className="max-w-[260px] text-xs leading-relaxed">
-              One coaching cue, auto-picked. We compare each of your clubs' smash factor to the PGA Tour average for that club and surface the biggest gap — the club that would benefit most from cleaner strikes. It rotates as you improve or as a bigger leak appears.
+              One coaching cue, auto-picked. We compare each of your clubs' smash factor to the PGA Tour average for that club and surface the biggest gap, the club that would benefit most from cleaner strikes. It rotates as you improve or as a bigger leak appears.
             </PopoverContent>
           </Popover>
         </div>
@@ -757,7 +757,7 @@ function FocusPointCard({ focus }: { focus: { club: string; pct: number; avgSmas
               {focus.club}: {Math.round(focus.pct)}% of tour smash
             </div>
             <div className="text-xs text-muted-foreground mt-1">
-              Averaging {focus.avgSmash.toFixed(2)} vs tour {focus.tourSmash.toFixed(2)} — focus on centre-face strikes with this club.
+              Averaging {focus.avgSmash.toFixed(2)} vs tour {focus.tourSmash.toFixed(2)}. Focus on centre-face strikes with this club.
             </div>
           </>
         ) : (
