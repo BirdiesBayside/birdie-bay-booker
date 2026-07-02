@@ -37,39 +37,71 @@ export const MPH_TO_KPH = 1.60934;
 export const KPH_TO_MPH = 0.621371;
 
 /**
- * Auto-detect whether GSPro exported in metres or yards, using the driver's
- * average carry as the tell (drivers metric ≈ 200–260 yd / 180–240 m).
- * Falls back to metres.
+ * Auto-detect speed unit (mph vs kph) using driver clubhead / ball speed.
+ * Physical ranges (driver):
+ *   Club speed  — mph: 70–130   kph: 115–210
+ *   Ball speed  — mph: 95–190   kph: 155–305
+ * Amateur avg clubhead is ~85 mph (137 kph). GSPro's CSV can export either
+ * depending on the sim's unit preference — the two ranges overlap only
+ * slightly, so we use club speed first (narrower spread) and fall back to
+ * ball speed.
+ */
+export function detectSpeedUnit(shots: Shot[]): SpeedUnit {
+  const driver = shots.filter((s) => {
+    const c = (s.club_type || "").toLowerCase();
+    return c === "dr" || c === "driver" || c === "d";
+  });
+  const cs = driver.map((s) => s.club_speed).filter((v): v is number => typeof v === "number" && v > 0);
+  if (cs.length >= 3) {
+    const avg = cs.reduce((a, b) => a + b, 0) / cs.length;
+    // Tour-max clubhead ≈ 130 mph. Anything above is almost certainly kph.
+    if (avg > 135) return "kph";
+    if (avg < 115) return "mph";
+    // Overlap band 115–135: use ball speed as tiebreaker.
+  }
+  const bs = driver.map((s) => s.ball_speed).filter((v): v is number => typeof v === "number" && v > 0);
+  if (bs.length >= 3) {
+    const avg = bs.reduce((a, b) => a + b, 0) / bs.length;
+    // Tour-max ball speed ≈ 190 mph. Above → kph.
+    return avg > 195 ? "kph" : "mph";
+  }
+  return "mph";
+}
+
+/**
+ * Auto-detect distance unit (yards vs metres). We compare the driver's
+ * measured carry against the carry we'd *expect* from the ball speed:
+ *   expected_carry_yd ≈ ball_speed_mph × 1.72   (typical driver efficiency)
+ * If the measured carry sits closer to that number in yards → yards,
+ * otherwise metres. Falls back to a raw threshold if speed is missing.
  */
 export function detectDistanceUnit(shots: Shot[]): DistanceUnit {
   const driver = shots.filter((s) => {
     const c = (s.club_type || "").toLowerCase();
-    return c === "dr" || c === "driver";
+    return c === "dr" || c === "driver" || c === "d";
   });
   const carries = driver.map((s) => s.carry).filter((v): v is number => typeof v === "number" && v > 0);
-  if (carries.length >= 3) {
-    const avg = carries.reduce((a, b) => a + b, 0) / carries.length;
-    // Real-world driver carries: yards ≈ 200-280, metres ≈ 180-255.
-    // Split at ~215: above → yards, below → metres.
-    return avg > 215 ? "yd" : "m";
-  }
-  return "m";
-}
+  if (carries.length < 3) return "m";
+  const avgCarry = carries.reduce((a, b) => a + b, 0) / carries.length;
 
-export function detectSpeedUnit(shots: Shot[]): SpeedUnit {
-  // GSPro exports mph natively regardless of distance unit choice on most rigs;
-  // detect by checking ball speed against a plausible mph driver range.
-  const driver = shots.filter((s) => {
-    const c = (s.club_type || "").toLowerCase();
-    return c === "dr" || c === "driver";
-  });
+  // Cross-check against ball speed if available
+  const spdUnit = detectSpeedUnit(shots);
   const bs = driver.map((s) => s.ball_speed).filter((v): v is number => typeof v === "number" && v > 0);
   if (bs.length >= 3) {
-    const avg = bs.reduce((a, b) => a + b, 0) / bs.length;
-    return avg > 210 ? "kph" : "mph";
+    const avgBsRaw = bs.reduce((a, b) => a + b, 0) / bs.length;
+    const avgBsMph = spdUnit === "kph" ? avgBsRaw * KPH_TO_MPH : avgBsRaw;
+    const expectedYd = avgBsMph * 1.72;   // typical driver ball-speed → carry
+    const expectedM = expectedYd * YD_TO_M;
+    // Pick the interpretation whose expected value is closest to measured.
+    const dYd = Math.abs(avgCarry - expectedYd);
+    const dM = Math.abs(avgCarry - expectedM);
+    return dYd < dM ? "yd" : "m";
   }
-  return "mph";
+
+  // Fallback: raw threshold. Driver carry >215 → yards, else metres.
+  return avgCarry > 215 ? "yd" : "m";
 }
+
 
 export function convertDistance(v: number | null | undefined, from: DistanceUnit, to: DistanceUnit): number | null {
   if (v === null || v === undefined || !Number.isFinite(v)) return null;
