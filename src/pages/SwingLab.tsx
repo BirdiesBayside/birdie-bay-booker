@@ -680,11 +680,30 @@ function OverviewTiles({
         info="How repeatable your carry distances are, scored 0–100 (higher = tighter). We take the carry standard deviation for your three most-hit clubs, express it as a percent of each club's average, then convert to a score: 0% variation = 100, 20%+ variation = 0. Consistency is the number that actually moves with practice. Averages barely budge month to month, this does."
       />
 
-      {/* Tile 6 — Focus Point */}
+      {/* Tile 6 — Focus Point (compact, orange-outlined, click for detail) */}
       <FocusPointCard focus={focus} />
+
+      {/* Full-width — My Progress */}
+      <button
+        type="button"
+        onClick={() => navigate("/swing-lab/progress")}
+        className="col-span-2 md:col-span-3 group rounded-lg border bg-card p-4 text-left transition-colors hover:bg-accent/5 active:bg-accent/10"
+      >
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-xs uppercase tracking-wide text-muted-foreground flex items-center gap-1">
+              <TrendingUp className="h-3.5 w-3.5" />My Progress
+            </div>
+            <div className="text-lg font-anton mt-1 leading-tight">Track your trends over time</div>
+            <div className="text-xs text-muted-foreground mt-1">See which metrics are improving, flat, or slipping.</div>
+          </div>
+          <ChevronDown className="h-5 w-5 -rotate-90 text-muted-foreground group-hover:text-accent transition-colors shrink-0" />
+        </div>
+      </button>
     </div>
   );
 }
+
 
 // Local re-export to avoid extra import churn.
 const M_TO_YD_LOCAL = 1.09361;
