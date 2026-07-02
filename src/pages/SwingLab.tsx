@@ -634,6 +634,7 @@ function OverviewTiles({
         icon={<TrendingUp className="h-3.5 w-3.5" />}
         value={sessions.length.toString()}
         sub={`${sessionsThisMonth} this month`}
+        info="Total Swing Lab sessions on your account. A session is one bay visit where shots were exported from GSPro."
       />
 
       {/* Tile 2 — Shots */}
@@ -642,6 +643,7 @@ function OverviewTiles({
         icon={<Target className="h-3.5 w-3.5" />}
         value={totalShots.toLocaleString()}
         sub={totalShots > 0 ? `≈ ${buckets} range bucket${buckets === 1 ? "" : "s"}` : "—"}
+        info="Every shot you've captured in the Swing Lab. Bucket equivalent assumes ~50 balls per range bucket."
       />
 
       {/* Tile 3 — Longest carry */}
@@ -649,6 +651,7 @@ function OverviewTiles({
         label="Longest Carry"
         value={longest ? `${Math.round(longest.carry)} ${dLbl}` : "—"}
         sub={longest ? `${longest.club}${longest.date ? ` · ${format(parseISO(longest.date.slice(0, 10)), "d MMM")}` : ""}` : "Not enough data"}
+        info={`Furthest carry (${dLbl}) — the distance the ball flew in the air, not roll. We filter out unrealistic readings by checking carry against ball speed, so a mishit spike can't become your record.`}
       />
 
       {/* Tile 4 — Best club vs tour */}
@@ -656,12 +659,13 @@ function OverviewTiles({
         label="Best Club (vs Tour)"
         value={bestVsTour ? `${Math.round(bestVsTour.pct)}%` : "—"}
         sub={bestVsTour ? `${bestVsTour.club} smash efficiency` : "Need 10+ shots per club"}
+        info="Your best club by smash factor (ball speed ÷ club speed) shown as a percentage of the PGA Tour average for that club. Smash measures strike quality, so it rewards a pure contact over raw speed — a 70-year-old can still score 95%+."
       />
 
       {/* Tile 5 — Consistency */}
       <TileCard
         label="Consistency"
-        value={consistency.current != null ? consistency.current.toString() : "—"}
+        value={consistency.current != null ? `${consistency.current} / 100` : "—"}
         sub={
           consistency.current == null
             ? "Need 10+ shots on a club"
@@ -672,34 +676,11 @@ function OverviewTiles({
                 : `${consistency.trend > 0 ? "▲" : "▼"} ${Math.abs(consistency.trend)} vs last month`
         }
         highlight={consistency.trend != null && consistency.trend > 0}
+        info="How repeatable your carry distances are, scored 0–100 (higher = tighter). We take the carry standard deviation for your three most-hit clubs, express it as a percent of each club's average, then convert to a score: 0% variation = 100, 20%+ variation = 0. Consistency is the number that actually moves with practice — averages barely budge month to month, this does."
       />
 
       {/* Tile 6 — Focus Point */}
-      <Card className="col-span-2 md:col-span-1">
-        <CardContent className="p-4">
-          <div className="text-xs uppercase tracking-wide text-muted-foreground flex items-center gap-1">
-            <FlaskConical className="h-3.5 w-3.5" />
-            Focus Point
-          </div>
-          {focus ? (
-            <>
-              <div className="text-lg font-anton mt-1 leading-tight">
-                {focus.club}: {Math.round(focus.pct)}% of tour smash
-              </div>
-              <div className="text-xs text-muted-foreground mt-1">
-                Averaging {focus.avgSmash.toFixed(2)} vs tour {focus.tourSmash.toFixed(2)} — focus on centre-face strikes with this club.
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="text-lg font-anton mt-1">All clean</div>
-              <div className="text-xs text-muted-foreground mt-1">
-                No clubs are lagging tour benchmarks. Keep grinding.
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
+      <FocusPointCard focus={focus} />
     </div>
   );
 }
@@ -708,23 +689,83 @@ function OverviewTiles({
 const M_TO_YD_LOCAL = 1.09361;
 
 function TileCard({
-  label, value, sub, icon, highlight,
+  label, value, sub, icon, highlight, info,
 }: {
   label: string;
   value: string;
   sub?: string;
   icon?: React.ReactNode;
   highlight?: boolean;
+  info?: string;
 }) {
   return (
     <Card>
       <CardContent className="p-4">
-        <div className="text-xs uppercase tracking-wide text-muted-foreground flex items-center gap-1">
-          {icon}{label}
+        <div className="text-xs uppercase tracking-wide text-muted-foreground flex items-center justify-between gap-1">
+          <span className="flex items-center gap-1">{icon}{label}</span>
+          {info && (
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  aria-label={`About ${label}`}
+                  className="text-muted-foreground hover:text-accent active:text-accent transition-colors"
+                >
+                  <InfoIcon className="h-3.5 w-3.5" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent side="top" className="max-w-[260px] text-xs leading-relaxed">
+                {info}
+              </PopoverContent>
+            </Popover>
+          )}
         </div>
         <div className="text-2xl font-anton mt-1 leading-tight">{value}</div>
         {sub && (
           <div className={`text-xs mt-1 ${highlight ? "text-accent" : "text-muted-foreground"}`}>{sub}</div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function FocusPointCard({ focus }: { focus: { club: string; pct: number; avgSmash: number; tourSmash: number } | null }) {
+  return (
+    <Card className="col-span-2 md:col-span-1">
+      <CardContent className="p-4">
+        <div className="text-xs uppercase tracking-wide text-muted-foreground flex items-center justify-between gap-1">
+          <span className="flex items-center gap-1"><FlaskConical className="h-3.5 w-3.5" />Focus Point</span>
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                aria-label="About Focus Point"
+                className="text-muted-foreground hover:text-accent active:text-accent transition-colors"
+              >
+                <InfoIcon className="h-3.5 w-3.5" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent side="top" className="max-w-[260px] text-xs leading-relaxed">
+              One coaching cue, auto-picked. We compare each of your clubs' smash factor to the PGA Tour average for that club and surface the biggest gap — the club that would benefit most from cleaner strikes. It rotates as you improve or as a bigger leak appears.
+            </PopoverContent>
+          </Popover>
+        </div>
+        {focus ? (
+          <>
+            <div className="text-lg font-anton mt-1 leading-tight">
+              {focus.club}: {Math.round(focus.pct)}% of tour smash
+            </div>
+            <div className="text-xs text-muted-foreground mt-1">
+              Averaging {focus.avgSmash.toFixed(2)} vs tour {focus.tourSmash.toFixed(2)} — focus on centre-face strikes with this club.
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="text-lg font-anton mt-1">All clean</div>
+            <div className="text-xs text-muted-foreground mt-1">
+              No clubs are lagging tour benchmarks. Keep grinding.
+            </div>
+          </>
         )}
       </CardContent>
     </Card>
