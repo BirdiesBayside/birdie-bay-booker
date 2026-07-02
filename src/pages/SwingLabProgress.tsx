@@ -28,21 +28,41 @@ type TileDef = {
   info: string;
   higherIsBetter: boolean;
   fmt: (v: number) => string;
-  minShots: number;
-  // filter shots for this metric (e.g. driver only)
-  filter?: (s: Shot) => boolean;
-  // pull the numeric value from a shot
-  value: (s: Shot) => number | null;
-  // aggregation: mean of values, or stddev for dispersion
-  agg?: "mean" | "sd";
-  // for sessions/week we compute from sessions not shots
-  fromSessions?: boolean;
+  // returns metric value for a set of shots, or null if not enough data
+  compute: (shots: Shot[], sessCount: number, days: number) => number | null;
 };
 
-function isDriver(s: Shot) {
-  const c = (s.club_type || "").toLowerCase();
-  return c === "dr" || c === "driver" || c === "1w";
+function classify(club: string | null | undefined): "driver" | "iron" | "wedge" | "other" {
+  const c = (club || "").toLowerCase().replace(/\s+/g, "");
+  if (!c) return "other";
+  if (c === "dr" || c === "driver" || c === "1w") return "driver";
+  if (/^(pw|gw|aw|sw|lw)$/.test(c) || c === "w" || /^([4-6]\d)$/.test(c)) return "wedge";
+  if (/^[2-9]i$/.test(c) || /^i[2-9]$/.test(c)) return "iron";
+  return "other";
 }
+
+// Aggregate helpers
+function mean(xs: number[]): number { return xs.reduce((a, b) => a + b, 0) / xs.length; }
+function sd(xs: number[]): number {
+  const m = mean(xs);
+  return Math.sqrt(xs.reduce((a, b) => a + (b - m) * (b - m), 0) / xs.length);
+}
+
+// Group shots by club, keeping only clubs with >= minShots.
+function byClub(shots: Shot[], minShots: number, filter?: (c: string) => boolean) {
+  const m = new Map<string, Shot[]>();
+  for (const s of shots) {
+    const c = s.club_type || "";
+    if (!c) continue;
+    if (filter && !filter(c)) continue;
+    const arr = m.get(c) ?? [];
+    arr.push(s);
+    m.set(c, arr);
+  }
+  for (const [k, v] of m) if (v.length < minShots) m.delete(k);
+  return m;
+}
+
 
 export default function SwingLabProgress() {
   const navigate = useNavigate();
