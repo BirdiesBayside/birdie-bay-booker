@@ -261,9 +261,8 @@ export default function SwingLab() {
             <Button variant="ghost" size="sm" className="-ml-2" onClick={() => navigate("/dashboard")}>
               <ArrowLeft className="h-4 w-4 mr-1" /> Back
             </Button>
-            <h1 className="font-anton text-lg md:text-xl tracking-wide uppercase text-primary">
-              Swing Lab
-            </h1>
+            <img src={swingLabBadge.url} alt="Swing Lab" className="h-9 md:h-10 w-auto object-contain" />
+
             <div className="w-16" />
           </div>
         </div>
