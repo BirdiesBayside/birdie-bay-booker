@@ -1287,12 +1287,14 @@ function OptimiseTab({
   activeDist: DistanceUnit;
   activeSpd: SpeedUnit;
 }) {
-  // Only clubs where we have BOTH shot data and a tour benchmark match.
+  const [benchmark, setBenchmark] = useState<BenchmarkSet>("tour");
+
+  // Only clubs where we have BOTH shot data and a benchmark match.
   const options = useMemo(() => {
     return clubStats
-      .map((c) => ({ club: c.club, tour: matchTourClub(c.club) }))
+      .map((c) => ({ club: c.club, tour: matchBenchmarkClub(c.club, benchmark) }))
       .filter((x) => x.tour !== null) as { club: string; tour: TourAverage }[];
-  }, [clubStats]);
+  }, [clubStats, benchmark]);
 
   const [selected, setSelected] = useState<string | null>(null);
   useEffect(() => {
@@ -1303,7 +1305,7 @@ function OptimiseTab({
     return (
       <Card>
         <CardContent className="py-10 text-center text-muted-foreground text-sm">
-          Hit a few shots with recognised clubs (Driver, 7 Iron, PW, etc.) and we'll benchmark you against the PGA Tour.
+          Hit a few shots with recognised clubs (Driver, 7 Iron, PW, etc.) and we'll benchmark you against the {BENCHMARK_LABELS[benchmark]}.
         </CardContent>
       </Card>
     );
@@ -1311,7 +1313,7 @@ function OptimiseTab({
 
   const stats = clubStats.find((c) => c.club === selected);
   const swing = swingStats.find((c) => c.club === selected);
-  const tour = matchTourClub(selected ?? "") ?? null;
+  const tour = matchBenchmarkClub(selected ?? "", benchmark) ?? null;
 
   // Convert tour values (which are yards / mph) into the user's active units.
   const tourInUserUnits = useMemo(() => {
@@ -1336,8 +1338,6 @@ function OptimiseTab({
     tour: number;
     unit: string;
     digits: number;
-    // For coloring: "closer" = closer to tour is better (default),
-    // "higher" = higher is better (up to tour), "lower" = lower is better.
     mode?: "closer" | "higher";
   };
 
@@ -1351,32 +1351,50 @@ function OptimiseTab({
     { key: "aoa",         label: "Angle of attack", you: swing?.avgAoA ?? null, tour: tourInUserUnits.aoa, unit: "°",            digits: 1, mode: "closer" },
   ];
 
+  const benchmarkLabel = BENCHMARK_LABELS[benchmark];
+  const youColHeader = "You";
+  const themColHeader = benchmark === "tour" ? "Tour" : "Avg";
+
   return (
     <TooltipProvider delayDuration={100}>
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between gap-3 flex-wrap">
-            <CardTitle className="text-base">Compare to PGA Tour</CardTitle>
-            <Select value={selected ?? ""} onValueChange={setSelected}>
-              <SelectTrigger className="w-[160px]">
-                <SelectValue placeholder="Select club" />
-              </SelectTrigger>
-              <SelectContent>
-                {options.map((o) => (
-                  <SelectItem key={o.club} value={o.club}>{o.club}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <CardTitle className="text-base">Compare to {benchmarkLabel}</CardTitle>
+            <div className="flex items-center gap-2 flex-wrap">
+              <ToggleGroup
+                type="single"
+                size="sm"
+                value={benchmark}
+                onValueChange={(v) => v && setBenchmark(v as BenchmarkSet)}
+                className="border rounded-md"
+              >
+                <ToggleGroupItem value="tour" className="text-xs px-2.5 h-8">PGA Tour</ToggleGroupItem>
+                <ToggleGroupItem value="amateur" className="text-xs px-2.5 h-8">Avg Golfer</ToggleGroupItem>
+              </ToggleGroup>
+              <Select value={selected ?? ""} onValueChange={setSelected}>
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue placeholder="Select club" />
+                </SelectTrigger>
+                <SelectContent>
+                  {options.map((o) => (
+                    <SelectItem key={o.club} value={o.club}>{o.club}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <p className="text-xs text-muted-foreground pt-1">
-            Tour averages from Trackman. Green = tour-level, orange = close, red = big gap.
+            {benchmark === "tour"
+              ? "PGA Tour averages from Trackman. Green = tour-level, orange = close, red = big gap."
+              : "Average amateur golfer (~14 hcp) from Trackman. Green = at or above average, orange = close, red = well below."}
           </p>
         </CardHeader>
         <CardContent className="min-w-0 p-0 sm:p-2">
           <div className="grid grid-cols-[1fr_auto_auto] gap-x-3 gap-y-1 text-sm px-3 sm:px-2">
             <div className="text-xs uppercase tracking-wider text-muted-foreground py-2">Metric</div>
-            <div className="text-xs uppercase tracking-wider text-muted-foreground py-2 text-right">You</div>
-            <div className="text-xs uppercase tracking-wider text-muted-foreground py-2 text-right">Tour</div>
+            <div className="text-xs uppercase tracking-wider text-muted-foreground py-2 text-right">{youColHeader}</div>
+            <div className="text-xs uppercase tracking-wider text-muted-foreground py-2 text-right">{themColHeader}</div>
             {rows.map((r) => {
               const cls = colorClass(r.you, r.tour, r.mode);
               return (
