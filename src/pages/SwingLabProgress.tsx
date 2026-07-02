@@ -104,14 +104,41 @@ export default function SwingLabProgress() {
   const srcDist = useMemo(() => detectDistanceUnit(shotsRaw), [shotsRaw]);
   const srcSpd = useMemo(() => detectSpeedUnit(shotsRaw), [shotsRaw]);
 
-  // Normalise to metres / m/s style — reuse detected source unit for both current and prior windows.
+  // Read the user's global unit preference (shared with SwingLab overview via localStorage).
+  const readPref = <T extends string>(key: string, allowed: readonly T[], fallback: T): T => {
+    if (typeof window === "undefined") return fallback;
+    const v = localStorage.getItem(key);
+    return (allowed as readonly string[]).includes(v ?? "") ? (v as T) : fallback;
+  };
+  const [distPref, setDistPref] = useState<DistanceUnit>(() => readPref("range.distUnit", ["m", "yd"] as const, "yd"));
+  const [spdPref, setSpdPref] = useState<SpeedUnit>(() => readPref("range.spdUnit", ["mph", "kph"] as const, "mph"));
+
+  // Keep in sync if the preference changes in another tab, or when returning to this page.
+  useEffect(() => {
+    const sync = () => {
+      setDistPref(readPref("range.distUnit", ["m", "yd"] as const, srcDist));
+      setSpdPref(readPref("range.spdUnit", ["mph", "kph"] as const, srcSpd));
+    };
+    sync();
+    window.addEventListener("storage", sync);
+    window.addEventListener("focus", sync);
+    return () => {
+      window.removeEventListener("storage", sync);
+      window.removeEventListener("focus", sync);
+    };
+  }, [srcDist, srcSpd]);
+
+  const activeDist: DistanceUnit = distPref;
+  const activeSpd: SpeedUnit = spdPref;
+
+  // Convert every shot to the user's chosen display unit.
   const shots = useMemo(() => shotsRaw.map((s) => ({
     ...s,
-    carry: convertDistance(s.carry, srcDist, srcDist),
-    ball_speed: convertSpeed(s.ball_speed, srcSpd, srcSpd),
-    club_speed: convertSpeed(s.club_speed, srcSpd, srcSpd),
-    side_carry: convertDistance(s.side_carry, srcDist, srcDist),
-  })), [shotsRaw, srcDist, srcSpd]);
+    carry: convertDistance(s.carry, srcDist, activeDist),
+    ball_speed: convertSpeed(s.ball_speed, srcSpd, activeSpd),
+    club_speed: convertSpeed(s.club_speed, srcSpd, activeSpd),
+    side_carry: convertDistance(s.side_carry, srcDist, activeDist),
+  })), [shotsRaw, srcDist, srcSpd, activeDist, activeSpd]);
 
   const sessionDate = useMemo(() => {
     const m = new Map<string, string>();
@@ -144,8 +171,8 @@ export default function SwingLabProgress() {
     return { current, prior, currentSess, priorSess, days };
   }, [shots, sessions, sessionDate, tf]);
 
-  const dLbl = srcDist;
-  const sLbl = srcSpd;
+  const dLbl = activeDist;
+  const sLbl = activeSpd;
 
   const tiles: TileDef[] = useMemo(() => [
     {
