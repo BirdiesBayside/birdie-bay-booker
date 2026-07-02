@@ -28,6 +28,7 @@ const Dashboard = () => {
   const [hasSgtAccount, setHasSgtAccount] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [whatsOnOpen, setWhatsOnOpen] = useState(false);
+  const [swingLabInfoOpen, setSwingLabInfoOpen] = useState(false);
   const [showEventForm, setShowEventForm] = useState(false);
   const [newEventTitle, setNewEventTitle] = useState("");
   const [newEventDesc, setNewEventDesc] = useState("");
