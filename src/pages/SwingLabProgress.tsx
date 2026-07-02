@@ -28,21 +28,41 @@ type TileDef = {
   info: string;
   higherIsBetter: boolean;
   fmt: (v: number) => string;
-  minShots: number;
-  // filter shots for this metric (e.g. driver only)
-  filter?: (s: Shot) => boolean;
-  // pull the numeric value from a shot
-  value: (s: Shot) => number | null;
-  // aggregation: mean of values, or stddev for dispersion
-  agg?: "mean" | "sd";
-  // for sessions/week we compute from sessions not shots
-  fromSessions?: boolean;
+  // returns metric value for a set of shots, or null if not enough data
+  compute: (shots: Shot[], sessCount: number, days: number) => number | null;
 };
 
-function isDriver(s: Shot) {
-  const c = (s.club_type || "").toLowerCase();
-  return c === "dr" || c === "driver" || c === "1w";
+function classify(club: string | null | undefined): "driver" | "iron" | "wedge" | "other" {
+  const c = (club || "").toLowerCase().replace(/\s+/g, "");
+  if (!c) return "other";
+  if (c === "dr" || c === "driver" || c === "1w") return "driver";
+  if (/^(pw|gw|aw|sw|lw)$/.test(c) || c === "w" || /^([4-6]\d)$/.test(c)) return "wedge";
+  if (/^[2-9]i$/.test(c) || /^i[2-9]$/.test(c)) return "iron";
+  return "other";
 }
+
+// Aggregate helpers
+function mean(xs: number[]): number { return xs.reduce((a, b) => a + b, 0) / xs.length; }
+function sd(xs: number[]): number {
+  const m = mean(xs);
+  return Math.sqrt(xs.reduce((a, b) => a + (b - m) * (b - m), 0) / xs.length);
+}
+
+// Group shots by club, keeping only clubs with >= minShots.
+function byClub(shots: Shot[], minShots: number, filter?: (c: string) => boolean) {
+  const m = new Map<string, Shot[]>();
+  for (const s of shots) {
+    const c = s.club_type || "";
+    if (!c) continue;
+    if (filter && !filter(c)) continue;
+    const arr = m.get(c) ?? [];
+    arr.push(s);
+    m.set(c, arr);
+  }
+  for (const [k, v] of m) if (v.length < minShots) m.delete(k);
+  return m;
+}
+
 
 export default function SwingLabProgress() {
   const navigate = useNavigate();
@@ -131,70 +151,105 @@ export default function SwingLabProgress() {
     {
       key: "consistency",
       label: "Consistency",
-      info: "Repeatability of your driver carry distance. Lower shot-to-shot variation means tighter dispersion and better scoring. Score 0–100.",
+      info: "Are you getting more consistent? Across every club with enough shots we measure both carry standard deviation and left/right dispersion, express each as a % of the club's average carry, and convert to a 0–100 score. Higher = tighter and more repeatable.",
       higherIsBetter: true,
       fmt: (v) => `${Math.round(v)} / 100`,
-      minShots: 10,
-      filter: isDriver,
-      value: (s) => (s.carry != null && s.carry > 0 ? s.carry : null),
-      agg: "sd",
+      compute: (shots) => {
+        const groups = byClub(shots, 5);
+        if (groups.size === 0) return null;
+        const cvs: number[] = [];
+        for (const [, arr] of groups) {
+          const carries = arr.map((s) => s.carry).filter((v): v is number => v != null && v > 0);
+          if (carries.length < 5) continue;
+          const avgCarry = mean(carries);
+          if (avgCarry <= 0) continue;
+          const carrySd = sd(carries);
+          cvs.push(carrySd / avgCarry);
+          const sides = arr.map((s) => s.side_carry).filter((v): v is number => v != null && Number.isFinite(v));
+          if (sides.length >= 5) cvs.push(sd(sides) / avgCarry);
+        }
+        if (cvs.length === 0) return null;
+        const avgCv = mean(cvs);
+        return Math.max(0, Math.min(100, 100 - avgCv * 400));
+      },
     },
     {
-      key: "carry",
-      label: `Driver Carry (${dLbl})`,
-      info: "Average carry distance with your driver. Higher usually means more speed or better strike quality.",
-      higherIsBetter: true,
-      fmt: (v) => `${Math.round(v)} ${dLbl}`,
-      minShots: 10,
-      filter: isDriver,
-      value: (s) => (s.carry != null && s.carry > 0 ? s.carry : null),
-      agg: "mean",
-    },
-    {
-      key: "ball_speed",
-      label: `Driver Ball Speed (${sLbl})`,
-      info: "Average ball speed off the driver. This is the biggest predictor of driving distance.",
+      key: "speed",
+      label: `Speed (${sLbl})`,
+      info: "Are you swinging faster? For every club with enough shots we take your average ball speed and clubhead speed, then average across clubs so a change in club mix doesn't skew the number. Higher = more raw power.",
       higherIsBetter: true,
       fmt: (v) => `${v.toFixed(1)} ${sLbl}`,
-      minShots: 10,
-      filter: isDriver,
-      value: (s) => (s.ball_speed != null && s.ball_speed > 0 ? s.ball_speed : null),
-      agg: "mean",
+      compute: (shots) => {
+        const groups = byClub(shots, 5);
+        if (groups.size === 0) return null;
+        const perClub: number[] = [];
+        for (const [, arr] of groups) {
+          const speeds: number[] = [];
+          for (const s of arr) {
+            if (s.ball_speed != null && s.ball_speed > 0) speeds.push(s.ball_speed);
+            if (s.club_speed != null && s.club_speed > 0) speeds.push(s.club_speed);
+          }
+          if (speeds.length >= 5) perClub.push(mean(speeds));
+        }
+        return perClub.length > 0 ? mean(perClub) : null;
+      },
     },
     {
-      key: "smash",
-      label: "Driver Smash",
-      info: "Ball speed divided by club speed. A pure measure of strike quality. Tour driver benchmark is ~1.48.",
-      higherIsBetter: true,
-      fmt: (v) => v.toFixed(2),
-      minShots: 10,
-      filter: isDriver,
-      value: (s) => (typeof s.smash_factor === "number" && s.smash_factor > 0 && s.smash_factor <= 1.55 ? s.smash_factor : null),
-      agg: "mean",
-    },
-    {
-      key: "dispersion",
+      key: "driver_dispersion",
       label: `Driver Dispersion (${dLbl})`,
-      info: "Standard deviation of your driver's left/right miss. Lower is better, more fairways hit.",
+      info: "Are your drives getting more accurate? Standard deviation of your driver's left/right carry. Lower = tighter, more fairways.",
       higherIsBetter: false,
       fmt: (v) => `± ${v.toFixed(1)} ${dLbl}`,
-      minShots: 10,
-      filter: isDriver,
-      value: (s) => (s.side_carry != null ? s.side_carry : null),
-      agg: "sd",
+      compute: (shots) => {
+        const vals = shots
+          .filter((s) => classify(s.club_type) === "driver")
+          .map((s) => s.side_carry)
+          .filter((v): v is number => v != null && Number.isFinite(v));
+        return vals.length >= 5 ? sd(vals) : null;
+      },
     },
     {
-      key: "frequency",
+      key: "iron_dispersion",
+      label: `Iron Dispersion (${dLbl})`,
+      info: "Are your irons getting more accurate? Standard deviation of left/right carry across all your irons (3i–9i). Lower = tighter approach shots.",
+      higherIsBetter: false,
+      fmt: (v) => `± ${v.toFixed(1)} ${dLbl}`,
+      compute: (shots) => {
+        const vals = shots
+          .filter((s) => classify(s.club_type) === "iron")
+          .map((s) => s.side_carry)
+          .filter((v): v is number => v != null && Number.isFinite(v));
+        return vals.length >= 5 ? sd(vals) : null;
+      },
+    },
+    {
+      key: "wedge_dispersion",
+      label: `Wedge Dispersion (${dLbl})`,
+      info: "Are your wedges getting more accurate? Standard deviation of left/right carry across all your wedges (PW, GW, SW, LW). Lower = better scoring club control.",
+      higherIsBetter: false,
+      fmt: (v) => `± ${v.toFixed(1)} ${dLbl}`,
+      compute: (shots) => {
+        const vals = shots
+          .filter((s) => classify(s.club_type) === "wedge")
+          .map((s) => s.side_carry)
+          .filter((v): v is number => v != null && Number.isFinite(v));
+        return vals.length >= 5 ? sd(vals) : null;
+      },
+    },
+    {
+      key: "sessions",
       label: "Sessions / Week",
-      info: "How often you're getting into the Swing Lab. Practice frequency drives improvement more than any single session.",
+      info: "Are you playing enough to improve? Your average Swing Lab sessions per week over the window. Practice frequency drives improvement more than any single session.",
       higherIsBetter: true,
       fmt: (v) => v.toFixed(1),
-      minShots: 0,
-      value: () => null,
-      agg: "mean",
-      fromSessions: true,
+      compute: (_shots, sessCount, days) => {
+        const weeks = days / 7;
+        return weeks > 0 ? sessCount / weeks : null;
+      },
     },
   ], [dLbl, sLbl]);
+
+
 
   const results = tiles.map((t) => computeTile(t, windows));
 
@@ -261,36 +316,9 @@ function computeTile(
   t: TileDef,
   w: { current: Shot[]; prior: Shot[]; currentSess: Session[]; priorSess: Session[]; days: number },
 ): TileResult {
-  const calc = (shots: Shot[], sessCount: number) => {
-    if (t.fromSessions) {
-      const weeks = w.days / 7;
-      return weeks > 0 ? sessCount / weeks : null;
-    }
-    const vals: number[] = [];
-    for (const s of shots) {
-      if (t.filter && !t.filter(s)) continue;
-      const v = t.value(s);
-      if (v == null || !Number.isFinite(v)) continue;
-      vals.push(v);
-    }
-    if (vals.length < t.minShots) return null;
-    if (t.agg === "sd") {
-      const m = vals.reduce((a, b) => a + b, 0) / vals.length;
-      const variance = vals.reduce((a, b) => a + (b - m) * (b - m), 0) / vals.length;
-      const sd = Math.sqrt(variance);
-      if (t.key === "consistency") {
-        // Convert CV to 0-100 score (same formula as overview tile)
-        if (m <= 0) return null;
-        const cv = sd / m;
-        return Math.max(0, Math.min(100, 100 - cv * 500));
-      }
-      return sd;
-    }
-    return vals.reduce((a, b) => a + b, 0) / vals.length;
-  };
+  const current = t.compute(w.current, w.currentSess.length, w.days);
+  const prior = t.compute(w.prior, w.priorSess.length, w.days);
 
-  const current = calc(w.current, w.currentSess.length);
-  const prior = calc(w.prior, w.priorSess.length);
 
   let deltaPct: number | null = null;
   let direction: Direction | null = null;

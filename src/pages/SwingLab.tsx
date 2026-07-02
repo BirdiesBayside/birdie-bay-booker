@@ -632,81 +632,84 @@ function OverviewTiles({
   }, [byClub]);
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-      {/* Tile 1 — Sessions */}
-      <TileCard
-        label="Sessions"
-        icon={<TrendingUp className="h-3.5 w-3.5" />}
-        value={sessions.length.toString()}
-        sub={`${sessionsThisMonth} this month`}
-        info="Total Swing Lab sessions on your account. A session is one bay visit where shots were exported from GSPro."
-      />
-
-      {/* Tile 2 — Shots */}
-      <TileCard
-        label="Shots Hit"
-        icon={<Target className="h-3.5 w-3.5" />}
-        value={totalShots.toLocaleString()}
-        sub={totalShots > 0 ? `≈ ${buckets} range bucket${buckets === 1 ? "" : "s"}` : "—"}
-        info="Every shot you've captured in the Swing Lab. Bucket equivalent assumes ~50 balls per range bucket."
-      />
-
-      {/* Tile 3 — Longest carry */}
-      <TileCard
-        label="Longest Carry"
-        value={longest ? `${Math.round(longest.carry)} ${dLbl}` : "—"}
-        sub={longest ? `${longest.club}${longest.date ? ` · ${format(parseISO(longest.date.slice(0, 10)), "d MMM")}` : ""}` : "Not enough data"}
-        info={`Furthest carry (${dLbl}). The distance the ball flew in the air, not roll.`}
-      />
-
-      {/* Tile 4 — Best club vs tour */}
-      <TileCard
-        label="Best Club (vs Tour)"
-        value={bestVsTour ? `${Math.round(bestVsTour.pct)}%` : "—"}
-        sub={bestVsTour ? `${bestVsTour.club} smash efficiency` : "Need 10+ shots per club"}
-        info="Your best club by smash factor (ball speed ÷ club speed) shown as a percentage of the PGA Tour average for that club. Smash measures strike quality, so it rewards pure contact over raw speed. A 70-year-old can still score 95%+."
-      />
-
-      {/* Tile 5 — Consistency */}
-      <TileCard
-        label="Consistency"
-        value={consistency.current != null ? `${consistency.current} / 100` : "—"}
-        sub={
-          consistency.current == null
-            ? "Need 10+ shots on a club"
-            : consistency.trend == null
-              ? "Trend after 30 days"
-              : consistency.trend === 0
-                ? "Steady vs last month"
-                : `${consistency.trend > 0 ? "▲" : "▼"} ${Math.abs(consistency.trend)} vs last month`
-        }
-        highlight={consistency.trend != null && consistency.trend > 0}
-        info="How repeatable your carry distances are, scored 0–100 (higher = tighter). We take the carry standard deviation for your three most-hit clubs, express it as a percent of each club's average, then convert to a score: 0% variation = 100, 20%+ variation = 0. Consistency is the number that actually moves with practice. Averages barely budge month to month, this does."
-      />
-
-      {/* Tile 6 — Focus Point (compact, orange-outlined, click for detail) */}
-      <FocusPointCard focus={focus} />
-
-      {/* Full-width — My Progress */}
+    <div className="space-y-3">
+      {/* Full-width — My Progress (above stats) */}
       <button
         type="button"
         onClick={() => navigate("/swing-lab/progress")}
-        className="col-span-2 md:col-span-3 group rounded-lg border bg-card p-4 text-left transition-colors hover:bg-accent/5 active:bg-accent/10"
+        className="w-full group rounded-lg border-2 border-accent/70 bg-accent/5 p-4 text-left transition-colors hover:bg-accent/10 active:bg-accent/15"
       >
         <div className="flex items-center justify-between gap-3">
           <div>
-            <div className="text-xs uppercase tracking-wide text-muted-foreground flex items-center gap-1">
+            <div className="text-xs uppercase tracking-wide text-accent flex items-center gap-1">
               <TrendingUp className="h-3.5 w-3.5" />My Progress
             </div>
             <div className="text-lg font-anton mt-1 leading-tight">Track your trends over time</div>
             <div className="text-xs text-muted-foreground mt-1">See which metrics are improving, flat, or slipping.</div>
           </div>
-          <ChevronDown className="h-5 w-5 -rotate-90 text-muted-foreground group-hover:text-accent transition-colors shrink-0" />
+          <ChevronDown className="h-5 w-5 -rotate-90 text-accent group-hover:translate-x-0.5 transition-transform shrink-0" />
         </div>
       </button>
+
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        {/* Tile 1 — Sessions */}
+        <TileCard
+          label="Sessions"
+          icon={<TrendingUp className="h-3.5 w-3.5" />}
+          value={sessions.length.toString()}
+          sub={`${sessionsThisMonth} this month`}
+          info="Total Swing Lab sessions on your account. A session is one bay visit where shots were exported from GSPro."
+        />
+
+        {/* Tile 2 — Shots */}
+        <TileCard
+          label="Shots Hit"
+          icon={<Target className="h-3.5 w-3.5" />}
+          value={totalShots.toLocaleString()}
+          sub={totalShots > 0 ? `≈ ${buckets} range bucket${buckets === 1 ? "" : "s"}` : "—"}
+          info="Every shot you've captured in the Swing Lab. Bucket equivalent assumes ~50 balls per range bucket."
+        />
+
+        {/* Tile 3 — Longest carry */}
+        <TileCard
+          label="Longest Carry"
+          value={longest ? `${Math.round(longest.carry)} ${dLbl}` : "—"}
+          sub={longest ? `${longest.club}${longest.date ? ` · ${format(parseISO(longest.date.slice(0, 10)), "d MMM")}` : ""}` : "Not enough data"}
+          info={`Furthest carry (${dLbl}). The distance the ball flew in the air, not roll.`}
+        />
+
+        {/* Tile 4 — Best club vs tour */}
+        <TileCard
+          label="Best Club (vs Tour)"
+          value={bestVsTour ? `${Math.round(bestVsTour.pct)}%` : "—"}
+          sub={bestVsTour ? `${bestVsTour.club} smash efficiency` : "Need 10+ shots per club"}
+          info="Your best club by smash factor (ball speed ÷ club speed) shown as a percentage of the PGA Tour average for that club. Smash measures strike quality, so it rewards pure contact over raw speed. A 70-year-old can still score 95%+."
+        />
+
+        {/* Tile 5 — Consistency */}
+        <TileCard
+          label="Consistency"
+          value={consistency.current != null ? `${consistency.current} / 100` : "—"}
+          sub={
+            consistency.current == null
+              ? "Need 10+ shots on a club"
+              : consistency.trend == null
+                ? "Trend after 30 days"
+                : consistency.trend === 0
+                  ? "Steady vs last month"
+                  : `${consistency.trend > 0 ? "▲" : "▼"} ${Math.abs(consistency.trend)} vs last month`
+          }
+          highlight={consistency.trend != null && consistency.trend > 0}
+          info="How repeatable your carry distances are, scored 0–100 (higher = tighter). We take the carry standard deviation for your three most-hit clubs, express it as a percent of each club's average, then convert to a score: 0% variation = 100, 20%+ variation = 0. Consistency is the number that actually moves with practice. Averages barely budge month to month, this does."
+        />
+
+        {/* Tile 6 — Focus Point (compact, orange-outlined, click for detail) */}
+        <FocusPointCard focus={focus} />
+      </div>
     </div>
   );
 }
+
 
 
 // Local re-export to avoid extra import churn.
