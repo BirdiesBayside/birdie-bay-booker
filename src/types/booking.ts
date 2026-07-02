@@ -27,24 +27,8 @@ export const MEMBERSHIP_TIERS: Record<MembershipTier, MembershipPricing> = {
     weeklyFee: 15,
     hourlyRate: 10,
     description: 'Perfect for daytime players',
-    features: ['$10/hr weekdays before 4pm', 'No weekend commitment', 'Cancel any time'],
-    restrictions: 'Mon-Thu before 4pm only at member rate',
-  },
-  birdie: {
-    tier: 'birdie',
-    name: 'Birdie Member',
-    weeklyFee: 27,
-    hourlyRate: 10,
-    description: 'Full access for regular players',
-    features: ['$10/hr anytime', 'Birdies League Access', 'Cancel any time'],
-  },
-  eagle: {
-    tier: 'eagle',
-    name: 'Eagle Member',
-    weeklyFee: 35,
-    hourlyRate: 8,
-    description: 'Premium rate for dedicated golfers',
-    features: ['$8/hr anytime', 'Birdies League Access', 'Priority booking', 'Cancel any time'],
+    features: ['$10/hr weekdays before 4pm', 'Swing Lab access', 'No weekend commitment', 'Cancel any time'],
+
   },
 };
 
