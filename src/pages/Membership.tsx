@@ -24,19 +24,19 @@ interface MembershipTierConfig {
 // Static config for features and styling (these don't change with pricing)
 const TIER_CONFIG: Record<string, MembershipTierConfig> = {
   weekday: {
-    features: ["Weekdays before 4pm only", "Cancel any time"],
+    features: ["Weekdays before 4pm only", "Swing Lab access", "Cancel any time"],
     color: "border-teal-500",
     badgeColor: "bg-teal-100 text-teal-800",
     restrictions: "Peak times charged at visitor rate",
   },
   birdie: {
-    features: ["Play anytime", "Birdies League Access", "Cancel any time"],
+    features: ["Play anytime", "Birdies League Access", "Swing Lab access", "Cancel any time"],
     color: "border-blue-500",
     badgeColor: "bg-blue-100 text-blue-800",
     popular: true,
   },
   eagle: {
-    features: ["Play anytime", "Birdies League Access", "Priority booking", "Cancel any time"],
+    features: ["Play anytime", "Birdies League Access", "Swing Lab access", "Priority booking", "Cancel any time"],
     color: "border-purple-500",
     badgeColor: "bg-purple-100 text-purple-800",
   },
