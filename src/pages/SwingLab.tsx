@@ -480,6 +480,257 @@ export default function SwingLab() {
   );
 }
 
+function OverviewTiles({
+  sessions, shots, activeDist, activeSpd,
+}: {
+  sessions: Session[];
+  shots: Shot[];
+  activeDist: DistanceUnit;
+  activeSpd: SpeedUnit;
+}) {
+  const dLbl = activeDist;
+
+  // Session date lookup for shot attribution
+  const sessionDateById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const s of sessions) m.set(s.id, s.session_date);
+    return m;
+  }, [sessions]);
+
+  // Tile 1 — Sessions (lifetime + this month)
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const sessionsThisMonth = sessions.filter((s) => {
+    const d = parseISO(s.session_date);
+    return d >= monthStart;
+  }).length;
+
+  // Tile 2 — Shots + fun equivalence (~50 balls per bucket)
+  const totalShots = shots.length;
+  const buckets = Math.max(1, Math.round(totalShots / 50));
+
+  // Tile 3 — Longest carry with physics-based plausibility filter
+  // Convert both sides to yd + mph so a single cap works: carry_yd ≤ ballSpeed_mph × 2.0
+  const longest = useMemo(() => {
+    let best: { carry: number; club: string; date: string } | null = null;
+    for (const s of shots) {
+      if (s.carry == null || s.carry <= 0) continue;
+      const carryYd = activeDist === "yd" ? s.carry : s.carry * M_TO_YD_LOCAL;
+      const bs = s.ball_speed;
+      if (bs != null && bs > 0) {
+        const bsMph = activeSpd === "mph" ? bs : bs * 0.621371;
+        if (carryYd > bsMph * 2.05) continue; // physically implausible
+      } else {
+        // No ball speed — hard cap on driver-ish upper bound
+        if (carryYd > 340) continue;
+      }
+      if (!best || s.carry > best.carry) {
+        const date = sessionDateById.get(s.session_id) ?? s.shot_timestamp ?? "";
+        best = { carry: s.carry, club: s.club_type || "—", date };
+      }
+    }
+    return best;
+  }, [shots, activeDist, activeSpd, sessionDateById]);
+
+  // Group shots by club (for tiles 4, 5, 6)
+  const byClub = useMemo(() => {
+    const m = new Map<string, Shot[]>();
+    for (const s of shots) {
+      const c = s.club_type || "Unknown";
+      const arr = m.get(c) ?? [];
+      arr.push(s);
+      m.set(c, arr);
+    }
+    return m;
+  }, [shots]);
+
+  // Tile 4 — Best club (smash vs tour %)
+  const bestVsTour = useMemo(() => {
+    let best: { club: string; pct: number } | null = null;
+    for (const [club, arr] of byClub) {
+      if (arr.length < 10) continue;
+      const tour = matchTourClub(club);
+      if (!tour) continue;
+      const smashes = arr.map((s) => s.smash_factor).filter((v): v is number => typeof v === "number" && v > 0 && v <= 1.55);
+      if (smashes.length < 10) continue;
+      const avg = smashes.reduce((a, b) => a + b, 0) / smashes.length;
+      const pct = (avg / tour.smashFactor) * 100;
+      if (!best || pct > best.pct) best = { club, pct };
+    }
+    return best;
+  }, [byClub]);
+
+  // Tile 5 — Consistency score (carry SD → 0–100)
+  const consistency = useMemo(() => {
+    const scoreFor = (subset: Shot[]) => {
+      const groups = new Map<string, number[]>();
+      for (const s of subset) {
+        if (s.carry == null || s.carry <= 0) continue;
+        const c = s.club_type || "Unknown";
+        const arr = groups.get(c) ?? [];
+        arr.push(s.carry);
+        groups.set(c, arr);
+      }
+      // Top 3 most-hit clubs with ≥10 shots
+      const top = Array.from(groups.entries())
+        .filter(([, v]) => v.length >= 10)
+        .sort((a, b) => b[1].length - a[1].length)
+        .slice(0, 3);
+      if (top.length === 0) return null;
+      const cvs: number[] = [];
+      for (const [, arr] of top) {
+        const mn = arr.reduce((a, b) => a + b, 0) / arr.length;
+        if (mn <= 0) continue;
+        const variance = arr.reduce((a, b) => a + (b - mn) * (b - mn), 0) / arr.length;
+        const sd = Math.sqrt(variance);
+        cvs.push(sd / mn);
+      }
+      if (cvs.length === 0) return null;
+      const avgCv = cvs.reduce((a, b) => a + b, 0) / cvs.length;
+      // 0% CV → 100, 20% CV → 0. Linear clamp.
+      return Math.max(0, Math.min(100, Math.round(100 - avgCv * 500)));
+    };
+
+    const nowMs = Date.now();
+    const monthMs = 30 * 24 * 60 * 60 * 1000;
+    const recent: Shot[] = [];
+    const prior: Shot[] = [];
+    for (const s of shots) {
+      const dateStr = sessionDateById.get(s.session_id) ?? s.shot_timestamp;
+      if (!dateStr) { recent.push(s); continue; }
+      const ms = new Date(dateStr).getTime();
+      if (nowMs - ms <= monthMs) recent.push(s);
+      else if (nowMs - ms <= monthMs * 2) prior.push(s);
+    }
+    const current = scoreFor(shots);
+    const recentScore = scoreFor(recent);
+    const priorScore = scoreFor(prior);
+    const trend = recentScore != null && priorScore != null ? recentScore - priorScore : null;
+    return { current, trend };
+  }, [shots, sessionDateById]);
+
+  // Tile 6 — Focus Point (biggest smash-efficiency deficit vs tour)
+  const focus = useMemo(() => {
+    let worst: { club: string; pct: number; avgSmash: number; tourSmash: number } | null = null;
+    for (const [club, arr] of byClub) {
+      if (arr.length < 10) continue;
+      const tour = matchTourClub(club);
+      if (!tour) continue;
+      const smashes = arr.map((s) => s.smash_factor).filter((v): v is number => typeof v === "number" && v > 0 && v <= 1.55);
+      if (smashes.length < 10) continue;
+      const avg = smashes.reduce((a, b) => a + b, 0) / smashes.length;
+      const pct = (avg / tour.smashFactor) * 100;
+      if (pct >= 100) continue; // only surface deficits
+      if (!worst || pct < worst.pct) worst = { club, pct, avgSmash: avg, tourSmash: tour.smashFactor };
+    }
+    return worst;
+  }, [byClub]);
+
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+      {/* Tile 1 — Sessions */}
+      <TileCard
+        label="Sessions"
+        icon={<TrendingUp className="h-3.5 w-3.5" />}
+        value={sessions.length.toString()}
+        sub={`${sessionsThisMonth} this month`}
+      />
+
+      {/* Tile 2 — Shots */}
+      <TileCard
+        label="Shots Hit"
+        icon={<Target className="h-3.5 w-3.5" />}
+        value={totalShots.toLocaleString()}
+        sub={totalShots > 0 ? `≈ ${buckets} range bucket${buckets === 1 ? "" : "s"}` : "—"}
+      />
+
+      {/* Tile 3 — Longest carry */}
+      <TileCard
+        label="Longest Carry"
+        value={longest ? `${Math.round(longest.carry)} ${dLbl}` : "—"}
+        sub={longest ? `${longest.club}${longest.date ? ` · ${format(parseISO(longest.date.slice(0, 10)), "d MMM")}` : ""}` : "Not enough data"}
+      />
+
+      {/* Tile 4 — Best club vs tour */}
+      <TileCard
+        label="Best Club (vs Tour)"
+        value={bestVsTour ? `${Math.round(bestVsTour.pct)}%` : "—"}
+        sub={bestVsTour ? `${bestVsTour.club} smash efficiency` : "Need 10+ shots per club"}
+      />
+
+      {/* Tile 5 — Consistency */}
+      <TileCard
+        label="Consistency"
+        value={consistency.current != null ? consistency.current.toString() : "—"}
+        sub={
+          consistency.current == null
+            ? "Need 10+ shots on a club"
+            : consistency.trend == null
+              ? "Trend after 30 days"
+              : consistency.trend === 0
+                ? "Steady vs last month"
+                : `${consistency.trend > 0 ? "▲" : "▼"} ${Math.abs(consistency.trend)} vs last month`
+        }
+        highlight={consistency.trend != null && consistency.trend > 0}
+      />
+
+      {/* Tile 6 — Focus Point */}
+      <Card className="col-span-2 md:col-span-1">
+        <CardContent className="p-4">
+          <div className="text-xs uppercase tracking-wide text-muted-foreground flex items-center gap-1">
+            <FlaskConical className="h-3.5 w-3.5" />
+            Focus Point
+          </div>
+          {focus ? (
+            <>
+              <div className="text-lg font-anton mt-1 leading-tight">
+                {focus.club}: {Math.round(focus.pct)}% of tour smash
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">
+                Averaging {focus.avgSmash.toFixed(2)} vs tour {focus.tourSmash.toFixed(2)} — focus on centre-face strikes with this club.
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="text-lg font-anton mt-1">All clean</div>
+              <div className="text-xs text-muted-foreground mt-1">
+                No clubs are lagging tour benchmarks. Keep grinding.
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// Local re-export to avoid extra import churn.
+const M_TO_YD_LOCAL = 1.09361;
+
+function TileCard({
+  label, value, sub, icon, highlight,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  icon?: React.ReactNode;
+  highlight?: boolean;
+}) {
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <div className="text-xs uppercase tracking-wide text-muted-foreground flex items-center gap-1">
+          {icon}{label}
+        </div>
+        <div className="text-2xl font-anton mt-1 leading-tight">{value}</div>
+        {sub && (
+          <div className={`text-xs mt-1 ${highlight ? "text-accent" : "text-muted-foreground"}`}>{sub}</div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function Kpi({ label, value, icon }: { label: string; value: string; icon?: React.ReactNode }) {
   return (
     <Card>
