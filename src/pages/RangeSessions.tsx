@@ -979,3 +979,199 @@ function SessionDetail({
     </div>
   );
 }
+
+// ============================================================
+// Optimise tab — compare a player's per-club numbers to PGA Tour
+// averages (Trackman). Colored red/orange/green based on % gap.
+// ============================================================
+function OptimiseTab({
+  clubStats,
+  swingStats,
+  activeDist,
+  activeSpd,
+}: {
+  clubStats: ReturnType<typeof import("@/lib/range-stats").statsByClub>;
+  swingStats: ReturnType<typeof import("@/lib/range-stats").swingStatsByClub>;
+  activeDist: DistanceUnit;
+  activeSpd: SpeedUnit;
+}) {
+  // Only clubs where we have BOTH shot data and a tour benchmark match.
+  const options = useMemo(() => {
+    return clubStats
+      .map((c) => ({ club: c.club, tour: matchTourClub(c.club) }))
+      .filter((x) => x.tour !== null) as { club: string; tour: TourAverage }[];
+  }, [clubStats]);
+
+  const [selected, setSelected] = useState<string | null>(null);
+  useEffect(() => {
+    if (!selected && options.length) setSelected(options[0].club);
+  }, [options, selected]);
+
+  if (options.length === 0) {
+    return (
+      <Card>
+        <CardContent className="py-10 text-center text-muted-foreground text-sm">
+          Hit a few shots with recognised clubs (Driver, 7 Iron, PW, etc.) and we'll benchmark you against the PGA Tour.
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const stats = clubStats.find((c) => c.club === selected);
+  const swing = swingStats.find((c) => c.club === selected);
+  const tour = matchTourClub(selected ?? "") ?? null;
+
+  // Convert tour values (which are yards / mph) into the user's active units.
+  const tourInUserUnits = useMemo(() => {
+    if (!tour) return null;
+    return {
+      clubSpeed: convertSpeedNumber(tour.clubSpeedMph, "mph", activeSpd),
+      ballSpeed: convertSpeedNumber(tour.ballSpeedMph, "mph", activeSpd),
+      smash: tour.smashFactor,
+      launch: tour.launchAngleDeg,
+      spin: tour.spinRpm,
+      carry: convertDistanceNumber(tour.carryYd, "yd", activeDist),
+      aoa: tour.aoaDeg,
+    };
+  }, [tour, activeDist, activeSpd]);
+
+  if (!stats || !tour || !tourInUserUnits) return null;
+
+  type Row = {
+    key: keyof typeof METRIC_TOOLTIPS;
+    label: string;
+    you: number | null;
+    tour: number;
+    unit: string;
+    digits: number;
+    // For coloring: "closer" = closer to tour is better (default),
+    // "higher" = higher is better (up to tour), "lower" = lower is better.
+    mode?: "closer" | "higher";
+  };
+
+  const rows: Row[] = [
+    { key: "clubSpeed",   label: "Club speed",   you: stats.avgClubSpeed, tour: tourInUserUnits.clubSpeed, unit: activeSpd,      digits: 1, mode: "higher" },
+    { key: "ballSpeed",   label: "Ball speed",   you: stats.avgBallSpeed, tour: tourInUserUnits.ballSpeed, unit: activeSpd,      digits: 1, mode: "higher" },
+    { key: "smashFactor", label: "Smash factor", you: stats.avgSmash,     tour: tourInUserUnits.smash,     unit: "",             digits: 2, mode: "closer" },
+    { key: "launchAngle", label: "Launch angle", you: stats.avgLaunch,    tour: tourInUserUnits.launch,    unit: "°",            digits: 1, mode: "closer" },
+    { key: "spin",        label: "Spin rate",    you: stats.avgSpin,      tour: tourInUserUnits.spin,      unit: "rpm",          digits: 0, mode: "closer" },
+    { key: "carry",       label: "Carry",        you: stats.avgCarry,     tour: tourInUserUnits.carry,     unit: activeDist,     digits: 1, mode: "higher" },
+    { key: "aoa",         label: "Angle of attack", you: swing?.avgAoA ?? null, tour: tourInUserUnits.aoa, unit: "°",            digits: 1, mode: "closer" },
+  ];
+
+  return (
+    <TooltipProvider delayDuration={100}>
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <CardTitle className="text-base">Compare to PGA Tour</CardTitle>
+            <Select value={selected ?? ""} onValueChange={setSelected}>
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder="Select club" />
+              </SelectTrigger>
+              <SelectContent>
+                {options.map((o) => (
+                  <SelectItem key={o.club} value={o.club}>{o.club}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <p className="text-xs text-muted-foreground pt-1">
+            Tour averages from Trackman. Green = tour-level, orange = close, red = big gap.
+          </p>
+        </CardHeader>
+        <CardContent className="min-w-0 p-0 sm:p-2">
+          <div className="grid grid-cols-[1fr_auto_auto] gap-x-3 gap-y-1 text-sm px-3 sm:px-2">
+            <div className="text-xs uppercase tracking-wider text-muted-foreground py-2">Metric</div>
+            <div className="text-xs uppercase tracking-wider text-muted-foreground py-2 text-right">You</div>
+            <div className="text-xs uppercase tracking-wider text-muted-foreground py-2 text-right">Tour</div>
+            {rows.map((r) => {
+              const cls = colorClass(r.you, r.tour, r.mode);
+              return (
+                <MetricRow
+                  key={r.key as string}
+                  label={r.label}
+                  tip={METRIC_TOOLTIPS[r.key]}
+                  you={r.you}
+                  tour={r.tour}
+                  unit={r.unit}
+                  digits={r.digits}
+                  cls={cls}
+                />
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+    </TooltipProvider>
+  );
+}
+
+function MetricRow({
+  label, tip, you, tour, unit, digits, cls,
+}: {
+  label: string;
+  tip: string;
+  you: number | null;
+  tour: number;
+  unit: string;
+  digits: number;
+  cls: string;
+}) {
+  const formatVal = (v: number | null) =>
+    v == null || !Number.isFinite(v)
+      ? "—"
+      : `${v.toLocaleString(undefined, { maximumFractionDigits: digits, minimumFractionDigits: digits === 0 ? 0 : Math.min(digits, 1) })}${unit ? (unit === "°" || unit === "" ? unit : ` ${unit}`) : ""}`;
+  return (
+    <>
+      <div className="py-2 border-t border-border/60 flex items-center gap-1.5">
+        <span>{label}</span>
+        <UITooltip>
+          <TooltipTrigger asChild>
+            <button type="button" className="text-muted-foreground hover:text-foreground">
+              <InfoIcon className="h-3.5 w-3.5" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-[240px] text-xs">{tip}</TooltipContent>
+        </UITooltip>
+      </div>
+      <div className={`py-2 border-t border-border/60 text-right font-medium ${cls}`}>
+        {formatVal(you)}
+      </div>
+      <div className="py-2 border-t border-border/60 text-right text-muted-foreground">
+        {formatVal(tour)}
+      </div>
+    </>
+  );
+}
+
+// Coloring logic:
+// - "higher" mode: within 5% below tour = green, 15% = orange, else red. At or above tour is always green.
+// - "closer" mode: |gap|/tour <=8% green, <=20% orange, else red.
+function colorClass(
+  you: number | null,
+  tour: number,
+  mode: "closer" | "higher" = "closer"
+): string {
+  if (you == null || !Number.isFinite(you) || tour === 0) return "text-foreground";
+  const pct = (you - tour) / Math.abs(tour);
+  if (mode === "higher") {
+    if (pct >= -0.05) return "text-[hsl(140_60%_40%)]";
+    if (pct >= -0.15) return "text-[hsl(30_90%_50%)]";
+    return "text-destructive";
+  }
+  const abs = Math.abs(pct);
+  if (abs <= 0.08) return "text-[hsl(140_60%_40%)]";
+  if (abs <= 0.20) return "text-[hsl(30_90%_50%)]";
+  return "text-destructive";
+}
+
+// Local unit converters used only by OptimiseTab (avoids re-importing).
+function convertSpeedNumber(v: number, from: SpeedUnit, to: SpeedUnit): number {
+  if (from === to) return v;
+  return from === "mph" ? v * 1.60934 : v * 0.621371;
+}
+function convertDistanceNumber(v: number, from: DistanceUnit, to: DistanceUnit): number {
+  if (from === to) return v;
+  return from === "yd" ? v * 0.9144 : v * 1.09361;
+}
