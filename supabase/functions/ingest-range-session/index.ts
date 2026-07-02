@@ -57,7 +57,10 @@ const FIELD_MAP: Record<string, string> = {
   carry: "carry", carrydistance: "carry", carryyards: "carry",
   total: "total", totaldistance: "total", totalyards: "total",
   sidecarry: "side_carry", carryside: "side_carry", offlinecarry: "side_carry",
-  side: "side_total", sidetotal: "side_total", offline: "side_total",
+  side: "side_total", sidetotal: "side_total",
+  // GSPro exports a single horizontal-error column called "Offline" (yards left/right of target
+  // at landing). Treat it as side_carry so dispersion tiles work; side_total falls back to it.
+  offline: "side_carry",
   apex: "apex_height", apexheight: "apex_height", peakheight: "apex_height",
   descent: "descent_angle", decent: "descent_angle", descentangle: "descent_angle", landingangle: "descent_angle",
   aoa: "angle_of_attack", angleofattack: "angle_of_attack", attackangle: "angle_of_attack",
