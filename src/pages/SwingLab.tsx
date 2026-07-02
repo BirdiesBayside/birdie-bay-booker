@@ -337,15 +337,12 @@ export default function SwingLab() {
               </div>
 
               <TabsContent value="overview" className="space-y-4">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <Kpi label="Sessions" value={sessions.length.toString()} icon={<TrendingUp className="h-4 w-4" />} />
-                  <Kpi label="Shots" value={totalShots.toString()} icon={<Target className="h-4 w-4" />} />
-                  <Kpi label="Best carry" value={fmt(bestCarry, 0, ` ${dLbl}`)} />
-                  <Kpi label="Avg smash" value={fmt(avgSmash, 2)} />
-                  <Kpi label="Avg ball speed" value={fmt(avgBallSpeed, 0, ` ${sLbl}`)} />
-                  <Kpi label="Most used" value={mostUsedClub || "—"} />
-                </div>
-
+                <OverviewTiles
+                  sessions={sessions}
+                  shots={allShots}
+                  activeDist={activeDist}
+                  activeSpd={activeSpd}
+                />
               </TabsContent>
 
               <TabsContent value="gapping" className="space-y-4">
