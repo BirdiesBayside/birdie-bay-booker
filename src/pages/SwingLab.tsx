@@ -1314,6 +1314,9 @@ function OptimiseTab({
   const stats = clubStats.find((c) => c.club === selected);
   const swing = swingStats.find((c) => c.club === selected);
   const tour = matchBenchmarkClub(selected ?? "", benchmark) ?? null;
+  // Always keep the PGA Tour row as the "optimal target" so direction-aware
+  // metrics (launch, spin, AoA) can tell which side of the amateur is better.
+  const optimal = matchBenchmarkClub(selected ?? "", "tour") ?? null;
 
   // Convert tour values (which are yards / mph) into the user's active units.
   const tourInUserUnits = useMemo(() => {
@@ -1329,26 +1332,48 @@ function OptimiseTab({
     };
   }, [tour, activeDist, activeSpd]);
 
-  if (!stats || !tour || !tourInUserUnits) return null;
+  const optimalInUserUnits = useMemo(() => {
+    if (!optimal) return null;
+    return {
+      clubSpeed: convertSpeedNumber(optimal.clubSpeedMph, "mph", activeSpd),
+      ballSpeed: convertSpeedNumber(optimal.ballSpeedMph, "mph", activeSpd),
+      smash: optimal.smashFactor,
+      launch: optimal.launchAngleDeg,
+      spin: optimal.spinRpm,
+      carry: convertDistanceNumber(optimal.carryYd, "yd", activeDist),
+      aoa: optimal.aoaDeg,
+    };
+  }, [optimal, activeDist, activeSpd]);
+
+  if (!stats || !tour || !tourInUserUnits || !optimalInUserUnits) return null;
+
+  // "higher"      = bigger number is unambiguously better (speed, carry, smash).
+  // "toward_tour" = the tour value is the target; being closer to it (from
+  //                 either side) is better. Handles launch angle (amateurs
+  //                 launch driver too high with too much spin, pros lower and
+  //                 flatter; irons the opposite), spin rate (drivers want less,
+  //                 wedges want more), and AoA (up on driver, down on irons).
+  type Direction = "higher" | "toward_tour";
 
   type Row = {
     key: keyof typeof METRIC_TOOLTIPS;
     label: string;
     you: number | null;
-    tour: number;
+    tour: number;          // value shown in the "them" column (the active benchmark)
+    optimal: number;       // always the PGA tour value — the north star for direction
     unit: string;
     digits: number;
-    mode?: "closer" | "higher";
+    direction: Direction;
   };
 
   const rows: Row[] = [
-    { key: "clubSpeed",   label: "Club speed",   you: stats.avgClubSpeed, tour: tourInUserUnits.clubSpeed, unit: activeSpd,      digits: 1, mode: "higher" },
-    { key: "ballSpeed",   label: "Ball speed",   you: stats.avgBallSpeed, tour: tourInUserUnits.ballSpeed, unit: activeSpd,      digits: 1, mode: "higher" },
-    { key: "smashFactor", label: "Smash factor", you: stats.avgSmash,     tour: tourInUserUnits.smash,     unit: "",             digits: 2, mode: "closer" },
-    { key: "launchAngle", label: "Launch angle", you: stats.avgLaunch,    tour: tourInUserUnits.launch,    unit: "°",            digits: 1, mode: "closer" },
-    { key: "spin",        label: "Spin rate",    you: stats.avgSpin,      tour: tourInUserUnits.spin,      unit: "rpm",          digits: 0, mode: "closer" },
-    { key: "carry",       label: "Carry",        you: stats.avgCarry,     tour: tourInUserUnits.carry,     unit: activeDist,     digits: 1, mode: "higher" },
-    { key: "aoa",         label: "Angle of attack", you: swing?.avgAoA ?? null, tour: tourInUserUnits.aoa, unit: "°",            digits: 1, mode: "closer" },
+    { key: "clubSpeed",   label: "Club speed",      you: stats.avgClubSpeed,    tour: tourInUserUnits.clubSpeed, optimal: optimalInUserUnits.clubSpeed, unit: activeSpd,  digits: 1, direction: "higher" },
+    { key: "ballSpeed",   label: "Ball speed",      you: stats.avgBallSpeed,    tour: tourInUserUnits.ballSpeed, optimal: optimalInUserUnits.ballSpeed, unit: activeSpd,  digits: 1, direction: "higher" },
+    { key: "smashFactor", label: "Smash factor",    you: stats.avgSmash,        tour: tourInUserUnits.smash,     optimal: optimalInUserUnits.smash,     unit: "",         digits: 2, direction: "higher" },
+    { key: "launchAngle", label: "Launch angle",    you: stats.avgLaunch,       tour: tourInUserUnits.launch,    optimal: optimalInUserUnits.launch,    unit: "°",        digits: 1, direction: "toward_tour" },
+    { key: "spin",        label: "Spin rate",       you: stats.avgSpin,         tour: tourInUserUnits.spin,      optimal: optimalInUserUnits.spin,      unit: "rpm",      digits: 0, direction: "toward_tour" },
+    { key: "carry",       label: "Carry",           you: stats.avgCarry,        tour: tourInUserUnits.carry,     optimal: optimalInUserUnits.carry,     unit: activeDist, digits: 1, direction: "higher" },
+    { key: "aoa",         label: "Angle of attack", you: swing?.avgAoA ?? null, tour: tourInUserUnits.aoa,       optimal: optimalInUserUnits.aoa,       unit: "°",        digits: 1, direction: "toward_tour" },
   ];
 
   const benchmarkLabel = BENCHMARK_LABELS[benchmark];
@@ -1387,8 +1412,13 @@ function OptimiseTab({
           <p className="text-xs text-muted-foreground pt-1">
             {benchmark === "tour"
               ? "PGA Tour averages from Trackman. Green = tour-level, orange = close, red = big gap."
-              : "Average amateur golfer (~14 hcp) from Trackman. Green = at or above average, orange = close, red = well below."}
+              : "Average amateur (~14 hcp) from Trackman. Green = trending toward tour, orange = around average, red = further from tour than the average golfer."}
           </p>
+          {benchmark === "amateur" && (
+            <p className="text-[11px] text-muted-foreground/80 pt-1 leading-relaxed">
+              Higher is better for club speed, ball speed, smash and carry. For launch, spin and angle of attack, closer to the tour number is better (amateurs spin the driver too much and don't hit down enough on irons).
+            </p>
+          )}
         </CardHeader>
         <CardContent className="min-w-0 p-0 sm:p-2">
           <div className="grid grid-cols-[1fr_auto_auto] gap-x-3 gap-y-1 text-sm px-3 sm:px-2">
@@ -1396,7 +1426,7 @@ function OptimiseTab({
             <div className="text-xs uppercase tracking-wider text-muted-foreground py-2 text-right">{youColHeader}</div>
             <div className="text-xs uppercase tracking-wider text-muted-foreground py-2 text-right">{themColHeader}</div>
             {rows.map((r) => {
-              const cls = colorClass(r.you, r.tour, r.mode);
+              const cls = colorClass(r.you, r.tour, r.optimal, r.direction, benchmark);
               return (
                 <MetricRow
                   key={r.key as string}
