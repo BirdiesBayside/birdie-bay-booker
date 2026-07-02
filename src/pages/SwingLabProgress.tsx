@@ -1,0 +1,392 @@
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { ArrowLeft, TrendingUp, TrendingDown, Minus, Info as InfoIcon } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import swingLabBadge from "@/assets/swing-lab-badge.png.asset.json";
+import { detectDistanceUnit, detectSpeedUnit, convertDistance, convertSpeed, type Shot } from "@/lib/range-stats";
+
+type Session = { id: string; session_date: string };
+
+type Timeframe = "30" | "90" | "180" | "365";
+const TF_LABEL: Record<Timeframe, string> = {
+  "30": "Last 30 days",
+  "90": "Last 90 days",
+  "180": "Last 6 months",
+  "365": "Last 12 months",
+};
+
+type Direction = "up" | "down" | "flat";
+type TileDef = {
+  key: string;
+  label: string;
+  info: string;
+  higherIsBetter: boolean;
+  fmt: (v: number) => string;
+  minShots: number;
+  // filter shots for this metric (e.g. driver only)
+  filter?: (s: Shot) => boolean;
+  // pull the numeric value from a shot
+  value: (s: Shot) => number | null;
+  // aggregation: mean of values, or stddev for dispersion
+  agg?: "mean" | "sd";
+  // for sessions/week we compute from sessions not shots
+  fromSessions?: boolean;
+};
+
+function isDriver(s: Shot) {
+  const c = (s.club_type || "").toLowerCase();
+  return c === "dr" || c === "driver" || c === "1w";
+}
+
+export default function SwingLabProgress() {
+  const navigate = useNavigate();
+  const { user, isAuthenticated, isLoading } = useAuth();
+  const [tf, setTf] = useState<Timeframe>("90");
+
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) navigate("/");
+  }, [isLoading, isAuthenticated, navigate]);
+
+  const { data: sessions = [] } = useQuery({
+    queryKey: ["progress-sessions", user?.id],
+    enabled: !!user?.id,
+    queryFn: async (): Promise<Session[]> => {
+      const { data, error } = await supabase
+        .from("range_sessions")
+        .select("id, session_date")
+        .order("session_date", { ascending: false });
+      if (error) throw error;
+      return data as Session[];
+    },
+  });
+
+  const sessionIds = useMemo(() => sessions.map((s) => s.id), [sessions]);
+
+  const { data: shotsRaw = [] } = useQuery({
+    queryKey: ["progress-shots", user?.id, sessionIds.length],
+    enabled: !!user?.id && sessionIds.length > 0,
+    queryFn: async (): Promise<Shot[]> => {
+      const { data, error } = await supabase
+        .from("range_shots")
+        .select("*")
+        .in("session_id", sessionIds);
+      if (error) throw error;
+      return data as Shot[];
+    },
+  });
+
+  const srcDist = useMemo(() => detectDistanceUnit(shotsRaw), [shotsRaw]);
+  const srcSpd = useMemo(() => detectSpeedUnit(shotsRaw), [shotsRaw]);
+
+  // Normalise to metres / m/s style — reuse detected source unit for both current and prior windows.
+  const shots = useMemo(() => shotsRaw.map((s) => ({
+    ...s,
+    carry: convertDistance(s.carry, srcDist, srcDist),
+    ball_speed: convertSpeed(s.ball_speed, srcSpd, srcSpd),
+    club_speed: convertSpeed(s.club_speed, srcSpd, srcSpd),
+    side_carry: convertDistance(s.side_carry, srcDist, srcDist),
+  })), [shotsRaw, srcDist, srcSpd]);
+
+  const sessionDate = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const s of sessions) m.set(s.id, s.session_date);
+    return m;
+  }, [sessions]);
+
+  const windows = useMemo(() => {
+    const days = Number(tf);
+    const now = Date.now();
+    const winMs = days * 24 * 60 * 60 * 1000;
+    const current: Shot[] = [];
+    const prior: Shot[] = [];
+    const currentSess: Session[] = [];
+    const priorSess: Session[] = [];
+    for (const s of shots) {
+      const d = sessionDate.get(s.session_id) ?? s.shot_timestamp;
+      if (!d) continue;
+      const ms = new Date(d).getTime();
+      const age = now - ms;
+      if (age <= winMs) current.push(s);
+      else if (age <= winMs * 2) prior.push(s);
+    }
+    for (const s of sessions) {
+      const ms = new Date(s.session_date).getTime();
+      const age = now - ms;
+      if (age <= winMs) currentSess.push(s);
+      else if (age <= winMs * 2) priorSess.push(s);
+    }
+    return { current, prior, currentSess, priorSess, days };
+  }, [shots, sessions, sessionDate, tf]);
+
+  const dLbl = srcDist;
+  const sLbl = srcSpd;
+
+  const tiles: TileDef[] = useMemo(() => [
+    {
+      key: "consistency",
+      label: "Consistency",
+      info: "Repeatability of your driver carry distance. Lower shot-to-shot variation means tighter dispersion and better scoring. Score 0–100.",
+      higherIsBetter: true,
+      fmt: (v) => `${Math.round(v)} / 100`,
+      minShots: 10,
+      filter: isDriver,
+      value: (s) => (s.carry != null && s.carry > 0 ? s.carry : null),
+      agg: "sd",
+    },
+    {
+      key: "carry",
+      label: `Driver Carry (${dLbl})`,
+      info: "Average carry distance with your driver. Higher usually means more speed or better strike quality.",
+      higherIsBetter: true,
+      fmt: (v) => `${Math.round(v)} ${dLbl}`,
+      minShots: 10,
+      filter: isDriver,
+      value: (s) => (s.carry != null && s.carry > 0 ? s.carry : null),
+      agg: "mean",
+    },
+    {
+      key: "ball_speed",
+      label: `Driver Ball Speed (${sLbl})`,
+      info: "Average ball speed off the driver. This is the biggest predictor of driving distance.",
+      higherIsBetter: true,
+      fmt: (v) => `${v.toFixed(1)} ${sLbl}`,
+      minShots: 10,
+      filter: isDriver,
+      value: (s) => (s.ball_speed != null && s.ball_speed > 0 ? s.ball_speed : null),
+      agg: "mean",
+    },
+    {
+      key: "smash",
+      label: "Driver Smash",
+      info: "Ball speed divided by club speed. A pure measure of strike quality. Tour driver benchmark is ~1.48.",
+      higherIsBetter: true,
+      fmt: (v) => v.toFixed(2),
+      minShots: 10,
+      filter: isDriver,
+      value: (s) => (typeof s.smash_factor === "number" && s.smash_factor > 0 && s.smash_factor <= 1.55 ? s.smash_factor : null),
+      agg: "mean",
+    },
+    {
+      key: "dispersion",
+      label: `Driver Dispersion (${dLbl})`,
+      info: "Standard deviation of your driver's left/right miss. Lower is better, more fairways hit.",
+      higherIsBetter: false,
+      fmt: (v) => `± ${v.toFixed(1)} ${dLbl}`,
+      minShots: 10,
+      filter: isDriver,
+      value: (s) => (s.side_carry != null ? s.side_carry : null),
+      agg: "sd",
+    },
+    {
+      key: "frequency",
+      label: "Sessions / Week",
+      info: "How often you're getting into the Swing Lab. Practice frequency drives improvement more than any single session.",
+      higherIsBetter: true,
+      fmt: (v) => v.toFixed(1),
+      minShots: 0,
+      value: () => null,
+      agg: "mean",
+      fromSessions: true,
+    },
+  ], [dLbl, sLbl]);
+
+  const results = tiles.map((t) => computeTile(t, windows));
+
+  return (
+    <div className="min-h-screen bg-background">
+      <header className="sticky top-0 z-40 bg-background/95 backdrop-blur border-b">
+        <div className="container mx-auto px-4 py-3 flex items-center justify-between">
+          <Button variant="ghost" size="sm" onClick={() => navigate("/swing-lab")} className="gap-1">
+            <ArrowLeft className="h-4 w-4" /> Back
+          </Button>
+          <img src={swingLabBadge.url} alt="Swing Lab" className="h-9 md:h-10 object-contain" />
+          <div className="w-16" />
+        </div>
+      </header>
+
+      <main className="container mx-auto px-4 py-4 max-w-3xl">
+        <div className="flex items-end justify-between gap-3 mb-3">
+          <div>
+            <h1 className="text-xl font-anton leading-tight">My Progress</h1>
+            <p className="text-xs text-muted-foreground mt-1">
+              Comparing {TF_LABEL[tf].toLowerCase()} vs the {windows.days} days before that.
+            </p>
+          </div>
+          <Select value={tf} onValueChange={(v) => setTf(v as Timeframe)}>
+            <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {(Object.keys(TF_LABEL) as Timeframe[]).map((k) => (
+                <SelectItem key={k} value={k}>{TF_LABEL[k]}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          {results.map((r) => (
+            <TrendTile key={r.key} result={r} />
+          ))}
+        </div>
+
+        <p className="text-xs text-muted-foreground mt-6 leading-relaxed">
+          Green means the metric is trending better than the previous period. Orange means little change. Red means it's slipping. Tiles need a minimum number of shots in both windows to show a trend.
+        </p>
+      </main>
+    </div>
+  );
+}
+
+// ---------- helpers ----------
+
+type TileResult = {
+  key: string;
+  label: string;
+  info: string;
+  current: number | null;
+  prior: number | null;
+  deltaPct: number | null;
+  direction: Direction | null;
+  higherIsBetter: boolean;
+  fmt: (v: number) => string;
+  status: "improving" | "flat" | "declining" | "insufficient";
+};
+
+function computeTile(
+  t: TileDef,
+  w: { current: Shot[]; prior: Shot[]; currentSess: Session[]; priorSess: Session[]; days: number },
+): TileResult {
+  const calc = (shots: Shot[], sessCount: number) => {
+    if (t.fromSessions) {
+      const weeks = w.days / 7;
+      return weeks > 0 ? sessCount / weeks : null;
+    }
+    const vals: number[] = [];
+    for (const s of shots) {
+      if (t.filter && !t.filter(s)) continue;
+      const v = t.value(s);
+      if (v == null || !Number.isFinite(v)) continue;
+      vals.push(v);
+    }
+    if (vals.length < t.minShots) return null;
+    if (t.agg === "sd") {
+      const m = vals.reduce((a, b) => a + b, 0) / vals.length;
+      const variance = vals.reduce((a, b) => a + (b - m) * (b - m), 0) / vals.length;
+      const sd = Math.sqrt(variance);
+      if (t.key === "consistency") {
+        // Convert CV to 0-100 score (same formula as overview tile)
+        if (m <= 0) return null;
+        const cv = sd / m;
+        return Math.max(0, Math.min(100, 100 - cv * 500));
+      }
+      return sd;
+    }
+    return vals.reduce((a, b) => a + b, 0) / vals.length;
+  };
+
+  const current = calc(w.current, w.currentSess.length);
+  const prior = calc(w.prior, w.priorSess.length);
+
+  let deltaPct: number | null = null;
+  let direction: Direction | null = null;
+  let status: TileResult["status"] = "insufficient";
+  if (current != null && prior != null && prior !== 0) {
+    deltaPct = ((current - prior) / Math.abs(prior)) * 100;
+    const abs = Math.abs(deltaPct);
+    if (abs < 2) {
+      direction = "flat";
+      status = "flat";
+    } else {
+      direction = deltaPct > 0 ? "up" : "down";
+      const better = (deltaPct > 0) === t.higherIsBetter;
+      status = better ? "improving" : "declining";
+    }
+  } else if (current != null) {
+    status = "flat";
+  }
+
+  return {
+    key: t.key, label: t.label, info: t.info,
+    current, prior, deltaPct, direction,
+    higherIsBetter: t.higherIsBetter, fmt: t.fmt, status,
+  };
+}
+
+function TrendTile({ result }: { result: TileResult }) {
+  const styles = statusStyles(result.status);
+  const Icon = result.direction === "up" ? TrendingUp : result.direction === "down" ? TrendingDown : Minus;
+  return (
+    <div className={`rounded-lg border-2 p-4 ${styles.border} ${styles.bg}`}>
+      <div className={`text-[10px] uppercase tracking-widest flex items-center justify-between gap-1 ${styles.label}`}>
+        <span>{result.label}</span>
+        <Popover>
+          <PopoverTrigger asChild>
+            <button type="button" aria-label={`About ${result.label}`} className="opacity-80 hover:opacity-100">
+              <InfoIcon className="h-3.5 w-3.5" />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent side="top" className="max-w-[260px] text-xs leading-relaxed">
+            {result.info}
+          </PopoverContent>
+        </Popover>
+      </div>
+      <div className={`text-2xl font-anton mt-1 leading-tight ${styles.value}`}>
+        {result.current != null ? result.fmt(result.current) : "—"}
+      </div>
+      <div className={`text-xs mt-1 flex items-center gap-1 ${styles.sub}`}>
+        {result.deltaPct != null ? (
+          <>
+            <Icon className="h-3.5 w-3.5" />
+            {result.status === "flat"
+              ? "Little change"
+              : `${result.deltaPct > 0 ? "+" : ""}${result.deltaPct.toFixed(1)}% vs prior`}
+          </>
+        ) : (
+          <span className="text-muted-foreground">Not enough data yet</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function statusStyles(status: TileResult["status"]) {
+  switch (status) {
+    case "improving":
+      return {
+        border: "border-emerald-600/60",
+        bg: "bg-emerald-500/10",
+        label: "text-emerald-800 dark:text-emerald-300",
+        value: "text-emerald-900 dark:text-emerald-100",
+        sub: "text-emerald-800 dark:text-emerald-300",
+      };
+    case "declining":
+      return {
+        border: "border-red-600/60",
+        bg: "bg-red-500/10",
+        label: "text-red-800 dark:text-red-300",
+        value: "text-red-900 dark:text-red-100",
+        sub: "text-red-800 dark:text-red-300",
+      };
+    case "flat":
+      return {
+        border: "border-amber-500/60",
+        bg: "bg-amber-500/10",
+        label: "text-amber-800 dark:text-amber-300",
+        value: "text-amber-900 dark:text-amber-100",
+        sub: "text-amber-800 dark:text-amber-300",
+      };
+    default:
+      return {
+        border: "border-border",
+        bg: "bg-card",
+        label: "text-muted-foreground",
+        value: "text-foreground",
+        sub: "text-muted-foreground",
+      };
+  }
+}

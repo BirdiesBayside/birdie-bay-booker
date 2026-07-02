@@ -44,6 +44,8 @@ const CompLeaderboard = lazy(() => import("./pages/CompLeaderboard"));
 const EmbedLocalCompLeaderboard = lazy(() => import("./pages/EmbedLocalCompLeaderboard"));
 const Gift = lazy(() => import("./pages/Gift"));
 const SwingLab = lazy(() => import("./pages/SwingLab"));
+const SwingLabProgress = lazy(() => import("./pages/SwingLabProgress"));
+
 
 // Public marketing site pages
 const MarketingAbout = lazy(() => import("./pages/marketing/MarketingAbout"));
@@ -238,6 +240,8 @@ const App = () => (
             <Route path="/embed/local-comp-leaderboard" element={<EmbedLocalCompLeaderboard />} />
             <Route path="/gift" element={<Gift />} />
             <Route path="/swing-lab" element={<SwingLab />} />
+            <Route path="/swing-lab/progress" element={<SwingLabProgress />} />
+
             {/* Public Marketing Site Routes */}
             <Route path="/about" element={<MarketingAbout />} />
             <Route path="/membership-info" element={<MarketingMembership />} />
