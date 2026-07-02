@@ -819,7 +819,7 @@ function Kpi({ label, value, icon }: { label: string; value: string; icon?: Reac
         <div className="text-xs uppercase tracking-wide text-muted-foreground flex items-center gap-1">
           {icon}{label}
         </div>
-        <div className="text-2xl font-anton mt-1">{value}</div>
+        <div className="text-2xl font-anton text-primary mt-1">{value}</div>
       </CardContent>
     </Card>
   );
