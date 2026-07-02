@@ -232,7 +232,7 @@ const Dashboard = () => {
               </div>
             </button>
 
-            {/* Range Sessions */}
+            {/* Swing Lab */}
             <button
               onClick={() => hasRangeAccess ? navigate("/range") : navigate("/membership")}
               className={`bg-card rounded-xl p-4 shadow-sm border text-left active:scale-[0.98] transition-all relative ${
