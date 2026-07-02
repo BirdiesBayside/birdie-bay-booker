@@ -234,7 +234,7 @@ const Dashboard = () => {
 
             {/* Swing Lab */}
             <button
-              onClick={() => hasRangeAccess ? navigate("/range") : navigate("/membership")}
+              onClick={() => hasRangeAccess ? navigate("/swing-lab") : navigate("/membership")}
               className={`bg-card rounded-xl p-4 shadow-sm border text-left active:scale-[0.98] transition-all relative ${
                 hasRangeAccess ? "border-border hover:border-accent/50 hover:shadow-md" : "border-border opacity-60"
               }`}

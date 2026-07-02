@@ -53,7 +53,7 @@ type Session = {
   created_at: string;
 };
 
-export default function RangeSessions() {
+export default function SwingLab() {
   const { user, isAuthenticated, isLoading } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -166,7 +166,7 @@ export default function RangeSessions() {
   );
 
   if (isLoading || sessionsLoading) {
-    return <div className="min-h-screen flex items-center justify-center text-muted-foreground">Loading range data…</div>;
+    return <div className="min-h-screen flex items-center justify-center text-muted-foreground">Loading swing lab data…</div>;
   }
 
   const ALLOWED_EMAILS = ["merton123@gmail.com"];
@@ -259,7 +259,7 @@ export default function RangeSessions() {
               <ArrowLeft className="h-4 w-4 mr-1" /> Back
             </Button>
             <h1 className="font-anton text-lg md:text-xl tracking-wide uppercase text-primary">
-              Range Hub
+              Swing Lab
             </h1>
             <div className="w-16" />
           </div>
@@ -271,9 +271,9 @@ export default function RangeSessions() {
           <Card>
             <CardContent className="py-12 text-center space-y-3">
               <Target className="h-10 w-10 mx-auto text-muted-foreground" />
-              <h2 className="text-lg font-semibold">No range sessions yet</h2>
+              <h2 className="text-lg font-semibold">No swing lab sessions yet</h2>
               <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                Range data is captured when you hit <strong>Export</strong> in the GSPro driving range and finish your session.
+                Swing Lab data is captured when you hit <strong>Export</strong> in the GSPro driving range and finish your session.
                 Your shots will appear here automatically after your booking ends.
               </p>
             </CardContent>
