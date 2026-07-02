@@ -1486,25 +1486,54 @@ function MetricRow({
   );
 }
 
-// Coloring logic:
-// - "higher" mode: within 5% below tour = green, 15% = orange, else red. At or above tour is always green.
-// - "closer" mode: |gap|/tour <=8% green, <=20% orange, else red.
+// Direction-aware coloring:
+// - "higher": bigger is better. Green if you meet/exceed benchmark, orange if
+//   within 10% below, red beyond that. Vs tour we tighten to 5% / 15% so the
+//   bar is higher when comparing to pros.
+// - "toward_tour": the tour value is the target regardless of which benchmark
+//   is displayed. Green if you're at least as close to tour as the amateur is
+//   (i.e. trending in the right direction). Orange if within the amateur gap
+//   plus a small tolerance. Red if further from tour than the average golfer.
 function colorClass(
   you: number | null,
-  tour: number,
-  mode: "closer" | "higher" = "closer"
+  benchmarkVal: number,
+  optimalVal: number,
+  direction: "higher" | "toward_tour",
+  benchmark: "tour" | "amateur"
 ): string {
-  if (you == null || !Number.isFinite(you) || tour === 0) return "text-foreground";
-  const pct = (you - tour) / Math.abs(tour);
-  if (mode === "higher") {
-    if (pct >= -0.05) return "text-[hsl(140_60%_40%)]";
-    if (pct >= -0.15) return "text-[hsl(30_90%_50%)]";
-    return "text-destructive";
+  if (you == null || !Number.isFinite(you) || benchmarkVal === 0) return "text-foreground";
+  const GREEN = "text-[hsl(140_60%_40%)]";
+  const ORANGE = "text-[hsl(30_90%_50%)]";
+  const RED = "text-destructive";
+
+  if (direction === "higher") {
+    const pct = (you - benchmarkVal) / Math.abs(benchmarkVal);
+    if (benchmark === "tour") {
+      if (pct >= -0.05) return GREEN;
+      if (pct >= -0.15) return ORANGE;
+      return RED;
+    }
+    // vs amateur — matching the average is expected, exceeding it is green.
+    if (pct >= 0) return GREEN;
+    if (pct >= -0.10) return ORANGE;
+    return RED;
   }
-  const abs = Math.abs(pct);
-  if (abs <= 0.08) return "text-[hsl(140_60%_40%)]";
-  if (abs <= 0.20) return "text-[hsl(30_90%_50%)]";
-  return "text-destructive";
+
+  // toward_tour: measure gap to the tour optimal, not the displayed benchmark.
+  const yourGap = Math.abs(you - optimalVal);
+  const scale = Math.abs(optimalVal) || 1;
+  if (benchmark === "tour") {
+    const rel = yourGap / scale;
+    if (rel <= 0.08) return GREEN;
+    if (rel <= 0.20) return ORANGE;
+    return RED;
+  }
+  // vs amateur: green if you're closer to tour than the amateur is.
+  const amateurGap = Math.abs(benchmarkVal - optimalVal) || scale * 0.05;
+  const ratio = yourGap / amateurGap; // <1 means closer to tour than avg golfer
+  if (ratio <= 1) return GREEN;
+  if (ratio <= 1.5) return ORANGE;
+  return RED;
 }
 
 // Local unit converters used only by OptimiseTab (avoids re-importing).
