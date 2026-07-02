@@ -305,19 +305,19 @@ export default function SwingLab() {
               <div className="flex items-center">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button className="flex items-center gap-1.5 bg-card border border-border rounded-lg px-3 py-1.5 shadow-sm active:scale-[0.98] transition-transform">
-                      <span className="font-anton text-sm uppercase tracking-wide text-primary">
+                    <button className="flex items-center gap-2.5 bg-card border border-border rounded-lg px-5 py-3 shadow-sm active:scale-[0.98] transition-transform">
+                      <span className="font-anton text-xl uppercase tracking-wide text-primary">
                         {TABS.find((t) => t.value === activeTab)?.label}
                       </span>
-                      <ChevronDown className="h-3.5 w-3.5 text-accent" />
+                      <ChevronDown className="h-5 w-5 text-accent" />
                     </button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="min-w-[180px]">
+                  <DropdownMenuContent align="start" className="min-w-[240px]">
                     {TABS.map((t) => (
                       <DropdownMenuItem
                         key={t.value}
                         onSelect={() => setActiveTab(t.value)}
-                        className={`font-medium cursor-pointer ${
+                        className={`font-anton uppercase tracking-wide text-base py-2.5 cursor-pointer ${
                           activeTab === t.value ? "text-accent bg-accent/10" : "text-foreground"
                         }`}
                       >
