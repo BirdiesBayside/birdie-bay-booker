@@ -17,7 +17,7 @@ import {
   DropdownMenuCheckboxItem,
 } from "@/components/ui/dropdown-menu";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
-import { Settings2 } from "lucide-react";
+import { Settings2, FlaskConical } from "lucide-react";
 import { ArrowLeft, Check, ChevronDown, Target, TrendingUp } from "lucide-react";
 import {
   statsByClub, swingStatsByClub, sortClubs, fmt, mean, max,
@@ -157,6 +157,34 @@ export default function RangeSessions() {
 
   if (isLoading || sessionsLoading) {
     return <div className="min-h-screen flex items-center justify-center text-muted-foreground">Loading range data…</div>;
+  }
+
+  const ALLOWED_EMAILS = ["merton123@gmail.com"];
+  if (!user?.email || !ALLOWED_EMAILS.includes(user.email.toLowerCase())) {
+    return (
+      <div className="min-h-screen bg-background text-foreground flex flex-col">
+        <header className="border-b border-border/50 safe-area-top">
+          <div className="max-w-6xl mx-auto px-4 py-3">
+            <Button variant="ghost" size="sm" className="-ml-2" onClick={() => navigate("/dashboard")}>
+              <ArrowLeft className="h-4 w-4 mr-1" /> Back
+            </Button>
+          </div>
+        </header>
+        <div className="flex-1 flex items-center justify-center px-6">
+          <div className="text-center max-w-sm space-y-4">
+            <div className="relative mx-auto h-20 w-20 rounded-2xl bg-accent/10 flex items-center justify-center">
+              <FlaskConical className="h-10 w-10 text-accent" />
+              <span className="absolute bottom-4 left-1/2 -translate-x-1/2 h-2.5 w-2.5 rounded-full bg-accent" />
+            </div>
+            <h1 className="text-2xl font-bold">Swing Lab</h1>
+            <p className="text-muted-foreground">
+              We're cooking up something special. Detailed shot data, gapping, dispersion and swing analytics are coming soon.
+            </p>
+            <Button onClick={() => navigate("/dashboard")} className="mt-2">Back to dashboard</Button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   const unitBar = (

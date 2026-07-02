@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
-import { LogOut, Calendar, Settings, ClipboardList, Trophy, Lock, Users, Info, Megaphone, Plus, Trash2, CalendarDays, Target } from "lucide-react";
+import { LogOut, Calendar, Settings, ClipboardList, Trophy, Lock, Users, Info, Megaphone, Plus, Trash2, CalendarDays, FlaskConical } from "lucide-react";
 import birdiesLogo from "@/assets/birdies-logo.png";
 import { supabase } from "@/integrations/supabase/client";
 import { NotificationBell } from "@/components/NotificationBell";
@@ -232,7 +232,7 @@ const Dashboard = () => {
               </div>
             </button>
 
-            {/* Range Sessions */}
+            {/* Swing Lab */}
             <button
               onClick={() => hasRangeAccess ? navigate("/range") : navigate("/membership")}
               className={`bg-card rounded-xl p-4 shadow-sm border text-left active:scale-[0.98] transition-all relative ${
@@ -246,10 +246,11 @@ const Dashboard = () => {
                 </div>
               )}
               <div className="flex items-center gap-3">
-                <div className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 ${hasRangeAccess ? "bg-accent/10" : "bg-muted"}`}>
-                  <Target className={`h-5 w-5 ${hasRangeAccess ? "text-accent" : "text-muted-foreground"}`} />
+                <div className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 relative ${hasRangeAccess ? "bg-accent/10" : "bg-muted"}`}>
+                  <FlaskConical className={`h-5 w-5 ${hasRangeAccess ? "text-accent" : "text-muted-foreground"}`} />
+                  <span className={`absolute bottom-[9px] left-1/2 -translate-x-1/2 h-1.5 w-1.5 rounded-full ${hasRangeAccess ? "bg-accent" : "bg-muted-foreground"}`} />
                 </div>
-                <h2 className={`font-semibold text-base ${hasRangeAccess ? "" : "text-muted-foreground"}`}>Range Sessions</h2>
+                <h2 className={`font-semibold text-base ${hasRangeAccess ? "" : "text-muted-foreground"}`}>Swing Lab</h2>
               </div>
             </button>
 
