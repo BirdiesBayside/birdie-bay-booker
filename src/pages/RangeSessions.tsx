@@ -245,8 +245,8 @@ export default function RangeSessions() {
     { value: "overview", label: "Overview" },
     { value: "gapping", label: "Gapping" },
     { value: "dispersion", label: "Dispersion" },
-    { value: "swing", label: "Swing" },
-    { value: "consistency", label: "Consistency" },
+    { value: "swing", label: "Data" },
+    { value: "optimise", label: "Optimise" },
     { value: "sessions", label: "Sessions" },
   ];
 
