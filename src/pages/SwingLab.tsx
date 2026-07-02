@@ -245,11 +245,11 @@ export default function SwingLab() {
 
   const TABS: { value: string; label: string }[] = [
     { value: "overview", label: "Overview" },
+    { value: "sessions", label: "Sessions" },
     { value: "gapping", label: "Gapping" },
     { value: "dispersion", label: "Dispersion" },
     { value: "swing", label: "Data" },
     { value: "optimise", label: "Optimise" },
-    { value: "sessions", label: "Sessions" },
   ];
 
   return (
