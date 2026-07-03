@@ -12,6 +12,8 @@ import { Lock, Wifi, Power, Clock, AlertTriangle, CheckCircle, XCircle, Settings
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format, addMinutes, isBefore, isAfter, parseISO } from "date-fns";
+import { SGTPlayerOverlay } from "@/components/bay-controller/SGTPlayerOverlay";
+import { SGTIconButton } from "@/components/bay-controller/SGTIconButton";
 import { AppRestoreSettings } from "@/components/bay-controller/AppRestoreSettings";
 import { PlugDiagnostics } from "@/components/bay-controller/PlugDiagnostics";
 import { restoreUserGsproSettings, saveUserGsproSettings, sweepAndUploadRangeCsvs } from "@/lib/range-sync";
@@ -77,6 +79,10 @@ interface NotificationConfig {
   }[];
 }
 
+interface SGTOverlayConfig {
+  enabled: boolean;
+  displayLabel: string; // Which display to show the SGT icon on (customer-visible)
+}
 
 // ActiveNotification interface removed - now using Electron popup windows
 
@@ -261,6 +267,23 @@ export default function BayController() {
   // Timestamp of the last plug-on event, used to calculate timing gap at app launch
   const lastPlugOnTimeRef = useRef<number | null>(null);
   
+  // SGT Player overlay state
+  const [showSGTOverlay, setShowSGTOverlay] = useState(false);
+  const [sgtIconHidden, setSgtIconHidden] = useState(false);
+  
+  // Auto-update state
+  const [updateDownloaded, setUpdateDownloaded] = useState<string | null>(null);
+  const [updateDownloading, setUpdateDownloading] = useState(false);
+  const [sgtIconPosition, setSgtIconPosition] = useState<"top-left" | "top-right" | "bottom-left" | "bottom-right">(() => {
+    const saved = localStorage.getItem("bayController_sgtIconPosition");
+    return (saved as "top-left" | "top-right" | "bottom-left" | "bottom-right") || "top-right";
+  });
+  
+  // SGT Overlay config (for customer-visible displays)
+  const [sgtOverlayConfig, setSgtOverlayConfig] = useState<SGTOverlayConfig>(() => {
+    const saved = localStorage.getItem("bayController_sgtOverlayConfig");
+    return saved ? JSON.parse(saved) : { enabled: false, displayLabel: "" };
+  });
   
   // Centralized logging hook for backend logs
   const bayLogger = useBayControllerLogger({
@@ -438,22 +461,99 @@ export default function BayController() {
     };
   }, [isElectron, appsRunning, activeBooking?.id, bayLogger, addLog, runSwingLabCloseSync]);
 
+  // F9 hotkey to toggle SGT overlay (for authenticated staff - shows in-app overlay)
+  // F7 hotkey to toggle SGT overlay (for customers - triggers Electron overlay on external display)
+  useEffect(() => {
+    const handleKeyDown = async (e: KeyboardEvent) => {
+      // F9 toggles SGT overlay when authenticated (works with or without active booking)
+      if (e.key === 'F9' && isAuthenticated) {
+        e.preventDefault();
+        console.log('[BayController] F9 pressed, toggling SGT overlay');
+        setShowSGTOverlay(prev => !prev);
+      }
+      // F7 toggles SGT info overlay for customers via Electron (works when there's an active SGT-linked booking)
+      if (e.key === 'F7' && activeBooking?.sgt_game_id && isElectron && window.electronAPI) {
+        e.preventDefault();
+        console.log('[BayController] F7 pressed, toggling SGT info overlay for customer');
+        try {
+          await window.electronAPI.toggleSgtInfoOverlay();
+        } catch (err) {
+          console.error('Failed to toggle SGT info overlay:', err);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isAuthenticated, activeBooking?.sgt_game_id, isElectron]);
 
   // Track previous booking ID to detect when a NEW booking starts
   const prevBookingIdRef = useRef<string | null>(null);
   
+  // Reset sgtIconHidden only when a NEW booking starts (different booking ID)
   useEffect(() => {
     if (activeBooking?.id && activeBooking.id !== prevBookingIdRef.current) {
+      // New booking started - reset the hidden state so icon can show
+      console.log('[BayController] New booking detected, resetting sgtIconHidden');
+      setSgtIconHidden(false);
       prevBookingIdRef.current = activeBooking.id;
     } else if (!activeBooking?.id) {
       prevBookingIdRef.current = null;
     }
   }, [activeBooking?.id]);
   
+  // Manage the Electron SGT icon overlay on customer displays
+  // SGT Icon should only appear when apps are running (1 min before session when apps launch)
+  useEffect(() => {
+    // Only show if: has SGT booking, apps running, not hidden by user, and overlay is configured
+    const shouldShow = activeBooking?.sgt_game_id && appsRunning && !sgtIconHidden && 
+                       sgtOverlayConfig.enabled && sgtOverlayConfig.displayLabel;
+    
+    if (shouldShow && isElectron && window.electronAPI) {
+      const playerData = {
+        customerName: activeBooking.customer_name || 'Guest',
+        sgtUsername: activeBooking.sgt_username || '',
+        sgtGameId: activeBooking.sgt_game_id || ''
+      };
+      window.electronAPI.showSgtIconOverlay(sgtOverlayConfig.displayLabel, sgtIconPosition, playerData)
+        .catch(err => console.error('Failed to show SGT icon overlay:', err));
+    } else if (!shouldShow && isElectron && window.electronAPI) {
+      // Close the overlays when conditions are not met
+      window.electronAPI.closeSgtIconOverlay()
+        .catch(err => console.error('Failed to close SGT icon overlay:', err));
+      // Also close info overlay if no active SGT booking or apps not running
+      if (!activeBooking?.sgt_game_id || !appsRunning) {
+        window.electronAPI.closeSgtInfoOverlay()
+          .catch(err => console.error('Failed to close SGT info overlay:', err));
+      }
+    }
+  }, [activeBooking?.id, activeBooking?.sgt_game_id, activeBooking?.customer_name, activeBooking?.sgt_username, sgtOverlayConfig.enabled, sgtOverlayConfig.displayLabel, sgtIconPosition, isElectron, sgtIconHidden, appsRunning]);
 
   // Note: Closing overlays when icon is hidden is now handled by the main SGT overlay effect above
 
+  // Listen for SGT icon click from the overlay window
+  useEffect(() => {
+    if (isElectron && window.electronAPI?.onSgtIconClicked) {
+      const cleanup = window.electronAPI.onSgtIconClicked(() => {
+        console.log('[BayController] SGT icon clicked from overlay');
+        // The info overlay is now shown directly by Electron, no need to set state
+      });
+      return cleanup;
+    }
+  }, [isElectron]);
+
   // Listen for SGT icon hidden event from the overlay window
+  useEffect(() => {
+    if (isElectron && window.electronAPI?.onSgtIconHidden) {
+      const cleanup = window.electronAPI.onSgtIconHidden(() => {
+        console.log('[BayController] SGT icon hidden from overlay');
+        setSgtIconHidden(true);
+      });
+      return cleanup;
+    }
+  }, [isElectron]);
+
+  // Check if running in Electron and load saved credentials/config
   useEffect(() => {
     const electronCheck = !!window.electronAPI?.isElectron;
     setIsElectron(electronCheck);
@@ -3211,6 +3311,20 @@ export default function BayController() {
                     </p>
                   </div>
                   <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setShowSGTOverlay(true)}
+                    className={activeBooking.sgt_user_id ? "border-green-500 text-green-600" : ""}
+                  >
+                    <User className="w-4 h-4 mr-1" />
+                    SGT
+                    {activeBooking.sgt_user_id && <Badge variant="secondary" className="ml-1 text-xs">Linked</Badge>}
+                  </Button>
+                </div>
+              </div>
+            )}
+            {/* Mode Toggle */}
+            <div className="flex items-center justify-between pt-3 border-t border-border mt-4">
               <div>
                 <Label className="text-sm">Control Mode</Label>
                 <p className="text-xs text-muted-foreground">
@@ -3687,6 +3801,102 @@ export default function BayController() {
           <AppRestoreSettings isElectron={isElectron} />
         </CollapsibleSettingsCard>
 
+        {/* SGT Icon Settings - Collapsible */}
+        <CollapsibleSettingsCard title="SGT Icon" icon={<User className="w-5 h-5" />} defaultOpen={false}>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              When a customer with a linked SGT account has an active booking, an SGT icon button appears on screen. 
+              They can click it to view their SGT details for GSPro login.
+            </p>
+            
+            {/* Enable overlay on customer display */}
+            <div className="flex items-center justify-between">
+              <div>
+                <Label>Show on customer display</Label>
+                <p className="text-sm text-muted-foreground">
+                  Display SGT icon on a customer-visible screen (bypasses password)
+                </p>
+              </div>
+              <Switch
+                checked={sgtOverlayConfig.enabled}
+                onCheckedChange={(checked) => {
+                  const newConfig = { ...sgtOverlayConfig, enabled: checked };
+                  setSgtOverlayConfig(newConfig);
+                  localStorage.setItem("bayController_sgtOverlayConfig", JSON.stringify(newConfig));
+                }}
+              />
+            </div>
+            
+            {/* Display selector for customer-visible SGT icon */}
+            {sgtOverlayConfig.enabled && (
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground flex items-center gap-2">
+                  Customer display
+                  {sgtOverlayConfig.displayLabel && (
+                    displays.some(d => d.label === sgtOverlayConfig.displayLabel) 
+                      ? <Badge variant="default" className="text-[10px] px-1 py-0">Available</Badge>
+                      : <Badge variant="destructive" className="text-[10px] px-1 py-0">Offline</Badge>
+                  )}
+                </Label>
+                <Select 
+                  value={sgtOverlayConfig.displayLabel} 
+                  onValueChange={(v) => {
+                    const newConfig = { ...sgtOverlayConfig, displayLabel: v };
+                    setSgtOverlayConfig(newConfig);
+                    localStorage.setItem("bayController_sgtOverlayConfig", JSON.stringify(newConfig));
+                  }}
+                >
+                  <SelectTrigger className="text-xs">
+                    <SelectValue placeholder="Select display">
+                      {sgtOverlayConfig.displayLabel || "Select display"}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {displays.map((d) => (
+                      <SelectItem key={d.id} value={d.label}>
+                        {d.label} {d.isPrimary ? "(Primary)" : ""}
+                      </SelectItem>
+                    ))}
+                    {sgtOverlayConfig.displayLabel && 
+                     !displays.some(d => d.label === sgtOverlayConfig.displayLabel) && (
+                      <SelectItem value={sgtOverlayConfig.displayLabel} className="text-muted-foreground">
+                        {sgtOverlayConfig.displayLabel} (Saved - Offline)
+                      </SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            
+            <Separator />
+            
+            <div className="space-y-2">
+              <Label>Icon Position</Label>
+              <Select
+                value={sgtIconPosition}
+                onValueChange={(value) => {
+                  const pos = value as "top-left" | "top-right" | "bottom-left" | "bottom-right";
+                  setSgtIconPosition(pos);
+                  localStorage.setItem("bayController_sgtIconPosition", pos);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select position" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="top-right">Top Right</SelectItem>
+                  <SelectItem value="top-left">Top Left</SelectItem>
+                  <SelectItem value="bottom-right">Bottom Right</SelectItem>
+                  <SelectItem value="bottom-left">Bottom Left</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-lg space-y-1">
+              <p className="font-medium">Keyboard shortcuts:</p>
+              <p>• F7 - Customers can press to show SGT info</p>
+              <p>• F9 - Staff can press when authenticated</p>
+            </div>
           </div>
         </CollapsibleSettingsCard>
 
@@ -4018,3 +4228,22 @@ export default function BayController() {
         </div>
       )}
 
+      {/* SGT Icon Button removed - now only shows on external display via Electron overlay */}
+
+      {/* SGT Player Overlay */}
+      <SGTPlayerOverlay
+        isOpen={showSGTOverlay}
+        onClose={() => setShowSGTOverlay(false)}
+        sgtGameId={activeBooking?.sgt_game_id || null}
+        sgtUsername={activeBooking?.sgt_username || null}
+        customerName={activeBooking?.customer_name || null}
+        isElectron={isElectron}
+        nextBooking={!activeBooking ? bookings.find(b => {
+          const now = new Date();
+          const startTime = parseISO(`${b.booking_date}T${b.start_time}`);
+          return isAfter(startTime, now) && b.status === 'confirmed';
+        }) : undefined}
+      />
+    </div>
+  );
+}
