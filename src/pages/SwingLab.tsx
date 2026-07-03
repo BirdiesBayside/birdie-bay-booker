@@ -269,7 +269,7 @@ export default function SwingLab() {
             </Button>
             <img src={swingLabBadge.url} alt="Swing Lab" className="h-9 md:h-10 w-auto object-contain" />
 
-            <Button variant="ghost" size="sm" className="-mr-2" onClick={() => setHowToOpen(true)}>
+            <Button variant="ghost" size="sm" className="-mr-2 border border-accent" onClick={() => setHowToOpen(true)}>
               <HelpCircle className="h-4 w-4 mr-1" /> How To
             </Button>
           </div>
