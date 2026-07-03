@@ -13,6 +13,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format, addMinutes, isBefore, isAfter, parseISO } from "date-fns";
 import { restoreUserGsproSettings, saveUserGsproSettings, sweepAndUploadRangeCsvs } from "@/lib/range-sync";
+import { PlugDiagnostics } from "@/components/bay-controller/PlugDiagnostics";
+import { AppRestoreSettings } from "@/components/bay-controller/AppRestoreSettings";
 
 interface Booking {
   id: string;

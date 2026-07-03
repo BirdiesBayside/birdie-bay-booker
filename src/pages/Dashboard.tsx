@@ -29,7 +29,7 @@ const Dashboard = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [accountAccessLoading, setAccountAccessLoading] = useState(true);
   const [whatsOnOpen, setWhatsOnOpen] = useState(false);
-  const [swingLabInfoOpen, setSwingLabInfoOpen] = useState(false);
+  
   const [showEventForm, setShowEventForm] = useState(false);
   const [newEventTitle, setNewEventTitle] = useState("");
   const [newEventDesc, setNewEventDesc] = useState("");
@@ -278,19 +278,6 @@ const Dashboard = () => {
                   <span>Members</span>
                 </div>
               )}
-              <a
-                href="#"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setSwingLabInfoOpen(true);
-                }}
-                className="absolute top-3 right-3 h-6 w-6 rounded-full bg-muted hover:bg-muted/80 flex items-center justify-center transition-colors z-10"
-                style={!hasRangeAccess ? { right: "5.5rem" } : {}}
-                title="How to use Swing Lab"
-              >
-                <Info className="h-4 w-4 text-muted-foreground" />
-              </a>
               <div className="flex items-center gap-3">
                 <img
                   src={swingLabBadge.url}
@@ -471,20 +458,6 @@ const Dashboard = () => {
         </SheetContent>
       </Sheet>
 
-      {/* Swing Lab Info Dialog */}
-      <Dialog open={swingLabInfoOpen} onOpenChange={setSwingLabInfoOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <img src={swingLabBadge.url} alt="Swing Lab" className="h-6 w-6 rounded-full object-cover" />
-              Swing Lab
-            </DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground leading-relaxed">
-            To use Birdies Swing Lab, simply export your driving range session in GSPRO. Your exported sessions automatically sync into your Hub account. Ensure you chose the right club!
-          </p>
-        </DialogContent>
-      </Dialog>
 
       <footer className="bg-primary py-4 px-6 text-center">
         <p className="text-primary-foreground/60 text-sm">
