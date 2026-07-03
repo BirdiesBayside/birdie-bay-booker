@@ -174,6 +174,28 @@ serve(async (req) => {
     const payingMemberIds = new Set((linkedProfiles || []).map(p => p.sgt_user_id));
     console.log(`[SGT-CLEANUP] Found ${payingMemberIds.size} eligible profiles (paying + staff)`);
 
+    // 7b. Grace period — protect anyone who was a paying member within the last 4 weeks
+    // (covers members mid-lapse or between subscription cycles so we don't churn them out of SGT)
+    const fourWeeksAgo = new Date(Date.now() - 28 * 24 * 60 * 60 * 1000).toISOString();
+    const { data: recentPayingChanges } = await supabase
+      .from("membership_changes")
+      .select("user_id, previous_tier, new_tier, changed_at")
+      .or("previous_tier.in.(birdie,eagle),new_tier.in.(birdie,eagle)")
+      .gte("changed_at", fourWeeksAgo);
+
+    const recentPayingUserIds = new Set((recentPayingChanges || []).map(c => c.user_id));
+    if (recentPayingUserIds.size > 0) {
+      const { data: recentProfiles } = await supabase
+        .from("profiles")
+        .select("sgt_user_id")
+        .in("user_id", Array.from(recentPayingUserIds))
+        .not("sgt_user_id", "is", null);
+      for (const p of recentProfiles || []) {
+        if (p.sgt_user_id) payingMemberIds.add(p.sgt_user_id);
+      }
+    }
+    console.log(`[SGT-CLEANUP] Protected pool after 4-week grace period: ${payingMemberIds.size}`);
+
     // 8. Find ineligible members across all three: club, tour, and registrations
     const allMemberIds = new Map<number, string>();
     
