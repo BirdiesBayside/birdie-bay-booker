@@ -3393,18 +3393,27 @@ ipcMain.handle('get-gspro-launch-ts', async () => {
 ipcMain.handle('scan-desktop-csvs', async (_e, { sinceMs } = {}) => {
   try {
     const desk = getDesktopPath();
-    if (!fs.existsSync(desk)) return { success: false, error: 'Desktop path not found', csvs: [] };
+    console.log(`[Range] scan-desktop-csvs desktop=${desk} sinceMs=${sinceMs ?? 'none'}`);
+    if (!fs.existsSync(desk)) {
+      console.error(`[Range] Desktop path does not exist: ${desk}`);
+      return { success: false, error: `Desktop path not found: ${desk}`, csvs: [], desktopPath: desk };
+    }
     const entries = fs.readdirSync(desk);
+    const allCsvNames = entries.filter(n => n.toLowerCase().endsWith('.csv'));
+    console.log(`[Range] Found ${allCsvNames.length} CSV(s) on desktop total: ${allCsvNames.join(', ') || '(none)'}`);
     const csvs = [];
+    const rejected = [];
     for (const name of entries) {
       if (!name.toLowerCase().endsWith('.csv')) continue;
       const full = path.join(desk, name);
       let stat;
-      try { stat = fs.statSync(full); } catch { continue; }
-      if (!stat.isFile()) continue;
-      if (sinceMs && stat.mtimeMs < sinceMs) continue;
-      // Cap size at 5MB to avoid absurd payloads
-      if (stat.size > 5 * 1024 * 1024) continue;
+      try { stat = fs.statSync(full); } catch (err) { rejected.push(`${name}: stat error`); continue; }
+      if (!stat.isFile()) { rejected.push(`${name}: not a file`); continue; }
+      if (sinceMs && stat.mtimeMs < sinceMs) {
+        rejected.push(`${name}: mtime ${new Date(stat.mtimeMs).toISOString()} older than launch ${new Date(sinceMs).toISOString()}`);
+        continue;
+      }
+      if (stat.size > 5 * 1024 * 1024) { rejected.push(`${name}: too large (${stat.size} bytes)`); continue; }
       const content = fs.readFileSync(full);
       csvs.push({
         filename: name,
@@ -3413,7 +3422,9 @@ ipcMain.handle('scan-desktop-csvs', async (_e, { sinceMs } = {}) => {
         size: stat.size,
       });
     }
-    return { success: true, csvs };
+    if (rejected.length) console.log(`[Range] Rejected ${rejected.length} CSV(s): ${rejected.join(' | ')}`);
+    console.log(`[Range] Returning ${csvs.length} CSV(s) after filter`);
+    return { success: true, csvs, desktopPath: desk, totalCsvOnDesktop: allCsvNames.length, rejectedReasons: rejected };
   } catch (error) {
     console.error('[Range] scan-desktop-csvs failed:', error);
     return { success: false, error: error.message, csvs: [] };
