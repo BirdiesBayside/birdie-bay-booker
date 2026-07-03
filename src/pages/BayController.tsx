@@ -442,6 +442,10 @@ export default function BayController() {
   // Track previous booking ID to detect when a NEW booking starts
   const prevBookingIdRef = useRef<string | null>(null);
   
+  useEffect(() => {
+    if (activeBooking?.id && activeBooking.id !== prevBookingIdRef.current) {
+      prevBookingIdRef.current = activeBooking.id;
+    } else if (!activeBooking?.id) {
       prevBookingIdRef.current = null;
     }
   }, [activeBooking?.id]);
