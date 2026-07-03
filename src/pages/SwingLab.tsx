@@ -269,10 +269,49 @@ export default function SwingLab() {
             </Button>
             <img src={swingLabBadge.url} alt="Swing Lab" className="h-9 md:h-10 w-auto object-contain" />
 
-            <div className="w-16" />
+            <img src={swingLabBadge.url} alt="Swing Lab" className="h-9 md:h-10 w-auto object-contain" />
+
+            <Button variant="ghost" size="sm" className="-mr-2" onClick={() => setHowToOpen(true)}>
+              <HelpCircle className="h-4 w-4 mr-1" /> How To
+            </Button>
           </div>
         </div>
       </header>
+
+      <Dialog open={howToOpen} onOpenChange={setHowToOpen}>
+        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <img src={swingLabBadge.url} alt="" className="h-6 w-6 rounded-full object-cover" />
+              How to use Swing Lab
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-5 text-sm">
+            <ol className="space-y-3 list-decimal pl-5">
+              <li>Start a driving range session, ensuring you change to the correct club every time in the bottom left.</li>
+              <li>
+                <div className="flex items-start gap-3 flex-wrap">
+                  <span>Once you have completed your session, click the clipboard in the top left:</span>
+                  <img
+                    src={swingLabClipboard.url}
+                    alt="GSPro clipboard icon"
+                    className="h-12 w-12 rounded-md border border-border object-contain bg-background"
+                  />
+                </div>
+              </li>
+              <li>Click <strong>Export to CSV</strong>.</li>
+              <li><strong>Done!</strong> The system will automatically send this to your Hub for analysis.</li>
+            </ol>
+            <div className="border-t border-border pt-4 space-y-2">
+              <h4 className="font-semibold text-foreground">Tips</h4>
+              <ol className="space-y-2 list-decimal pl-5 text-muted-foreground">
+                <li>You can remove any outlier or bad shots by clicking the clipboard and deleting the individual shots. The Hub has a <strong>Hide Outliers</strong> filter too.</li>
+                <li>Go into <strong>Settings &gt; Players</strong> and select your profile. Click <strong>My Bag</strong>. Customise the bag to match your actual clubs, then click <strong>Update Bag</strong>. This will be saved for your future sessions.</li>
+              </ol>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <main className="max-w-6xl mx-auto px-4 py-4 space-y-4">
         {sessions.length === 0 ? (
