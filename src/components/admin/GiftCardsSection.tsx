@@ -163,7 +163,7 @@ export function GiftCardsSection() {
 
         // Send gift card email via edge function
         try {
-          const { error: emailError } = await supabase.functions.invoke("issue-gift-card", {
+          const { error: emailError } = await supabase.functions.invoke("issue-admin-gift-card", {
             body: {
               gift_card_id: newGiftCard.id,
               recipient_email: recipientEmail.toLowerCase().trim(),
