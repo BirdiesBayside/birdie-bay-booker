@@ -121,11 +121,17 @@ export async function sweepAndUploadRangeCsvs(opts: {
   L(`[CSV] GSPro launch timestamp: ${sinceMs ? new Date(sinceMs).toISOString() : "(none — will scan all CSVs)"}`, "info");
 
   const scan = await window.electronAPI.scanDesktopCsvs(sinceMs);
+  const scanAny = scan as any;
+  if (scanAny.desktopPath) L(`[CSV] Desktop path: ${scanAny.desktopPath}`, "info");
+  if (typeof scanAny.totalCsvOnDesktop === "number") L(`[CSV] Total .csv files present on Desktop: ${scanAny.totalCsvOnDesktop}`, "info");
   if (!scan.success) {
     L(`[CSV] Desktop scan FAILED: ${scan.error ?? "unknown"}`, "error");
     return { uploaded, failed };
   }
-  L(`[CSV] Desktop scan found ${scan.csvs.length} CSV(s) matching filter`, scan.csvs.length ? "info" : "warning");
+  L(`[CSV] Desktop scan returned ${scan.csvs.length} CSV(s) after filter`, scan.csvs.length ? "info" : "warning");
+  if (Array.isArray(scanAny.rejectedReasons) && scanAny.rejectedReasons.length) {
+    L(`[CSV] Rejected: ${scanAny.rejectedReasons.join(" | ")}`, "warning");
+  }
   if (scan.csvs.length === 0) {
     L("[CSV] Nothing to upload. Confirm GSPro range export saves .csv to the Windows Desktop.", "warning");
     return { uploaded, failed };
