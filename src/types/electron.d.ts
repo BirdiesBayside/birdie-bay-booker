@@ -56,20 +56,6 @@ declare global {
       // Notification popup
       showNotificationPopup: (message: string, displayLabel: string, durationMs: number) => Promise<{ success: boolean; error?: string }>;
       closeNotificationPopup: () => Promise<{ success: boolean; error?: string }>;
-      // SGT icon overlay
-      showSgtIconOverlay: (displayLabel: string, position: string, playerData?: { customerName?: string; sgtUsername?: string; sgtGameId?: string }) => Promise<{ success: boolean; error?: string }>;
-      closeSgtIconOverlay: () => Promise<{ success: boolean; error?: string }>;
-      showSgtInfoOverlay: (displayLabel: string, playerData?: { customerName?: string; sgtUsername?: string; sgtGameId?: string }) => Promise<{ success: boolean; error?: string }>;
-      closeSgtInfoOverlay: () => Promise<{ success: boolean; error?: string }>;
-      toggleSgtInfoOverlay: () => Promise<{ success: boolean; visible?: boolean; error?: string }>;
-      updateSgtIconPosition: (displayLabel: string, position: string) => Promise<{ success: boolean }>;
-      // These are called internally by overlay windows
-      sgtIconClicked: () => void;
-      showSgtHideConfirm: () => void;
-      cancelSgtHideConfirm: () => void;
-      sgtIconHideConfirmed: () => void;
-      onSgtIconClicked: (callback: () => void) => () => void;
-      onSgtIconHidden: (callback: () => void) => () => void;
       // Auto-update
       installUpdate: () => Promise<{ success: boolean }>;
       checkForUpdates: () => Promise<{ success: boolean; currentVersion?: string; latestVersion?: string; error?: string }>;
