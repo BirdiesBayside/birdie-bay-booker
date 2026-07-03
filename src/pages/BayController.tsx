@@ -77,10 +77,6 @@ interface NotificationConfig {
   }[];
 }
 
-interface SGTOverlayConfig {
-  enabled: boolean;
-  displayLabel: string; // Which display to show the SGT icon on (customer-visible)
-}
 
 // ActiveNotification interface removed - now using Electron popup windows
 
