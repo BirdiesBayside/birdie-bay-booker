@@ -85,6 +85,7 @@ export default function SwingLab() {
   useEffect(() => { if (spdUnit) localStorage.setItem("range.spdUnit", spdUnit); }, [spdUnit]);
   useEffect(() => { localStorage.setItem("range.trim", trim ? "1" : "0"); }, [trim]);
   const [activeTab, setActiveTab] = useState("overview");
+  const [howToOpen, setHowToOpen] = useState(false);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) navigate("/");
