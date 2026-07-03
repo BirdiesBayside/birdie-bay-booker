@@ -458,20 +458,6 @@ const Dashboard = () => {
         </SheetContent>
       </Sheet>
 
-      {/* Swing Lab Info Dialog */}
-      <Dialog open={swingLabInfoOpen} onOpenChange={setSwingLabInfoOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <img src={swingLabBadge.url} alt="Swing Lab" className="h-6 w-6 rounded-full object-cover" />
-              Swing Lab
-            </DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground leading-relaxed">
-            To use Birdies Swing Lab, simply export your driving range session in GSPRO. Your exported sessions automatically sync into your Hub account. Ensure you chose the right club!
-          </p>
-        </DialogContent>
-      </Dialog>
 
       <footer className="bg-primary py-4 px-6 text-center">
         <p className="text-primary-foreground/60 text-sm">
