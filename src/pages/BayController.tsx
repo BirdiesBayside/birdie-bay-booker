@@ -12,8 +12,6 @@ import { Lock, Wifi, Power, Clock, AlertTriangle, CheckCircle, XCircle, Settings
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format, addMinutes, isBefore, isAfter, parseISO } from "date-fns";
-import { SGTPlayerOverlay } from "@/components/bay-controller/SGTPlayerOverlay";
-import { SGTIconButton } from "@/components/bay-controller/SGTIconButton";
 import { AppRestoreSettings } from "@/components/bay-controller/AppRestoreSettings";
 import { PlugDiagnostics } from "@/components/bay-controller/PlugDiagnostics";
 import { restoreUserGsproSettings, saveUserGsproSettings, sweepAndUploadRangeCsvs } from "@/lib/range-sync";
