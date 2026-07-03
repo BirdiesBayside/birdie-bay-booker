@@ -398,6 +398,7 @@ export default function BayController() {
           addLog('[Sync] Starting settings snapshot upload…', 'info');
           const saved = await saveUserGsproSettings(userId, {
             bayNumber: selectedBay,
+            bookingId: activeBooking?.id ?? null,
             appVersion,
             log: syncLog,
           });
@@ -2770,6 +2771,7 @@ export default function BayController() {
         try {
           const restored = await restoreUserGsproSettings(activeBooking.user_id, {
             bayNumber: selectedBay,
+            bookingId: activeBooking.id,
             appVersion,
           });
           if (restored.restored.length) addLog(`Restored customer GSPro settings: ${restored.restored.join(', ')}`, 'info');
