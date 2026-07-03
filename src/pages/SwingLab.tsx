@@ -17,6 +17,8 @@ import { PGA_TOUR_AVERAGES, matchTourClub, matchBenchmarkClub, METRIC_TOOLTIPS, 
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { supabase } from "@/integrations/supabase/client";
 import swingLabBadge from "@/assets/swing-lab-badge.png.asset.json";
+import swingLabClipboard from "@/assets/swing-lab-clipboard.png.asset.json";
+import { HelpCircle } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
