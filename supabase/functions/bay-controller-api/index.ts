@@ -4,6 +4,9 @@ import { createClient } from "npm:@supabase/supabase-js@2.57.2";
 // Version tracking for deployment debugging
 const VERSION = "2.0.0";
 const DEPLOYED_AT = new Date().toISOString();
+const SETTINGS_FILES = new Set(["dpsV2x3.gss", "Settings.vgs"]);
+const SETTINGS_BUCKET = "gspro-user-settings";
+const CSV_BUCKET = "range-session-csv";
 
 // Full CORS headers compatible with supabase-js client
 const corsHeaders = {
@@ -46,6 +49,80 @@ const getAction = (
   
   return null;
 };
+
+const num = (v: unknown): number | null => {
+  if (v === null || v === undefined) return null;
+  const s = String(v).trim().replace(/[^\d.\-+eE]/g, "");
+  if (s === "" || s === "-" || s === "+") return null;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+};
+
+function parseCsv(text: string): { headers: string[]; rows: string[][] } {
+  const lines = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n").filter((l) => l.trim().length > 0);
+  if (lines.length === 0) return { headers: [], rows: [] };
+  const parseLine = (line: string): string[] => {
+    const out: string[] = [];
+    let cur = "";
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (inQuotes) {
+        if (c === '"' && line[i + 1] === '"') { cur += '"'; i++; }
+        else if (c === '"') inQuotes = false;
+        else cur += c;
+      } else {
+        if (c === ",") { out.push(cur); cur = ""; }
+        else if (c === '"') inQuotes = true;
+        else cur += c;
+      }
+    }
+    out.push(cur);
+    return out.map((s) => s.trim());
+  };
+  return { headers: parseLine(lines[0]), rows: lines.slice(1).map(parseLine) };
+}
+
+const canonical = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+const FIELD_MAP: Record<string, string> = {
+  shot: "shot_number", shotnumber: "shot_number", shotno: "shot_number", no: "shot_number", "#": "shot_number",
+  time: "shot_timestamp", timestamp: "shot_timestamp", datetime: "shot_timestamp",
+  club: "club_type", clubtype: "club_type", clubname: "club_type",
+  ballspeed: "ball_speed", ballspeedmph: "ball_speed",
+  clubspeed: "club_speed", clubheadspeed: "club_speed", clubspeedmph: "club_speed",
+  smash: "smash_factor", smashfactor: "smash_factor",
+  launchangle: "launch_angle", launch: "launch_angle", verticallaunch: "launch_angle", vla: "launch_angle",
+  launchdirection: "launch_direction", horizontallaunch: "launch_direction", azimuth: "launch_direction", hla: "launch_direction",
+  spin: "spin_rate", spinrate: "spin_rate", totalspin: "spin_rate", spinrpm: "spin_rate",
+  spinaxis: "spin_axis", axis: "spin_axis", rawspinaxis: "spin_axis",
+  backspin: "back_spin", sidespin: "side_spin",
+  carry: "carry", carrydistance: "carry", carryyards: "carry",
+  total: "total", totaldistance: "total", totalyards: "total",
+  sidecarry: "side_carry", carryside: "side_carry", offlinecarry: "side_carry",
+  side: "side_total", sidetotal: "side_total", offline: "side_carry",
+  apex: "apex_height", apexheight: "apex_height", peakheight: "apex_height",
+  descent: "descent_angle", decent: "descent_angle", descentangle: "descent_angle", landingangle: "descent_angle",
+  aoa: "angle_of_attack", angleofattack: "angle_of_attack", attackangle: "angle_of_attack",
+  clubpath: "club_path", path: "club_path",
+  faceangle: "face_angle", face: "face_angle", facetotarget: "face_angle",
+  facetopath: "face_to_path", ftp: "face_to_path",
+};
+
+const parseFilenameDate = (name: string | null | undefined): { date: string; iso: string } | null => {
+  if (!name) return null;
+  const m = String(name).match(/(\d{2})-(\d{2})-(\d{2})-(\d{2})-(\d{2})-(\d{2})/);
+  if (!m) return null;
+  const [, mm, dd, yy, hh, mi, ss] = m;
+  const year = 2000 + Number(yy);
+  const utcMs = Date.UTC(year, Number(mm) - 1, Number(dd), Number(hh) - 10, Number(mi), Number(ss));
+  if (!Number.isFinite(utcMs)) return null;
+  return { date: `${year}-${mm}-${dd}`, iso: new Date(utcMs).toISOString() };
+};
+
+function decodeBase64(base64: string): Uint8Array {
+  return Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+}
 
 serve(async (req) => {
   // Handle CORS preflight with proper response body
