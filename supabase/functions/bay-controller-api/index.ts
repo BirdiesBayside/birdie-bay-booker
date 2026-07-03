@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
 
 // Version tracking for deployment debugging
-const VERSION = "2.0.0";
+const VERSION = "2.1.0";
 const DEPLOYED_AT = new Date().toISOString();
 const SETTINGS_FILES = new Set(["dpsV2x3.gss", "Settings.vgs"]);
 const SETTINGS_BUCKET = "gspro-user-settings";
