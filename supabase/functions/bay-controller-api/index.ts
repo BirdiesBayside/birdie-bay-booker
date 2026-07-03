@@ -170,6 +170,19 @@ serve(async (req) => {
       return jsonResponse({ error: "Bay not found" }, 404);
     }
 
+    const hasBookingAccess = async (userId: string, bookingId: string | null) => {
+      if (!userId || !bookingId) return false;
+      const { data, error } = await supabase
+        .from("bookings")
+        .select("id")
+        .eq("id", bookingId)
+        .eq("user_id", userId)
+        .eq("bay_id", bay.id)
+        .in("status", ["confirmed", "pending"])
+        .maybeSingle();
+      return !error && !!data;
+    };
+
     // Handle different actions
     switch (action) {
       case "heartbeat": {
@@ -231,8 +244,10 @@ serve(async (req) => {
 
       case "get_user_setting": {
         const userId = typeof body?.user_id === "string" ? body.user_id : "";
+        const bookingId = typeof body?.booking_id === "string" ? body.booking_id : null;
         const file = typeof body?.file === "string" ? body.file : "";
         if (!userId || !SETTINGS_FILES.has(file)) return jsonResponse({ error: "bad_request" }, 400);
+        if (!(await hasBookingAccess(userId, bookingId))) return jsonResponse({ error: "forbidden" }, 403);
 
         const path = `${userId}/${file}`;
         const { data, error } = await supabase.storage.from(SETTINGS_BUCKET).download(path);
@@ -246,9 +261,11 @@ serve(async (req) => {
 
       case "save_user_setting": {
         const userId = typeof body?.user_id === "string" ? body.user_id : "";
+        const bookingId = typeof body?.booking_id === "string" ? body.booking_id : null;
         const file = typeof body?.file === "string" ? body.file : "";
         const base64 = typeof body?.base64 === "string" ? body.base64 : "";
         if (!userId || !SETTINGS_FILES.has(file) || !base64) return jsonResponse({ error: "bad_request" }, 400);
+        if (!(await hasBookingAccess(userId, bookingId))) return jsonResponse({ error: "forbidden" }, 403);
 
         let bytes: Uint8Array;
         try { bytes = decodeBase64(base64); }
@@ -268,6 +285,7 @@ serve(async (req) => {
         const csvTextBody = typeof body?.csv_text === "string" ? body.csv_text : "";
         const filename = typeof body?.filename === "string" ? body.filename : null;
         if (!userId || (!csvBase64 && !csvTextBody)) return jsonResponse({ error: "missing_fields" }, 400);
+        if (!(await hasBookingAccess(userId, bookingId))) return jsonResponse({ error: "forbidden" }, 403);
 
         let csvText: string;
         try {
