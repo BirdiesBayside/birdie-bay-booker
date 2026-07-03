@@ -10,6 +10,7 @@ export type SyncLogFn = (msg: string, level?: "info" | "success" | "error" | "wa
 
 type ControllerSyncContext = {
   bayNumber?: number | null;
+  bookingId?: string | null;
   appVersion?: string;
   log?: SyncLogFn;
 };
@@ -51,7 +52,7 @@ export async function restoreUserGsproSettings(
     try {
       let json: any = null;
       if (ctx?.bayNumber) {
-        const { data, error } = await invokeBayControllerApi("get_user_setting", { user_id: userId, file: f }, ctx);
+        const { data, error } = await invokeBayControllerApi("get_user_setting", { user_id: userId, booking_id: ctx.bookingId ?? null, file: f }, ctx);
         if (error) { missing.push(f); continue; }
         json = data;
       } else {
@@ -115,7 +116,7 @@ export async function saveUserGsproSettings(
     const sizeKB = Math.round(((base64 as string).length * 3) / 4 / 1024);
     L(`[Settings] Uploading ${file} (~${sizeKB} KB) for user ${userId}`, "info");
     const { data, error } = ctx?.bayNumber
-      ? await invokeBayControllerApi("save_user_setting", { user_id: userId, file, base64 }, ctx)
+      ? await invokeBayControllerApi("save_user_setting", { user_id: userId, booking_id: ctx.bookingId ?? null, file, base64 }, ctx)
       : await supabase.functions.invoke("bay-user-settings", {
           body: { user_id: userId, file, base64 },
         });
