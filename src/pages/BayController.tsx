@@ -376,14 +376,31 @@ export default function BayController() {
       const syncLog = (msg: string, level?: 'info' | 'success' | 'error' | 'warning') => {
         const mapped: 'info' | 'success' | 'error' = level === 'warning' ? 'info' : (level ?? 'info');
         addLog(msg, mapped);
+        bayLogger.sendLog('automation_decision', msg, {
+          level: level === 'error' ? 'error' : level === 'warning' ? 'warning' : 'info',
+          bookingId: activeBooking?.id,
+          immediate: level === 'error' || msg.startsWith('[Sync]') || msg.includes('result'),
+        });
       };
       addLog(`[Sync] GSPro close hook fired. activeBooking=${activeBooking?.id ?? 'none'}, userId=${userId ?? 'none'}`, 'info');
+      bayLogger.sendLog('automation_decision', `[Sync] GSPro close hook fired. activeBooking=${activeBooking?.id ?? 'none'}, userId=${userId ?? 'none'}`, {
+        bookingId: activeBooking?.id,
+        immediate: true,
+      });
       if (!userId) {
         addLog('[Sync] No active booking user — skipping CSV/settings sync', 'info');
+        bayLogger.sendLog('automation_decision', '[Sync] No active booking user — skipping CSV/settings sync', {
+          bookingId: activeBooking?.id,
+          immediate: true,
+        });
       } else {
         try {
           addLog('[Sync] Starting settings snapshot upload…', 'info');
-          const saved = await saveUserGsproSettings(userId, syncLog);
+          const saved = await saveUserGsproSettings(userId, {
+            bayNumber: selectedBay,
+            appVersion,
+            log: syncLog,
+          });
           addLog(`[Sync] Settings result: saved=[${saved.saved.join(', ') || 'none'}] failed=[${saved.failed.join(', ') || 'none'}]`, saved.failed.length ? 'error' : 'info');
 
           addLog('[Sync] Starting Desktop CSV sweep…', 'info');
@@ -391,9 +408,16 @@ export default function BayController() {
             userId,
             bookingId: activeBooking?.id ?? null,
             bayId: null,
+            bayNumber: selectedBay,
+            appVersion,
             log: syncLog,
           });
           addLog(`[Sync] CSV sweep result: uploaded=${swept.uploaded.length}, failed=${swept.failed.length}`, swept.failed.length ? 'error' : (swept.uploaded.length ? 'success' : 'info'));
+          bayLogger.sendLog('automation_decision', `[Sync] CSV sweep result: uploaded=${swept.uploaded.length}, failed=${swept.failed.length}`, {
+            level: swept.failed.length ? 'error' : 'info',
+            bookingId: activeBooking?.id,
+            immediate: true,
+          });
         } catch (err: any) {
           addLog(`[Sync] Sync threw exception: ${err?.message ?? String(err)}`, 'error');
           console.error('[BayController] Range/settings sync on close failed:', err);
@@ -408,7 +432,7 @@ export default function BayController() {
       cleanupError();
       cleanupGsproClosed?.();
     };
-  }, [isElectron, appsRunning, activeBooking?.id, bayLogger, addLog]);
+  }, [isElectron, appsRunning, activeBooking, selectedBay, appVersion, bayLogger, addLog]);
 
   // F9 hotkey to toggle SGT overlay (for authenticated staff - shows in-app overlay)
   // F7 hotkey to toggle SGT overlay (for customers - triggers Electron overlay on external display)
@@ -2744,7 +2768,10 @@ export default function BayController() {
       // Restore this customer's saved GSPro settings (SGT login, prefs) if any.
       if (activeBooking?.user_id) {
         try {
-          const restored = await restoreUserGsproSettings(activeBooking.user_id);
+          const restored = await restoreUserGsproSettings(activeBooking.user_id, {
+            bayNumber: selectedBay,
+            appVersion,
+          });
           if (restored.restored.length) addLog(`Restored customer GSPro settings: ${restored.restored.join(', ')}`, 'info');
         } catch (e) {
           console.error('[BayController] restoreUserGsproSettings failed:', e);
