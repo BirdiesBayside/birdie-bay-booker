@@ -373,23 +373,27 @@ export default function BayController() {
       }
       // Range session capture + per-customer GSPro settings snapshot
       const userId = activeBooking?.user_id;
+      const syncLog = (msg: string, level?: 'info' | 'success' | 'error' | 'warning') => {
+        const mapped: 'info' | 'success' | 'error' = level === 'warning' ? 'info' : (level ?? 'info');
+        addLog(msg, mapped);
+      };
       addLog(`[Sync] GSPro close hook fired. activeBooking=${activeBooking?.id ?? 'none'}, userId=${userId ?? 'none'}`, 'info');
       if (!userId) {
-        addLog('[Sync] No active booking user — skipping CSV/settings sync', 'warning');
+        addLog('[Sync] No active booking user — skipping CSV/settings sync', 'info');
       } else {
         try {
           addLog('[Sync] Starting settings snapshot upload…', 'info');
-          const saved = await saveUserGsproSettings(userId, addLog);
-          addLog(`[Sync] Settings result: saved=[${saved.saved.join(', ') || 'none'}] failed=[${saved.failed.join(', ') || 'none'}]`, saved.failed.length ? 'warning' : 'info');
+          const saved = await saveUserGsproSettings(userId, syncLog);
+          addLog(`[Sync] Settings result: saved=[${saved.saved.join(', ') || 'none'}] failed=[${saved.failed.join(', ') || 'none'}]`, saved.failed.length ? 'error' : 'info');
 
           addLog('[Sync] Starting Desktop CSV sweep…', 'info');
           const swept = await sweepAndUploadRangeCsvs({
             userId,
             bookingId: activeBooking?.id ?? null,
             bayId: null,
-            log: addLog,
+            log: syncLog,
           });
-          addLog(`[Sync] CSV sweep result: uploaded=${swept.uploaded.length}, failed=${swept.failed.length}`, swept.failed.length ? 'error' : (swept.uploaded.length ? 'success' : 'warning'));
+          addLog(`[Sync] CSV sweep result: uploaded=${swept.uploaded.length}, failed=${swept.failed.length}`, swept.failed.length ? 'error' : (swept.uploaded.length ? 'success' : 'info'));
         } catch (err: any) {
           addLog(`[Sync] Sync threw exception: ${err?.message ?? String(err)}`, 'error');
           console.error('[BayController] Range/settings sync on close failed:', err);
