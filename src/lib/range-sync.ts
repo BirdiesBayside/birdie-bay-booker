@@ -8,30 +8,65 @@ const SETTINGS_FILES = ["dpsV2x3.gss", "Settings.vgs"] as const;
 
 export type SyncLogFn = (msg: string, level?: "info" | "success" | "error" | "warning") => void;
 
+type ControllerSyncContext = {
+  bayNumber?: number | null;
+  bookingId?: string | null;
+  appVersion?: string;
+  log?: SyncLogFn;
+};
+
+async function invokeBayControllerApi<T = any>(
+  action: string,
+  body: Record<string, unknown>,
+  ctx?: ControllerSyncContext
+): Promise<{ data: T | null; error: any }> {
+  if (!ctx?.bayNumber) {
+    return { data: null, error: new Error("missing_bay_number") };
+  }
+
+  return supabase.functions.invoke("bay-controller-api", {
+    body: { action, ...body },
+    headers: {
+      "x-bay-number": String(ctx.bayNumber),
+      "x-app-version": ctx.appVersion ?? "unknown",
+      "x-action": action,
+    },
+  });
+}
+
 /**
  * Called just BEFORE launching GSPro. If the customer has a saved per-user
  * settings snapshot in the cloud, download it and overwrite the local GSPro
  * files (which were just replaced with the shared baseline). If nothing is
  * saved yet, we leave the baseline in place — snapshot is captured on close.
  */
-export async function restoreUserGsproSettings(userId: string): Promise<{ restored: string[]; missing: string[]; error?: string }> {
+export async function restoreUserGsproSettings(
+  userId: string,
+  ctx?: ControllerSyncContext
+): Promise<{ restored: string[]; missing: string[]; error?: string }> {
   if (!userId || !window.electronAPI) return { restored: [], missing: [] };
   const files: Record<string, string> = {};
   const missing: string[] = [];
 
-  const { data: sessionData } = await supabase.auth.getSession();
-  const token = sessionData.session?.access_token;
-  if (!token) return { restored: [], missing: [], error: "not_signed_in" };
-
-
-  const base = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/bay-user-settings`;
   for (const f of SETTINGS_FILES) {
     try {
-      const res = await fetch(`${base}?user_id=${encodeURIComponent(userId)}&file=${encodeURIComponent(f)}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) { missing.push(f); continue; }
-      const json = await res.json();
+      let json: any = null;
+      if (ctx?.bayNumber) {
+        const { data, error } = await invokeBayControllerApi("get_user_setting", { user_id: userId, booking_id: ctx.bookingId ?? null, file: f }, ctx);
+        if (error) { missing.push(f); continue; }
+        json = data;
+      } else {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const token = sessionData.session?.access_token;
+        if (!token) return { restored: [], missing: [], error: "not_signed_in" };
+
+        const base = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/bay-user-settings`;
+        const res = await fetch(`${base}?user_id=${encodeURIComponent(userId)}&file=${encodeURIComponent(f)}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) { missing.push(f); continue; }
+        json = await res.json();
+      }
       if (json?.exists && typeof json.base64 === "string") files[f] = json.base64;
       else missing.push(f);
     } catch { missing.push(f); }
@@ -50,17 +85,20 @@ export async function restoreUserGsproSettings(userId: string): Promise<{ restor
  */
 export async function saveUserGsproSettings(
   userId: string,
-  log?: SyncLogFn
+  logOrCtx?: SyncLogFn | ControllerSyncContext
 ): Promise<{ saved: string[]; failed: string[]; error?: string }> {
+  const ctx = typeof logOrCtx === "function" ? undefined : logOrCtx;
+  const log = typeof logOrCtx === "function" ? logOrCtx : logOrCtx?.log;
   const L = log ?? (() => {});
   if (!userId) { L("[Settings] Skipped: no userId", "warning"); return { saved: [], failed: [] }; }
   if (!window.electronAPI) { L("[Settings] Skipped: no electronAPI", "warning"); return { saved: [], failed: [] }; }
 
   const { data: sessionData } = await supabase.auth.getSession();
   if (!sessionData.session) {
-    L("[Settings] No Supabase session on bay controller — edge fn will reject as non-admin", "error");
+    if (ctx?.bayNumber) L("[Settings] No signed-in web session. Using Bay Controller API for settings upload.", "info");
+    else L("[Settings] No signed-in web session and no Bay Controller API context. Upload will be rejected.", "error");
   } else {
-    L(`[Settings] Supabase session present for ${sessionData.session.user?.email ?? sessionData.session.user?.id}`, "info");
+    L(`[Settings] Signed-in web session present for ${sessionData.session.user?.email ?? sessionData.session.user?.id}`, "info");
   }
 
   const read = await window.electronAPI.readGsproUserSettings();
@@ -77,9 +115,11 @@ export async function saveUserGsproSettings(
   for (const [file, base64] of Object.entries(read.files)) {
     const sizeKB = Math.round(((base64 as string).length * 3) / 4 / 1024);
     L(`[Settings] Uploading ${file} (~${sizeKB} KB) for user ${userId}`, "info");
-    const { data, error } = await supabase.functions.invoke("bay-user-settings", {
-      body: { user_id: userId, file, base64 },
-    });
+    const { data, error } = ctx?.bayNumber
+      ? await invokeBayControllerApi("save_user_setting", { user_id: userId, booking_id: ctx.bookingId ?? null, file, base64 }, ctx)
+      : await supabase.functions.invoke("bay-user-settings", {
+          body: { user_id: userId, file, base64 },
+        });
     if (error) {
       L(`[Settings] Upload FAILED for ${file}: ${error.message ?? JSON.stringify(error)}`, "error");
       failed.push(file);
@@ -100,6 +140,8 @@ export async function sweepAndUploadRangeCsvs(opts: {
   userId: string;
   bookingId?: string | null;
   bayId?: string | null;
+  bayNumber?: number | null;
+  appVersion?: string;
   log?: SyncLogFn;
 }): Promise<{ uploaded: string[]; failed: string[] }> {
   const L = opts.log ?? (() => {});
@@ -111,9 +153,10 @@ export async function sweepAndUploadRangeCsvs(opts: {
 
   const { data: sessionData } = await supabase.auth.getSession();
   if (!sessionData.session) {
-    L("[CSV] WARNING: bay controller has NO Supabase session. ingest-range-session requires signed-in admin and will reject.", "error");
+    if (opts.bayNumber) L("[CSV] No signed-in web session. Using Bay Controller API for CSV upload.", "info");
+    else L("[CSV] WARNING: no signed-in web session and no Bay Controller API context. Upload will be rejected.", "error");
   } else {
-    L(`[CSV] Supabase session present (${sessionData.session.user?.email ?? sessionData.session.user?.id})`, "info");
+    L(`[CSV] Signed-in web session present (${sessionData.session.user?.email ?? sessionData.session.user?.id})`, "info");
   }
 
   const launchTs = await window.electronAPI.getGsproLaunchTs();
@@ -140,15 +183,16 @@ export async function sweepAndUploadRangeCsvs(opts: {
   for (const csv of scan.csvs) {
     L(`[CSV] Uploading ${csv.filename} (${Math.round(csv.size / 1024)} KB, mtime ${new Date(csv.mtime).toISOString()})`, "info");
     try {
-      const { data, error } = await supabase.functions.invoke("ingest-range-session", {
-        body: {
-          user_id: opts.userId,
-          booking_id: opts.bookingId ?? null,
-          bay_id: opts.bayId ?? null,
-          csv_base64: csv.base64,
-          filename: csv.filename,
-        },
-      });
+      const uploadBody = {
+        user_id: opts.userId,
+        booking_id: opts.bookingId ?? null,
+        bay_id: opts.bayId ?? null,
+        csv_base64: csv.base64,
+        filename: csv.filename,
+      };
+      const { data, error } = opts.bayNumber
+        ? await invokeBayControllerApi("ingest_range_session", uploadBody, { bayNumber: opts.bayNumber, appVersion: opts.appVersion })
+        : await supabase.functions.invoke("ingest-range-session", { body: uploadBody });
       if (error) {
         L(`[CSV] Ingest FAILED for ${csv.filename}: ${error.message ?? JSON.stringify(error)}`, "error");
         failed.push(csv.filename);

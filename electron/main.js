@@ -3123,20 +3123,24 @@ function startGsproWatcher() {
     
     // Detect when GSPro stops running
     if (gsproWasRunning && !isRunning) {
-      console.log('GSPro process closed - triggering baseline restore');
+      console.log('GSPro process closed - notifying renderer for sync');
       
       // Notify renderer that GSPro closed
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('gspro-closed');
       }
       
-      // Wait a moment for files to be released
-      setTimeout(async () => {
-        const results = await restoreBaselineFiles();
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('baseline-restored', results);
-        }
-      }, 2000);
+      if (baselineConfig.enabled) {
+        // Wait a moment for files to be released
+        setTimeout(async () => {
+          const results = await restoreBaselineFiles();
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('baseline-restored', results);
+          }
+        }, 2000);
+      } else {
+        console.log('Baseline restore disabled - close watcher still fired for Swing Lab sync');
+      }
     }
     
     gsproWasRunning = isRunning;
@@ -3305,7 +3309,9 @@ ipcMain.handle('set-baseline-enabled', async (event, { enabled }) => {
   if (enabled) {
     startGsproWatcher();
   } else {
-    stopGsproWatcher();
+    // Keep the GSPro watcher running even when baseline restore is off.
+    // Swing Lab settings/CSV sync depends on the same close event.
+    startGsproWatcher();
   }
   
   return { success: true, enabled };
@@ -3327,10 +3333,9 @@ ipcMain.handle('is-gspro-running', async () => {
   return { isRunning };
 });
 
-// Start watcher if enabled on startup
-if (baselineConfig.enabled) {
-  startGsproWatcher();
-}
+// Always start watcher on startup. Baseline restore is optional, but Swing Lab
+// settings/CSV sync also depends on this close event.
+startGsproWatcher();
 
 // =====================================================
 // PER-CUSTOMER GSPRO SETTINGS + RANGE CSV FILE IPCs
