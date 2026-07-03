@@ -256,6 +256,9 @@ export default function BayController() {
 
   // Timestamp of the last intentional app-close, used to prevent immediate auto-relaunch races
   const lastIntentionalAppCloseAtRef = useRef<number | null>(null);
+  const swingLabSyncInProgressRef = useRef(false);
+  const lastSwingLabSyncAtRef = useRef(0);
+  const lastGsproRunningRef = useRef<boolean | null>(null);
   
   // Guard against re-entrant launchApps calls and cooldown after failed launches
   const launchInProgressRef = useRef(false);
@@ -331,6 +334,80 @@ export default function BayController() {
     
     previousActiveBookingRef.current = currBooking;
   }, [activeBooking, bayLogger]);
+
+  const runSwingLabCloseSync = useCallback(async (trigger: string) => {
+    const now = Date.now();
+    if (swingLabSyncInProgressRef.current) {
+      addLog(`[Sync] ${trigger}: sync already running, skipping duplicate trigger`, 'info');
+      return;
+    }
+    if (now - lastSwingLabSyncAtRef.current < 5000) {
+      addLog(`[Sync] ${trigger}: recent sync already ran, skipping duplicate trigger`, 'info');
+      return;
+    }
+
+    swingLabSyncInProgressRef.current = true;
+    lastSwingLabSyncAtRef.current = now;
+
+    const userId = activeBooking?.user_id;
+    const bookingId = activeBooking?.id;
+    const syncLog = (msg: string, level?: 'info' | 'success' | 'error' | 'warning') => {
+      const mapped: 'info' | 'success' | 'error' = level === 'warning' ? 'info' : (level ?? 'info');
+      addLog(msg, mapped);
+      bayLogger.sendLog('automation_decision', msg, {
+        level: level === 'error' ? 'error' : level === 'warning' ? 'warning' : 'info',
+        bookingId,
+        immediate: level === 'error' || msg.startsWith('[Sync]') || msg.includes('result'),
+      });
+    };
+
+    try {
+      addLog(`[Sync] GSPro close sync triggered by ${trigger}. activeBooking=${bookingId ?? 'none'}, userId=${userId ?? 'none'}`, 'info');
+      bayLogger.sendLog('automation_decision', `[Sync] GSPro close sync triggered by ${trigger}. activeBooking=${bookingId ?? 'none'}, userId=${userId ?? 'none'}`, {
+        bookingId,
+        immediate: true,
+      });
+
+      if (!userId) {
+        addLog('[Sync] No active booking user — skipping CSV/settings sync', 'info');
+        bayLogger.sendLog('automation_decision', '[Sync] No active booking user — skipping CSV/settings sync', {
+          bookingId,
+          immediate: true,
+        });
+        return;
+      }
+
+      addLog('[Sync] Starting settings snapshot upload…', 'info');
+      const saved = await saveUserGsproSettings(userId, {
+        bayNumber: selectedBay,
+        bookingId: bookingId ?? null,
+        appVersion,
+        log: syncLog,
+      });
+      addLog(`[Sync] Settings result: saved=[${saved.saved.join(', ') || 'none'}] failed=[${saved.failed.join(', ') || 'none'}]`, saved.failed.length ? 'error' : 'info');
+
+      addLog('[Sync] Starting Desktop CSV sweep…', 'info');
+      const swept = await sweepAndUploadRangeCsvs({
+        userId,
+        bookingId: bookingId ?? null,
+        bayId: null,
+        bayNumber: selectedBay,
+        appVersion,
+        log: syncLog,
+      });
+      addLog(`[Sync] CSV sweep result: uploaded=${swept.uploaded.length}, failed=${swept.failed.length}`, swept.failed.length ? 'error' : (swept.uploaded.length ? 'success' : 'info'));
+      bayLogger.sendLog('automation_decision', `[Sync] CSV sweep result: uploaded=${swept.uploaded.length}, failed=${swept.failed.length}`, {
+        level: swept.failed.length ? 'error' : 'info',
+        bookingId,
+        immediate: true,
+      });
+    } catch (err: any) {
+      addLog(`[Sync] Sync threw exception: ${err?.message ?? String(err)}`, 'error');
+      console.error('[BayController] Range/settings sync on close failed:', err);
+    } finally {
+      swingLabSyncInProgressRef.current = false;
+    }
+  }, [activeBooking, selectedBay, appVersion, bayLogger, addLog]);
 
   // Listen for F10 global hotkey results from main process
   useEffect(() => {
