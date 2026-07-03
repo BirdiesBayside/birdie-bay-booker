@@ -1,5 +1,5 @@
 import MarketingLayout from "@/components/marketing/MarketingLayout";
-import { ArrowRight, Check, Clock, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowRight, Check, Clock } from "lucide-react";
 
 const HERO = "https://cdn.shopify.com/s/files/1/0758/7030/6550/files/Birdies_Golf.jpg?v=1751956878&width=3840";
 
@@ -94,30 +94,21 @@ const MarketingMembership = () => (
       </div>
     </section>
 
-    <section className="bg-primary text-primary-foreground py-12 sm:py-20">
-      <div className="container mx-auto px-4 grid md:grid-cols-2 gap-10 max-w-5xl">
-        <div className="bg-primary-foreground/5 border border-primary-foreground/10 rounded-xl p-8">
-          <Sparkles className="h-8 w-8 text-accent mb-4" />
-          <h3 className="font-display text-2xl uppercase tracking-wide mb-3">Member Perks</h3>
-          <p className="text-primary-foreground/80 leading-relaxed">
-            Priority access to the centre, all of the great golf tech it has to offer, weekly competitions,
-            and the chance to sharpen your game whenever it suits you, rain or shine.
+    <section className="py-12 sm:py-20">
+      <div className="container mx-auto px-4 max-w-5xl">
+        <div className="text-center mb-10">
+          <p className="text-accent font-display tracking-[0.2em] uppercase text-sm mb-3">Pay As You Go</p>
+          <h2 className="font-display text-4xl sm:text-5xl text-primary leading-tight mb-4">
+            Not ready to commit? Just pay to play.
+          </h2>
+          <p className="text-foreground/80 text-lg max-w-2xl mx-auto">
+            We welcome Pay As You Go sessions at Birdies, same premium golf, no commitment, same easy booking and access platform as members. Bay pricing covers up to 4 players.
           </p>
         </div>
-        <div className="bg-primary-foreground/5 border border-primary-foreground/10 rounded-xl p-8">
-          <ShieldCheck className="h-8 w-8 text-accent mb-4" />
-          <h3 className="font-display text-2xl uppercase tracking-wide mb-3">Satisfaction Guarantee</h3>
-          <p className="text-primary-foreground/80 leading-relaxed">
-            Not happy or struggling for time? Not a problem, we have no lock-in contracts and no scary terms and conditions.
-          </p>
-        </div>
-      </div>
-      <div className="text-center mt-12">
-        <p className="text-accent font-display tracking-[0.2em] uppercase text-sm mb-4">Not ready to join?</p>
-        <div className="grid sm:grid-cols-2 gap-6 max-w-2xl mx-auto mb-10">
-          <div className="bg-card border border-border rounded-2xl p-7 text-card-foreground hover:shadow-lg transition-all text-left">
+        <div className="grid sm:grid-cols-2 gap-6 max-w-3xl mx-auto">
+          <div className="bg-card border border-border rounded-2xl p-8 text-card-foreground hover:shadow-lg transition-all text-left">
             <p className="text-xs uppercase tracking-wider mb-2 text-foreground/60">Off-Peak</p>
-            <h3 className="font-display text-3xl uppercase tracking-wide mb-1">Visitor</h3>
+            <h3 className="font-display text-3xl uppercase tracking-wide mb-1 text-primary">Visitor</h3>
             <div className="mb-5">
               <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold bg-accent/10 text-accent border border-accent/20">
                 <Clock className="h-3.5 w-3.5" />
@@ -130,9 +121,9 @@ const MarketingMembership = () => (
               Book Now
             </a>
           </div>
-          <div className="bg-card border border-border rounded-2xl p-7 text-card-foreground hover:shadow-lg transition-all text-left">
+          <div className="bg-card border border-border rounded-2xl p-8 text-card-foreground hover:shadow-lg transition-all text-left">
             <p className="text-xs uppercase tracking-wider mb-2 text-foreground/60">Peak</p>
-            <h3 className="font-display text-3xl uppercase tracking-wide mb-1">Visitor</h3>
+            <h3 className="font-display text-3xl uppercase tracking-wide mb-1 text-primary">Visitor</h3>
             <div className="mb-5">
               <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold bg-accent/10 text-accent border border-accent/20">
                 <Clock className="h-3.5 w-3.5" />
@@ -146,37 +137,13 @@ const MarketingMembership = () => (
             </a>
           </div>
         </div>
-        <a
-          href="https://hub.birdiesbayside.com.au/"
-          className="inline-flex items-center gap-2 bg-accent hover:bg-accent/90 text-accent-foreground font-display tracking-wide uppercase px-8 py-4 rounded-md"
-        >
-          Join Now <ArrowRight className="h-4 w-4" />
-        </a>
-      </div>
-    </section>
-
-    <section className="py-12 sm:py-20">
-      <div className="container mx-auto px-4 max-w-4xl text-center">
-        <p className="text-accent font-display tracking-[0.2em] uppercase text-sm mb-3">Pay As You Go</p>
-        <h2 className="font-display text-4xl sm:text-5xl text-primary leading-tight mb-4">
-          Not ready to commit? Just pay to play.
-        </h2>
-        <p className="text-foreground/80 text-lg mb-10">
-          We welcome Pay As You Go sessions at Birdies, same premium golf, no commitment, same easy booking and access platform as members. Bay pricing covers up to 4 players.
-        </p>
-        <div className="grid sm:grid-cols-2 gap-6 max-w-2xl mx-auto">
-          <div className="bg-card border border-border rounded-xl p-7">
-            <p className="text-sm uppercase tracking-wider text-foreground/60 mb-2">Off-Peak</p>
-            <p className="font-display text-5xl text-primary">$30<span className="text-lg text-foreground/60">/hr</span></p>
-            <p className="text-sm text-foreground/60 mt-2">Mon-Thu before 4pm</p>
-            <p className="text-sm text-foreground/60 mt-1">Per bay, up to 4 players</p>
-          </div>
-          <div className="bg-card border border-border rounded-xl p-7">
-            <p className="text-sm uppercase tracking-wider text-foreground/60 mb-2">Peak</p>
-            <p className="font-display text-5xl text-primary">$35<span className="text-lg text-foreground/60">/hr</span></p>
-            <p className="text-sm text-foreground/60 mt-2">Fri-Sun & Mon-Thu 4pm+</p>
-            <p className="text-sm text-foreground/60 mt-1">Per bay, up to 4 players</p>
-          </div>
+        <div className="text-center mt-10">
+          <a
+            href="https://hub.birdiesbayside.com.au/"
+            className="inline-flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-display tracking-wide uppercase px-8 py-4 rounded-md"
+          >
+            Join Now <ArrowRight className="h-4 w-4" />
+          </a>
         </div>
       </div>
     </section>
