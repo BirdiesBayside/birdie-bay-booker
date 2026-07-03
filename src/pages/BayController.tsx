@@ -2237,6 +2237,48 @@ export default function BayController() {
     return () => clearInterval(checkInterval);
   }, [isElectron, appsRunning, appLaunchConfig.enabled, isLaunchingApps, activeBooking?.id, addLog, bayLogger]);
 
+  // Fallback close detection for Swing Lab sync. The Electron main process sends a
+  // gspro-closed event, but this renderer poll means CSV upload still runs if that
+  // event is missed or the baseline watcher was previously disabled.
+  useEffect(() => {
+    if (!isElectron || !window.electronAPI?.isGsproRunning) return;
+
+    let cancelled = false;
+    const pollGspro = async () => {
+      try {
+        const result = await window.electronAPI!.isGsproRunning();
+        if (cancelled) return;
+        const isRunning = !!result?.isRunning;
+        const wasRunning = lastGsproRunningRef.current;
+
+        if (wasRunning === null) {
+          lastGsproRunningRef.current = isRunning;
+          return;
+        }
+
+        if (wasRunning && !isRunning) {
+          addLog('[Sync] Renderer polling detected GSPro closed', 'info');
+          bayLogger.sendLog('automation_decision', '[Sync] Renderer polling detected GSPro closed', {
+            bookingId: activeBooking?.id,
+            immediate: true,
+          });
+          runSwingLabCloseSync('renderer polling');
+        }
+
+        lastGsproRunningRef.current = isRunning;
+      } catch {
+        // Keep silent so this does not spam the bay controller log if Windows process lookup fails briefly.
+      }
+    };
+
+    pollGspro();
+    const interval = setInterval(pollGspro, 3000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [isElectron, activeBooking?.id, addLog, bayLogger, runSwingLabCloseSync]);
+
   // Add a plug manually
   const addPlugManually = () => {
     if (!newPlugName.trim() || !newPlugIp.trim()) {
