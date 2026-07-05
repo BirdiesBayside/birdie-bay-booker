@@ -47,6 +47,10 @@ export interface AnalyticsData {
   
   // Hourly heatmap
   hourlyHeatmap: { day: number; hour: number; bookings: number }[];
+
+  // Referral sources
+  referralSources: { source: string; label: string; count: number; percentage: number }[];
+  referralUnknown: number;
 }
 
 function getTimeframeRange(timeframe: AnalyticsTimeframe): { start: Date; end: Date } {
