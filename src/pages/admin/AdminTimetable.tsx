@@ -1024,6 +1024,46 @@ export default function AdminTimetable() {
                   </div>
                 )}
 
+                {/* Referral source (first booking only) */}
+                {(selectedBooking.profile?.total_bookings ?? 0) <= 1 && (
+                  <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg space-y-2">
+                    <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      How did they hear about us?
+                    </Label>
+                    <Select
+                      value={selectedBooking.profile?.referral_source || ""}
+                      onValueChange={async (value) => {
+                        const { error } = await supabase
+                          .from("profiles")
+                          .update({ referral_source: value })
+                          .eq("user_id", selectedBooking.user_id);
+                        if (error) {
+                          toast({ title: "Failed to save", description: error.message, variant: "destructive" });
+                          return;
+                        }
+                        setSelectedBooking({
+                          ...selectedBooking,
+                          profile: { ...selectedBooking.profile!, referral_source: value },
+                        });
+                        setBookings(prev => prev.map(b => b.user_id === selectedBooking.user_id && b.profile
+                          ? { ...b, profile: { ...b.profile, referral_source: value } }
+                          : b));
+                        toast({ title: "Saved", description: "Referral source recorded." });
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select source..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="word_of_mouth">Word of mouth</SelectItem>
+                        <SelectItem value="social_media">Social media</SelectItem>
+                        <SelectItem value="google_search">Google search</SelectItem>
+                        <SelectItem value="other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
                 <hr className="border-border" />
 
                 {/* Actions */}
