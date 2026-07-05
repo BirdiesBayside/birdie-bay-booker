@@ -194,6 +194,52 @@ export default function AdminAnalytics() {
               </div>
             </div>
 
+            {/* Referral Sources */}
+            <div>
+              <h2 className="text-sm font-medium text-muted-foreground mb-3 uppercase tracking-wide">
+                How New Customers Found Us
+              </h2>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base font-medium">
+                    Referral Sources
+                    <span className="ml-2 text-xs font-normal text-muted-foreground">
+                      New customers in {TIMEFRAME_OPTIONS.find(o => o.value === timeframe)?.label.toLowerCase()}
+                    </span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {data.referralSources.every(r => r.count === 0) && data.referralUnknown === 0 ? (
+                    <p className="text-sm text-muted-foreground">No new customers in this period.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {data.referralSources.map((r) => (
+                        <div key={r.source} className="space-y-1">
+                          <div className="flex justify-between text-sm">
+                            <span className="font-medium">{r.label}</span>
+                            <span className="text-muted-foreground">
+                              {r.count} ({r.percentage.toFixed(1)}%)
+                            </span>
+                          </div>
+                          <div className="h-2 bg-muted rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-primary transition-all"
+                              style={{ width: `${r.percentage}%` }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                      {data.referralUnknown > 0 && (
+                        <p className="text-xs text-muted-foreground pt-2 border-t border-border">
+                          {data.referralUnknown} new customer{data.referralUnknown === 1 ? "" : "s"} without a recorded source (not included in percentages).
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
             {/* Operational Insights */}
             <div>
               <h2 className="text-sm font-medium text-muted-foreground mb-3 uppercase tracking-wide">
