@@ -288,7 +288,7 @@ export default function AdminTimetable() {
         const userIds = [...new Set(data.map(b => b.user_id))];
         const { data: profiles } = await supabase
           .from("profiles")
-          .select("user_id, first_name, last_name, email, phone, membership_tier, total_bookings")
+          .select("user_id, first_name, last_name, email, phone, membership_tier, total_bookings, referral_source")
           .in("user_id", userIds);
 
         if (requestId !== fetchInFlightRef.current) return;
