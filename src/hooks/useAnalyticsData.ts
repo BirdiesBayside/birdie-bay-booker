@@ -319,6 +319,41 @@ export function useAnalyticsData(timeframe: AnalyticsTimeframe = "30d") {
         }
       }
 
+      // Referral sources: count new customers in the timeframe by profile.referral_source
+      const newCustomerIds = new Set<string>();
+      allUserFirstBooking.forEach((firstDate, userId) => {
+        if (firstDate >= rangeStart) newCustomerIds.add(userId);
+      });
+      const REFERRAL_LABELS: Record<string, string> = {
+        word_of_mouth: "Word of mouth",
+        social_media: "Social media",
+        google_search: "Google search",
+        other: "Other",
+      };
+      const referralCounts: Record<string, number> = {
+        word_of_mouth: 0,
+        social_media: 0,
+        google_search: 0,
+        other: 0,
+      };
+      let referralUnknown = 0;
+      profiles.forEach((p) => {
+        if (!newCustomerIds.has(p.user_id)) return;
+        const src = (p as any).referral_source as string | null | undefined;
+        if (src && referralCounts[src] !== undefined) {
+          referralCounts[src] += 1;
+        } else {
+          referralUnknown += 1;
+        }
+      });
+      const referralKnownTotal = Object.values(referralCounts).reduce((a, b) => a + b, 0);
+      const referralSources = Object.entries(referralCounts).map(([source, count]) => ({
+        source,
+        label: REFERRAL_LABELS[source],
+        count,
+        percentage: referralKnownTotal > 0 ? (count / referralKnownTotal) * 100 : 0,
+      }));
+
       return {
         newCustomersThisWeek,
         newCustomersLastWeek,
@@ -332,6 +367,8 @@ export function useAnalyticsData(timeframe: AnalyticsTimeframe = "30d") {
         bookingFrequency,
         dayOfWeekUtilization,
         hourlyHeatmap,
+        referralSources,
+        referralUnknown,
       };
     },
     staleTime: 1000 * 60 * 5,
