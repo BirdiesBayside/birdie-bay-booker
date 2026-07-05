@@ -1574,6 +1574,7 @@ export type Database = {
           membership_tier: Database["public"]["Enums"]["membership_tier"]
           payment_failed_at: string | null
           phone: string | null
+          referral_source: string | null
           sgt_user_id: number | null
           total_bookings: number
           updated_at: string
@@ -1597,6 +1598,7 @@ export type Database = {
           membership_tier?: Database["public"]["Enums"]["membership_tier"]
           payment_failed_at?: string | null
           phone?: string | null
+          referral_source?: string | null
           sgt_user_id?: number | null
           total_bookings?: number
           updated_at?: string
@@ -1620,6 +1622,7 @@ export type Database = {
           membership_tier?: Database["public"]["Enums"]["membership_tier"]
           payment_failed_at?: string | null
           phone?: string | null
+          referral_source?: string | null
           sgt_user_id?: number | null
           total_bookings?: number
           updated_at?: string
