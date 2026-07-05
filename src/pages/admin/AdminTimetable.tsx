@@ -84,6 +84,7 @@ interface Booking {
     phone: string | null;
     membership_tier: string;
     total_bookings?: number;
+    referral_source?: string | null;
   };
 }
 
