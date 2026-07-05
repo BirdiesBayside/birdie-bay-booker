@@ -84,6 +84,7 @@ interface Booking {
     phone: string | null;
     membership_tier: string;
     total_bookings?: number;
+    referral_source?: string | null;
   };
 }
 
@@ -287,7 +288,7 @@ export default function AdminTimetable() {
         const userIds = [...new Set(data.map(b => b.user_id))];
         const { data: profiles } = await supabase
           .from("profiles")
-          .select("user_id, first_name, last_name, email, phone, membership_tier, total_bookings")
+          .select("user_id, first_name, last_name, email, phone, membership_tier, total_bookings, referral_source")
           .in("user_id", userIds);
 
         if (requestId !== fetchInFlightRef.current) return;
@@ -1020,6 +1021,46 @@ export default function AdminTimetable() {
                       <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Staff Notes</p>
                     </div>
                     <p className="text-sm">{selectedBooking.notes}</p>
+                  </div>
+                )}
+
+                {/* Referral source (first booking only) */}
+                {(selectedBooking.profile?.total_bookings ?? 0) <= 1 && (
+                  <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg space-y-2">
+                    <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      How did they hear about us?
+                    </Label>
+                    <Select
+                      value={selectedBooking.profile?.referral_source || ""}
+                      onValueChange={async (value) => {
+                        const { error } = await supabase
+                          .from("profiles")
+                          .update({ referral_source: value })
+                          .eq("user_id", selectedBooking.user_id);
+                        if (error) {
+                          toast({ title: "Failed to save", description: error.message, variant: "destructive" });
+                          return;
+                        }
+                        setSelectedBooking({
+                          ...selectedBooking,
+                          profile: { ...selectedBooking.profile!, referral_source: value },
+                        });
+                        setBookings(prev => prev.map(b => b.user_id === selectedBooking.user_id && b.profile
+                          ? { ...b, profile: { ...b.profile, referral_source: value } }
+                          : b));
+                        toast({ title: "Saved", description: "Referral source recorded." });
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select source..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="word_of_mouth">Word of mouth</SelectItem>
+                        <SelectItem value="social_media">Social media</SelectItem>
+                        <SelectItem value="google_search">Google search</SelectItem>
+                        <SelectItem value="other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 )}
 
