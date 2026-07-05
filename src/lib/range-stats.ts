@@ -54,52 +54,63 @@ export function detectSpeedUnit(shots: Shot[]): SpeedUnit {
   const cs = driver.map((s) => s.club_speed).filter((v): v is number => typeof v === "number" && v > 0);
   if (cs.length >= 3) {
     const avg = cs.reduce((a, b) => a + b, 0) / cs.length;
-    // Tour-max clubhead ≈ 130 mph. Anything above is almost certainly kph.
     if (avg > 135) return "kph";
     if (avg < 115) return "mph";
-    // Overlap band 115–135: use ball speed as tiebreaker.
   }
   const bs = driver.map((s) => s.ball_speed).filter((v): v is number => typeof v === "number" && v > 0);
   if (bs.length >= 3) {
     const avg = bs.reduce((a, b) => a + b, 0) / bs.length;
-    // Tour-max ball speed ≈ 190 mph. Above → kph.
     return avg > 195 ? "kph" : "mph";
+  }
+  // Fallback when no driver shots: use max speeds across ALL clubs. No club
+  // (even a driver) exceeds ~135 mph clubhead or ~200 mph ball speed — so any
+  // reading above those must be kph.
+  const allCs = shots.map((s) => s.club_speed).filter((v): v is number => typeof v === "number" && v > 0);
+  if (allCs.length >= 3) {
+    if (Math.max(...allCs) > 135) return "kph";
+  }
+  const allBs = shots.map((s) => s.ball_speed).filter((v): v is number => typeof v === "number" && v > 0);
+  if (allBs.length >= 3) {
+    if (Math.max(...allBs) > 200) return "kph";
   }
   return "mph";
 }
 
 /**
- * Auto-detect distance unit (yards vs metres). We compare the driver's
- * measured carry against the carry we'd *expect* from the ball speed:
- *   expected_carry_yd ≈ ball_speed_mph × 1.72   (typical driver efficiency)
- * If the measured carry sits closer to that number in yards → yards,
- * otherwise metres. Falls back to a raw threshold if speed is missing.
+ * Auto-detect distance unit (yards vs metres). Compare measured carry against
+ * carry expected from ball speed. Uses driver when available, otherwise falls
+ * back to a bag-wide average (expected_yd ≈ ball_speed_mph × 1.5).
  */
 export function detectDistanceUnit(shots: Shot[]): DistanceUnit {
+  const spdUnit = detectSpeedUnit(shots);
   const driver = shots.filter((s) => {
     const c = (s.club_type || "").toLowerCase();
     return c === "dr" || c === "driver" || c === "d";
   });
   const carries = driver.map((s) => s.carry).filter((v): v is number => typeof v === "number" && v > 0);
-  if (carries.length < 3) return "m";
-  const avgCarry = carries.reduce((a, b) => a + b, 0) / carries.length;
-
-  // Cross-check against ball speed if available
-  const spdUnit = detectSpeedUnit(shots);
-  const bs = driver.map((s) => s.ball_speed).filter((v): v is number => typeof v === "number" && v > 0);
-  if (bs.length >= 3) {
-    const avgBsRaw = bs.reduce((a, b) => a + b, 0) / bs.length;
-    const avgBsMph = spdUnit === "kph" ? avgBsRaw * KPH_TO_MPH : avgBsRaw;
-    const expectedYd = avgBsMph * 1.72;   // typical driver ball-speed → carry
-    const expectedM = expectedYd * YD_TO_M;
-    // Pick the interpretation whose expected value is closest to measured.
-    const dYd = Math.abs(avgCarry - expectedYd);
-    const dM = Math.abs(avgCarry - expectedM);
-    return dYd < dM ? "yd" : "m";
+  if (carries.length >= 3) {
+    const avgCarry = carries.reduce((a, b) => a + b, 0) / carries.length;
+    const bs = driver.map((s) => s.ball_speed).filter((v): v is number => typeof v === "number" && v > 0);
+    if (bs.length >= 3) {
+      const avgBsRaw = bs.reduce((a, b) => a + b, 0) / bs.length;
+      const avgBsMph = spdUnit === "kph" ? avgBsRaw * KPH_TO_MPH : avgBsRaw;
+      const expectedYd = avgBsMph * 1.72;
+      const expectedM = expectedYd * YD_TO_M;
+      return Math.abs(avgCarry - expectedYd) < Math.abs(avgCarry - expectedM) ? "yd" : "m";
+    }
+    return avgCarry > 215 ? "yd" : "m";
   }
-
-  // Fallback: raw threshold. Driver carry >215 → yards, else metres.
-  return avgCarry > 215 ? "yd" : "m";
+  const allBs = shots.map((s) => s.ball_speed).filter((v): v is number => typeof v === "number" && v > 0);
+  const allCarry = shots.map((s) => s.carry).filter((v): v is number => typeof v === "number" && v > 0);
+  if (allBs.length >= 3 && allCarry.length >= 3) {
+    const avgBsRaw = allBs.reduce((a, b) => a + b, 0) / allBs.length;
+    const avgBsMph = spdUnit === "kph" ? avgBsRaw * KPH_TO_MPH : avgBsRaw;
+    const avgCarry = allCarry.reduce((a, b) => a + b, 0) / allCarry.length;
+    const expectedYd = avgBsMph * 1.5;
+    const expectedM = expectedYd * YD_TO_M;
+    return Math.abs(avgCarry - expectedYd) < Math.abs(avgCarry - expectedM) ? "yd" : "m";
+  }
+  return "m";
 }
 
 
