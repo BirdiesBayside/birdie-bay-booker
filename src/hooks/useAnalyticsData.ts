@@ -111,7 +111,7 @@ export function useAnalyticsData(timeframe: AnalyticsTimeframe = "30d") {
         fetchAllRows((from, to) =>
           supabase
             .from("profiles")
-            .select("user_id, membership_tier, created_at, updated_at")
+            .select("user_id, membership_tier, created_at, updated_at, referral_source")
             .range(from, to)
         ),
         fetchAllRows((from, to) =>
