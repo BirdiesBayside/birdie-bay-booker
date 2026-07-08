@@ -2739,7 +2739,7 @@ export default function BayController() {
           const ok = (baseline.results || []).filter((r: any) => r.success).map((r: any) => r.file);
           if (ok.length) addLog(`Applied shared baseline before launch: ${ok.join(', ')}`, 'info');
         } else if (baseline?.error) {
-          addLog(`Baseline apply skipped: ${baseline.error}`, 'warning');
+          addLog(`Baseline apply skipped: ${baseline.error}`, 'info');
         }
       } catch (e) {
         console.error('[BayController] restoreBaselineNow (pre-launch) failed:', e);
