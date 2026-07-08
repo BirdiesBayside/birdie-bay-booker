@@ -2730,7 +2730,22 @@ export default function BayController() {
       addLog(`Protee Display: ${appLaunchConfig.proteeDisplayLabel || 'default'}`, 'info');
       addLog(`Customer: ${launchConfig.firstName}`, 'info');
 
-      // Restore this customer's saved GSPro settings (SGT login, prefs) if any.
+      // Step A: Apply shared baseline first so every session starts from a
+      // clean slate (wipes previous customer's SGT login / settings tweaks).
+      // This runs regardless of whether the close-time watcher fired.
+      try {
+        const baseline = await window.electronAPI.restoreBaselineNow();
+        if (baseline?.success) {
+          const ok = (baseline.results || []).filter((r: any) => r.success).map((r: any) => r.file);
+          if (ok.length) addLog(`Applied shared baseline before launch: ${ok.join(', ')}`, 'info');
+        } else if (baseline?.error) {
+          addLog(`Baseline apply skipped: ${baseline.error}`, 'warning');
+        }
+      } catch (e) {
+        console.error('[BayController] restoreBaselineNow (pre-launch) failed:', e);
+      }
+
+      // Step B: Overlay this customer's saved GSPro snapshot (SGT login, prefs) on top of baseline.
       if (activeBooking?.user_id) {
         try {
           const restored = await restoreUserGsproSettings(activeBooking.user_id, {
@@ -2738,10 +2753,13 @@ export default function BayController() {
             bookingId: activeBooking.id,
             appVersion,
           });
-          if (restored.restored.length) addLog(`Restored customer GSPro settings: ${restored.restored.join(', ')}`, 'info');
+          if (restored.restored.length) addLog(`Overlaid customer GSPro settings: ${restored.restored.join(', ')}`, 'info');
+          else addLog('No customer snapshot found — using shared baseline for this session', 'info');
         } catch (e) {
           console.error('[BayController] restoreUserGsproSettings failed:', e);
         }
+      } else {
+        addLog('No user_id on active booking — using shared baseline only', 'info');
       }
 
       const result = await window.electronAPI.runAppSequence(launchConfig);
