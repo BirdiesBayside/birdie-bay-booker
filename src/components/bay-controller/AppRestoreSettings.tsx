@@ -190,9 +190,11 @@ export function AppRestoreSettings({ isElectron }: AppRestoreSettingsProps) {
       {/* Enable/Disable */}
       <div className="flex items-center justify-between">
         <div>
-          <Label>Auto-Restore on GSPro Close</Label>
+          <Label>Auto-Restore Baseline on GSPro Close</Label>
           <p className="text-xs text-muted-foreground">
-            Automatically restore GSPro &amp; Protee settings when GSPro exits
+            Safety-net: re-apply the shared baseline whenever GSPro exits.
+            (The baseline is also applied automatically before every launch —
+            this toggle only controls the extra close-time sweep.)
           </p>
         </div>
         <Switch
