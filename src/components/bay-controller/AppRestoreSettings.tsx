@@ -319,13 +319,13 @@ export function AppRestoreSettings({ isElectron }: AppRestoreSettingsProps) {
 
       {/* Info */}
       <div className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-lg space-y-1">
-        <p><strong>How it works:</strong></p>
+        <p><strong>How it works (two layers):</strong></p>
         <ol className="list-decimal list-inside space-y-1">
-          <li>Set up GSPro with your preferred settings + Guest players</li>
-          <li>Upload the two GSPro config files</li>
-          <li>Enable auto-restore</li>
-          <li>When GSPro closes, settings are reset automatically</li>
+          <li><strong>Baseline</strong> — the shared clean-slate config. Uploaded here once. Applied automatically <em>before every launch</em> so no customer inherits the previous player's SGT login or settings.</li>
+          <li><strong>Customer snapshot</strong> — each signed-in customer's GSPro settings are uploaded to the cloud when GSPro closes, then restored on their next session (overlaid on top of the baseline).</li>
         </ol>
+        <p className="pt-2"><strong>Setup:</strong> Configure GSPro with your default settings + Guest players, upload the two config files here. New/anonymous customers get this baseline; returning customers get their own snapshot.</p>
+        <p className="pt-1"><strong>Close-time toggle above</strong> is an optional safety-net that re-applies the baseline again when GSPro exits — normally not required since baseline runs before every launch.</p>
       </div>
     </div>
   );
