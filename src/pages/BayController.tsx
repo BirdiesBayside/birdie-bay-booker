@@ -295,11 +295,12 @@ export default function BayController() {
   useEffect(() => {
     const api: any = (window as any).electronAPI;
     if (!api?.isElectron) return;
-    // Push current state to main process on mount + whenever it changes
+    // Push current state + selected bay to main process on mount + on change
     if (typeof api.setKioskMode === 'function') {
-      api.setKioskMode(kioskEnabled).catch(() => {});
+      api.setKioskMode(kioskEnabled, selectedBay).catch(() => {});
     }
-  }, [kioskEnabled]);
+  }, [kioskEnabled, selectedBay]);
+
 
   useEffect(() => {
     const api: any = (window as any).electronAPI;
