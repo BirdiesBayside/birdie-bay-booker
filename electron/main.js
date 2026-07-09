@@ -153,7 +153,30 @@ function setTaskbarVisible(visible) {
   });
 }
 
+// Runtime backstop: while kiosk is on, poll every 500ms and kill
+// StartMenuExperienceHost if it's showing a visible window. Windows
+// auto-respawns the process (invisible) so this only dismisses an
+// actively-open Start menu — cheap, safe, and no user impact.
+// Permanent fix is the Scancode Map (see install-winkey-block IPC).
+let startMenuKillerTimer = null;
 
+function startStartMenuKiller() {
+  if (startMenuKillerTimer) return;
+  startMenuKillerTimer = setInterval(() => {
+    if (!kioskModeEnabled) return;
+    // Only kill if the process has a visible main window (Start is open).
+    // -eq 0 handle means no visible window; skip.
+    const ps = `Get-Process StartMenuExperienceHost -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Stop-Process -Force -ErrorAction SilentlyContinue`;
+    exec(`powershell -NoProfile -Command "${ps}"`, { windowsHide: true, timeout: 3000 }, () => {});
+  }, 500);
+}
+
+function stopStartMenuKiller() {
+  if (startMenuKillerTimer) {
+    clearInterval(startMenuKillerTimer);
+    startMenuKillerTimer = null;
+  }
+}
 
 
 const isDev = process.env.NODE_ENV === 'development';
