@@ -688,8 +688,8 @@ ipcMain.handle('set-app-launch-config', async (event, config) => {
 });
 
 // Handle kiosk mode toggle from renderer
-ipcMain.handle('set-kiosk-mode', async (event, { enabled }) => {
-  console.log('[IPC] set-kiosk-mode:', enabled);
+ipcMain.handle('set-kiosk-mode', async (event, { enabled, bayNumber }) => {
+  console.log('[IPC] set-kiosk-mode:', enabled, 'bay:', bayNumber);
   const wasEnabled = kioskModeEnabled;
   kioskModeEnabled = !!enabled;
 
@@ -697,12 +697,13 @@ ipcMain.handle('set-kiosk-mode', async (event, { enabled }) => {
 
   if (kioskModeEnabled) {
     enableKioskShortcuts();
-    // Only kill explorer if it isn't already down (avoids double-kill during
-    // startup restore when kiosk state was persisted enabled).
     shellResult = await killExplorerShell();
+    // Paint the bay-branded background over the void left by explorer.exe.
+    // Sits at desktop z-order; GSPro / Protee / overlays all render above.
+    showKioskBackground(bayNumber);
   } else {
     disableKioskShortcuts();
-    // Restore the shell so staff have taskbar/Start menu back.
+    closeKioskBackground();
     if (wasEnabled) {
       shellResult = await startExplorerShell();
     }
@@ -710,6 +711,7 @@ ipcMain.handle('set-kiosk-mode', async (event, { enabled }) => {
 
   return { success: true, kioskModeEnabled, shell: shellResult };
 });
+
 
 
 
