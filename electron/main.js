@@ -525,6 +525,10 @@ app.setLoginItemSettings({
 app.whenReady().then(() => {
   createWindow();
   createTray();
+  // Watch for monitor/projector power cycles so the kiosk background rebuilds
+  // itself when displays disappear (plugs off) or reappear (plugs on).
+  registerKioskDisplayListeners();
+
   
   // =====================================================
   // AUTO-UPDATER - checks GitHub Releases for new versions
