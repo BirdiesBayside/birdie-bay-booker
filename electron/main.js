@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Tray, Menu, ipcMain, screen, dialog, clipboard, globalShortcut } = require('electron');
+const { app, BrowserWindow, Tray, Menu, ipcMain, screen, dialog, clipboard, globalShortcut, powerMonitor } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const fs = require('fs');
@@ -177,6 +177,25 @@ function stopStartMenuKiller() {
     startMenuKillerTimer = null;
   }
 }
+
+// Periodic re-hide of the taskbar. RDP sessions, explorer.exe restarts,
+// display changes, and session unlock all repaint Shell_TrayWnd in a new
+// state. Cheap to re-apply — ShowWindow on an already-hidden window is a no-op.
+let taskbarRehideTimer = null;
+function startTaskbarRehide() {
+  if (taskbarRehideTimer) return;
+  taskbarRehideTimer = setInterval(() => {
+    if (!kioskModeEnabled) return;
+    setTaskbarVisible(false).catch(() => {});
+  }, 5000);
+}
+function stopTaskbarRehide() {
+  if (taskbarRehideTimer) {
+    clearInterval(taskbarRehideTimer);
+    taskbarRehideTimer = null;
+  }
+}
+
 
 
 const isDev = process.env.NODE_ENV === 'development';
@@ -367,6 +386,27 @@ app.setLoginItemSettings({
 app.whenReady().then(() => {
   createWindow();
   createTray();
+
+  // Re-apply kiosk taskbar hide when returning from lock/RDP/suspend.
+  // A new Windows session (RDP) or explorer restart repaints Shell_TrayWnd.
+  const rehideIfKiosk = (reason) => {
+    if (!kioskModeEnabled) return;
+    console.log('[Kiosk] Re-hiding taskbar after event:', reason);
+    // Small delay so explorer/session finishes initializing first.
+    setTimeout(() => setTaskbarVisible(false).catch(() => {}), 1500);
+    setTimeout(() => setTaskbarVisible(false).catch(() => {}), 5000);
+  };
+  try {
+    powerMonitor.on('unlock-screen', () => rehideIfKiosk('unlock-screen'));
+    powerMonitor.on('resume', () => rehideIfKiosk('resume'));
+    powerMonitor.on('user-did-become-active', () => rehideIfKiosk('user-active'));
+  } catch (err) {
+    console.warn('[Kiosk] powerMonitor listeners failed:', err?.message || err);
+  }
+  screen.on('display-added', () => rehideIfKiosk('display-added'));
+  screen.on('display-removed', () => rehideIfKiosk('display-removed'));
+  screen.on('display-metrics-changed', () => rehideIfKiosk('display-metrics'));
+
 
 
 
@@ -611,13 +651,16 @@ ipcMain.handle('set-kiosk-mode', async (event, payload) => {
     enableKioskShortcuts();
     shellResult = await setTaskbarVisible(false);
     startStartMenuKiller();
+    startTaskbarRehide();
   } else {
     disableKioskShortcuts();
     stopStartMenuKiller();
+    stopTaskbarRehide();
     if (wasEnabled) {
       shellResult = await setTaskbarVisible(true);
     }
   }
+
 
   return { success: true, kioskModeEnabled, shell: shellResult };
 });
