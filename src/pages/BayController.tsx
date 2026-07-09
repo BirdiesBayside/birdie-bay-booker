@@ -291,6 +291,51 @@ export default function BayController() {
     }
   }, []);
 
+  // Kiosk Mode: sync to main process + listen for unlock hotkey
+  useEffect(() => {
+    const api: any = (window as any).electronAPI;
+    if (!api?.isElectron) return;
+    // Push current state to main process on mount + whenever it changes
+    if (typeof api.setKioskMode === 'function') {
+      api.setKioskMode(kioskEnabled).catch(() => {});
+    }
+  }, [kioskEnabled]);
+
+  useEffect(() => {
+    const api: any = (window as any).electronAPI;
+    if (!api?.isElectron || typeof api.onRequestKioskUnlock !== 'function') return;
+    const cleanup = api.onRequestKioskUnlock(() => {
+      setKioskUnlockPassword("");
+      setKioskUnlockError("");
+      setKioskUnlockOpen(true);
+    });
+    return cleanup;
+  }, []);
+
+  const toggleKiosk = (enable: boolean) => {
+    if (enable) {
+      localStorage.setItem("bayController_kioskEnabled", "true");
+      setKioskEnabled(true);
+      toast.success("Kiosk Mode enabled — press Ctrl+Alt+1 to unlock");
+    } else {
+      localStorage.setItem("bayController_kioskEnabled", "false");
+      setKioskEnabled(false);
+      toast.info("Kiosk Mode disabled");
+    }
+  };
+
+  const handleKioskUnlock = () => {
+    if (kioskUnlockPassword === CORRECT_PASSWORD) {
+      toggleKiosk(false);
+      setKioskUnlockOpen(false);
+      setKioskUnlockPassword("");
+      setKioskUnlockError("");
+    } else {
+      setKioskUnlockError("Incorrect password");
+    }
+  };
+
+
   // Helper to add debug log
   const addLog = useCallback((message: string, type: 'info' | 'error' | 'success' = 'info') => {
     const time = new Date().toLocaleTimeString();
