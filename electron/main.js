@@ -538,6 +538,7 @@ app.on('will-quit', () => {
   globalShortcut.unregisterAll();
   if (kioskModeEnabled) {
     console.log('[Kiosk] App quitting while kiosk was active — restoring taskbar as safety net');
+    try { stopStartMenuKiller(); } catch {}
     try { setTaskbarVisible(true); } catch {}
   }
 });
