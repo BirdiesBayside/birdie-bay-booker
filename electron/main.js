@@ -489,15 +489,14 @@ app.on('child-process-gone', (event, details) => {
   logProcessIssue('child_process_gone', details);
 });
 
-// Unregister shortcuts on quit + safety-net restore Explorer shell
+// Unregister shortcuts on quit + safety-net restore the taskbar
 // so a controller crash / update / manual quit never leaves staff
-// stranded with no taskbar.
+// stranded with a hidden taskbar.
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
-  try { closeKioskBackground(); } catch {}
   if (kioskModeEnabled) {
-    console.log('[Kiosk] App quitting while kiosk was active — restoring explorer.exe as safety net');
-    try { exec('start "" explorer.exe'); } catch {}
+    console.log('[Kiosk] App quitting while kiosk was active — restoring taskbar as safety net');
+    try { setTaskbarVisible(true); } catch {}
   }
 });
 
