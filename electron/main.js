@@ -153,7 +153,30 @@ function setTaskbarVisible(visible) {
   });
 }
 
+// Runtime backstop: while kiosk is on, poll every 500ms and kill
+// StartMenuExperienceHost if it's showing a visible window. Windows
+// auto-respawns the process (invisible) so this only dismisses an
+// actively-open Start menu — cheap, safe, and no user impact.
+// Permanent fix is the Scancode Map (see install-winkey-block IPC).
+let startMenuKillerTimer = null;
 
+function startStartMenuKiller() {
+  if (startMenuKillerTimer) return;
+  startMenuKillerTimer = setInterval(() => {
+    if (!kioskModeEnabled) return;
+    // Only kill if the process has a visible main window (Start is open).
+    // -eq 0 handle means no visible window; skip.
+    const ps = `Get-Process StartMenuExperienceHost -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Stop-Process -Force -ErrorAction SilentlyContinue`;
+    exec(`powershell -NoProfile -Command "${ps}"`, { windowsHide: true, timeout: 3000 }, () => {});
+  }, 500);
+}
+
+function stopStartMenuKiller() {
+  if (startMenuKillerTimer) {
+    clearInterval(startMenuKillerTimer);
+    startMenuKillerTimer = null;
+  }
+}
 
 
 const isDev = process.env.NODE_ENV === 'development';
@@ -515,6 +538,7 @@ app.on('will-quit', () => {
   globalShortcut.unregisterAll();
   if (kioskModeEnabled) {
     console.log('[Kiosk] App quitting while kiosk was active — restoring taskbar as safety net');
+    try { stopStartMenuKiller(); } catch {}
     try { setTaskbarVisible(true); } catch {}
   }
 });
@@ -586,8 +610,10 @@ ipcMain.handle('set-kiosk-mode', async (event, payload) => {
   if (kioskModeEnabled) {
     enableKioskShortcuts();
     shellResult = await setTaskbarVisible(false);
+    startStartMenuKiller();
   } else {
     disableKioskShortcuts();
+    stopStartMenuKiller();
     if (wasEnabled) {
       shellResult = await setTaskbarVisible(true);
     }
@@ -595,6 +621,62 @@ ipcMain.handle('set-kiosk-mode', async (event, payload) => {
 
   return { success: true, kioskModeEnabled, shell: shellResult };
 });
+
+// One-click installer for the Scancode Map registry key that fully
+// disables the Windows key (both left + right). Requires elevated
+// PowerShell (writes to HKLM) and a reboot to take effect. After
+// install, Windows treats Win-key presses as no-ops even on the
+// lock screen, in fullscreen apps, everywhere.
+ipcMain.handle('install-winkey-block', async () => {
+  const psBody = [
+    "$ErrorActionPreference = 'Stop'",
+    "$path = 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Keyboard Layout'",
+    // 3 entries (2 remaps + null terminator), disable LWin (E0 5B) and RWin (E0 5C)
+    "$map = [byte[]](0,0,0,0, 0,0,0,0, 3,0,0,0, 0,0,0x5B,0xE0, 0,0,0x5C,0xE0, 0,0,0,0)",
+    "if (-not (Test-Path $path)) { New-Item -Path $path -Force | Out-Null }",
+    "Set-ItemProperty -Path $path -Name 'Scancode Map' -Value $map -Type Binary",
+    "Write-Output 'installed'"
+  ].join("\r\n");
+
+  const scriptPath = path.join(require('os').tmpdir(), `bay-winkey-${Date.now()}.ps1`);
+  try { fs.writeFileSync(scriptPath, psBody, 'utf8'); }
+  catch (err) { return { success: false, error: err?.message }; }
+
+  return await new Promise((resolve) => {
+    // Start-Process -Verb RunAs triggers the UAC prompt so HKLM write succeeds.
+    const outer = `powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process powershell -Verb RunAs -Wait -WindowStyle Hidden -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File','${scriptPath}'"`;
+    exec(outer, { windowsHide: true, timeout: 30000 }, (err, stdout, stderr) => {
+      try { fs.unlinkSync(scriptPath); } catch {}
+      if (err) {
+        console.error('[WinKeyBlock] Install failed:', err.message, stderr);
+        return resolve({ success: false, error: err.message, stderr });
+      }
+      console.log('[WinKeyBlock] Scancode Map installed — reboot required');
+      resolve({ success: true, rebootRequired: true });
+    });
+  });
+});
+
+ipcMain.handle('uninstall-winkey-block', async () => {
+  const psBody = [
+    "$ErrorActionPreference = 'SilentlyContinue'",
+    "Remove-ItemProperty -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Keyboard Layout' -Name 'Scancode Map'",
+    "Write-Output 'removed'"
+  ].join("\r\n");
+  const scriptPath = path.join(require('os').tmpdir(), `bay-winkey-un-${Date.now()}.ps1`);
+  try { fs.writeFileSync(scriptPath, psBody, 'utf8'); }
+  catch (err) { return { success: false, error: err?.message }; }
+  return await new Promise((resolve) => {
+    const outer = `powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process powershell -Verb RunAs -Wait -WindowStyle Hidden -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File','${scriptPath}'"`;
+    exec(outer, { windowsHide: true, timeout: 30000 }, (err) => {
+      try { fs.unlinkSync(scriptPath); } catch {}
+      if (err) return resolve({ success: false, error: err.message });
+      resolve({ success: true, rebootRequired: true });
+    });
+  });
+});
+
+
 
 
 
