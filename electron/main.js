@@ -629,11 +629,13 @@ app.on('child-process-gone', (event, details) => {
 // stranded with no taskbar.
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
+  try { closeKioskBackground(); } catch {}
   if (kioskModeEnabled) {
     console.log('[Kiosk] App quitting while kiosk was active — restoring explorer.exe as safety net');
     try { exec('start "" explorer.exe'); } catch {}
   }
 });
+
 
 
 app.on('window-all-closed', () => {
