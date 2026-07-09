@@ -265,6 +265,15 @@ export default function BayController() {
   // Auto-update state
   const [updateDownloaded, setUpdateDownloaded] = useState<string | null>(null);
   const [updateDownloading, setUpdateDownloading] = useState(false);
+
+  // Kiosk Mode state
+  const [kioskEnabled, setKioskEnabled] = useState<boolean>(() => {
+    return localStorage.getItem("bayController_kioskEnabled") === "true";
+  });
+  const [kioskUnlockOpen, setKioskUnlockOpen] = useState(false);
+  const [kioskUnlockPassword, setKioskUnlockPassword] = useState("");
+  const [kioskUnlockError, setKioskUnlockError] = useState("");
+
   
   // Centralized logging hook for backend logs
   const bayLogger = useBayControllerLogger({
