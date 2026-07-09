@@ -232,16 +232,21 @@ function showKioskBackground(bayNumber) {
       const { x, y, width, height } = display.bounds;
       const win = new BrowserWindow({
         x, y, width, height,
+        useContentSize: false,       // width/height are the full window, not just content
         frame: false,
         transparent: false,
-        resizable: false,
-        movable: false,
+        hasShadow: false,
+        thickFrame: false,           // Windows: don't add resizeable border chrome
+        resizable: true,             // keep true so programmatic setBounds isn't clamped
+        movable: true,
         minimizable: false,
         maximizable: false,
         closable: false,
-        focusable: false,          // never steals focus
+        fullscreenable: false,
+        focusable: false,            // never steals focus
         skipTaskbar: true,
-        alwaysOnTop: false,        // desktop-level z-order
+        alwaysOnTop: false,          // desktop-level z-order
+        enableLargerThanScreen: true,
         show: false,
         backgroundColor: '#1F4C25',
         webPreferences: {
@@ -250,20 +255,29 @@ function showKioskBackground(bayNumber) {
         },
       });
       win.setMenuBarVisibility(false);
+      win.setAutoHideMenuBar(true);
+      // Force the bounds again post-construction — some Electron/Windows
+      // combos ignore the constructor bounds when frame:false + non-focusable.
+      try { win.setBounds({ x, y, width, height }); } catch {}
       win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(buildKioskBackgroundHtml(bayNumber)));
       win.once('ready-to-show', () => {
         try {
-          win.showInactive(); // show without stealing focus
-          // Explicitly send it to the back so any running app stays on top.
-          if (typeof win.moveAbove === 'function') {
-            // noop — moveAbove requires a MediaHandle on some platforms
-          }
+          // Re-apply bounds one more time now that content is loaded, then show
+          // without stealing focus. This guarantees a full-display fill on all
+          // DPI configurations (including RDP sessions with virtual displays).
+          try { win.setBounds({ x, y, width, height }); } catch {}
+          win.showInactive();
+          // Belt-and-braces: after showing, snap to the exact display bounds one final time.
+          setTimeout(() => {
+            try { win.setBounds({ x, y, width, height }); } catch {}
+          }, 100);
         } catch (err) {
           console.warn('[Kiosk] Failed to show background window:', err?.message || err);
         }
       });
       kioskBackgroundWindows.push(win);
     }
+
     console.log(`[Kiosk] Background window shown on ${kioskBackgroundWindows.length} display(s)`);
     return { success: true, count: kioskBackgroundWindows.length };
   } catch (err) {
