@@ -66,6 +66,10 @@ declare global {
       confirmQuit: () => Promise<{ success: boolean }>;
       setAuthenticated: (authenticated: boolean) => Promise<{ success: boolean }>;
       setAppLaunchConfig: (config: { gsproDisplayLabel?: string; proteeDisplayLabel?: string }) => Promise<{ success: boolean }>;
+      // Kiosk Mode
+      setKioskMode: (enabled: boolean) => Promise<{ success: boolean; kioskModeEnabled?: boolean }>;
+      onRequestKioskUnlock: (callback: () => void) => () => void;
+
       onRequestLock: (callback: () => void) => () => void;
       onRequestQuitPassword: (callback: () => void) => () => void;
       // F10 global hotkey events
