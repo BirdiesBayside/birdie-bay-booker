@@ -222,9 +222,57 @@ function closeKioskBackground() {
   kioskBackgroundWindows = [];
 }
 
+// Remember the bay number so we can rebuild backgrounds on display changes
+// (TAPO plugs cycle monitors/projectors → Windows fires display-added/removed).
+let kioskBackgroundBayNumber = null;
+let kioskDisplayRebuildTimer = null;
+
+function scheduleKioskRebuild(reason) {
+  if (!kioskModeEnabled) return;
+  if (kioskDisplayRebuildTimer) clearTimeout(kioskDisplayRebuildTimer);
+  // Debounce: Windows often fires multiple display events within ~1s during
+  // monitor power-on / mode negotiation. Wait for the dust to settle, then
+  // rebuild the background on the current set of displays.
+  kioskDisplayRebuildTimer = setTimeout(() => {
+    kioskDisplayRebuildTimer = null;
+    if (!kioskModeEnabled) return;
+    console.log(`[Kiosk] Rebuilding background windows (${reason})`);
+    try {
+      showKioskBackground(kioskBackgroundBayNumber);
+    } catch (err) {
+      console.error('[Kiosk] Rebuild failed:', err?.message || err);
+    }
+  }, 1500);
+}
+
+// Register display listeners once at app ready (screen module isn't ready before then).
+function registerKioskDisplayListeners() {
+  screen.on('display-added', (_e, display) => {
+    console.log('[Kiosk] display-added:', display?.label || display?.id);
+    scheduleKioskRebuild('display-added');
+  });
+  screen.on('display-removed', (_e, display) => {
+    console.log('[Kiosk] display-removed:', display?.label || display?.id);
+    scheduleKioskRebuild('display-removed');
+  });
+  screen.on('display-metrics-changed', (_e, display, changed) => {
+    // Only rebuild if geometry actually changed (ignore rotation-only, colour-only, etc.)
+    if (Array.isArray(changed) && (changed.includes('bounds') || changed.includes('workArea') || changed.includes('scaleFactor'))) {
+      console.log('[Kiosk] display-metrics-changed:', display?.label, changed);
+      scheduleKioskRebuild('display-metrics-changed');
+    }
+  });
+}
+
+
 function showKioskBackground(bayNumber) {
+  // Remember for future rebuilds triggered by display-added/removed events.
+  if (bayNumber !== undefined && bayNumber !== null) {
+    kioskBackgroundBayNumber = bayNumber;
+  }
   closeKioskBackground();
   try {
+
     // Draw on every connected display so no matter which monitor is
     // "primary", we cover the void left by explorer.exe.
     const displays = screen.getAllDisplays();
@@ -477,6 +525,10 @@ app.setLoginItemSettings({
 app.whenReady().then(() => {
   createWindow();
   createTray();
+  // Watch for monitor/projector power cycles so the kiosk background rebuilds
+  // itself when displays disappear (plugs off) or reappear (plugs on).
+  registerKioskDisplayListeners();
+
   
   // =====================================================
   // AUTO-UPDATER - checks GitHub Releases for new versions
