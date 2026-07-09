@@ -275,7 +275,10 @@ export function statsByClub(shots: Shot[]): ClubStats[] {
       maxTotal: max(g.map((s) => s.total)),
       avgBallSpeed: mean(g.map((s) => s.ball_speed)),
       avgClubSpeed: mean(g.map((s) => s.club_speed)),
-      avgSmash: mean(g.map((s) => s.smash_factor)),
+      // Only average physically-valid smash values. GSPro logs 0/null for
+      // mishits and partial captures, which would otherwise drag the per-club
+      // average well below reality (e.g. a driver showing 0.9).
+      avgSmash: mean(g.map((s) => s.smash_factor).filter((v): v is number => typeof v === "number" && v > 0.5 && v <= 1.55)),
       avgLaunch: mean(g.map((s) => s.launch_angle)),
       avgSpin: mean(g.map((s) => s.spin_rate)),
       lateralSd: stddev(g.map((s) => s.side_carry ?? s.side_total)),
