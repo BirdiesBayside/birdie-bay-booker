@@ -29,6 +29,7 @@ const Dashboard = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [accountAccessLoading, setAccountAccessLoading] = useState(true);
   const [whatsOnOpen, setWhatsOnOpen] = useState(false);
+  const [leagueGuideOpen, setLeagueGuideOpen] = useState(false);
   
   const [showEventForm, setShowEventForm] = useState(false);
   const [newEventTitle, setNewEventTitle] = useState("");
@@ -301,15 +302,15 @@ const Dashboard = () => {
                   <span>Members</span>
                 </div>
               )}
-              <a 
-                href="/birdies-guide" 
-                onClick={(e) => e.stopPropagation()}
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setLeagueGuideOpen(true); }}
                 className="absolute top-3 right-3 h-6 w-6 rounded-full bg-muted hover:bg-muted/80 flex items-center justify-center transition-colors"
                 style={!hasLeagueAccess ? { right: "5.5rem" } : {}}
-                title="How to use the simulators"
+                title="How to play your Birdies League rounds"
               >
                 <Info className="h-4 w-4 text-muted-foreground" />
-              </a>
+              </button>
               <div className="flex items-center gap-3">
                 <div className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 ${hasLeagueAccess ? "bg-league-primary/15" : "bg-muted"}`}>
                   <Trophy className={`h-5 w-5 ${hasLeagueAccess ? "text-league-primary-dark" : "text-muted-foreground"}`} />
@@ -458,6 +459,30 @@ const Dashboard = () => {
         </SheetContent>
       </Sheet>
 
+
+      <Dialog open={leagueGuideOpen} onOpenChange={setLeagueGuideOpen}>
+        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Trophy className="h-5 w-5 text-league-primary-dark" />
+              How to play your Birdies League rounds
+            </DialogTitle>
+          </DialogHeader>
+          <ol className="space-y-3 text-sm text-foreground list-decimal pl-5">
+            <li>Open the <span className="font-semibold">My Account</span> section of the Birdies Hub.</li>
+            <li>In <span className="font-semibold">GSPRO</span>, go to <span className="font-semibold">Players</span> and click <span className="font-semibold">Guest 1</span>. Change the information to your <span className="font-semibold">User</span> and <span className="font-semibold">UID</span> — make sure the upper and lower case of your username matches exactly.</li>
+            <li>Press <span className="font-semibold">Save &amp; Exit</span>.</li>
+            <li>Click <span className="font-semibold">Tournaments</span>. Your league rounds will show up.</li>
+            <li>Next time you book a session at Birdies, you'll be automatically logged in with your SGT details.</li>
+          </ol>
+          <div className="mt-4 rounded-lg border border-birdies-orange/30 bg-birdies-orange/10 p-3">
+            <p className="text-xs font-semibold text-birdies-orange mb-1">TOP TIP</p>
+            <p className="text-sm text-foreground">
+              If you don't complete a full round, quit while you're on the <span className="font-semibold">tee box</span> of any hole. Quitting midway through a hole can cause bugs.
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <footer className="bg-primary py-4 px-6 text-center">
         <p className="text-primary-foreground/60 text-sm">
