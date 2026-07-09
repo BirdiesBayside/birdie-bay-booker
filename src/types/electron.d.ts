@@ -67,7 +67,7 @@ declare global {
       setAuthenticated: (authenticated: boolean) => Promise<{ success: boolean }>;
       setAppLaunchConfig: (config: { gsproDisplayLabel?: string; proteeDisplayLabel?: string }) => Promise<{ success: boolean }>;
       // Kiosk Mode
-      setKioskMode: (enabled: boolean) => Promise<{ success: boolean; kioskModeEnabled?: boolean }>;
+      setKioskMode: (enabled: boolean, bayNumber?: number | null) => Promise<{ success: boolean; kioskModeEnabled?: boolean; shell?: { success: boolean; error?: string } }>;
       onRequestKioskUnlock: (callback: () => void) => () => void;
 
       onRequestLock: (callback: () => void) => () => void;

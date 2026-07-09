@@ -108,7 +108,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // =====================================================
   // KIOSK MODE APIs
   // =====================================================
-  setKioskMode: (enabled) => ipcRenderer.invoke('set-kiosk-mode', { enabled }),
+  setKioskMode: (enabled, bayNumber) => ipcRenderer.invoke('set-kiosk-mode', { enabled, bayNumber }),
   onRequestKioskUnlock: (callback) => {
     ipcRenderer.on('request-kiosk-unlock', () => callback());
     return () => ipcRenderer.removeAllListeners('request-kiosk-unlock');

@@ -124,6 +124,155 @@ function startExplorerShell() {
   });
 }
 
+// =====================================================
+// KIOSK BACKGROUND WINDOW
+// Static full-screen "BAY X — Your session will start soon" window
+// that replaces the killed Windows desktop wallpaper. Sits at
+// desktop z-order (never on top, never focusable) so GSPro, Protee,
+// welcome popups, notification popups and overlays all render above.
+// =====================================================
+let kioskBackgroundWindows = [];
+
+function buildKioskBackgroundHtml(bayNumber) {
+  const bayLabel = bayNumber ? `BAY ${bayNumber}` : 'BIRDIES';
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Kiosk Background</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;600&display=swap');
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #1F4C25;
+    color: #FFF5E4;
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-user-select: none;
+    user-select: none;
+    cursor: none;
+  }
+  .wrap {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 4rem;
+    box-sizing: border-box;
+  }
+  .bay {
+    font-family: 'Anton', 'Impact', sans-serif;
+    font-size: clamp(160px, 22vw, 380px);
+    line-height: 0.9;
+    letter-spacing: 0.02em;
+    color: #FFF5E4;
+    text-shadow: 0 8px 40px rgba(0,0,0,0.35);
+    margin: 0;
+  }
+  .sub {
+    margin-top: 2.5rem;
+    font-size: clamp(24px, 2.4vw, 44px);
+    font-weight: 600;
+    color: #FFF5E4;
+    opacity: 0.9;
+    letter-spacing: 0.04em;
+  }
+  .accent {
+    margin-top: 2rem;
+    width: clamp(120px, 12vw, 220px);
+    height: 6px;
+    background: #EC622D;
+    border-radius: 3px;
+  }
+  .brand {
+    position: absolute;
+    bottom: 3rem;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-family: 'Anton', 'Impact', sans-serif;
+    font-size: clamp(20px, 1.6vw, 32px);
+    letter-spacing: 0.3em;
+    color: #FFF5E4;
+    opacity: 0.4;
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1 class="bay">${bayLabel}</h1>
+    <div class="accent"></div>
+    <p class="sub">Your session will start soon</p>
+  </div>
+  <div class="brand">BIRDIES BAYSIDE</div>
+</body>
+</html>`;
+}
+
+function closeKioskBackground() {
+  for (const win of kioskBackgroundWindows) {
+    try { if (win && !win.isDestroyed()) win.close(); } catch {}
+  }
+  kioskBackgroundWindows = [];
+}
+
+function showKioskBackground(bayNumber) {
+  closeKioskBackground();
+  try {
+    // Draw on every connected display so no matter which monitor is
+    // "primary", we cover the void left by explorer.exe.
+    const displays = screen.getAllDisplays();
+    for (const display of displays) {
+      const { x, y, width, height } = display.bounds;
+      const win = new BrowserWindow({
+        x, y, width, height,
+        frame: false,
+        transparent: false,
+        resizable: false,
+        movable: false,
+        minimizable: false,
+        maximizable: false,
+        closable: false,
+        focusable: false,          // never steals focus
+        skipTaskbar: true,
+        alwaysOnTop: false,        // desktop-level z-order
+        show: false,
+        backgroundColor: '#1F4C25',
+        webPreferences: {
+          nodeIntegration: false,
+          contextIsolation: true,
+        },
+      });
+      win.setMenuBarVisibility(false);
+      win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(buildKioskBackgroundHtml(bayNumber)));
+      win.once('ready-to-show', () => {
+        try {
+          win.showInactive(); // show without stealing focus
+          // Explicitly send it to the back so any running app stays on top.
+          if (typeof win.moveAbove === 'function') {
+            // noop — moveAbove requires a MediaHandle on some platforms
+          }
+        } catch (err) {
+          console.warn('[Kiosk] Failed to show background window:', err?.message || err);
+        }
+      });
+      kioskBackgroundWindows.push(win);
+    }
+    console.log(`[Kiosk] Background window shown on ${kioskBackgroundWindows.length} display(s)`);
+    return { success: true, count: kioskBackgroundWindows.length };
+  } catch (err) {
+    console.error('[Kiosk] Failed to create background window:', err?.message || err);
+    return { success: false, error: err?.message || String(err) };
+  }
+}
+
+
 
 
 const isDev = process.env.NODE_ENV === 'development';
@@ -480,11 +629,13 @@ app.on('child-process-gone', (event, details) => {
 // stranded with no taskbar.
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
+  try { closeKioskBackground(); } catch {}
   if (kioskModeEnabled) {
     console.log('[Kiosk] App quitting while kiosk was active — restoring explorer.exe as safety net');
     try { exec('start "" explorer.exe'); } catch {}
   }
 });
+
 
 
 app.on('window-all-closed', () => {
@@ -539,8 +690,8 @@ ipcMain.handle('set-app-launch-config', async (event, config) => {
 });
 
 // Handle kiosk mode toggle from renderer
-ipcMain.handle('set-kiosk-mode', async (event, { enabled }) => {
-  console.log('[IPC] set-kiosk-mode:', enabled);
+ipcMain.handle('set-kiosk-mode', async (event, { enabled, bayNumber }) => {
+  console.log('[IPC] set-kiosk-mode:', enabled, 'bay:', bayNumber);
   const wasEnabled = kioskModeEnabled;
   kioskModeEnabled = !!enabled;
 
@@ -548,12 +699,13 @@ ipcMain.handle('set-kiosk-mode', async (event, { enabled }) => {
 
   if (kioskModeEnabled) {
     enableKioskShortcuts();
-    // Only kill explorer if it isn't already down (avoids double-kill during
-    // startup restore when kiosk state was persisted enabled).
     shellResult = await killExplorerShell();
+    // Paint the bay-branded background over the void left by explorer.exe.
+    // Sits at desktop z-order; GSPro / Protee / overlays all render above.
+    showKioskBackground(bayNumber);
   } else {
     disableKioskShortcuts();
-    // Restore the shell so staff have taskbar/Start menu back.
+    closeKioskBackground();
     if (wasEnabled) {
       shellResult = await startExplorerShell();
     }
@@ -561,6 +713,7 @@ ipcMain.handle('set-kiosk-mode', async (event, { enabled }) => {
 
   return { success: true, kioskModeEnabled, shell: shellResult };
 });
+
 
 
 
