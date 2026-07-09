@@ -178,6 +178,25 @@ function stopStartMenuKiller() {
   }
 }
 
+// Periodic re-hide of the taskbar. RDP sessions, explorer.exe restarts,
+// display changes, and session unlock all repaint Shell_TrayWnd in a new
+// state. Cheap to re-apply — ShowWindow on an already-hidden window is a no-op.
+let taskbarRehideTimer = null;
+function startTaskbarRehide() {
+  if (taskbarRehideTimer) return;
+  taskbarRehideTimer = setInterval(() => {
+    if (!kioskModeEnabled) return;
+    setTaskbarVisible(false).catch(() => {});
+  }, 5000);
+}
+function stopTaskbarRehide() {
+  if (taskbarRehideTimer) {
+    clearInterval(taskbarRehideTimer);
+    taskbarRehideTimer = null;
+  }
+}
+
+
 
 const isDev = process.env.NODE_ENV === 'development';
 
