@@ -3968,9 +3968,12 @@ export default function BayController() {
         >
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Locks down Windows shortcuts (Alt+Tab, Alt+F4, Ctrl+Esc, Win key combos) so customers
-              cannot exit GSPro or open other apps. Bay Controller automation is unaffected.
+              Kills Windows Explorer to remove the taskbar, Start menu, Alt+Tab switcher and desktop,
+              and swallows common shortcut combos (Alt+Tab, Alt+F4, Ctrl+Esc, Win+E/R/D/L etc.).
+              GSPro, Protee Labs and Bay Controller keep running normally. Turning kiosk OFF
+              restarts Explorer and restores the shell.
             </p>
+
             <div className="p-3 rounded-lg bg-muted border border-border space-y-1">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Staff Unlock</p>
               <p className="text-sm">
