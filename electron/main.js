@@ -98,38 +98,57 @@ function disableKioskShortcuts() {
 // =====================================================
 function setTaskbarVisible(visible) {
   const nCmdShow = visible ? 5 : 0; // 5 = SW_SHOW, 0 = SW_HIDE
-  const ps = `
-$sig = @"
-using System;
-using System.Runtime.InteropServices;
-public class Tb {
-  [DllImport("user32.dll")] public static extern IntPtr FindWindow(string c, string w);
-  [DllImport("user32.dll")] public static extern IntPtr FindWindowEx(IntPtr p, IntPtr c, string cls, string w);
-  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int n);
-  public static void Set(int n) {
-    IntPtr t = FindWindow("Shell_TrayWnd", null);
-    if (t != IntPtr.Zero) ShowWindow(t, n);
-    IntPtr s = IntPtr.Zero;
-    while ((s = FindWindowEx(IntPtr.Zero, s, "Shell_SecondaryTrayWnd", null)) != IntPtr.Zero) {
-      ShowWindow(s, n);
-    }
+
+  // Write the PS script to a temp file — passing multi-line C# via
+  // `powershell -Command "..."` gets mangled by cmd.exe quote parsing
+  // and silently no-ops. Executing a real .ps1 file is bulletproof.
+  const psBody = [
+    "$ErrorActionPreference = 'Stop'",
+    "$sig = @'",
+    "using System;",
+    "using System.Runtime.InteropServices;",
+    "public class Tb {",
+    '  [DllImport("user32.dll")] public static extern IntPtr FindWindow(string c, string w);',
+    '  [DllImport("user32.dll")] public static extern IntPtr FindWindowEx(IntPtr p, IntPtr c, string cls, string w);',
+    '  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int n);',
+    "  public static int Set(int n) {",
+    "    int count = 0;",
+    '    IntPtr t = FindWindow("Shell_TrayWnd", null);',
+    "    if (t != IntPtr.Zero) { ShowWindow(t, n); count++; }",
+    "    IntPtr s = IntPtr.Zero;",
+    '    while ((s = FindWindowEx(IntPtr.Zero, s, "Shell_SecondaryTrayWnd", null)) != IntPtr.Zero) {',
+    "      ShowWindow(s, n); count++;",
+    "    }",
+    '    IntPtr b = FindWindow("Button", "Start");',
+    "    if (b != IntPtr.Zero) { ShowWindow(b, n); count++; }",
+    "    return count;",
+    "  }",
+    "}",
+    "'@",
+    "if (-not ('Tb' -as [type])) { Add-Type -TypeDefinition $sig -Language CSharp }",
+    `$c = [Tb]::Set(${nCmdShow})`,
+    'Write-Output "toggled=$c"'
+  ].join("\r\n");
+
+  const scriptPath = path.join(require('os').tmpdir(), `bay-taskbar-${Date.now()}.ps1`);
+  try {
+    fs.writeFileSync(scriptPath, psBody, 'utf8');
+  } catch (err) {
+    console.error('[Kiosk] Failed to write PS script:', err?.message || err);
+    return Promise.resolve({ success: false, error: err?.message });
   }
-}
-"@
-Add-Type -TypeDefinition $sig -Language CSharp | Out-Null
-[Tb]::Set(${nCmdShow})
-`.trim();
 
   return new Promise((resolve) => {
-    // -WindowStyle Hidden -NoProfile keeps it silent + fast.
-    const cmd = `powershell -NoProfile -WindowStyle Hidden -Command "${ps.replace(/"/g, '\\"')}"`;
-    exec(cmd, { windowsHide: true }, (err) => {
+    const cmd = `powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "${scriptPath}"`;
+    exec(cmd, { windowsHide: true, timeout: 8000 }, (err, stdout, stderr) => {
+      try { fs.unlinkSync(scriptPath); } catch {}
       if (err) {
-        console.error('[Kiosk] Failed to toggle taskbar:', err.message);
-        return resolve({ success: false, error: err.message });
+        console.error('[Kiosk] Failed to toggle taskbar:', err.message, stderr);
+        return resolve({ success: false, error: err.message, stderr });
       }
-      console.log(`[Kiosk] Taskbar ${visible ? 'shown' : 'hidden'}`);
-      resolve({ success: true });
+      const trimmed = (stdout || '').trim();
+      console.log(`[Kiosk] Taskbar ${visible ? 'shown' : 'hidden'} — ${trimmed}`);
+      resolve({ success: true, output: trimmed });
     });
   });
 }
