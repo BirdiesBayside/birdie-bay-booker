@@ -266,8 +266,13 @@ function registerKioskDisplayListeners() {
 
 
 function showKioskBackground(bayNumber) {
+  // Remember for future rebuilds triggered by display-added/removed events.
+  if (bayNumber !== undefined && bayNumber !== null) {
+    kioskBackgroundBayNumber = bayNumber;
+  }
   closeKioskBackground();
   try {
+
     // Draw on every connected display so no matter which monitor is
     // "primary", we cover the void left by explorer.exe.
     const displays = screen.getAllDisplays();
