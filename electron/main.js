@@ -86,252 +86,52 @@ function disableKioskShortcuts() {
 }
 
 // =====================================================
-// KIOSK: kill/restore Windows Explorer shell
-// Killing explorer.exe removes the taskbar, Start menu, Alt+Tab
-// switcher, and desktop. GSPro / Protee Labs / Bay Controller keep
-// running normally — they don't depend on the shell.
+// KIOSK: hide/show the Windows taskbar via ShowWindow.
+// Explorer.exe stays alive — so the existing desktop wallpaper stays
+// painted full-screen on every monitor, CSV exports on the desktop
+// remain accessible to the controller, and no Electron overlay is
+// needed. We just hide Shell_TrayWnd (primary taskbar) and every
+// Shell_SecondaryTrayWnd (multi-monitor taskbars).
+//
+// Win-key blocking is handled OUTSIDE this app via a one-time registry
+// Scancode Map on the bay PC — see docs/BAY_PC_PROVISIONING.md.
 // =====================================================
-function killExplorerShell() {
+function setTaskbarVisible(visible) {
+  const nCmdShow = visible ? 5 : 0; // 5 = SW_SHOW, 0 = SW_HIDE
+  const ps = `
+$sig = @"
+using System;
+using System.Runtime.InteropServices;
+public class Tb {
+  [DllImport("user32.dll")] public static extern IntPtr FindWindow(string c, string w);
+  [DllImport("user32.dll")] public static extern IntPtr FindWindowEx(IntPtr p, IntPtr c, string cls, string w);
+  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int n);
+  public static void Set(int n) {
+    IntPtr t = FindWindow("Shell_TrayWnd", null);
+    if (t != IntPtr.Zero) ShowWindow(t, n);
+    IntPtr s = IntPtr.Zero;
+    while ((s = FindWindowEx(IntPtr.Zero, s, "Shell_SecondaryTrayWnd", null)) != IntPtr.Zero) {
+      ShowWindow(s, n);
+    }
+  }
+}
+"@
+Add-Type -TypeDefinition $sig -Language CSharp | Out-Null
+[Tb]::Set(${nCmdShow})
+`.trim();
+
   return new Promise((resolve) => {
-    exec('taskkill /F /IM explorer.exe', (err, stdout, stderr) => {
+    // -WindowStyle Hidden -NoProfile keeps it silent + fast.
+    const cmd = `powershell -NoProfile -WindowStyle Hidden -Command "${ps.replace(/"/g, '\\"')}"`;
+    exec(cmd, { windowsHide: true }, (err) => {
       if (err) {
-        // Exit code 128 = process not found — that's fine, already dead.
-        const msg = (stderr || err.message || '').toLowerCase();
-        if (msg.includes('not found') || msg.includes('no tasks') || err.code === 128) {
-          console.log('[Kiosk] explorer.exe was already stopped');
-          return resolve({ success: true, alreadyStopped: true });
-        }
-        console.error('[Kiosk] Failed to kill explorer.exe:', err.message);
+        console.error('[Kiosk] Failed to toggle taskbar:', err.message);
         return resolve({ success: false, error: err.message });
       }
-      console.log('[Kiosk] explorer.exe killed — taskbar and Start menu removed');
+      console.log(`[Kiosk] Taskbar ${visible ? 'shown' : 'hidden'}`);
       resolve({ success: true });
     });
   });
-}
-
-function startExplorerShell() {
-  return new Promise((resolve) => {
-    // `start` returns immediately; explorer.exe re-hosts the shell.
-    exec('start "" explorer.exe', (err) => {
-      if (err) {
-        console.error('[Kiosk] Failed to start explorer.exe:', err.message);
-        return resolve({ success: false, error: err.message });
-      }
-      console.log('[Kiosk] explorer.exe restarted — shell restored');
-      resolve({ success: true });
-    });
-  });
-}
-
-// =====================================================
-// KIOSK BACKGROUND WINDOW
-// Static full-screen "BAY X — Your session will start soon" window
-// that replaces the killed Windows desktop wallpaper. Sits at
-// desktop z-order (never on top, never focusable) so GSPro, Protee,
-// welcome popups, notification popups and overlays all render above.
-// =====================================================
-let kioskBackgroundWindows = [];
-
-function buildKioskBackgroundHtml(bayNumber) {
-  const bayLabel = bayNumber ? `BAY ${bayNumber}` : 'BIRDIES';
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8" />
-<title>Kiosk Background</title>
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;600&display=swap');
-  html, body {
-    margin: 0;
-    padding: 0;
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-    background: #1F4C25;
-    color: #FFF5E4;
-    font-family: 'Inter', system-ui, sans-serif;
-    -webkit-user-select: none;
-    user-select: none;
-    cursor: none;
-  }
-  .wrap {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    padding: 4rem;
-    box-sizing: border-box;
-  }
-  .bay {
-    font-family: 'Anton', 'Impact', sans-serif;
-    font-size: clamp(160px, 22vw, 380px);
-    line-height: 0.9;
-    letter-spacing: 0.02em;
-    color: #FFF5E4;
-    text-shadow: 0 8px 40px rgba(0,0,0,0.35);
-    margin: 0;
-  }
-  .sub {
-    margin-top: 2.5rem;
-    font-size: clamp(24px, 2.4vw, 44px);
-    font-weight: 600;
-    color: #FFF5E4;
-    opacity: 0.9;
-    letter-spacing: 0.04em;
-  }
-  .accent {
-    margin-top: 2rem;
-    width: clamp(120px, 12vw, 220px);
-    height: 6px;
-    background: #EC622D;
-    border-radius: 3px;
-  }
-  .brand {
-    position: absolute;
-    bottom: 3rem;
-    left: 0;
-    right: 0;
-    text-align: center;
-    font-family: 'Anton', 'Impact', sans-serif;
-    font-size: clamp(20px, 1.6vw, 32px);
-    letter-spacing: 0.3em;
-    color: #FFF5E4;
-    opacity: 0.4;
-  }
-</style>
-</head>
-<body>
-  <div class="wrap">
-    <h1 class="bay">${bayLabel}</h1>
-    <div class="accent"></div>
-    <p class="sub">Your session will start soon</p>
-  </div>
-  <div class="brand">BIRDIES BAYSIDE</div>
-</body>
-</html>`;
-}
-
-function closeKioskBackground() {
-  for (const win of kioskBackgroundWindows) {
-    try { if (win && !win.isDestroyed()) win.close(); } catch {}
-  }
-  kioskBackgroundWindows = [];
-}
-
-// Remember the bay number so we can rebuild backgrounds on display changes
-// (TAPO plugs cycle monitors/projectors → Windows fires display-added/removed).
-let kioskBackgroundBayNumber = null;
-let kioskDisplayRebuildTimer = null;
-
-function scheduleKioskRebuild(reason) {
-  if (!kioskModeEnabled) return;
-  if (kioskDisplayRebuildTimer) clearTimeout(kioskDisplayRebuildTimer);
-  // Debounce: Windows often fires multiple display events within ~1s during
-  // monitor power-on / mode negotiation. Wait for the dust to settle, then
-  // rebuild the background on the current set of displays.
-  kioskDisplayRebuildTimer = setTimeout(() => {
-    kioskDisplayRebuildTimer = null;
-    if (!kioskModeEnabled) return;
-    console.log(`[Kiosk] Rebuilding background windows (${reason})`);
-    try {
-      showKioskBackground(kioskBackgroundBayNumber);
-    } catch (err) {
-      console.error('[Kiosk] Rebuild failed:', err?.message || err);
-    }
-  }, 1500);
-}
-
-// Register display listeners once at app ready (screen module isn't ready before then).
-function registerKioskDisplayListeners() {
-  screen.on('display-added', (_e, display) => {
-    console.log('[Kiosk] display-added:', display?.label || display?.id);
-    scheduleKioskRebuild('display-added');
-  });
-  screen.on('display-removed', (_e, display) => {
-    console.log('[Kiosk] display-removed:', display?.label || display?.id);
-    scheduleKioskRebuild('display-removed');
-  });
-  screen.on('display-metrics-changed', (_e, display, changed) => {
-    // Only rebuild if geometry actually changed (ignore rotation-only, colour-only, etc.)
-    if (Array.isArray(changed) && (changed.includes('bounds') || changed.includes('workArea') || changed.includes('scaleFactor'))) {
-      console.log('[Kiosk] display-metrics-changed:', display?.label, changed);
-      scheduleKioskRebuild('display-metrics-changed');
-    }
-  });
-}
-
-
-function showKioskBackground(bayNumber) {
-  // Remember for future rebuilds triggered by display-added/removed events.
-  if (bayNumber !== undefined && bayNumber !== null) {
-    kioskBackgroundBayNumber = bayNumber;
-  }
-  closeKioskBackground();
-  try {
-
-    // Draw on every connected display so no matter which monitor is
-    // "primary", we cover the void left by explorer.exe.
-    const displays = screen.getAllDisplays();
-    for (const display of displays) {
-      const { x, y, width, height } = display.bounds;
-      const win = new BrowserWindow({
-        x, y, width, height,
-        useContentSize: false,       // width/height are the full window, not just content
-        frame: false,
-        transparent: false,
-        hasShadow: false,
-        thickFrame: false,           // Windows: don't add resizeable border chrome
-        resizable: true,             // keep true so programmatic setBounds isn't clamped
-        movable: true,
-        minimizable: false,
-        maximizable: false,
-        closable: false,
-        fullscreenable: false,
-        focusable: false,            // never steals focus
-        skipTaskbar: true,
-        alwaysOnTop: false,          // desktop-level z-order
-        enableLargerThanScreen: true,
-        show: false,
-        backgroundColor: '#1F4C25',
-        webPreferences: {
-          nodeIntegration: false,
-          contextIsolation: true,
-        },
-      });
-      win.setMenuBarVisibility(false);
-      win.setAutoHideMenuBar(true);
-      // Force the bounds again post-construction — some Electron/Windows
-      // combos ignore the constructor bounds when frame:false + non-focusable.
-      try { win.setBounds({ x, y, width, height }); } catch {}
-      win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(buildKioskBackgroundHtml(bayNumber)));
-      win.once('ready-to-show', () => {
-        try {
-          // Re-apply bounds one more time now that content is loaded, then show
-          // without stealing focus. This guarantees a full-display fill on all
-          // DPI configurations (including RDP sessions with virtual displays).
-          try { win.setBounds({ x, y, width, height }); } catch {}
-          win.showInactive();
-          // Belt-and-braces: after showing, snap to the exact display bounds one final time.
-          setTimeout(() => {
-            try { win.setBounds({ x, y, width, height }); } catch {}
-          }, 100);
-        } catch (err) {
-          console.warn('[Kiosk] Failed to show background window:', err?.message || err);
-        }
-      });
-      kioskBackgroundWindows.push(win);
-    }
-
-    console.log(`[Kiosk] Background window shown on ${kioskBackgroundWindows.length} display(s)`);
-    return { success: true, count: kioskBackgroundWindows.length };
-  } catch (err) {
-    console.error('[Kiosk] Failed to create background window:', err?.message || err);
-    return { success: false, error: err?.message || String(err) };
-  }
 }
 
 
