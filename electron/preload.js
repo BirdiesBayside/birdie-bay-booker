@@ -104,6 +104,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // Update app launch config in main process (for global F10 hotkey)
   setAppLaunchConfig: (config) => ipcRenderer.invoke('set-app-launch-config', config),
+
+  // =====================================================
+  // KIOSK MODE APIs
+  // =====================================================
+  setKioskMode: (enabled) => ipcRenderer.invoke('set-kiosk-mode', { enabled }),
+  onRequestKioskUnlock: (callback) => {
+    ipcRenderer.on('request-kiosk-unlock', () => callback());
+    return () => ipcRenderer.removeAllListeners('request-kiosk-unlock');
+  },
+
   
   // Listen for F10 global hotkey events from main process
   onF10NoConfig: (callback) => {
