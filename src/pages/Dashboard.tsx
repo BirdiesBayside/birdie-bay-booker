@@ -302,15 +302,15 @@ const Dashboard = () => {
                   <span>Members</span>
                 </div>
               )}
-              <a 
-                href="/birdies-guide" 
-                onClick={(e) => e.stopPropagation()}
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setLeagueGuideOpen(true); }}
                 className="absolute top-3 right-3 h-6 w-6 rounded-full bg-muted hover:bg-muted/80 flex items-center justify-center transition-colors"
                 style={!hasLeagueAccess ? { right: "5.5rem" } : {}}
-                title="How to use the simulators"
+                title="How to play your Birdies League rounds"
               >
                 <Info className="h-4 w-4 text-muted-foreground" />
-              </a>
+              </button>
               <div className="flex items-center gap-3">
                 <div className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 ${hasLeagueAccess ? "bg-league-primary/15" : "bg-muted"}`}>
                   <Trophy className={`h-5 w-5 ${hasLeagueAccess ? "text-league-primary-dark" : "text-muted-foreground"}`} />
