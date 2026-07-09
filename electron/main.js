@@ -387,6 +387,27 @@ app.whenReady().then(() => {
   createWindow();
   createTray();
 
+  // Re-apply kiosk taskbar hide when returning from lock/RDP/suspend.
+  // A new Windows session (RDP) or explorer restart repaints Shell_TrayWnd.
+  const rehideIfKiosk = (reason) => {
+    if (!kioskModeEnabled) return;
+    console.log('[Kiosk] Re-hiding taskbar after event:', reason);
+    // Small delay so explorer/session finishes initializing first.
+    setTimeout(() => setTaskbarVisible(false).catch(() => {}), 1500);
+    setTimeout(() => setTaskbarVisible(false).catch(() => {}), 5000);
+  };
+  try {
+    powerMonitor.on('unlock-screen', () => rehideIfKiosk('unlock-screen'));
+    powerMonitor.on('resume', () => rehideIfKiosk('resume'));
+    powerMonitor.on('user-did-become-active', () => rehideIfKiosk('user-active'));
+  } catch (err) {
+    console.warn('[Kiosk] powerMonitor listeners failed:', err?.message || err);
+  }
+  screen.on('display-added', () => rehideIfKiosk('display-added'));
+  screen.on('display-removed', () => rehideIfKiosk('display-removed'));
+  screen.on('display-metrics-changed', () => rehideIfKiosk('display-metrics'));
+
+
 
 
   
