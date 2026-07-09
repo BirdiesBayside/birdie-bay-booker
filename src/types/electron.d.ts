@@ -68,8 +68,6 @@ declare global {
       setAppLaunchConfig: (config: { gsproDisplayLabel?: string; proteeDisplayLabel?: string }) => Promise<{ success: boolean }>;
       // Kiosk Mode
       setKioskMode: (enabled: boolean, bayNumber?: number | null) => Promise<{ success: boolean; kioskModeEnabled?: boolean; shell?: { success: boolean; error?: string } }>;
-      installWinKeyBlock: () => Promise<{ success: boolean; rebootRequired?: boolean; error?: string; stderr?: string }>;
-      uninstallWinKeyBlock: () => Promise<{ success: boolean; rebootRequired?: boolean; error?: string }>;
       onRequestKioskUnlock: (callback: () => void) => () => void;
 
       onRequestLock: (callback: () => void) => () => void;
