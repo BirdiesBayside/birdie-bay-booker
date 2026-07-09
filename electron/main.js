@@ -491,6 +491,19 @@ ipcMain.handle('set-app-launch-config', async (event, config) => {
   return { success: true };
 });
 
+// Handle kiosk mode toggle from renderer
+ipcMain.handle('set-kiosk-mode', async (event, { enabled }) => {
+  console.log('[IPC] set-kiosk-mode:', enabled);
+  kioskModeEnabled = !!enabled;
+  if (kioskModeEnabled) {
+    enableKioskShortcuts();
+  } else {
+    disableKioskShortcuts();
+  }
+  return { success: true, kioskModeEnabled };
+});
+
+
 // Initialize TAPO connection
 async function initTapo(email, password) {
   try {
