@@ -265,6 +265,15 @@ export default function BayController() {
   // Auto-update state
   const [updateDownloaded, setUpdateDownloaded] = useState<string | null>(null);
   const [updateDownloading, setUpdateDownloading] = useState(false);
+
+  // Kiosk Mode state
+  const [kioskEnabled, setKioskEnabled] = useState<boolean>(() => {
+    return localStorage.getItem("bayController_kioskEnabled") === "true";
+  });
+  const [kioskUnlockOpen, setKioskUnlockOpen] = useState(false);
+  const [kioskUnlockPassword, setKioskUnlockPassword] = useState("");
+  const [kioskUnlockError, setKioskUnlockError] = useState("");
+
   
   // Centralized logging hook for backend logs
   const bayLogger = useBayControllerLogger({
@@ -281,6 +290,51 @@ export default function BayController() {
       }).catch(() => {});
     }
   }, []);
+
+  // Kiosk Mode: sync to main process + listen for unlock hotkey
+  useEffect(() => {
+    const api: any = (window as any).electronAPI;
+    if (!api?.isElectron) return;
+    // Push current state to main process on mount + whenever it changes
+    if (typeof api.setKioskMode === 'function') {
+      api.setKioskMode(kioskEnabled).catch(() => {});
+    }
+  }, [kioskEnabled]);
+
+  useEffect(() => {
+    const api: any = (window as any).electronAPI;
+    if (!api?.isElectron || typeof api.onRequestKioskUnlock !== 'function') return;
+    const cleanup = api.onRequestKioskUnlock(() => {
+      setKioskUnlockPassword("");
+      setKioskUnlockError("");
+      setKioskUnlockOpen(true);
+    });
+    return cleanup;
+  }, []);
+
+  const toggleKiosk = (enable: boolean) => {
+    if (enable) {
+      localStorage.setItem("bayController_kioskEnabled", "true");
+      setKioskEnabled(true);
+      toast.success("Kiosk Mode enabled — press Ctrl+Alt+1 to unlock");
+    } else {
+      localStorage.setItem("bayController_kioskEnabled", "false");
+      setKioskEnabled(false);
+      toast.info("Kiosk Mode disabled");
+    }
+  };
+
+  const handleKioskUnlock = () => {
+    if (kioskUnlockPassword === CORRECT_PASSWORD) {
+      toggleKiosk(false);
+      setKioskUnlockOpen(false);
+      setKioskUnlockPassword("");
+      setKioskUnlockError("");
+    } else {
+      setKioskUnlockError("Incorrect password");
+    }
+  };
+
 
   // Helper to add debug log
   const addLog = useCallback((message: string, type: 'info' | 'error' | 'success' = 'info') => {
@@ -3191,15 +3245,17 @@ export default function BayController() {
           </Card>
         )}
 
-        {/* Current Status */}
-        <Card className={activeBooking ? "border-primary" : ""}>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Power className={`w-5 h-5 ${plugsStatus.monitor ? "text-green-500" : "text-muted-foreground"}`} />
-              Equipment Status
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+        {/* Current Status - Collapsible */}
+        <CollapsibleSettingsCard
+          title="Equipment Status"
+          icon={<Power className={`w-5 h-5 ${plugsStatus.monitor ? "text-green-500" : "text-muted-foreground"}`} />}
+          defaultOpen={false}
+          headerAction={
+            activeBooking ? (
+              <Badge variant="default" className="mr-1">Active</Badge>
+            ) : undefined
+          }
+        >
             <div className="grid grid-cols-2 gap-4">
               <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
                 <span>Monitor</span>
@@ -3275,14 +3331,14 @@ export default function BayController() {
                 Switch to Manual mode to enable On/Off buttons
               </p>
             )}
-          </CardContent>
-        </Card>
+        </CollapsibleSettingsCard>
 
         {/* TAPO Smart Plugs - Collapsible */}
         <CollapsibleSettingsCard 
           title="TAPO Smart Plugs" 
           icon={<Wifi className="w-5 h-5" />} 
-          defaultOpen={true}
+          defaultOpen={false}
+
           headerAction={
             <PlugDiagnostics 
               tapoEmail={tapoEmail} 
@@ -3901,6 +3957,62 @@ export default function BayController() {
           </div>
         </CollapsibleSettingsCard>
 
+        {/* Kiosk Mode - Collapsible */}
+        <CollapsibleSettingsCard
+          title="Kiosk Mode (Beta)"
+          icon={<Lock className={`w-5 h-5 ${kioskEnabled ? "text-orange-500" : "text-muted-foreground"}`} />}
+          defaultOpen={false}
+          headerAction={
+            kioskEnabled ? <Badge className="bg-orange-500 text-white mr-1">LOCKED</Badge> : undefined
+          }
+        >
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Locks down Windows shortcuts (Alt+Tab, Alt+F4, Ctrl+Esc, Win key combos) so customers
+              cannot exit GSPro or open other apps. Bay Controller automation is unaffected.
+            </p>
+            <div className="p-3 rounded-lg bg-muted border border-border space-y-1">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Staff Unlock</p>
+              <p className="text-sm">
+                Press <kbd className="px-2 py-1 rounded bg-background border text-xs font-mono">Ctrl + Alt + 1</kbd> anywhere to open the password prompt.
+              </p>
+            </div>
+            <div className="flex items-center justify-between pt-2 border-t border-border">
+              <div>
+                <Label className="text-sm">Kiosk Lockdown</Label>
+                <p className="text-xs text-muted-foreground">
+                  {kioskEnabled ? "Active — shortcuts blocked" : "Disabled — normal Windows shortcuts"}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`text-xs font-medium ${!kioskEnabled ? "text-green-600" : "text-muted-foreground"}`}>Off</span>
+                <Switch
+                  checked={kioskEnabled}
+                  onCheckedChange={(checked) => {
+                    if (checked) {
+                      toggleKiosk(true);
+                    } else {
+                      // Require password to disable via UI too
+                      setKioskUnlockPassword("");
+                      setKioskUnlockError("");
+                      setKioskUnlockOpen(true);
+                    }
+                  }}
+                  className="data-[state=checked]:bg-orange-500"
+                />
+                <span className={`text-xs font-medium ${kioskEnabled ? "text-orange-600" : "text-muted-foreground"}`}>On</span>
+              </div>
+            </div>
+            {!isElectron && (
+              <p className="text-xs text-destructive">
+                Kiosk Mode only functions in the Electron desktop build.
+              </p>
+            )}
+          </div>
+        </CollapsibleSettingsCard>
+
+
+
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -4033,6 +4145,58 @@ export default function BayController() {
           </Card>
         </div>
       )}
+
+      {/* Kiosk Unlock Dialog */}
+      {kioskUnlockOpen && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[9999]">
+          <Card className="w-[350px]">
+            <CardHeader className="text-center">
+              <div className="w-12 h-12 mx-auto mb-2 rounded-full bg-orange-500/10 flex items-center justify-center">
+                <Lock className="w-6 h-6 text-orange-500" />
+              </div>
+              <CardTitle>Unlock Kiosk Mode</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Enter staff password to disable kiosk lockdown
+              </p>
+            </CardHeader>
+            <CardContent>
+              <form
+                onSubmit={(e) => { e.preventDefault(); handleKioskUnlock(); }}
+                className="space-y-4"
+              >
+                <div className="space-y-2">
+                  <Label htmlFor="kiosk-password">Password</Label>
+                  <Input
+                    id="kiosk-password"
+                    type="password"
+                    value={kioskUnlockPassword}
+                    onChange={(e) => setKioskUnlockPassword(e.target.value)}
+                    placeholder="Enter password"
+                    autoFocus
+                  />
+                  {kioskUnlockError && (
+                    <p className="text-sm text-destructive">{kioskUnlockError}</p>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => { setKioskUnlockOpen(false); setKioskUnlockPassword(""); setKioskUnlockError(""); }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit" className="flex-1">
+                    Unlock
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
 
       {/* SGT Icon Button removed - now only shows on external display via Electron overlay */}
 

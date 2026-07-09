@@ -38,6 +38,53 @@ let tapoClient = null;
 let isAppAuthenticated = false; // Track if user has entered correct password
 let welcomeWindows = []; // Array of welcome windows (one per display)
 let currentAppLaunchConfig = null; // Store app launch config for global F10 hotkey
+let kioskModeEnabled = false; // Track kiosk lockdown state
+
+// Shortcuts to swallow while kiosk mode is active.
+// Note: Electron globalShortcut cannot block the raw Windows key on its own,
+// but it can capture common combos so they never reach the OS.
+const KIOSK_BLOCKED_SHORTCUTS = [
+  'Alt+Tab',
+  'Alt+F4',
+  'Alt+Space',
+  'Ctrl+Esc',
+  'Ctrl+Shift+Esc',
+  'Super+D',
+  'Super+E',
+  'Super+R',
+  'Super+L',
+  'Super+I',
+  'Super+X',
+  'Super+S',
+  'Super+A',
+  'Super+Tab',
+  'Super+Up',
+  'Super+Down',
+  'Super+Left',
+  'Super+Right',
+];
+
+function enableKioskShortcuts() {
+  for (const accel of KIOSK_BLOCKED_SHORTCUTS) {
+    try {
+      if (!globalShortcut.isRegistered(accel)) {
+        const ok = globalShortcut.register(accel, () => {
+          console.log('[Kiosk] Swallowed shortcut:', accel);
+        });
+        if (!ok) console.warn('[Kiosk] Failed to register', accel);
+      }
+    } catch (err) {
+      console.warn('[Kiosk] Error registering', accel, err?.message || err);
+    }
+  }
+}
+
+function disableKioskShortcuts() {
+  for (const accel of KIOSK_BLOCKED_SHORTCUTS) {
+    try { globalShortcut.unregister(accel); } catch {}
+  }
+}
+
 
 const isDev = process.env.NODE_ENV === 'development';
 
@@ -357,6 +404,19 @@ app.whenReady().then(() => {
       }
     }
   });
+
+  // Register global Staff Unlock hotkey (Ctrl+Alt+1) — always active so staff
+  // can pop the unlock prompt even from a fullscreen customer app.
+  globalShortcut.register('CommandOrControl+Alt+1', () => {
+    console.log('[GlobalShortcut] Ctrl+Alt+1 pressed - requesting kiosk unlock');
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+      mainWindow.webContents.send('request-kiosk-unlock');
+    }
+  });
+
 });
 
 // Global crash diagnostics for main process
@@ -430,6 +490,19 @@ ipcMain.handle('set-app-launch-config', async (event, config) => {
   currentAppLaunchConfig = config;
   return { success: true };
 });
+
+// Handle kiosk mode toggle from renderer
+ipcMain.handle('set-kiosk-mode', async (event, { enabled }) => {
+  console.log('[IPC] set-kiosk-mode:', enabled);
+  kioskModeEnabled = !!enabled;
+  if (kioskModeEnabled) {
+    enableKioskShortcuts();
+  } else {
+    disableKioskShortcuts();
+  }
+  return { success: true, kioskModeEnabled };
+});
+
 
 // Initialize TAPO connection
 async function initTapo(email, password) {
