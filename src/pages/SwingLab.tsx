@@ -1445,7 +1445,11 @@ function OptimiseTab({
   const rows: Row[] = [
     { key: "clubSpeed",   label: "Club speed",      you: stats.avgClubSpeed,    tour: tourInUserUnits.clubSpeed, optimal: optimalInUserUnits.clubSpeed, unit: activeSpd,  digits: 1, direction: "higher" },
     { key: "ballSpeed",   label: "Ball speed",      you: stats.avgBallSpeed,    tour: tourInUserUnits.ballSpeed, optimal: optimalInUserUnits.ballSpeed, unit: activeSpd,  digits: 1, direction: "higher" },
-    { key: "smashFactor", label: "Smash factor",    you: stats.avgSmash,        tour: tourInUserUnits.smash,     optimal: optimalInUserUnits.smash,     unit: "",         digits: 2, direction: "higher" },
+    // Derive smash from the displayed ball/club speed averages so it's always
+    // internally consistent with the two rows above. Averaging the raw
+    // smash_factor column can drag the number down when GSPro logs 0 / null
+    // for mishits or partial shots.
+    { key: "smashFactor", label: "Smash factor",    you: (stats.avgBallSpeed && stats.avgClubSpeed) ? stats.avgBallSpeed / stats.avgClubSpeed : null, tour: tourInUserUnits.smash,     optimal: optimalInUserUnits.smash,     unit: "",         digits: 2, direction: "higher" },
     { key: "launchAngle", label: "Launch angle",    you: stats.avgLaunch,       tour: tourInUserUnits.launch,    optimal: optimalInUserUnits.launch,    unit: "°",        digits: 1, direction: "toward_tour" },
     { key: "spin",        label: "Spin rate",       you: stats.avgSpin,         tour: tourInUserUnits.spin,      optimal: optimalInUserUnits.spin,      unit: "rpm",      digits: 0, direction: "toward_tour" },
     { key: "carry",       label: "Carry",           you: stats.avgCarry,        tour: tourInUserUnits.carry,     optimal: optimalInUserUnits.carry,     unit: activeDist, digits: 1, direction: "higher" },
