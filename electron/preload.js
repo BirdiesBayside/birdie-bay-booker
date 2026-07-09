@@ -109,6 +109,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // KIOSK MODE APIs
   // =====================================================
   setKioskMode: (enabled, bayNumber) => ipcRenderer.invoke('set-kiosk-mode', { enabled, bayNumber }),
+  installWinKeyBlock: () => ipcRenderer.invoke('install-winkey-block'),
+  uninstallWinKeyBlock: () => ipcRenderer.invoke('uninstall-winkey-block'),
   onRequestKioskUnlock: (callback) => {
     ipcRenderer.on('request-kiosk-unlock', () => callback());
     return () => ipcRenderer.removeAllListeners('request-kiosk-unlock');
