@@ -157,7 +157,7 @@ function setTaskbarVisible(visible) {
 // StartMenuExperienceHost if it's showing a visible window. Windows
 // auto-respawns the process (invisible) so this only dismisses an
 // actively-open Start menu — cheap, safe, and no user impact.
-// Permanent fix is the Scancode Map (see install-winkey-block IPC).
+// Only kills the visible instance; Windows keeps a hidden one running.
 let startMenuKillerTimer = null;
 
 function startStartMenuKiller() {
