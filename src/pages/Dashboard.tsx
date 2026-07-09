@@ -29,6 +29,7 @@ const Dashboard = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [accountAccessLoading, setAccountAccessLoading] = useState(true);
   const [whatsOnOpen, setWhatsOnOpen] = useState(false);
+  const [leagueGuideOpen, setLeagueGuideOpen] = useState(false);
   
   const [showEventForm, setShowEventForm] = useState(false);
   const [newEventTitle, setNewEventTitle] = useState("");
