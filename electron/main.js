@@ -609,8 +609,10 @@ ipcMain.handle('set-kiosk-mode', async (event, payload) => {
   if (kioskModeEnabled) {
     enableKioskShortcuts();
     shellResult = await setTaskbarVisible(false);
+    startStartMenuKiller();
   } else {
     disableKioskShortcuts();
+    stopStartMenuKiller();
     if (wasEnabled) {
       shellResult = await setTaskbarVisible(true);
     }
