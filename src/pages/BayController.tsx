@@ -4012,6 +4012,42 @@ export default function BayController() {
                 Kiosk Mode only functions in the Electron desktop build.
               </p>
             )}
+            {isElectron && (
+              <div className="pt-3 border-t space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  <strong>Windows Key Block:</strong> Permanently disables the Win key at the OS level (Scancode Map). Requires UAC prompt + reboot.
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={async () => {
+                      const api = (window as any).electronAPI;
+                      if (!api?.installWinKeyBlock) return;
+                      toast.info("Approve the UAC prompt to install…");
+                      const r = await api.installWinKeyBlock();
+                      if (r?.success) toast.success("Win-Key block installed — reboot to activate");
+                      else toast.error(`Install failed: ${r?.error || "unknown"}`);
+                    }}
+                  >
+                    Install Win-Key Block
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={async () => {
+                      const api = (window as any).electronAPI;
+                      if (!api?.uninstallWinKeyBlock) return;
+                      const r = await api.uninstallWinKeyBlock();
+                      if (r?.success) toast.success("Win-Key block removed — reboot to restore");
+                      else toast.error(`Remove failed: ${r?.error || "unknown"}`);
+                    }}
+                  >
+                    Remove
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         </CollapsibleSettingsCard>
 
