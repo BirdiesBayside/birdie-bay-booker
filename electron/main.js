@@ -553,25 +553,24 @@ ipcMain.handle('set-app-launch-config', async (event, config) => {
   return { success: true };
 });
 
-// Handle kiosk mode toggle from renderer
-ipcMain.handle('set-kiosk-mode', async (event, { enabled, bayNumber }) => {
-  console.log('[IPC] set-kiosk-mode:', enabled, 'bay:', bayNumber);
+// Handle kiosk mode toggle from renderer.
+// Kiosk = hide taskbar + swallow app-level shortcuts. Explorer stays
+// alive, wallpaper stays painted, desktop CSVs remain accessible.
+ipcMain.handle('set-kiosk-mode', async (event, payload) => {
+  const enabled = !!(payload && payload.enabled);
+  console.log('[IPC] set-kiosk-mode:', enabled);
   const wasEnabled = kioskModeEnabled;
-  kioskModeEnabled = !!enabled;
+  kioskModeEnabled = enabled;
 
   let shellResult = { success: true, skipped: true };
 
   if (kioskModeEnabled) {
     enableKioskShortcuts();
-    shellResult = await killExplorerShell();
-    // Paint the bay-branded background over the void left by explorer.exe.
-    // Sits at desktop z-order; GSPro / Protee / overlays all render above.
-    showKioskBackground(bayNumber);
+    shellResult = await setTaskbarVisible(false);
   } else {
     disableKioskShortcuts();
-    closeKioskBackground();
     if (wasEnabled) {
-      shellResult = await startExplorerShell();
+      shellResult = await setTaskbarVisible(true);
     }
   }
 
