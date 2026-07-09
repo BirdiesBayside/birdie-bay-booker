@@ -541,14 +541,27 @@ ipcMain.handle('set-app-launch-config', async (event, config) => {
 // Handle kiosk mode toggle from renderer
 ipcMain.handle('set-kiosk-mode', async (event, { enabled }) => {
   console.log('[IPC] set-kiosk-mode:', enabled);
+  const wasEnabled = kioskModeEnabled;
   kioskModeEnabled = !!enabled;
+
+  let shellResult = { success: true, skipped: true };
+
   if (kioskModeEnabled) {
     enableKioskShortcuts();
+    // Only kill explorer if it isn't already down (avoids double-kill during
+    // startup restore when kiosk state was persisted enabled).
+    shellResult = await killExplorerShell();
   } else {
     disableKioskShortcuts();
+    // Restore the shell so staff have taskbar/Start menu back.
+    if (wasEnabled) {
+      shellResult = await startExplorerShell();
+    }
   }
-  return { success: true, kioskModeEnabled };
+
+  return { success: true, kioskModeEnabled, shell: shellResult };
 });
+
 
 
 // Initialize TAPO connection
