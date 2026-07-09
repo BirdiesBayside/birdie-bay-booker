@@ -3191,15 +3191,17 @@ export default function BayController() {
           </Card>
         )}
 
-        {/* Current Status */}
-        <Card className={activeBooking ? "border-primary" : ""}>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Power className={`w-5 h-5 ${plugsStatus.monitor ? "text-green-500" : "text-muted-foreground"}`} />
-              Equipment Status
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+        {/* Current Status - Collapsible */}
+        <CollapsibleSettingsCard
+          title="Equipment Status"
+          icon={<Power className={`w-5 h-5 ${plugsStatus.monitor ? "text-green-500" : "text-muted-foreground"}`} />}
+          defaultOpen={false}
+          headerAction={
+            activeBooking ? (
+              <Badge variant="default" className="mr-1">Active</Badge>
+            ) : undefined
+          }
+        >
             <div className="grid grid-cols-2 gap-4">
               <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
                 <span>Monitor</span>
@@ -3275,14 +3277,14 @@ export default function BayController() {
                 Switch to Manual mode to enable On/Off buttons
               </p>
             )}
-          </CardContent>
-        </Card>
+        </CollapsibleSettingsCard>
 
         {/* TAPO Smart Plugs - Collapsible */}
         <CollapsibleSettingsCard 
           title="TAPO Smart Plugs" 
           icon={<Wifi className="w-5 h-5" />} 
-          defaultOpen={true}
+          defaultOpen={false}
+
           headerAction={
             <PlugDiagnostics 
               tapoEmail={tapoEmail} 
