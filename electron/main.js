@@ -85,6 +85,46 @@ function disableKioskShortcuts() {
   }
 }
 
+// =====================================================
+// KIOSK: kill/restore Windows Explorer shell
+// Killing explorer.exe removes the taskbar, Start menu, Alt+Tab
+// switcher, and desktop. GSPro / Protee Labs / Bay Controller keep
+// running normally — they don't depend on the shell.
+// =====================================================
+function killExplorerShell() {
+  return new Promise((resolve) => {
+    exec('taskkill /F /IM explorer.exe', (err, stdout, stderr) => {
+      if (err) {
+        // Exit code 128 = process not found — that's fine, already dead.
+        const msg = (stderr || err.message || '').toLowerCase();
+        if (msg.includes('not found') || msg.includes('no tasks') || err.code === 128) {
+          console.log('[Kiosk] explorer.exe was already stopped');
+          return resolve({ success: true, alreadyStopped: true });
+        }
+        console.error('[Kiosk] Failed to kill explorer.exe:', err.message);
+        return resolve({ success: false, error: err.message });
+      }
+      console.log('[Kiosk] explorer.exe killed — taskbar and Start menu removed');
+      resolve({ success: true });
+    });
+  });
+}
+
+function startExplorerShell() {
+  return new Promise((resolve) => {
+    // `start` returns immediately; explorer.exe re-hosts the shell.
+    exec('start "" explorer.exe', (err) => {
+      if (err) {
+        console.error('[Kiosk] Failed to start explorer.exe:', err.message);
+        return resolve({ success: false, error: err.message });
+      }
+      console.log('[Kiosk] explorer.exe restarted — shell restored');
+      resolve({ success: true });
+    });
+  });
+}
+
+
 
 const isDev = process.env.NODE_ENV === 'development';
 
@@ -435,10 +475,17 @@ app.on('child-process-gone', (event, details) => {
   logProcessIssue('child_process_gone', details);
 });
 
-// Unregister shortcuts on quit
+// Unregister shortcuts on quit + safety-net restore Explorer shell
+// so a controller crash / update / manual quit never leaves staff
+// stranded with no taskbar.
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
+  if (kioskModeEnabled) {
+    console.log('[Kiosk] App quitting while kiosk was active — restoring explorer.exe as safety net');
+    try { exec('start "" explorer.exe'); } catch {}
+  }
 });
+
 
 app.on('window-all-closed', () => {
   // Do nothing - prevent app from closing
@@ -494,14 +541,27 @@ ipcMain.handle('set-app-launch-config', async (event, config) => {
 // Handle kiosk mode toggle from renderer
 ipcMain.handle('set-kiosk-mode', async (event, { enabled }) => {
   console.log('[IPC] set-kiosk-mode:', enabled);
+  const wasEnabled = kioskModeEnabled;
   kioskModeEnabled = !!enabled;
+
+  let shellResult = { success: true, skipped: true };
+
   if (kioskModeEnabled) {
     enableKioskShortcuts();
+    // Only kill explorer if it isn't already down (avoids double-kill during
+    // startup restore when kiosk state was persisted enabled).
+    shellResult = await killExplorerShell();
   } else {
     disableKioskShortcuts();
+    // Restore the shell so staff have taskbar/Start menu back.
+    if (wasEnabled) {
+      shellResult = await startExplorerShell();
+    }
   }
-  return { success: true, kioskModeEnabled };
+
+  return { success: true, kioskModeEnabled, shell: shellResult };
 });
+
 
 
 // Initialize TAPO connection
