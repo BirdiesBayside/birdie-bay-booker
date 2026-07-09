@@ -3957,6 +3957,62 @@ export default function BayController() {
           </div>
         </CollapsibleSettingsCard>
 
+        {/* Kiosk Mode - Collapsible */}
+        <CollapsibleSettingsCard
+          title="Kiosk Mode (Beta)"
+          icon={<Lock className={`w-5 h-5 ${kioskEnabled ? "text-orange-500" : "text-muted-foreground"}`} />}
+          defaultOpen={false}
+          headerAction={
+            kioskEnabled ? <Badge className="bg-orange-500 text-white mr-1">LOCKED</Badge> : undefined
+          }
+        >
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Locks down Windows shortcuts (Alt+Tab, Alt+F4, Ctrl+Esc, Win key combos) so customers
+              cannot exit GSPro or open other apps. Bay Controller automation is unaffected.
+            </p>
+            <div className="p-3 rounded-lg bg-muted border border-border space-y-1">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Staff Unlock</p>
+              <p className="text-sm">
+                Press <kbd className="px-2 py-1 rounded bg-background border text-xs font-mono">Ctrl + Alt + 1</kbd> anywhere to open the password prompt.
+              </p>
+            </div>
+            <div className="flex items-center justify-between pt-2 border-t border-border">
+              <div>
+                <Label className="text-sm">Kiosk Lockdown</Label>
+                <p className="text-xs text-muted-foreground">
+                  {kioskEnabled ? "Active — shortcuts blocked" : "Disabled — normal Windows shortcuts"}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`text-xs font-medium ${!kioskEnabled ? "text-green-600" : "text-muted-foreground"}`}>Off</span>
+                <Switch
+                  checked={kioskEnabled}
+                  onCheckedChange={(checked) => {
+                    if (checked) {
+                      toggleKiosk(true);
+                    } else {
+                      // Require password to disable via UI too
+                      setKioskUnlockPassword("");
+                      setKioskUnlockError("");
+                      setKioskUnlockOpen(true);
+                    }
+                  }}
+                  className="data-[state=checked]:bg-orange-500"
+                />
+                <span className={`text-xs font-medium ${kioskEnabled ? "text-orange-600" : "text-muted-foreground"}`}>On</span>
+              </div>
+            </div>
+            {!isElectron && (
+              <p className="text-xs text-destructive">
+                Kiosk Mode only functions in the Electron desktop build.
+              </p>
+            )}
+          </div>
+        </CollapsibleSettingsCard>
+
+
+
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
