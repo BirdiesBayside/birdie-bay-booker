@@ -85,6 +85,46 @@ function disableKioskShortcuts() {
   }
 }
 
+// =====================================================
+// KIOSK: kill/restore Windows Explorer shell
+// Killing explorer.exe removes the taskbar, Start menu, Alt+Tab
+// switcher, and desktop. GSPro / Protee Labs / Bay Controller keep
+// running normally — they don't depend on the shell.
+// =====================================================
+function killExplorerShell() {
+  return new Promise((resolve) => {
+    exec('taskkill /F /IM explorer.exe', (err, stdout, stderr) => {
+      if (err) {
+        // Exit code 128 = process not found — that's fine, already dead.
+        const msg = (stderr || err.message || '').toLowerCase();
+        if (msg.includes('not found') || msg.includes('no tasks') || err.code === 128) {
+          console.log('[Kiosk] explorer.exe was already stopped');
+          return resolve({ success: true, alreadyStopped: true });
+        }
+        console.error('[Kiosk] Failed to kill explorer.exe:', err.message);
+        return resolve({ success: false, error: err.message });
+      }
+      console.log('[Kiosk] explorer.exe killed — taskbar and Start menu removed');
+      resolve({ success: true });
+    });
+  });
+}
+
+function startExplorerShell() {
+  return new Promise((resolve) => {
+    // `start` returns immediately; explorer.exe re-hosts the shell.
+    exec('start "" explorer.exe', (err) => {
+      if (err) {
+        console.error('[Kiosk] Failed to start explorer.exe:', err.message);
+        return resolve({ success: false, error: err.message });
+      }
+      console.log('[Kiosk] explorer.exe restarted — shell restored');
+      resolve({ success: true });
+    });
+  });
+}
+
+
 
 const isDev = process.env.NODE_ENV === 'development';
 
