@@ -4090,6 +4090,58 @@ export default function BayController() {
         </div>
       )}
 
+      {/* Kiosk Unlock Dialog */}
+      {kioskUnlockOpen && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[9999]">
+          <Card className="w-[350px]">
+            <CardHeader className="text-center">
+              <div className="w-12 h-12 mx-auto mb-2 rounded-full bg-orange-500/10 flex items-center justify-center">
+                <Lock className="w-6 h-6 text-orange-500" />
+              </div>
+              <CardTitle>Unlock Kiosk Mode</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Enter staff password to disable kiosk lockdown
+              </p>
+            </CardHeader>
+            <CardContent>
+              <form
+                onSubmit={(e) => { e.preventDefault(); handleKioskUnlock(); }}
+                className="space-y-4"
+              >
+                <div className="space-y-2">
+                  <Label htmlFor="kiosk-password">Password</Label>
+                  <Input
+                    id="kiosk-password"
+                    type="password"
+                    value={kioskUnlockPassword}
+                    onChange={(e) => setKioskUnlockPassword(e.target.value)}
+                    placeholder="Enter password"
+                    autoFocus
+                  />
+                  {kioskUnlockError && (
+                    <p className="text-sm text-destructive">{kioskUnlockError}</p>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => { setKioskUnlockOpen(false); setKioskUnlockPassword(""); setKioskUnlockError(""); }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit" className="flex-1">
+                    Unlock
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+
       {/* SGT Icon Button removed - now only shows on external display via Electron overlay */}
 
     </div>
