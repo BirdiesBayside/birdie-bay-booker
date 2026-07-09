@@ -404,6 +404,19 @@ app.whenReady().then(() => {
       }
     }
   });
+
+  // Register global Staff Unlock hotkey (Ctrl+Alt+1) — always active so staff
+  // can pop the unlock prompt even from a fullscreen customer app.
+  globalShortcut.register('CommandOrControl+Alt+1', () => {
+    console.log('[GlobalShortcut] Ctrl+Alt+1 pressed - requesting kiosk unlock');
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+      mainWindow.webContents.send('request-kiosk-unlock');
+    }
+  });
+
 });
 
 // Global crash diagnostics for main process
