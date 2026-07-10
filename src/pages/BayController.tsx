@@ -2249,6 +2249,59 @@ export default function BayController() {
     };
   }, [isElectron, activeBooking?.id, addLog, bayLogger, runSwingLabCloseSync]);
 
+  // Keep a ref to the latest activeBooking so the Desktop CSV watcher listener
+  // (subscribed once below) always sees current context.
+  useEffect(() => {
+    activeBookingRef.current = activeBooking ?? null;
+  }, [activeBooking]);
+
+  // Desktop CSV watcher: main process pushes each newly-written GSPro export.
+  // We attribute it to whichever booking is active RIGHT NOW (at write time)
+  // and upload immediately. Deletion happens inside uploadRangeCsv on success.
+  useEffect(() => {
+    if (!isElectron || !window.electronAPI?.onDesktopCsvDetected) return;
+
+    const cleanup = window.electronAPI.onDesktopCsvDetected(async (payload) => {
+      const booking = activeBookingRef.current;
+      const userId = booking?.user_id;
+
+      addLog(`[CSV-Watch] Detected ${payload.filename} (${Math.round(payload.size / 1024)} KB). Active booking user=${userId ?? 'none'}`, 'info');
+      bayLogger.sendLog('automation_decision', `[CSV-Watch] Detected ${payload.filename}`, {
+        bookingId: booking?.id,
+        immediate: true,
+      });
+
+      if (!userId) {
+        addLog(`[CSV-Watch] No active booking — leaving ${payload.filename} on Desktop for later`, 'info');
+        return;
+      }
+
+      const result = await uploadRangeCsv({
+        filename: payload.filename,
+        base64: payload.base64,
+        userId,
+        bookingId: booking?.id ?? null,
+        bayId: null,
+        bayNumber: selectedBay,
+        appVersion,
+        log: (msg, level) => {
+          const mapped: 'info' | 'success' | 'error' = level === 'warning' ? 'info' : (level ?? 'info');
+          addLog(msg, mapped);
+        },
+      });
+
+      bayLogger.sendLog('automation_decision', `[CSV-Watch] Upload ${result.uploaded ? 'OK' : 'FAILED'}: ${payload.filename}`, {
+        level: result.uploaded ? 'info' : 'error',
+        bookingId: booking?.id,
+        immediate: true,
+      });
+    });
+
+    addLog('[CSV-Watch] Desktop CSV watcher listener attached', 'info');
+    return () => { cleanup?.(); };
+  }, [isElectron, selectedBay, appVersion, addLog, bayLogger]);
+
+
   // Add a plug manually
   const addPlugManually = () => {
     if (!newPlugName.trim() || !newPlugIp.trim()) {
