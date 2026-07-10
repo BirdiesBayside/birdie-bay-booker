@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { useOperatingHours } from "@/hooks/useOperatingHours";
 import { format, isToday } from "date-fns";
 import { CalendarIcon, Clock, Trophy, ArrowRight } from "lucide-react";
 import { Link } from "react-router-dom";
