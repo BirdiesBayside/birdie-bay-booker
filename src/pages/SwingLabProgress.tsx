@@ -32,10 +32,13 @@ type TileDef = {
   compute: (shots: Shot[], sessCount: number, days: number) => number | null;
 };
 
-function classify(club: string | null | undefined): "driver" | "iron" | "wedge" | "other" {
-  const c = (club || "").toLowerCase().replace(/\s+/g, "");
+function classify(club: string | null | undefined): "driver_woods" | "iron" | "wedge" | "other" {
+  const c = (club || "").toLowerCase().replace(/[\s-]+/g, "");
   if (!c) return "other";
-  if (c === "dr" || c === "driver" || c === "1w") return "driver";
+  // Driver + fairway woods + hybrids (e.g. dr, driver, 1w, 3w, 5w, w3, 3wood, 3h, 5h, h5, hybrid3)
+  if (c === "dr" || c === "driver" || c === "d") return "driver_woods";
+  if (/^\d+w(ood)?$/.test(c) || /^w\d+$/.test(c) || /^\d+wood$/.test(c)) return "driver_woods";
+  if (/^\d+h(yb(rid)?)?$/.test(c) || /^h\d+$/.test(c) || /^hybrid\d*$/.test(c)) return "driver_woods";
   if (/^(pw|gw|aw|sw|lw)$/.test(c) || c === "w" || /^([4-6]\d)$/.test(c)) return "wedge";
   if (/^[2-9]i$/.test(c) || /^i[2-9]$/.test(c)) return "iron";
   return "other";
@@ -222,14 +225,14 @@ export default function SwingLabProgress() {
       },
     },
     {
-      key: "driver_dispersion",
-      label: `Driver Dispersion (${dLbl})`,
-      info: "Are your drives getting more accurate? Standard deviation of your driver's left/right carry. Lower = tighter, more fairways.",
+      key: "driver_woods_dispersion",
+      label: `Driver/Woods Dispersion (${dLbl})`,
+      info: "Are your long-club shots getting more accurate? Standard deviation of left/right carry across your driver, fairway woods and hybrids. Lower = tighter, more fairways.",
       higherIsBetter: false,
       fmt: (v) => `± ${v.toFixed(1)} ${dLbl}`,
       compute: (shots) => {
         const vals = shots
-          .filter((s) => classify(s.club_type) === "driver")
+          .filter((s) => classify(s.club_type) === "driver_woods")
           .map((s) => s.side_carry)
           .filter((v): v is number => v != null && Number.isFinite(v));
         return vals.length >= 5 ? sd(vals) : null;
