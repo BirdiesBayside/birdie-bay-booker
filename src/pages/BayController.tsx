@@ -12,7 +12,7 @@ import { Lock, Wifi, Power, Clock, AlertTriangle, CheckCircle, XCircle, Settings
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format, addMinutes, isBefore, isAfter, parseISO } from "date-fns";
-import { restoreUserGsproSettings, saveUserGsproSettings, sweepAndUploadRangeCsvs } from "@/lib/range-sync";
+import { restoreUserGsproSettings, saveUserGsproSettings, uploadRangeCsv } from "@/lib/range-sync";
 import { PlugDiagnostics } from "@/components/bay-controller/PlugDiagnostics";
 import { AppRestoreSettings } from "@/components/bay-controller/AppRestoreSettings";
 
@@ -429,22 +429,9 @@ export default function BayController() {
       });
       addLog(`[Sync] Settings result: saved=[${saved.saved.join(', ') || 'none'}] failed=[${saved.failed.join(', ') || 'none'}]`, saved.failed.length ? 'error' : 'info');
 
-      addLog('[Sync] Starting Desktop CSV sweep…', 'info');
-      const swept = await sweepAndUploadRangeCsvs({
-        userId,
-        bookingId: bookingId ?? null,
-        bayId: null,
-        bayNumber: selectedBay,
-        appVersion,
-        bookingStartMs,
-        log: syncLog,
-      });
-      addLog(`[Sync] CSV sweep result: uploaded=${swept.uploaded.length}, failed=${swept.failed.length}`, swept.failed.length ? 'error' : (swept.uploaded.length ? 'success' : 'info'));
-      bayLogger.sendLog('automation_decision', `[Sync] CSV sweep result: uploaded=${swept.uploaded.length}, failed=${swept.failed.length}`, {
-        level: swept.failed.length ? 'error' : 'info',
-        bookingId,
-        immediate: true,
-      });
+      // NOTE: Desktop CSV uploads are handled by the always-on watcher
+      // (electron/main.js -> desktop-csv-detected -> uploadRangeCsv). No sweep here.
+
     } catch (err: any) {
       addLog(`[Sync] Sync threw exception: ${err?.message ?? String(err)}`, 'error');
       console.error('[BayController] Range/settings sync on close failed:', err);
