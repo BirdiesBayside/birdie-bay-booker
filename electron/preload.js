@@ -234,4 +234,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getGsproLaunchTs: () => ipcRenderer.invoke('get-gspro-launch-ts'),
   scanDesktopCsvs: (sinceMs) => ipcRenderer.invoke('scan-desktop-csvs', { sinceMs }),
   deleteDesktopCsv: (filename) => ipcRenderer.invoke('delete-desktop-csv', { filename }),
+
+  // Desktop CSV watcher: main process pushes newly-detected .csv exports here
+  onDesktopCsvDetected: (callback) => {
+    const handler = (_event, payload) => callback(payload);
+    ipcRenderer.on('desktop-csv-detected', handler);
+    return () => ipcRenderer.removeListener('desktop-csv-detected', handler);
+  },
 });

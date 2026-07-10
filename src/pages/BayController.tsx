@@ -12,7 +12,7 @@ import { Lock, Wifi, Power, Clock, AlertTriangle, CheckCircle, XCircle, Settings
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format, addMinutes, isBefore, isAfter, parseISO } from "date-fns";
-import { restoreUserGsproSettings, saveUserGsproSettings, sweepAndUploadRangeCsvs } from "@/lib/range-sync";
+import { restoreUserGsproSettings, saveUserGsproSettings, uploadRangeCsv } from "@/lib/range-sync";
 import { PlugDiagnostics } from "@/components/bay-controller/PlugDiagnostics";
 import { AppRestoreSettings } from "@/components/bay-controller/AppRestoreSettings";
 
@@ -253,6 +253,10 @@ export default function BayController() {
   const swingLabSyncInProgressRef = useRef(false);
   const lastSwingLabSyncAtRef = useRef(0);
   const lastGsproRunningRef = useRef<boolean | null>(null);
+  // Latest activeBooking pinned in a ref so the Desktop CSV watcher listener
+  // (mounted once on isElectron change) always sees current booking context
+  // without re-subscribing on every render.
+  const activeBookingRef = useRef<Booking | null>(null);
   
   // Guard against re-entrant launchApps calls and cooldown after failed launches
   const launchInProgressRef = useRef(false);
@@ -429,22 +433,9 @@ export default function BayController() {
       });
       addLog(`[Sync] Settings result: saved=[${saved.saved.join(', ') || 'none'}] failed=[${saved.failed.join(', ') || 'none'}]`, saved.failed.length ? 'error' : 'info');
 
-      addLog('[Sync] Starting Desktop CSV sweep…', 'info');
-      const swept = await sweepAndUploadRangeCsvs({
-        userId,
-        bookingId: bookingId ?? null,
-        bayId: null,
-        bayNumber: selectedBay,
-        appVersion,
-        bookingStartMs,
-        log: syncLog,
-      });
-      addLog(`[Sync] CSV sweep result: uploaded=${swept.uploaded.length}, failed=${swept.failed.length}`, swept.failed.length ? 'error' : (swept.uploaded.length ? 'success' : 'info'));
-      bayLogger.sendLog('automation_decision', `[Sync] CSV sweep result: uploaded=${swept.uploaded.length}, failed=${swept.failed.length}`, {
-        level: swept.failed.length ? 'error' : 'info',
-        bookingId,
-        immediate: true,
-      });
+      // NOTE: Desktop CSV uploads are handled by the always-on watcher
+      // (electron/main.js -> desktop-csv-detected -> uploadRangeCsv). No sweep here.
+
     } catch (err: any) {
       addLog(`[Sync] Sync threw exception: ${err?.message ?? String(err)}`, 'error');
       console.error('[BayController] Range/settings sync on close failed:', err);
@@ -2257,6 +2248,59 @@ export default function BayController() {
       clearInterval(interval);
     };
   }, [isElectron, activeBooking?.id, addLog, bayLogger, runSwingLabCloseSync]);
+
+  // Keep a ref to the latest activeBooking so the Desktop CSV watcher listener
+  // (subscribed once below) always sees current context.
+  useEffect(() => {
+    activeBookingRef.current = activeBooking ?? null;
+  }, [activeBooking]);
+
+  // Desktop CSV watcher: main process pushes each newly-written GSPro export.
+  // We attribute it to whichever booking is active RIGHT NOW (at write time)
+  // and upload immediately. Deletion happens inside uploadRangeCsv on success.
+  useEffect(() => {
+    if (!isElectron || !window.electronAPI?.onDesktopCsvDetected) return;
+
+    const cleanup = window.electronAPI.onDesktopCsvDetected(async (payload) => {
+      const booking = activeBookingRef.current;
+      const userId = booking?.user_id;
+
+      addLog(`[CSV-Watch] Detected ${payload.filename} (${Math.round(payload.size / 1024)} KB). Active booking user=${userId ?? 'none'}`, 'info');
+      bayLogger.sendLog('automation_decision', `[CSV-Watch] Detected ${payload.filename}`, {
+        bookingId: booking?.id,
+        immediate: true,
+      });
+
+      if (!userId) {
+        addLog(`[CSV-Watch] No active booking — leaving ${payload.filename} on Desktop for later`, 'info');
+        return;
+      }
+
+      const result = await uploadRangeCsv({
+        filename: payload.filename,
+        base64: payload.base64,
+        userId,
+        bookingId: booking?.id ?? null,
+        bayId: null,
+        bayNumber: selectedBay,
+        appVersion,
+        log: (msg, level) => {
+          const mapped: 'info' | 'success' | 'error' = level === 'warning' ? 'info' : (level ?? 'info');
+          addLog(msg, mapped);
+        },
+      });
+
+      bayLogger.sendLog('automation_decision', `[CSV-Watch] Upload ${result.uploaded ? 'OK' : 'FAILED'}: ${payload.filename}`, {
+        level: result.uploaded ? 'info' : 'error',
+        bookingId: booking?.id,
+        immediate: true,
+      });
+    });
+
+    addLog('[CSV-Watch] Desktop CSV watcher listener attached', 'info');
+    return () => { cleanup?.(); };
+  }, [isElectron, selectedBay, appVersion, addLog, bayLogger]);
+
 
   // Add a plug manually
   const addPlugManually = () => {

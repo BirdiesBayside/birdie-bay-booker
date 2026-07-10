@@ -1,6 +1,7 @@
 // Range session + per-customer GSPro settings sync for the Bay Controller.
 // The renderer performs network calls (auth is inherited from the current Supabase session).
-// Electron main only exposes file I/O IPCs (read/write GSPro folder + scan/delete Desktop CSVs).
+// Electron main only exposes file I/O IPCs (read/write GSPro folder + scan/delete Desktop CSVs,
+// plus a Desktop watcher that pushes newly-detected CSVs to the renderer for immediate ingest).
 
 import { supabase } from "@/integrations/supabase/client";
 
@@ -223,3 +224,55 @@ export async function sweepAndUploadRangeCsvs(opts: {
   }
   return { uploaded, failed };
 }
+
+/**
+ * Upload a single Desktop CSV (pushed by the Electron main-process watcher the
+ * moment GSPro writes a new export). Deletes the local file on successful
+ * ingest so we never re-upload the same one.
+ */
+export async function uploadRangeCsv(opts: {
+  filename: string;
+  base64: string;
+  userId: string;
+  bookingId?: string | null;
+  bayId?: string | null;
+  bayNumber?: number | null;
+  appVersion?: string;
+  log?: SyncLogFn;
+}): Promise<{ uploaded: boolean; error?: string }> {
+  const L = opts.log ?? (() => {});
+  if (!opts.userId) { L(`[CSV-Watch] Skipped ${opts.filename}: no active booking user`, "warning"); return { uploaded: false, error: "no_user" }; }
+  if (!window.electronAPI) return { uploaded: false, error: "no_electron" };
+
+  L(`[CSV-Watch] Uploading ${opts.filename} (${Math.round((opts.base64.length * 3) / 4 / 1024)} KB) for user ${opts.userId}`, "info");
+
+  try {
+    const uploadBody = {
+      user_id: opts.userId,
+      booking_id: opts.bookingId ?? null,
+      bay_id: opts.bayId ?? null,
+      csv_base64: opts.base64,
+      filename: opts.filename,
+    };
+    const { data, error } = opts.bayNumber
+      ? await invokeBayControllerApi("ingest_range_session", uploadBody, { bayNumber: opts.bayNumber, appVersion: opts.appVersion })
+      : await supabase.functions.invoke("ingest-range-session", { body: uploadBody });
+    if (error) {
+      L(`[CSV-Watch] Ingest FAILED for ${opts.filename}: ${error.message ?? JSON.stringify(error)}`, "error");
+      return { uploaded: false, error: error.message ?? "ingest_failed" };
+    }
+    if (!(data as any)?.ok) {
+      L(`[CSV-Watch] Ingest returned non-ok for ${opts.filename}: ${JSON.stringify(data ?? {}).slice(0, 300)}`, "error");
+      return { uploaded: false, error: "ingest_not_ok" };
+    }
+    L(`[CSV-Watch] Ingest OK for ${opts.filename} (session_id=${(data as any).session_id ?? "?"}, shots=${(data as any).shot_count ?? "?"})`, "success");
+    const del = await window.electronAPI.deleteDesktopCsv(opts.filename);
+    if (del.success) L(`[CSV-Watch] Deleted local ${opts.filename} after successful upload`, "info");
+    else L(`[CSV-Watch] Uploaded but failed to delete local ${opts.filename}: ${del.error ?? "unknown"}`, "warning");
+    return { uploaded: true };
+  } catch (e: any) {
+    L(`[CSV-Watch] Exception uploading ${opts.filename}: ${e?.message ?? String(e)}`, "error");
+    return { uploaded: false, error: e?.message ?? String(e) };
+  }
+}
+

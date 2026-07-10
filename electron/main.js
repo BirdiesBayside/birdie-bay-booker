@@ -3578,6 +3578,107 @@ ipcMain.handle('is-gspro-running', async () => {
 startGsproWatcher();
 
 // =====================================================
+// DESKTOP CSV WATCHER
+// Continuously watches the Windows Desktop for new .csv files (GSPro range exports)
+// and pushes them to the renderer for immediate ingest. Uses fs.watch + a 2s
+// stability delay so we never grab a half-written file.
+// =====================================================
+let desktopCsvWatcher = null;
+const desktopCsvInFlight = new Set();       // filenames currently being processed
+const desktopCsvRecentlyEmitted = new Map(); // filename -> ts (dedupe rapid events)
+
+function scheduleDesktopCsvEmit(filename) {
+  if (!filename || !filename.toLowerCase().endsWith('.csv')) return;
+  if (desktopCsvInFlight.has(filename)) return;
+
+  // Dedupe: fs.watch fires multiple events per file write; ignore if we started within 3s
+  const recent = desktopCsvRecentlyEmitted.get(filename);
+  if (recent && Date.now() - recent < 3000) return;
+  desktopCsvRecentlyEmitted.set(filename, Date.now());
+
+  desktopCsvInFlight.add(filename);
+  const full = path.join(getDesktopPath(), filename);
+
+  // Wait 2s, then verify file is stable (size unchanged for one more 500ms tick).
+  setTimeout(async () => {
+    try {
+      if (!fs.existsSync(full)) { desktopCsvInFlight.delete(filename); return; }
+      const s1 = fs.statSync(full);
+      await new Promise(r => setTimeout(r, 500));
+      if (!fs.existsSync(full)) { desktopCsvInFlight.delete(filename); return; }
+      const s2 = fs.statSync(full);
+      if (s1.size !== s2.size || s2.size === 0) {
+        // Still being written — try again in 2s
+        console.log(`[CSV-Watch] ${filename} still writing (size ${s1.size} -> ${s2.size}), retrying`);
+        desktopCsvInFlight.delete(filename);
+        desktopCsvRecentlyEmitted.delete(filename);
+        scheduleDesktopCsvEmit(filename);
+        return;
+      }
+      if (s2.size > 5 * 1024 * 1024) {
+        console.warn(`[CSV-Watch] ${filename} too large (${s2.size} bytes), skipping`);
+        desktopCsvInFlight.delete(filename);
+        return;
+      }
+      const base64 = fs.readFileSync(full).toString('base64');
+      console.log(`[CSV-Watch] Emitting ${filename} (${s2.size} bytes) to renderer`);
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('desktop-csv-detected', {
+          filename,
+          base64,
+          size: s2.size,
+          mtime: s2.mtimeMs,
+        });
+      }
+      // Renderer will call delete-desktop-csv after successful upload.
+      // Clear from in-flight after a short grace so a re-export with same name later still works.
+      setTimeout(() => desktopCsvInFlight.delete(filename), 30000);
+    } catch (err) {
+      console.error(`[CSV-Watch] Failed to process ${filename}:`, err.message);
+      desktopCsvInFlight.delete(filename);
+    }
+  }, 2000);
+}
+
+function startDesktopCsvWatcher() {
+  try {
+    if (desktopCsvWatcher) return;
+    const desk = getDesktopPath();
+    if (!fs.existsSync(desk)) {
+      console.warn(`[CSV-Watch] Desktop path missing: ${desk}`);
+      return;
+    }
+    console.log(`[CSV-Watch] Starting watcher on ${desk}`);
+    desktopCsvWatcher = fs.watch(desk, { persistent: true }, (eventType, filename) => {
+      if (!filename) return;
+      // fs.watch fires 'rename' for create/delete and 'change' for modify.
+      // We schedule on any event; scheduleDesktopCsvEmit dedupes and verifies existence.
+      if (filename.toLowerCase().endsWith('.csv')) {
+        scheduleDesktopCsvEmit(filename);
+      }
+    });
+    desktopCsvWatcher.on('error', (err) => {
+      console.error('[CSV-Watch] Watcher error:', err.message);
+    });
+
+    // Also sweep any CSVs already sitting on the desktop at startup — they were
+    // likely missed while the controller was offline.
+    try {
+      for (const name of fs.readdirSync(desk)) {
+        if (name.toLowerCase().endsWith('.csv')) {
+          console.log(`[CSV-Watch] Startup found existing ${name}, queueing`);
+          scheduleDesktopCsvEmit(name);
+        }
+      }
+    } catch {}
+  } catch (err) {
+    console.error('[CSV-Watch] Failed to start watcher:', err.message);
+  }
+}
+
+app.whenReady().then(() => startDesktopCsvWatcher());
+
+// =====================================================
 // PER-CUSTOMER GSPRO SETTINGS + RANGE CSV FILE IPCs
 // Renderer performs the network calls; main only does file I/O.
 // =====================================================
