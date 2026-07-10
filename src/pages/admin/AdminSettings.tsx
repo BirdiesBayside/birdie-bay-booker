@@ -745,10 +745,8 @@ export default function AdminSettings() {
               <AiCaddy variant="card" />
             </CollapsibleSection>
 
-            {/* Activity Log */}
-            <CollapsibleSection title="Activity Log" description="Recent staff and system activity">
-              <ActivityLog />
-            </CollapsibleSection>
+            {/* Activity Log — already renders its own collapsible card */}
+            <ActivityLog />
 
             {/* Bay Management */}
             <CollapsibleSection title="Bay Management" description="Control bay availability for customers. Take bays offline for maintenance.">
