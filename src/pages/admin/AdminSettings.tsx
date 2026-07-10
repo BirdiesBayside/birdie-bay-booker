@@ -1050,6 +1050,10 @@ export default function AdminSettings() {
             <CollapsibleSection title="Email Templates" description="Customize email notification templates">
               <Card>
                 <CardContent className="space-y-4 pt-6">
+                  <div className="rounded-md border border-primary/30 bg-primary/5 p-3 text-xs text-muted-foreground">
+                    <strong className="text-foreground">First-Time (Unstaffed) variants</strong> automatically <em>replace</em> the standard Booking Confirmation email &amp; SMS when a customer's first-ever booking starts outside staffed hours. Boom gate access SMS runs independently on its own timing rules.
+                  </div>
+
                   {isLoadingTemplates ? (
                     <Skeleton className="h-32" />
                   ) : emailTemplates.length === 0 ? (
