@@ -225,14 +225,14 @@ export default function SwingLabProgress() {
       },
     },
     {
-      key: "driver_dispersion",
-      label: `Driver Dispersion (${dLbl})`,
-      info: "Are your drives getting more accurate? Standard deviation of your driver's left/right carry. Lower = tighter, more fairways.",
+      key: "driver_woods_dispersion",
+      label: `Driver/Woods Dispersion (${dLbl})`,
+      info: "Are your long-club shots getting more accurate? Standard deviation of left/right carry across your driver, fairway woods and hybrids. Lower = tighter, more fairways.",
       higherIsBetter: false,
       fmt: (v) => `± ${v.toFixed(1)} ${dLbl}`,
       compute: (shots) => {
         const vals = shots
-          .filter((s) => classify(s.club_type) === "driver")
+          .filter((s) => classify(s.club_type) === "driver_woods")
           .map((s) => s.side_carry)
           .filter((v): v is number => v != null && Number.isFinite(v));
         return vals.length >= 5 ? sd(vals) : null;
