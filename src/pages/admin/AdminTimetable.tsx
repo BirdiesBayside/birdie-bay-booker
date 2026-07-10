@@ -114,6 +114,17 @@ export default function AdminTimetable() {
   const { isAdmin, isLoading: authLoading } = useAdminAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { globalWindow } = useOperatingHours();
+
+  const OPERATING_START_HOUR = globalWindow.startHour ?? FALLBACK_START_HOUR;
+  const OPERATING_END_HOUR = globalWindow.endHour ?? FALLBACK_END_HOUR;
+
+  const OPERATING_SLOTS: TimeSlot[] = [];
+  for (let hour = OPERATING_START_HOUR; hour < OPERATING_END_HOUR; hour++) {
+    OPERATING_SLOTS.push({ hour, minute: 0 });
+    OPERATING_SLOTS.push({ hour, minute: 30 });
+  }
+  
   
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   
