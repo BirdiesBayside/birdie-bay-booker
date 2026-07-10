@@ -259,35 +259,62 @@ export default function EmbedCompete({ hideHero = false }: { hideHero?: boolean 
                 ) : weeklyStandings.length === 0 ? (
                   <EmptyState text="No scores yet this week, be the first on the board." />
                 ) : (
-                  <div className="divide-y" style={{ borderColor: BORDER }}>
-                    {weeklyStandings.slice(0, 8).map((r) => (
-                      <div key={r.playerName} className="grid grid-cols-12 gap-2 py-3 items-center">
-                        <div className="col-span-1 flex items-center gap-1">
-                          {positionIcon(r.position) || (
-                            <span className="font-bold text-sm" style={{ color: r.position <= 3 ? GREEN : MUTED }}>
-                              {r.position}
+                  <div>
+                    <div className="grid grid-cols-12 gap-2 py-2 items-center text-[10px] font-bold uppercase tracking-wider border-b" style={{ color: MUTED, borderColor: BORDER }}>
+                      <div className="col-span-1"></div>
+                      <div className="col-span-5 sm:col-span-4">Player</div>
+                      <div className="col-span-2 text-center">R1</div>
+                      <div className="col-span-2 text-center">R2</div>
+                      <div className="hidden sm:block sm:col-span-2 text-center">Total</div>
+                      <div className="col-span-2 sm:col-span-1 text-center">+/-</div>
+                    </div>
+                    <div className="divide-y" style={{ borderColor: BORDER }}>
+                      {weeklyStandings.slice(0, 8).map((r) => (
+                        <div key={r.playerName} className="grid grid-cols-12 gap-2 py-3 items-center">
+                          <div className="col-span-1 flex items-center gap-1">
+                            {positionIcon(r.position) || (
+                              <span className="font-bold text-sm" style={{ color: r.position <= 3 ? GREEN : MUTED }}>
+                                {r.position}
+                              </span>
+                            )}
+                          </div>
+                          <div className="col-span-5 sm:col-span-4 min-w-0">
+                            <p className="font-semibold text-sm sm:text-base truncate" style={{ color: GREEN }}>
+                              {r.playerName}
+                            </p>
+                            <p className="text-[11px]" style={{ color: MUTED }}>HCP {r.hcp ?? "-"}</p>
+                          </div>
+                          <div className="col-span-2 text-center">
+                            <span className={cn("font-inter text-sm font-semibold", getScoreTextColor(r.r1))}>
+                              {r.r1 && r.r1 !== "-" ? r.r1 : "–"}
                             </span>
-                          )}
+                            {r.r1Thru && (
+                              <div className="text-[10px] leading-tight" style={{ color: MUTED }}>
+                                {r.r1Thru === "F" ? "F" : `Thru ${r.r1Thru}`}
+                              </div>
+                            )}
+                          </div>
+                          <div className="col-span-2 text-center">
+                            <span className={cn("font-inter text-sm font-semibold", getScoreTextColor(r.r2))}>
+                              {r.r2 && r.r2 !== "-" ? r.r2 : "–"}
+                            </span>
+                            {r.r2Thru && (
+                              <div className="text-[10px] leading-tight" style={{ color: MUTED }}>
+                                {r.r2Thru === "F" ? "F" : `Thru ${r.r2Thru}`}
+                              </div>
+                            )}
+                          </div>
+                          <div className="hidden sm:block sm:col-span-2 text-center font-bold text-sm" style={{ color: GREEN }}>
+                            {r.total}
+                          </div>
+                          <div className="col-span-2 sm:col-span-1 text-center">
+                            <span className={cn("px-2 py-0.5 rounded font-bold text-xs", toParColor(r.toPar))}>
+                              {r.toPar}
+                            </span>
+                          </div>
                         </div>
-                        <div className="col-span-6 sm:col-span-5">
-                          <p className="font-semibold text-sm sm:text-base truncate" style={{ color: GREEN }}>
-                            {r.playerName}
-                          </p>
-                          <p className="text-[11px]" style={{ color: MUTED }}>HCP {r.hcp ?? "-"}</p>
-                        </div>
-                        <div className="hidden sm:block col-span-3 text-center text-sm" style={{ color: MUTED }}>
-                          R1 {r.r1} · R2 {r.r2}
-                        </div>
-                        <div className="col-span-2 text-center font-bold text-sm" style={{ color: GREEN }}>
-                          {r.total}
-                        </div>
-                        <div className="col-span-3 sm:col-span-1 text-center">
-                          <span className={cn("px-2 py-0.5 rounded font-bold text-xs", toParColor(r.toPar))}>
-                            {r.toPar}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
