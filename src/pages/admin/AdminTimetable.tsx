@@ -408,7 +408,7 @@ export default function AdminTimetable() {
     const minutes = currentTime.getMinutes();
     
     // Only show during operating hours (5am - 11pm)
-    if (hours < OPERATING_START_HOUR || hours >= 23) return null;
+    if (hours < OPERATING_START_HOUR || hours >= OPERATING_END_HOUR) return null;
     
     // Calculate position: each 30-min slot is SLOT_HEIGHT pixels
     const minutesSinceStart = (hours - OPERATING_START_HOUR) * 60 + minutes;
