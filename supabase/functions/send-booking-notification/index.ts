@@ -237,8 +237,51 @@ serve(async (req) => {
     }
     logStep("Profile fetched", { email: profile.email, phone: profile.phone });
 
+    // Determine whether this is a first-time customer booking during unstaffed hours.
+    // In that case, both the confirmation email and SMS are swapped for a variant
+    // that focuses on the support phone number and the Quick Start guide inside the bay.
+    // (Reschedules and cancellations always use the standard templates.)
+    let isFirstTimeUnstaffed = false;
+    if (notification_type === "confirmation") {
+      try {
+        // First-time = no OTHER confirmed bookings for this user
+        const { count: priorConfirmed } = await supabaseClient
+          .from("bookings")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", booking.user_id)
+          .eq("status", "confirmed")
+          .neq("id", booking.id);
+
+        // Unstaffed = booking start time is NOT inside any is_staffed window
+        // on the booking's day of week.
+        const bookingDay = new Date(`${booking.booking_date}T00:00:00`).getDay(); // 0=Sun
+        const { data: staffed } = await supabaseClient
+          .from("staffed_hours")
+          .select("start_time, end_time, is_staffed")
+          .eq("day_of_week", bookingDay);
+
+        const start = booking.start_time as string; // HH:MM:SS
+        const insideStaffed = (staffed || []).some(
+          (s: any) => s.is_staffed && s.start_time <= start && start < s.end_time,
+        );
+
+        isFirstTimeUnstaffed = (priorConfirmed ?? 0) === 0 && !insideStaffed;
+        logStep("First-time / unstaffed check", {
+          priorConfirmed,
+          bookingDay,
+          insideStaffed,
+          isFirstTimeUnstaffed,
+        });
+      } catch (e: any) {
+        logStep("First-time/unstaffed detection failed (falling back to standard)", { error: e.message });
+      }
+    }
+
     // Fetch custom email template
-    const templateKey = notification_type === "confirmation" ? "booking_confirmation" : "booking_cancellation";
+    const templateKey =
+      notification_type === "confirmation"
+        ? (isFirstTimeUnstaffed ? "booking_confirmation_first_unstaffed" : "booking_confirmation")
+        : "booking_cancellation";
     const { data: emailTemplate, error: templateError } = await supabaseClient
       .from("email_templates")
       .select("*")
@@ -250,6 +293,7 @@ serve(async (req) => {
     } else {
       logStep("Template fetched", { templateKey, hasCustomHtml: !!emailTemplate?.html_content, isActive: emailTemplate?.is_active });
     }
+
 
     // Check if template is disabled - skip sending if so
     if (emailTemplate && emailTemplate.is_active === false) {
