@@ -1267,48 +1267,52 @@ function ProductRow({
   isLast: boolean;
 }) {
   return (
-    <div className={`flex items-center justify-between p-3 border rounded-lg ${!product.is_active ? "opacity-50" : ""}`}>
-      <div className="flex items-center gap-3">
-        <div className="flex flex-col gap-0.5">
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="h-5 w-5" 
+    <div className={`flex items-center justify-between gap-2 p-3 border rounded-lg ${!product.is_active ? "opacity-50" : ""}`}>
+      <div className="flex items-center gap-2 min-w-0 flex-1">
+        <div className="flex flex-col gap-0.5 shrink-0">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-5 w-5"
             onClick={onMoveUp}
             disabled={isFirst}
           >
             <ArrowUp className="h-3 w-3" />
           </Button>
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="h-5 w-5" 
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-5 w-5"
             onClick={onMoveDown}
             disabled={isLast}
           >
             <ArrowDown className="h-3 w-3" />
           </Button>
         </div>
-        <div>
-          <span className="font-medium">{product.name}</span>
-          <span className="text-muted-foreground ml-2">${product.price.toFixed(2)}</span>
-          {product.family && (
-            <Badge variant="outline" className="ml-2 text-xs">{product.family}</Badge>
-          )}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-baseline gap-2 flex-wrap">
+            <span className="font-medium text-sm break-words">{product.name}</span>
+            <span className="text-muted-foreground text-sm">${product.price.toFixed(2)}</span>
+          </div>
+          <div className="flex items-center gap-1 mt-1 flex-wrap">
+            {product.family && (
+              <Badge variant="outline" className="text-xs">{product.family}</Badge>
+            )}
+            {!product.is_active && (
+              <Badge variant="secondary" className="text-xs">Disabled</Badge>
+            )}
+          </div>
         </div>
       </div>
-      <div className="flex items-center gap-2">
-        {!product.is_active && (
-          <Badge variant="secondary" className="text-xs">Disabled</Badge>
-        )}
-        <Button variant="ghost" size="icon" onClick={onEdit}>
+      <div className="flex items-center gap-0.5 shrink-0">
+        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onEdit}>
           <Pencil className="h-4 w-4" />
         </Button>
-        <Button variant="ghost" size="icon" onClick={onToggle}>
+        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onToggle}>
           {product.is_active ? "⏸" : "▶"}
         </Button>
-        <Button variant="ghost" size="icon" onClick={onDelete} className="text-destructive">
-          <Trash2 className="h-4 w-4" />
+        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onDelete}>
+          <Trash2 className="h-4 w-4 text-destructive" />
         </Button>
       </div>
     </div>
