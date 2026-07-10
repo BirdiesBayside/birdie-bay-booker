@@ -423,12 +423,16 @@ export default function BayController() {
       addLog(`[Sync] Settings result: saved=[${saved.saved.join(', ') || 'none'}] failed=[${saved.failed.join(', ') || 'none'}]`, saved.failed.length ? 'error' : 'info');
 
       addLog('[Sync] Starting Desktop CSV sweep…', 'info');
+      const bookingStartMs = activeBooking?.booking_date && activeBooking?.start_time
+        ? new Date(`${activeBooking.booking_date}T${activeBooking.start_time}`).getTime()
+        : null;
       const swept = await sweepAndUploadRangeCsvs({
         userId,
         bookingId: bookingId ?? null,
         bayId: null,
         bayNumber: selectedBay,
         appVersion,
+        bookingStartMs,
         log: syncLog,
       });
       addLog(`[Sync] CSV sweep result: uploaded=${swept.uploaded.length}, failed=${swept.failed.length}`, swept.failed.length ? 'error' : (swept.uploaded.length ? 'success' : 'info'));
