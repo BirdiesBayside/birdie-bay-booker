@@ -1817,7 +1817,7 @@ export default function BayController() {
     checkChangeover();
     
     return () => clearInterval(interval);
-  }, [activeBooking, appsRunning, isElectron, manualOverride, shownChangeoverWelcomes, getNextBooking, appLaunchConfig]);
+  }, [activeBooking, appsRunning, isElectron, manualOverride, shownChangeoverWelcomes, getNextBooking, appLaunchConfig, runSwingLabCloseSync, bayLogger]);
 
   // Helper function to calculate if plugs should be on based on bookings
   const calculateShouldPlugsBeOn = useCallback(() => {
