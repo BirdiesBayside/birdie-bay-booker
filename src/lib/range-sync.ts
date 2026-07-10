@@ -1,6 +1,7 @@
 // Range session + per-customer GSPro settings sync for the Bay Controller.
 // The renderer performs network calls (auth is inherited from the current Supabase session).
-// Electron main only exposes file I/O IPCs (read/write GSPro folder + scan/delete Desktop CSVs).
+// Electron main only exposes file I/O IPCs (read/write GSPro folder + scan/delete Desktop CSVs,
+// plus a Desktop watcher that pushes newly-detected CSVs to the renderer for immediate ingest).
 
 import { supabase } from "@/integrations/supabase/client";
 
