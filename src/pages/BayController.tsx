@@ -371,7 +371,10 @@ export default function BayController() {
     previousActiveBookingRef.current = currBooking;
   }, [activeBooking, bayLogger]);
 
-  const runSwingLabCloseSync = useCallback(async (trigger: string) => {
+  const runSwingLabCloseSync = useCallback(async (
+    trigger: string,
+    override?: { userId: string; bookingId?: string | null; bookingStartMs?: number | null }
+  ) => {
     const now = Date.now();
     if (swingLabSyncInProgressRef.current) {
       addLog(`[Sync] ${trigger}: sync already running, skipping duplicate trigger`, 'info');
@@ -385,8 +388,12 @@ export default function BayController() {
     swingLabSyncInProgressRef.current = true;
     lastSwingLabSyncAtRef.current = now;
 
-    const userId = activeBooking?.user_id;
-    const bookingId = activeBooking?.id;
+    const userId = override?.userId ?? activeBooking?.user_id;
+    const bookingId = override?.bookingId ?? activeBooking?.id;
+    const bookingStartMs = override?.bookingStartMs
+      ?? (activeBooking?.booking_date && activeBooking?.start_time
+        ? new Date(`${activeBooking.booking_date}T${activeBooking.start_time}`).getTime()
+        : null);
     const syncLog = (msg: string, level?: 'info' | 'success' | 'error' | 'warning') => {
       const mapped: 'info' | 'success' | 'error' = level === 'warning' ? 'info' : (level ?? 'info');
       addLog(msg, mapped);
@@ -398,15 +405,15 @@ export default function BayController() {
     };
 
     try {
-      addLog(`[Sync] GSPro close sync triggered by ${trigger}. activeBooking=${bookingId ?? 'none'}, userId=${userId ?? 'none'}`, 'info');
-      bayLogger.sendLog('automation_decision', `[Sync] GSPro close sync triggered by ${trigger}. activeBooking=${bookingId ?? 'none'}, userId=${userId ?? 'none'}`, {
+      addLog(`[Sync] GSPro close sync triggered by ${trigger}. booking=${bookingId ?? 'none'}, userId=${userId ?? 'none'}`, 'info');
+      bayLogger.sendLog('automation_decision', `[Sync] GSPro close sync triggered by ${trigger}. booking=${bookingId ?? 'none'}, userId=${userId ?? 'none'}`, {
         bookingId,
         immediate: true,
       });
 
       if (!userId) {
-        addLog('[Sync] No active booking user — skipping CSV/settings sync', 'info');
-        bayLogger.sendLog('automation_decision', '[Sync] No active booking user — skipping CSV/settings sync', {
+        addLog('[Sync] No user context — skipping CSV/settings sync', 'info');
+        bayLogger.sendLog('automation_decision', '[Sync] No user context — skipping CSV/settings sync', {
           bookingId,
           immediate: true,
         });
@@ -423,9 +430,6 @@ export default function BayController() {
       addLog(`[Sync] Settings result: saved=[${saved.saved.join(', ') || 'none'}] failed=[${saved.failed.join(', ') || 'none'}]`, saved.failed.length ? 'error' : 'info');
 
       addLog('[Sync] Starting Desktop CSV sweep…', 'info');
-      const bookingStartMs = activeBooking?.booking_date && activeBooking?.start_time
-        ? new Date(`${activeBooking.booking_date}T${activeBooking.start_time}`).getTime()
-        : null;
       const swept = await sweepAndUploadRangeCsvs({
         userId,
         bookingId: bookingId ?? null,
