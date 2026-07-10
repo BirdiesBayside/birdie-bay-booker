@@ -180,7 +180,19 @@ export function DateTimePicker({
     const now = new Date();
     const currentHour = now.getHours();
     const currentMinute = now.getMinutes();
-    const closingMinutes = CLOSING_HOUR * 60; // 11pm = 1380 minutes
+
+    // Use per-day operating hours if available, else fall back to global range
+    const dayOpenMin = dayHours && dayHours.is_open
+      ? parseInt(dayHours.open_time.split(":")[0], 10) * 60 +
+        parseInt(dayHours.open_time.split(":")[1], 10)
+      : OPENING_HOUR * 60;
+    const dayCloseMin = dayHours && dayHours.is_open
+      ? parseInt(dayHours.close_time.split(":")[0], 10) * 60 +
+        parseInt(dayHours.close_time.split(":")[1], 10)
+      : CLOSING_HOUR * 60;
+
+    // Closed day → no slots
+    if (dayHours && !dayHours.is_open) return [];
 
     return TIME_SLOTS.filter((time) => {
       const hour = parseInt(time.split(":")[0]);
@@ -188,8 +200,9 @@ export function DateTimePicker({
       const startMinutes = hour * 60 + minute;
       const endMinutes = startMinutes + (selectedDuration * 60);
 
-      // End time cannot exceed closing time (accounting for minutes)
-      if (endMinutes > closingMinutes) return false;
+      // Must be within operating hours
+      if (startMinutes < dayOpenMin) return false;
+      if (endMinutes > dayCloseMin) return false;
 
       // When comp-locked, only show 5:00,7:00pm tee-off slots
       if (compLocked) {
