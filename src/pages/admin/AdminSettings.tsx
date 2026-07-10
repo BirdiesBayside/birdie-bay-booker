@@ -741,129 +741,128 @@ export default function AdminSettings() {
           {/* General Settings */}
           <TabsContent value="general" className="space-y-4">
             {/* AI Caddy launcher */}
-            <AiCaddy variant="card" />
+            <CollapsibleSection title="AI Caddy" description="Admin assistant with read-only diagnostics and safe actions">
+              <AiCaddy variant="card" />
+            </CollapsibleSection>
 
             {/* Activity Log */}
-            <ActivityLog />
+            <CollapsibleSection title="Activity Log" description="Recent staff and system activity">
+              <ActivityLog />
+            </CollapsibleSection>
 
-            {/* Bay Management - Second */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Bay Management</CardTitle>
-                <CardDescription>Control bay availability for customers. Take bays offline for maintenance.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {isLoadingBays ? (
-                  <div className="space-y-3">
-                    {[1, 2, 3].map((i) => (
-                      <Skeleton key={i} className="h-16" />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {bays.map((bay) => {
-                      const upcomingBookings = bayBookings[bay.id] || [];
-                      const hasBookings = upcomingBookings.length > 0;
-                      const isToggling = togglingBay === bay.id;
+            {/* Bay Management */}
+            <CollapsibleSection title="Bay Management" description="Control bay availability for customers. Take bays offline for maintenance.">
+              <Card>
+                <CardContent className="space-y-4 pt-6">
+                  {isLoadingBays ? (
+                    <div className="space-y-3">
+                      {[1, 2, 3].map((i) => (
+                        <Skeleton key={i} className="h-16" />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {bays.map((bay) => {
+                        const upcomingBookings = bayBookings[bay.id] || [];
+                        const hasBookings = upcomingBookings.length > 0;
+                        const isToggling = togglingBay === bay.id;
 
-                      return (
-                        <div
-                          key={bay.id}
-                          className={`p-4 border rounded-lg ${bay.is_active ? "bg-background" : "bg-muted/50"}`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <div className={`w-3 h-3 rounded-full ${bay.is_active ? "bg-green-500" : "bg-red-500"}`} />
-                              <div>
-                                <span className="font-medium">{bay.name}</span>
-                                <Badge variant={bay.is_active ? "default" : "secondary"} className="ml-2">
-                                  {bay.is_active ? "Online" : "Offline"}
-                                </Badge>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-3">
-                              {isToggling ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <Switch
-                                  checked={bay.is_active}
-                                  onCheckedChange={() => toggleBayStatus(bay)}
-                                  disabled={isToggling}
-                                />
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Show warning if there are upcoming bookings and bay is online */}
-                          {bay.is_active && hasBookings && (
-                            <div className="mt-3 p-3 bg-amber-500/10 border border-amber-500/30 rounded-md">
-                              <div className="flex items-start gap-2">
-                                <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
-                                <div className="text-sm">
-                                  <p className="font-medium text-amber-600 dark:text-amber-400">
-                                    {upcomingBookings.length} upcoming booking{upcomingBookings.length > 1 ? "s" : ""}
-                                  </p>
-                                  <p className="text-muted-foreground text-xs mt-1">
-                                    Move bookings before taking offline:
-                                  </p>
-                                  <ul className="mt-1 space-y-1 text-xs text-muted-foreground">
-                                    {upcomingBookings.slice(0, 3).map((booking) => (
-                                      <li key={booking.id}>
-                                        {format(new Date(booking.booking_date), "EEE, d MMM")} at {booking.start_time.slice(0, 5)} - {booking.profiles?.first_name} {booking.profiles?.last_name}
-                                      </li>
-                                    ))}
-                                    {upcomingBookings.length > 3 && (
-                                      <li className="italic">...and {upcomingBookings.length - 3} more</li>
-                                    )}
-                                  </ul>
+                        return (
+                          <div
+                            key={bay.id}
+                            className={`p-4 border rounded-lg ${bay.is_active ? "bg-background" : "bg-muted/50"}`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <div className={`w-3 h-3 rounded-full ${bay.is_active ? "bg-green-500" : "bg-red-500"}`} />
+                                <div>
+                                  <span className="font-medium">{bay.name}</span>
+                                  <Badge variant={bay.is_active ? "default" : "secondary"} className="ml-2">
+                                    {bay.is_active ? "Online" : "Offline"}
+                                  </Badge>
                                 </div>
                               </div>
+                              <div className="flex items-center gap-3">
+                                {isToggling ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Switch
+                                    checked={bay.is_active}
+                                    onCheckedChange={() => toggleBayStatus(bay)}
+                                    disabled={isToggling}
+                                  />
+                                )}
+                              </div>
                             </div>
-                          )}
-                        </div>
-                      );
-                    })}
+
+                            {bay.is_active && hasBookings && (
+                              <div className="mt-3 p-3 bg-amber-500/10 border border-amber-500/30 rounded-md">
+                                <div className="flex items-start gap-2">
+                                  <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
+                                  <div className="text-sm">
+                                    <p className="font-medium text-amber-600 dark:text-amber-400">
+                                      {upcomingBookings.length} upcoming booking{upcomingBookings.length > 1 ? "s" : ""}
+                                    </p>
+                                    <p className="text-muted-foreground text-xs mt-1">
+                                      Move bookings before taking offline:
+                                    </p>
+                                    <ul className="mt-1 space-y-1 text-xs text-muted-foreground">
+                                      {upcomingBookings.slice(0, 3).map((booking) => (
+                                        <li key={booking.id}>
+                                          {format(new Date(booking.booking_date), "EEE, d MMM")} at {booking.start_time.slice(0, 5)} - {booking.profiles?.first_name} {booking.profiles?.last_name}
+                                        </li>
+                                      ))}
+                                      {upcomingBookings.length > 3 && (
+                                        <li className="italic">...and {upcomingBookings.length - 3} more</li>
+                                      )}
+                                    </ul>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </CollapsibleSection>
+
+            {/* Timezone Settings */}
+            <CollapsibleSection title="General Settings" description="Configure basic platform settings">
+              <Card>
+                <CardContent className="space-y-4 pt-6">
+                  <div className="max-w-sm space-y-2">
+                    <Label htmlFor="timezone">Timezone</Label>
+                    <Select value={timezone} onValueChange={handleTimezoneChange}>
+                      <SelectTrigger id="timezone">
+                        <SelectValue placeholder="Select timezone" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Australia/Sydney">Australia/Sydney (AEST)</SelectItem>
+                        <SelectItem value="Australia/Melbourne">Australia/Melbourne (AEST)</SelectItem>
+                        <SelectItem value="Australia/Brisbane">Australia/Brisbane (AEST)</SelectItem>
+                        <SelectItem value="Australia/Perth">Australia/Perth (AWST)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Timezone used for booking times and notifications
+                    </p>
                   </div>
-                )}
-              </CardContent>
-            </Card>
 
-            {/* Timezone Settings - Third */}
-            <Card>
-              <CardHeader>
-                <CardTitle>General Settings</CardTitle>
-                <CardDescription>Configure basic platform settings</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="max-w-sm space-y-2">
-                  <Label htmlFor="timezone">Timezone</Label>
-                  <Select value={timezone} onValueChange={handleTimezoneChange}>
-                    <SelectTrigger id="timezone">
-                      <SelectValue placeholder="Select timezone" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Australia/Sydney">Australia/Sydney (AEST)</SelectItem>
-                      <SelectItem value="Australia/Melbourne">Australia/Melbourne (AEST)</SelectItem>
-                      <SelectItem value="Australia/Brisbane">Australia/Brisbane (AEST)</SelectItem>
-                      <SelectItem value="Australia/Perth">Australia/Perth (AWST)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    Timezone used for booking times and notifications
-                  </p>
-                </div>
-
-                <div className="max-w-sm space-y-2">
-                  <Label>Operating Hours</Label>
-                  <p className="text-sm text-muted-foreground">
-                    5:00 AM - 11:00 PM daily
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Contact support to modify operating hours
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
+                  <div className="max-w-sm space-y-2">
+                    <Label>Operating Hours</Label>
+                    <p className="text-sm text-muted-foreground">
+                      5:00 AM - 11:00 PM daily
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Contact support to modify operating hours
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            </CollapsibleSection>
           </TabsContent>
 
           {/* Reporting Section */}
@@ -873,242 +872,218 @@ export default function AdminSettings() {
 
           {/* Pricing Settings */}
           <TabsContent value="pricing" className="space-y-4">
+            <CollapsibleSection title="Public Holidays" description="Manage public holiday dates for peak pricing">
+              <PublicHolidaysSection />
+            </CollapsibleSection>
 
-            <PublicHolidaysSection />
-
-            {/* Dynamic Pricing (Customer Overrides) */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Customer Overrides</CardTitle>
-                <CardDescription>Set custom hourly rates for specific customers (overrides tier pricing)</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Customers with custom pricing */}
-                {customersWithPricing.length > 0 && (
-                  <div className="space-y-2">
-                    <Label>Customers with Custom Rates</Label>
+            <CollapsibleSection title="Customer Overrides" description="Set custom hourly rates for specific customers (overrides tier pricing)">
+              <Card>
+                <CardContent className="space-y-4 pt-6">
+                  {customersWithPricing.length > 0 && (
                     <div className="space-y-2">
-                      {customersWithPricing.map((customer) => (
-                        <div key={customer.id} className="flex items-center justify-between p-3 border rounded-lg">
-                          <div>
-                            <span className="font-medium">{customer.first_name} {customer.last_name}</span>
-                            <Badge className="ml-2 text-xs" variant="secondary">{customer.membership_tier}</Badge>
+                      <Label>Customers with Custom Rates</Label>
+                      <div className="space-y-2">
+                        {customersWithPricing.map((customer) => (
+                          <div key={customer.id} className="flex items-center justify-between p-3 border rounded-lg">
+                            <div>
+                              <span className="font-medium">{customer.first_name} {customer.last_name}</span>
+                              <Badge className="ml-2 text-xs" variant="secondary">{customer.membership_tier}</Badge>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-primary">${customer.custom_hourly_rate}/hr</span>
+                              <Button variant="ghost" size="icon" onClick={() => removeCustomRate(customer)}>
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-primary">${customer.custom_hourly_rate}/hr</span>
-                            <Button variant="ghost" size="icon" onClick={() => removeCustomRate(customer)}>
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Add custom pricing */}
-                <div className="space-y-2">
-                  <Label>Set Custom Rate for Customer</Label>
-                  <Input
-                    placeholder="Search customers..."
-                    value={customerSearch}
-                    onChange={(e) => setCustomerSearch(e.target.value)}
-                  />
-                  {customerSearch && (
-                    <div className="max-h-40 overflow-y-auto border rounded-md">
-                      {filteredCustomers.slice(0, 10).map((customer) => (
-                        <button
-                          key={customer.id}
-                          onClick={() => {
-                            setSelectedPricingCustomer(customer);
-                            setNewCustomRate(customer.custom_hourly_rate?.toString() || "");
-                            setCustomerSearch("");
-                          }}
-                          className="w-full p-2 text-left text-sm hover:bg-muted/50 flex items-center justify-between border-b last:border-b-0"
-                        >
-                          <span>{customer.first_name} {customer.last_name}</span>
-                          <Badge variant="outline" className="text-xs">{customer.membership_tier}</Badge>
-                        </button>
-                      ))}
+                        ))}
+                      </div>
                     </div>
                   )}
-                </div>
 
-                {selectedPricingCustomer && (
-                  <div className="p-4 border rounded-lg bg-muted/30 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium">{selectedPricingCustomer.first_name} {selectedPricingCustomer.last_name}</span>
-                      <Button variant="ghost" size="sm" onClick={() => setSelectedPricingCustomer(null)}>Cancel</Button>
-                    </div>
-                    <div className="flex gap-2">
-                      <Input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        placeholder="Custom hourly rate"
-                        value={newCustomRate}
-                        onChange={(e) => setNewCustomRate(e.target.value)}
-                        className="flex-1"
-                      />
-                      <Button onClick={saveCustomRate} disabled={isSavingRate}>
-                        {isSavingRate ? "Saving..." : "Save Rate"}
-                      </Button>
-                    </div>
-                    <p className="text-xs text-muted-foreground">Leave empty to remove custom rate and use tier pricing</p>
+                  <div className="space-y-2">
+                    <Label>Set Custom Rate for Customer</Label>
+                    <Input
+                      placeholder="Search customers..."
+                      value={customerSearch}
+                      onChange={(e) => setCustomerSearch(e.target.value)}
+                    />
+                    {customerSearch && (
+                      <div className="max-h-40 overflow-y-auto border rounded-md">
+                        {filteredCustomers.slice(0, 10).map((customer) => (
+                          <button
+                            key={customer.id}
+                            onClick={() => {
+                              setSelectedPricingCustomer(customer);
+                              setNewCustomRate(customer.custom_hourly_rate?.toString() || "");
+                              setCustomerSearch("");
+                            }}
+                            className="w-full p-2 text-left text-sm hover:bg-muted/50 flex items-center justify-between border-b last:border-b-0"
+                          >
+                            <span>{customer.first_name} {customer.last_name}</span>
+                            <Badge variant="outline" className="text-xs">{customer.membership_tier}</Badge>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                )}
-              </CardContent>
-            </Card>
+
+                  {selectedPricingCustomer && (
+                    <div className="p-4 border rounded-lg bg-muted/30 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium">{selectedPricingCustomer.first_name} {selectedPricingCustomer.last_name}</span>
+                        <Button variant="ghost" size="sm" onClick={() => setSelectedPricingCustomer(null)}>Cancel</Button>
+                      </div>
+                      <div className="flex gap-2">
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="Custom hourly rate"
+                          value={newCustomRate}
+                          onChange={(e) => setNewCustomRate(e.target.value)}
+                          className="flex-1"
+                        />
+                        <Button onClick={saveCustomRate} disabled={isSavingRate}>
+                          {isSavingRate ? "Saving..." : "Save Rate"}
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">Leave empty to remove custom rate and use tier pricing</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </CollapsibleSection>
           </TabsContent>
 
           {/* POS Settings */}
           <TabsContent value="pos" className="space-y-4">
-            <Collapsible>
+            <CollapsibleSection
+              title="POS Products"
+              description="Manage products available in the POS system. Use arrows to reorder."
+              headerAction={
+                <Button onClick={(e) => { e.stopPropagation(); openProductDialog(); }} size="sm">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Product
+                </Button>
+              }
+            >
               <Card>
-                <CardHeader className="flex flex-row items-center justify-between">
-                  <CollapsibleTrigger className="flex items-center gap-2 group cursor-pointer flex-1 text-left">
-                    <ChevronDown className="h-5 w-5 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
-                    <div>
-                      <CardTitle>POS Products</CardTitle>
-                      <CardDescription>Manage products available in the POS system. Use arrows to reorder.</CardDescription>
+                <CardContent className="pt-6">
+                  {isLoadingProducts ? (
+                    <Skeleton className="h-48" />
+                  ) : products.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <ShoppingCart className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                      <p>No products yet</p>
+                      <Button variant="outline" size="sm" className="mt-2" onClick={() => openProductDialog()}>
+                        Add your first product
+                      </Button>
                     </div>
-                  </CollapsibleTrigger>
-                  <Button onClick={() => openProductDialog()} size="sm">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Product
-                  </Button>
-                </CardHeader>
-                <CollapsibleContent>
-                  <CardContent>
-                    {isLoadingProducts ? (
-                      <Skeleton className="h-48" />
-                    ) : products.length === 0 ? (
-                      <div className="text-center py-8 text-muted-foreground">
-                        <ShoppingCart className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                        <p>No products yet</p>
-                        <Button variant="outline" size="sm" className="mt-2" onClick={() => openProductDialog()}>
-                          Add your first product
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        {products.map((product, index) => (
-                          <ProductRow
-                            key={product.id}
-                            product={product}
-                            onEdit={() => openProductDialog(product)}
-                            onToggle={() => toggleProductActive(product)}
-                            onDelete={() => deleteProduct(product)}
-                            onMoveUp={() => moveProduct(product.id, 'up')}
-                            onMoveDown={() => moveProduct(product.id, 'down')}
-                            isFirst={index === 0}
-                            isLast={index === products.length - 1}
-                          />
-                        ))}
-                      </div>
-                    )}
-                  </CardContent>
-                </CollapsibleContent>
+                  ) : (
+                    <div className="space-y-2">
+                      {products.map((product, index) => (
+                        <ProductRow
+                          key={product.id}
+                          product={product}
+                          onEdit={() => openProductDialog(product)}
+                          onToggle={() => toggleProductActive(product)}
+                          onDelete={() => deleteProduct(product)}
+                          onMoveUp={() => moveProduct(product.id, 'up')}
+                          onMoveDown={() => moveProduct(product.id, 'down')}
+                          isFirst={index === 0}
+                          isLast={index === products.length - 1}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
               </Card>
-            </Collapsible>
+            </CollapsibleSection>
 
-            {/* Table Service Hours */}
-            <TableServiceSettings />
+            <CollapsibleSection title="Table Service" description="Configure table service hours and settings">
+              <TableServiceSettings />
+            </CollapsibleSection>
           </TabsContent>
 
           {/* Notifications Settings */}
           <TabsContent value="notifications" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Email Templates</CardTitle>
-                <CardDescription>Customize email notification templates</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {isLoadingTemplates ? (
-                  <Skeleton className="h-32" />
-                ) : emailTemplates.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No templates found.</p>
-                ) : (
-                  emailTemplates.map((template) => (
-                    <div
-                      key={template.id}
-                      className={`w-full border rounded-lg p-3 transition-colors ${template.is_active ? 'hover:bg-muted/50' : 'opacity-60 bg-muted/20'}`}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <h4 className="font-medium text-sm truncate">{template.name}</h4>
-                            {!template.is_active && (
-                              <Badge variant="outline" className="text-muted-foreground text-xs">Disabled</Badge>
-                            )}
-                            {template.html_content ? (
-                              <Badge variant="default" className="bg-green-600 text-xs">Custom</Badge>
-                            ) : (
-                              <Badge variant="secondary" className="text-xs">Default</Badge>
-                            )}
+            <CollapsibleSection title="Email Templates" description="Customize email notification templates">
+              <Card>
+                <CardContent className="space-y-4 pt-6">
+                  {isLoadingTemplates ? (
+                    <Skeleton className="h-32" />
+                  ) : emailTemplates.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No templates found.</p>
+                  ) : (
+                    emailTemplates.map((template) => (
+                      <div
+                        key={template.id}
+                        className={`w-full border rounded-lg p-3 transition-colors ${template.is_active ? 'hover:bg-muted/50' : 'opacity-60 bg-muted/20'}`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h4 className="font-medium text-sm truncate">{template.name}</h4>
+                              {!template.is_active && (
+                                <Badge variant="outline" className="text-muted-foreground text-xs">Disabled</Badge>
+                              )}
+                              {template.html_content ? (
+                                <Badge variant="default" className="bg-green-600 text-xs">Custom</Badge>
+                              ) : (
+                                <Badge variant="secondary" className="text-xs">Default</Badge>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                setPreviewHtml(template.html_content || "<p>No custom template set. Using default template.</p>");
+                                setPreviewOpen(true);
+                              }}
+                              disabled={!template.html_content}
+                              className="h-8 w-8"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => openTemplateEditor(template)}
+                              className="h-8 w-8"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant={template.is_active ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => toggleTemplateActive(template)}
+                              className={template.is_active ? "bg-green-600 hover:bg-green-700 h-8" : "h-8"}
+                            >
+                              {template.is_active ? "On" : "Off"}
+                            </Button>
                           </div>
                         </div>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => {
-                              setPreviewHtml(template.html_content || "<p>No custom template set. Using default template.</p>");
-                              setPreviewOpen(true);
-                            }}
-                            disabled={!template.html_content}
-                            className="h-8 w-8"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => openTemplateEditor(template)}
-                            className="h-8 w-8"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant={template.is_active ? "default" : "outline"}
-                            size="sm"
-                            onClick={() => toggleTemplateActive(template)}
-                            className={template.is_active ? "bg-green-600 hover:bg-green-700 h-8" : "h-8"}
-                          >
-                            {template.is_active ? "On" : "Off"}
-                          </Button>
-                        </div>
                       </div>
-                    </div>
-                  ))
-                )}
-              </CardContent>
-            </Card>
+                    ))
+                  )}
+                </CardContent>
+              </Card>
+            </CollapsibleSection>
 
-            {/* Loyalty Promo - Collapsible */}
-            <Collapsible>
-              <CollapsibleTrigger asChild>
-                <Card className="cursor-pointer hover:bg-muted/30 transition-colors">
-                  <CardHeader className="flex flex-row items-center justify-between">
-                    <div>
-                      <CardTitle className="flex items-center gap-2 text-lg">
-                        <Gift className="h-5 w-5" />
-                        Visitor Loyalty Promo
-                      </CardTitle>
-                      <CardDescription>Reward visitors with credit after booking milestones</CardDescription>
-                    </div>
-                    <ChevronDown className="h-5 w-5 text-muted-foreground transition-transform duration-200 [&[data-state=open]]:rotate-180" />
-                  </CardHeader>
-                </Card>
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <div className="mt-2">
-                  <LoyaltyPromoSettings />
-                </div>
-              </CollapsibleContent>
-            </Collapsible>
+            <CollapsibleSection
+              title="Visitor Loyalty Promo"
+              description="Reward visitors with credit after booking milestones"
+              icon={Gift}
+            >
+              <LoyaltyPromoSettings />
+            </CollapsibleSection>
 
-            <SmsTemplatesSection />
+            <CollapsibleSection title="SMS Templates" description="Customize SMS notification templates">
+              <SmsTemplatesSection />
+            </CollapsibleSection>
           </TabsContent>
         </Tabs>
 
