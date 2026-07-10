@@ -1316,3 +1316,44 @@ function ProductRow({
     </div>
   );
 }
+
+function CollapsibleSection({
+  title,
+  description,
+  icon: Icon,
+  defaultOpen = false,
+  headerAction,
+  children,
+}: {
+  title: string;
+  description?: string;
+  icon?: React.ComponentType<{ className?: string }>;
+  defaultOpen?: boolean;
+  headerAction?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <Collapsible defaultOpen={defaultOpen}>
+      <CollapsibleTrigger asChild>
+        <Card className="cursor-pointer hover:bg-muted/30 transition-colors group">
+          <CardHeader className="flex flex-row items-center justify-between gap-3">
+            <div className="flex-1 min-w-0">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                {Icon && <Icon className="h-5 w-5" />}
+                {title}
+              </CardTitle>
+              {description && <CardDescription>{description}</CardDescription>}
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {headerAction}
+              <ChevronDown className="h-5 w-5 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
+            </div>
+          </CardHeader>
+        </Card>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="mt-2">{children}</div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
