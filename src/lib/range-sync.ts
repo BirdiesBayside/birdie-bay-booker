@@ -142,6 +142,8 @@ export async function sweepAndUploadRangeCsvs(opts: {
   bayId?: string | null;
   bayNumber?: number | null;
   appVersion?: string;
+  /** Optional lower-bound timestamp (ms). If provided, the sweep uses the EARLIER of this and the GSPro launch time as the cutoff. Prevents mid-session relaunches (e.g. changeover) from excluding CSVs exported before the relaunch. */
+  bookingStartMs?: number | null;
   log?: SyncLogFn;
 }): Promise<{ uploaded: string[]; failed: string[] }> {
   const L = opts.log ?? (() => {});
@@ -160,8 +162,14 @@ export async function sweepAndUploadRangeCsvs(opts: {
   }
 
   const launchTs = await window.electronAPI.getGsproLaunchTs();
-  const sinceMs = launchTs.ts ?? undefined;
-  L(`[CSV] GSPro launch timestamp: ${sinceMs ? new Date(sinceMs).toISOString() : "(none — will scan all CSVs)"}`, "info");
+  const launchMs = launchTs.ts ?? undefined;
+  // Use the EARLIER of booking-start and GSPro launch time so a mid-session relaunch
+  // (e.g. changeover) doesn't cause pre-relaunch CSVs to be rejected as "too old".
+  let sinceMs: number | undefined = launchMs;
+  if (opts.bookingStartMs && (!sinceMs || opts.bookingStartMs < sinceMs)) {
+    sinceMs = opts.bookingStartMs;
+  }
+  L(`[CSV] Sweep cutoff: ${sinceMs ? new Date(sinceMs).toISOString() : "(none)"} (launch=${launchMs ? new Date(launchMs).toISOString() : "n/a"}, bookingStart=${opts.bookingStartMs ? new Date(opts.bookingStartMs).toISOString() : "n/a"})`, "info");
 
   const scan = await window.electronAPI.scanDesktopCsvs(sinceMs);
   const scanAny = scan as any;
