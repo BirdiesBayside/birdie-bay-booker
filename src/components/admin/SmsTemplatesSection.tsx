@@ -40,6 +40,15 @@ const SMS_TAGS: Record<string, { tag: string; description: string }[]> = {
     { tag: "{bay_name}", description: "Bay name (e.g. Bay 3)" },
     { tag: "{door_code}", description: "Door code (from Settings)" },
   ],
+  booking_confirmation_first_unstaffed: [
+    { tag: "{first_name}", description: "Customer's first name" },
+    { tag: "{short_date}", description: "Short date (e.g. 15/01/2025)" },
+    { tag: "{booking_time}", description: "Start time, 12-hour (e.g. 2:00 PM)" },
+    { tag: "{end_time}", description: "End time, 12-hour" },
+    { tag: "{bay_number}", description: "Bay number" },
+    { tag: "{door_code}", description: "Door code (from Settings)" },
+  ],
+
   booking_reschedule: [
     { tag: "{first_name}", description: "Customer's first name" },
     { tag: "{last_name}", description: "Customer's last name" },
@@ -195,9 +204,13 @@ export function SmsTemplatesSection() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
+          <div className="rounded-md border border-primary/30 bg-primary/5 p-3 text-xs text-muted-foreground">
+            <strong className="text-foreground">First-Time (Unstaffed) variant</strong> automatically <em>replaces</em> the standard Booking Confirmation SMS when a customer's first-ever booking starts outside staffed hours. The boom gate access SMS runs independently on its own timing rules.
+          </div>
           {isLoading ? (
             <Skeleton className="h-32" />
           ) : templates.length === 0 ? (
+
             <p className="text-sm text-muted-foreground">No SMS templates found.</p>
           ) : (
             templates.map((t) => {

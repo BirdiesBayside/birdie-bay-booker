@@ -54,6 +54,17 @@ const TEMPLATE_TAGS: Record<string, { tag: string; description: string }[]> = {
     { tag: "{total_price}", description: "Total booking price (e.g. $60.00)" },
     { tag: "{door_code}", description: "Door access code (7675#)" },
   ],
+  booking_confirmation_first_unstaffed: [
+    { tag: "{first_name}", description: "Customer's first name" },
+    { tag: "{last_name}", description: "Customer's last name" },
+    { tag: "{booking_date}", description: "Date of the booking" },
+    { tag: "{booking_time}", description: "Start time (e.g. 2:00 PM)" },
+    { tag: "{end_time}", description: "End time (e.g. 4:00 PM)" },
+    { tag: "{bay_number}", description: "Bay number" },
+    { tag: "{bay_name}", description: "Bay name" },
+    { tag: "{door_code}", description: "Door access code" },
+  ],
+
   booking_cancellation: [
     { tag: "{first_name}", description: "Customer's first name" },
     { tag: "{last_name}", description: "Customer's last name" },
@@ -1039,6 +1050,10 @@ export default function AdminSettings() {
             <CollapsibleSection title="Email Templates" description="Customize email notification templates">
               <Card>
                 <CardContent className="space-y-4 pt-6">
+                  <div className="rounded-md border border-primary/30 bg-primary/5 p-3 text-xs text-muted-foreground">
+                    <strong className="text-foreground">First-Time (Unstaffed) variants</strong> automatically <em>replace</em> the standard Booking Confirmation email &amp; SMS when a customer's first-ever booking starts outside staffed hours. Boom gate access SMS runs independently on its own timing rules.
+                  </div>
+
                   {isLoadingTemplates ? (
                     <Skeleton className="h-32" />
                   ) : emailTemplates.length === 0 ? (
