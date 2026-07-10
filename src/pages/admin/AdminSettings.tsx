@@ -32,6 +32,7 @@ import { SalesReporting } from "@/components/admin/SalesReporting";
 import { LoyaltyPromoSettings } from "@/components/admin/LoyaltyPromoSettings";
 import { ActivityLog } from "@/components/admin/ActivityLog";
 import { TableServiceSettings } from "@/components/admin/TableServiceSettings";
+import { DailyHoursEditor } from "@/components/admin/DailyHoursEditor";
 import { PublicHolidaysSection } from "@/components/admin/PublicHolidaysSection";
 import { SmsTemplatesSection } from "@/components/admin/SmsTemplatesSection";
 import { AiCaddy } from "@/components/admin/ai-caddy/AiCaddy";
