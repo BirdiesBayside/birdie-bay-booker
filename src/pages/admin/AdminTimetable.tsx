@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useOperatingHours } from "@/hooks/useOperatingHours";
 import { format, addDays, isSameDay } from "date-fns";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { AdminLayout } from "@/components/admin/AdminLayout";
