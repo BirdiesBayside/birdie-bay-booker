@@ -118,6 +118,13 @@ export function DateTimePicker({
   const [compPromptOpen, setCompPromptOpen] = useState(false);
   const [compLocked, setCompLocked] = useState(false);
   const [pendingCompTime, setPendingCompTime] = useState<string | null>(null);
+  const { getForDate } = useOperatingHours();
+
+  // Per-date operating window
+  const dayHours = useMemo(
+    () => (selectedDate ? getForDate(selectedDate) : null),
+    [selectedDate, getForDate]
+  );
 
   // Set default time when date changes
   useEffect(() => {
