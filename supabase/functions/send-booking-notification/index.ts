@@ -419,7 +419,10 @@ serve(async (req) => {
         : (emailTemplate?.subject || "Booking Confirmed - Birdies Bayside");
       
       // Main booking SMS — pulled from editable sms_templates table
-      const smsKey = isReschedule ? "booking_reschedule" : "booking_confirmation";
+      const smsKey = isReschedule
+        ? "booking_reschedule"
+        : (isFirstTimeUnstaffed ? "booking_confirmation_first_unstaffed" : "booking_confirmation");
+
       smsMessage = (await renderSmsTemplate(smsKey)) ?? "";
 
 
