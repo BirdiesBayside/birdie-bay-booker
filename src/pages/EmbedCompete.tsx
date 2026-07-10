@@ -42,6 +42,13 @@ const toParColor = (s: string) => {
   return "bg-blue-100 text-blue-700";
 };
 
+const getScoreTextColor = (s: string) => {
+  if (!s || s === "-" || s === "") return "text-muted-foreground";
+  if (s === "E") return "text-green-700";
+  if (s.startsWith("-")) return "text-red-700";
+  return "text-blue-700";
+};
+
 export default function EmbedCompete({ hideHero = false }: { hideHero?: boolean } = {}) {
   useIframeAutoResize();
   const { activeTour, currentTournament, previousTournament, isLoading: tourLoading } = useActiveTourData();
