@@ -107,6 +107,7 @@ declare global {
       getGsproLaunchTs: () => Promise<{ ts: number | null }>;
       scanDesktopCsvs: (sinceMs?: number) => Promise<{ success: boolean; csvs: { filename: string; base64: string; mtime: number; size: number }[]; error?: string }>;
       deleteDesktopCsv: (filename: string) => Promise<{ success: boolean; error?: string }>;
+      onDesktopCsvDetected: (callback: (payload: { filename: string; base64: string; size: number; mtime: number }) => void) => () => void;
     };
   }
 }
