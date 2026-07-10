@@ -253,6 +253,10 @@ export default function BayController() {
   const swingLabSyncInProgressRef = useRef(false);
   const lastSwingLabSyncAtRef = useRef(0);
   const lastGsproRunningRef = useRef<boolean | null>(null);
+  // Latest activeBooking pinned in a ref so the Desktop CSV watcher listener
+  // (mounted once on isElectron change) always sees current booking context
+  // without re-subscribing on every render.
+  const activeBookingRef = useRef<Booking | null>(null);
   
   // Guard against re-entrant launchApps calls and cooldown after failed launches
   const launchInProgressRef = useRef(false);
