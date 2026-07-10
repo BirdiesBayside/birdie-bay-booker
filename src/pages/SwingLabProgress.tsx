@@ -32,10 +32,13 @@ type TileDef = {
   compute: (shots: Shot[], sessCount: number, days: number) => number | null;
 };
 
-function classify(club: string | null | undefined): "driver" | "iron" | "wedge" | "other" {
-  const c = (club || "").toLowerCase().replace(/\s+/g, "");
+function classify(club: string | null | undefined): "driver_woods" | "iron" | "wedge" | "other" {
+  const c = (club || "").toLowerCase().replace(/[\s-]+/g, "");
   if (!c) return "other";
-  if (c === "dr" || c === "driver" || c === "1w") return "driver";
+  // Driver + fairway woods + hybrids (e.g. dr, driver, 1w, 3w, 5w, w3, 3wood, 3h, 5h, h5, hybrid3)
+  if (c === "dr" || c === "driver" || c === "d") return "driver_woods";
+  if (/^\d+w(ood)?$/.test(c) || /^w\d+$/.test(c) || /^\d+wood$/.test(c)) return "driver_woods";
+  if (/^\d+h(yb(rid)?)?$/.test(c) || /^h\d+$/.test(c) || /^hybrid\d*$/.test(c)) return "driver_woods";
   if (/^(pw|gw|aw|sw|lw)$/.test(c) || c === "w" || /^([4-6]\d)$/.test(c)) return "wedge";
   if (/^[2-9]i$/.test(c) || /^i[2-9]$/.test(c)) return "iron";
   return "other";
