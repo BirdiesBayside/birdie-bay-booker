@@ -104,14 +104,11 @@ interface TimeSlot {
   minute: number;
 }
 
-const OPERATING_SLOTS: TimeSlot[] = [];
-for (let hour = 5; hour < 23; hour++) {
-  OPERATING_SLOTS.push({ hour, minute: 0 });
-  OPERATING_SLOTS.push({ hour, minute: 30 });
-}
-
 const SLOT_HEIGHT = 32; // pixels per 30-min slot
-const OPERATING_START_HOUR = 5; // 5am
+
+// Fallback if operating hours haven't loaded yet
+const FALLBACK_START_HOUR = 5;
+const FALLBACK_END_HOUR = 23;
 
 export default function AdminTimetable() {
   const { isAdmin, isLoading: authLoading } = useAdminAuth();
