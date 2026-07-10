@@ -32,6 +32,7 @@ import { SalesReporting } from "@/components/admin/SalesReporting";
 import { LoyaltyPromoSettings } from "@/components/admin/LoyaltyPromoSettings";
 import { ActivityLog } from "@/components/admin/ActivityLog";
 import { TableServiceSettings } from "@/components/admin/TableServiceSettings";
+import { DailyHoursEditor } from "@/components/admin/DailyHoursEditor";
 import { PublicHolidaysSection } from "@/components/admin/PublicHolidaysSection";
 import { SmsTemplatesSection } from "@/components/admin/SmsTemplatesSection";
 import { AiCaddy } from "@/components/admin/ai-caddy/AiCaddy";
@@ -849,17 +850,46 @@ export default function AdminSettings() {
                     </p>
                   </div>
 
-                  <div className="max-w-sm space-y-2">
-                    <Label>Operating Hours</Label>
-                    <p className="text-sm text-muted-foreground">
-                      5:00 AM - 11:00 PM daily
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Contact support to modify operating hours
-                    </p>
-                  </div>
                 </CardContent>
               </Card>
+            </CollapsibleSection>
+
+            {/* Operating Hours */}
+            <CollapsibleSection
+              title="Operating Hours"
+              description="Set business operating hours and staffed hours per day"
+            >
+              <div className="space-y-4">
+                <CollapsibleSection
+                  title="Operating Hours"
+                  description="When the facility is open for bookings. Affects the timetable and booking availability."
+                >
+                  <DailyHoursEditor
+                    table="operating_hours"
+                    toggleField="is_open"
+                    startField="open_time"
+                    endField="close_time"
+                    toggleLabel="Open on"
+                    closedLabel="Closed"
+                    helperText="Bookings and the admin timetable use these hours. Toggle a day off to close it entirely."
+                  />
+                </CollapsibleSection>
+
+                <CollapsibleSection
+                  title="Staffed Hours"
+                  description="When staff are on-site. Used for automated email and SMS notifications."
+                >
+                  <DailyHoursEditor
+                    table="staffed_hours"
+                    toggleField="is_staffed"
+                    startField="start_time"
+                    endField="end_time"
+                    toggleLabel="Staffed on"
+                    closedLabel="Unstaffed"
+                    helperText="Used to trigger automations (e.g. after-hours notifications). Does not affect booking availability."
+                  />
+                </CollapsibleSection>
+              </div>
             </CollapsibleSection>
           </TabsContent>
 

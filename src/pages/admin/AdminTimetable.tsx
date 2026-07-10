@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useOperatingHours } from "@/hooks/useOperatingHours";
 import { format, addDays, isSameDay } from "date-fns";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { AdminLayout } from "@/components/admin/AdminLayout";
@@ -104,19 +105,27 @@ interface TimeSlot {
   minute: number;
 }
 
-const OPERATING_SLOTS: TimeSlot[] = [];
-for (let hour = 5; hour < 23; hour++) {
-  OPERATING_SLOTS.push({ hour, minute: 0 });
-  OPERATING_SLOTS.push({ hour, minute: 30 });
-}
-
 const SLOT_HEIGHT = 32; // pixels per 30-min slot
-const OPERATING_START_HOUR = 5; // 5am
+
+// Fallback if operating hours haven't loaded yet
+const FALLBACK_START_HOUR = 5;
+const FALLBACK_END_HOUR = 23;
 
 export default function AdminTimetable() {
   const { isAdmin, isLoading: authLoading } = useAdminAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { globalWindow } = useOperatingHours();
+
+  const OPERATING_START_HOUR = globalWindow.startHour ?? FALLBACK_START_HOUR;
+  const OPERATING_END_HOUR = globalWindow.endHour ?? FALLBACK_END_HOUR;
+
+  const OPERATING_SLOTS: TimeSlot[] = [];
+  for (let hour = OPERATING_START_HOUR; hour < OPERATING_END_HOUR; hour++) {
+    OPERATING_SLOTS.push({ hour, minute: 0 });
+    OPERATING_SLOTS.push({ hour, minute: 30 });
+  }
+  
   
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   
@@ -399,7 +408,7 @@ export default function AdminTimetable() {
     const minutes = currentTime.getMinutes();
     
     // Only show during operating hours (5am - 11pm)
-    if (hours < OPERATING_START_HOUR || hours >= 23) return null;
+    if (hours < OPERATING_START_HOUR || hours >= OPERATING_END_HOUR) return null;
     
     // Calculate position: each 30-min slot is SLOT_HEIGHT pixels
     const minutesSinceStart = (hours - OPERATING_START_HOUR) * 60 + minutes;

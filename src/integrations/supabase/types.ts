@@ -1441,6 +1441,36 @@ export type Database = {
         }
         Relationships: []
       }
+      operating_hours: {
+        Row: {
+          close_time: string
+          created_at: string
+          day_of_week: number
+          id: string
+          is_open: boolean
+          open_time: string
+          updated_at: string
+        }
+        Insert: {
+          close_time?: string
+          created_at?: string
+          day_of_week: number
+          id?: string
+          is_open?: boolean
+          open_time?: string
+          updated_at?: string
+        }
+        Update: {
+          close_time?: string
+          created_at?: string
+          day_of_week?: number
+          id?: string
+          is_open?: boolean
+          open_time?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       pos_products: {
         Row: {
           created_at: string
@@ -2521,6 +2551,36 @@ export type Database = {
           message?: string
           name?: string
           template_key?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      staffed_hours: {
+        Row: {
+          created_at: string
+          day_of_week: number
+          end_time: string
+          id: string
+          is_staffed: boolean
+          start_time: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          day_of_week: number
+          end_time?: string
+          id?: string
+          is_staffed?: boolean
+          start_time?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          day_of_week?: number
+          end_time?: string
+          id?: string
+          is_staffed?: boolean
+          start_time?: string
           updated_at?: string
         }
         Relationships: []
