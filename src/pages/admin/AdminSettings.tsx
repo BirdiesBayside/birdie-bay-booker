@@ -54,6 +54,17 @@ const TEMPLATE_TAGS: Record<string, { tag: string; description: string }[]> = {
     { tag: "{total_price}", description: "Total booking price (e.g. $60.00)" },
     { tag: "{door_code}", description: "Door access code (7675#)" },
   ],
+  booking_confirmation_first_unstaffed: [
+    { tag: "{first_name}", description: "Customer's first name" },
+    { tag: "{last_name}", description: "Customer's last name" },
+    { tag: "{booking_date}", description: "Date of the booking" },
+    { tag: "{booking_time}", description: "Start time (e.g. 2:00 PM)" },
+    { tag: "{end_time}", description: "End time (e.g. 4:00 PM)" },
+    { tag: "{bay_number}", description: "Bay number" },
+    { tag: "{bay_name}", description: "Bay name" },
+    { tag: "{door_code}", description: "Door access code" },
+  ],
+
   booking_cancellation: [
     { tag: "{first_name}", description: "Customer's first name" },
     { tag: "{last_name}", description: "Customer's last name" },
