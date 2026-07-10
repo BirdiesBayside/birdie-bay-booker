@@ -40,6 +40,15 @@ const SMS_TAGS: Record<string, { tag: string; description: string }[]> = {
     { tag: "{bay_name}", description: "Bay name (e.g. Bay 3)" },
     { tag: "{door_code}", description: "Door code (from Settings)" },
   ],
+  booking_confirmation_first_unstaffed: [
+    { tag: "{first_name}", description: "Customer's first name" },
+    { tag: "{short_date}", description: "Short date (e.g. 15/01/2025)" },
+    { tag: "{booking_time}", description: "Start time, 12-hour (e.g. 2:00 PM)" },
+    { tag: "{end_time}", description: "End time, 12-hour" },
+    { tag: "{bay_number}", description: "Bay number" },
+    { tag: "{door_code}", description: "Door code (from Settings)" },
+  ],
+
   booking_reschedule: [
     { tag: "{first_name}", description: "Customer's first name" },
     { tag: "{last_name}", description: "Customer's last name" },
