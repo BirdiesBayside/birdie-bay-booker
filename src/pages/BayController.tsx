@@ -1706,6 +1706,26 @@ export default function BayController() {
             } else {
               console.log(`[Changeover] Step 2: Apps not running, skipping close`);
             }
+
+            // Step 2b: Pin-and-sync OUTGOING customer's CSVs/settings BEFORE we touch the bay for the next customer.
+            // This makes the changeover itself the trigger — no dependency on process-close race timing.
+            if (activeBooking?.user_id) {
+              const outgoingStartMs = activeBooking.booking_date && activeBooking.start_time
+                ? new Date(`${activeBooking.booking_date}T${activeBooking.start_time}`).getTime()
+                : null;
+              try {
+                bayLogger.sendLog('automation_decision', '[Changeover Step 2b] Running outgoing-customer sync', { bookingId: activeBooking.id });
+                await runSwingLabCloseSync('changeover step 2b (outgoing customer)', {
+                  userId: activeBooking.user_id,
+                  bookingId: activeBooking.id,
+                  bookingStartMs: outgoingStartMs,
+                });
+              } catch (e) {
+                console.error('[Changeover Step 2b] Outgoing sync failed:', e);
+                bayLogger.logError('[Changeover Step 2b] Outgoing sync failed', e, activeBooking.id);
+              }
+            }
+
             
             // Step 3: Wait a moment for baseline restore to complete, then relaunch apps
             setTimeout(async () => {
