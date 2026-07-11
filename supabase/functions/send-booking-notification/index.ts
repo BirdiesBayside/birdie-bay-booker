@@ -498,11 +498,20 @@ serve(async (req) => {
             }
           }
         }
+        // Append the first-time-unstaffed callout for first-time customers booking outside staffed hours
+        if (firstTimeUnstaffedHtml) {
+          const lookForwardIndex = bodyContent.indexOf('We look forward');
+          if (lookForwardIndex !== -1) {
+            bodyContent = bodyContent.slice(0, lookForwardIndex) + firstTimeUnstaffedHtml + bodyContent.slice(lookForwardIndex);
+          } else {
+            bodyContent = bodyContent + firstTimeUnstaffedHtml;
+          }
+        }
         htmlContent = buildEmailTemplate(headingText, bodyContent, {
           text: "View My Bookings",
           url: "https://hub.birdiesbayside.com.au/my-bookings"
         });
-        logStep("Using custom email template with wrapper", { reviewCtaInjected: !!reviewCtaHtml });
+        logStep("Using custom email template with wrapper", { reviewCtaInjected: !!reviewCtaHtml, firstTimeUnstaffedInjected: !!firstTimeUnstaffedHtml });
       } else {
         const introText = isReschedule 
           ? `Hi ${profile.first_name}, your golf simulator booking has been successfully rescheduled!`
