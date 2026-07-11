@@ -605,6 +605,7 @@ serve(async (req) => {
           sgtUserId,
           registeredAt: new Date().toISOString(),
           onboardingUrl,
+          typicalScore: typeof typicalScore === "string" ? typicalScore : undefined,
         });
 
         await resend.emails.send({
