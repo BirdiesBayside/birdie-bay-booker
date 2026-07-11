@@ -520,7 +520,7 @@ serve(async (req) => {
                 </tr>
               </table>
 
-              ${firstTimeUnstaffedHtml}
+              
 
               ${reviewCtaHtml}
               
