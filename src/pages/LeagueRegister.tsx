@@ -15,6 +15,7 @@ export default function LeagueRegister() {
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [typicalScore, setTypicalScore] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isCheckingUsername, setIsCheckingUsername] = useState(false);
   const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(null);
