@@ -437,6 +437,16 @@ const MyBookings = () => {
           onSuccess={fetchBookings}
         />
       )}
+
+      {/* Extend Dialog */}
+      {extendBooking && (
+        <ExtendDialog
+          booking={extendBooking}
+          open={!!extendBooking}
+          onOpenChange={(open) => !open && setExtendBooking(null)}
+          onSuccess={fetchBookings}
+        />
+      )}
     </div>
   );
 };
