@@ -153,6 +153,20 @@ serve(async (req) => {
       throw new Error("Only confirmed bookings can be rescheduled");
     }
 
+    // Block reschedule once the booking is more than 10 minutes past its start
+    // Booking date/time is stored as local Brisbane time (AEST, UTC+10, no DST)
+    const bookingStartUtcMs = Date.parse(
+      `${booking.booking_date}T${booking.start_time}+10:00`
+    );
+    if (!Number.isNaN(bookingStartUtcMs)) {
+      const minutesSinceStart = (Date.now() - bookingStartUtcMs) / 60000;
+      if (minutesSinceStart > 10) {
+        throw new Error(
+          "This booking has already started. Rescheduling is no longer available — please contact us if you need help."
+        );
+      }
+    }
+
     // Fetch user's profile for membership tier and balance
     const { data: profile, error: profileError } = await supabaseAdmin
       .from("profiles")
