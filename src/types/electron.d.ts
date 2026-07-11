@@ -54,7 +54,7 @@ declare global {
       checkWindowPositions: (gsproDisplay: number | string, proteeDisplay: number | string) => Promise<{ success: boolean; results?: { app: string; found: boolean; moved?: boolean; display?: number | string }[]; error?: string }>;
       listWindows: () => Promise<{ success: boolean; windows?: { title: string; hwnd: number }[]; error?: string }>;
       // Notification popup
-      showNotificationPopup: (message: string, displayLabel: string, durationMs: number) => Promise<{ success: boolean; error?: string }>;
+      showNotificationPopup: (message: string, displayLabel: string, durationMs: number, extendUrl?: string) => Promise<{ success: boolean; error?: string }>;
       closeNotificationPopup: () => Promise<{ success: boolean; error?: string }>;
       // Auto-update
       installUpdate: () => Promise<{ success: boolean }>;
