@@ -243,6 +243,26 @@ export default function LeagueRegister() {
                 </p>
               </div>
 
+              {/* Typical 18-hole score */}
+              <div className="space-y-2">
+                <Label htmlFor="typical-score" className="font-inter text-sm font-medium text-primary">
+                  What do you typically shoot over 18 holes?
+                </Label>
+                <Input
+                  id="typical-score"
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="e.g. 95, or 90-100 if unsure"
+                  value={typicalScore}
+                  onChange={(e) => setTypicalScore(e.target.value.slice(0, 20))}
+                />
+                <p className="text-xs text-muted-foreground font-inter">
+                  Helps us set your starting handicap. A rough estimate is fine.
+                </p>
+              </div>
+
+
+
               {/* Info note */}
               <div className="rounded-md bg-muted/50 p-3">
                 <p className="font-inter text-xs text-muted-foreground">
