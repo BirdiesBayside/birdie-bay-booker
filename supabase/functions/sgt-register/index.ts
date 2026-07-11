@@ -90,11 +90,19 @@ function buildNewMemberEmail(data: { username: string; email: string; sgtUserId:
                         </td>
                       </tr>
                       <tr>
-                        <td style="padding:8px 0;">
+                        <td style="padding:8px 0; border-bottom:1px solid #eee;">
                           <strong>Registered:</strong>
                         </td>
-                        <td style="padding:8px 0; text-align:right;">
+                        <td style="padding:8px 0; border-bottom:1px solid #eee; text-align:right;">
                           ${registrationDate}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:8px 0;">
+                          <strong>Typical 18-hole score:</strong>
+                        </td>
+                        <td style="padding:8px 0; text-align:right;">
+                          ${data.typicalScore ? data.typicalScore : '<em style="color:#999;">Not provided</em>'}
                         </td>
                       </tr>
                     </table>
