@@ -91,7 +91,7 @@ export default function LeagueRegister() {
 
     try {
       const { data, error } = await supabase.functions.invoke("sgt-register", {
-        body: { action: "register", username, password },
+        body: { action: "register", username, password, typicalScore: typicalScore.trim() || undefined },
       });
 
       if (error) {
