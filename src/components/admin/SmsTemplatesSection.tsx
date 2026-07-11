@@ -191,7 +191,8 @@ export function SmsTemplatesSection() {
       .replace(/{end_time_24}/g, "16:00")
       .replace(/{bay_number}/g, "3")
       .replace(/{bay_name}/g, "Bay 3")
-      .replace(/{door_code}/g, doorCode);
+      .replace(/{door_code}/g, doorCode)
+      .replace(/{staffed_status}/g, "Staffed hours");
 
   return (
     <>
