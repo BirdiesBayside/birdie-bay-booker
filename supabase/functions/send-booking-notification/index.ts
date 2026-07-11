@@ -453,6 +453,30 @@ serve(async (req) => {
               </table>
       ` : '';
 
+      // First-time-unstaffed callout: same standard email + this extra block
+      const firstTimeUnstaffedHtml = (!isReschedule && isFirstTimeUnstaffed) ? `
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FFFFFF; border-radius:12px; margin:18px 0; border:2px solid #EC622D;">
+                <tr>
+                  <td style="padding:22px; text-align:center; font-family:Inter, Arial, sans-serif; color:#1F4C25;">
+                    <p style="margin:0 0 8px; font-family:Anton, Impact, Arial Black, sans-serif; font-size:22px; color:#1F4C25; letter-spacing:0.3px;">
+                      FIRST TIME AT BIRDIES?
+                    </p>
+                    <p style="margin:0 0 14px; font-size:15px; line-height:1.6;">
+                      Your booking is during our unstaffed hours. Please read the <strong>Quick Start Guide</strong> located inside your bay when you arrive.
+                    </p>
+                    <p style="margin:0 0 6px; font-size:15px; line-height:1.6;">
+                      If you have any issues at all, call us straight away:
+                    </p>
+                    <p style="margin:0;">
+                      <a href="tel:+61721468442" style="display:inline-block; font-family:Anton, Impact, Arial Black, sans-serif; font-size:26px; color:#EC622D; text-decoration:none; letter-spacing:0.5px;">
+                        (07) 2146 8442
+                      </a>
+                    </p>
+                  </td>
+                </tr>
+              </table>
+      ` : '';
+
       const headingText = isReschedule ? "Booking Rescheduled!" : "Booking Confirmed!";
       
       // Check if custom template exists (only for confirmation, not reschedule)
