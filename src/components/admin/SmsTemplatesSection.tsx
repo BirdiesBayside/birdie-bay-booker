@@ -39,6 +39,7 @@ const SMS_TAGS: Record<string, { tag: string; description: string }[]> = {
     { tag: "{bay_number}", description: "Bay number (e.g. 3)" },
     { tag: "{bay_name}", description: "Bay name (e.g. Bay 3)" },
     { tag: "{door_code}", description: "Door code (from Settings)" },
+    { tag: "{staffed_status}", description: "Staffed hours / Unstaffed hours indicator" },
   ],
   booking_confirmation_first_unstaffed: [
     { tag: "{first_name}", description: "Customer's first name" },
