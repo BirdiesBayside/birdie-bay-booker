@@ -44,6 +44,8 @@ const MyBookings = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [rescheduleBooking, setRescheduleBooking] = useState<Booking | null>(null);
+  const [extendBooking, setExtendBooking] = useState<Booking | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
