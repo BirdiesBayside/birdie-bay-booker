@@ -74,6 +74,7 @@ interface NotificationConfig {
     message: string;
     enabled: boolean;
     durationSeconds: number; // How long to show the notification
+    showExtendQr?: boolean; // Show QR code linking to extend booking
   }[];
 }
 
