@@ -373,6 +373,7 @@ serve(async (req) => {
       '{short_date}': formattedSmsDate,
       '{start_time_24}': startTime,
       '{end_time_24}': endTime,
+      '{staffed_status}': staffedStatus,
       '{refund_amount}': '', // Will be populated if refund occurred
     };
 
