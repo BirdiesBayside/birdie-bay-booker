@@ -1548,12 +1548,16 @@ export default function BayController() {
           // Show notification popup on configured display using Electron API
           if (window.electronAPI && notificationConfig.displayLabel) {
             try {
+              const extendUrl = notification.showExtendQr && activeBooking?.id
+                ? `${window.location.origin}/my-bookings?extend=${activeBooking.id}`
+                : undefined;
               await window.electronAPI.showNotificationPopup(
                 message,
                 notificationConfig.displayLabel,
-                60000 // 1 minute duration
+                60000, // 1 minute duration
+                extendUrl
               );
-              console.log(`Showing notification popup: ${notification.id} for customer ${activeBooking.user_id} (final end: ${format(finalEndTime, 'HH:mm')}) on display ${notificationConfig.displayLabel}`);
+              console.log(`Showing notification popup: ${notification.id} for customer ${activeBooking.user_id} (final end: ${format(finalEndTime, 'HH:mm')}) on display ${notificationConfig.displayLabel}${extendUrl ? ' [with extend QR]' : ''}`);
             } catch (err) {
               console.error('Failed to show notification popup:', err);
             }
