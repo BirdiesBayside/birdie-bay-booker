@@ -118,7 +118,7 @@ export default function LeagueRegister() {
     } finally {
       setIsRegistering(false);
     }
-  }, [user, username, password, navigate]);
+  }, [user, username, password, typicalScore, navigate]);
 
   if (authLoading || !user) {
     return (
