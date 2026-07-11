@@ -76,6 +76,7 @@ const TEMPLATE_TAGS: Record<string, { tag: string; description: string }[]> = {
     { tag: "{bay_number}", description: "Bay number" },
     { tag: "{bay_name}", description: "Bay name" },
     { tag: "{refund_amount}", description: "Refund amount if applicable" },
+    { tag: "{staffed_status}", description: "Staffed hours / Unstaffed hours indicator" },
   ],
   credit_added: [
     { tag: "{first_name}", description: "Customer's first name" },
