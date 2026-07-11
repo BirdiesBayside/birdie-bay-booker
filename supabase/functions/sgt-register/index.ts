@@ -11,7 +11,7 @@ const SGT_BASE_URL = "https://simulatorgolftour.com/sgt-api/club-admin";
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
 // Build branded email for new member notification with onboarding link
-function buildNewMemberEmail(data: { username: string; email: string; sgtUserId: number; registeredAt: string; onboardingUrl: string }): string {
+function buildNewMemberEmail(data: { username: string; email: string; sgtUserId: number; registeredAt: string; onboardingUrl: string; typicalScore?: string }): string {
   const registrationDate = new Date(data.registeredAt).toLocaleString("en-AU", {
     timeZone: "Australia/Brisbane",
     dateStyle: "full",
@@ -90,11 +90,19 @@ function buildNewMemberEmail(data: { username: string; email: string; sgtUserId:
                         </td>
                       </tr>
                       <tr>
-                        <td style="padding:8px 0;">
+                        <td style="padding:8px 0; border-bottom:1px solid #eee;">
                           <strong>Registered:</strong>
                         </td>
-                        <td style="padding:8px 0; text-align:right;">
+                        <td style="padding:8px 0; border-bottom:1px solid #eee; text-align:right;">
                           ${registrationDate}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:8px 0;">
+                          <strong>Typical 18-hole score:</strong>
+                        </td>
+                        <td style="padding:8px 0; text-align:right;">
+                          ${data.typicalScore ? data.typicalScore : '<em style="color:#999;">Not provided</em>'}
                         </td>
                       </tr>
                     </table>
@@ -324,7 +332,7 @@ serve(async (req) => {
       );
     }
 
-    const { action, username, password } = await req.json();
+    const { action, username, password, typicalScore } = await req.json();
     console.log(`[SGT-REGISTER] Action: ${action}, User: ${user.id}`);
 
     // Track the API key actually used for downstream calls in this request.
@@ -597,6 +605,7 @@ serve(async (req) => {
           sgtUserId,
           registeredAt: new Date().toISOString(),
           onboardingUrl,
+          typicalScore: typeof typicalScore === "string" ? typicalScore : undefined,
         });
 
         await resend.emails.send({

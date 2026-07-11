@@ -15,6 +15,7 @@ export default function LeagueRegister() {
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [typicalScore, setTypicalScore] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isCheckingUsername, setIsCheckingUsername] = useState(false);
   const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(null);
@@ -90,7 +91,7 @@ export default function LeagueRegister() {
 
     try {
       const { data, error } = await supabase.functions.invoke("sgt-register", {
-        body: { action: "register", username, password },
+        body: { action: "register", username, password, typicalScore: typicalScore.trim() || undefined },
       });
 
       if (error) {
@@ -117,7 +118,7 @@ export default function LeagueRegister() {
     } finally {
       setIsRegistering(false);
     }
-  }, [user, username, password, navigate]);
+  }, [user, username, password, typicalScore, navigate]);
 
   if (authLoading || !user) {
     return (
@@ -241,6 +242,26 @@ export default function LeagueRegister() {
                   This is for your SGT account only, not your Birdies Hub login
                 </p>
               </div>
+
+              {/* Typical 18-hole score */}
+              <div className="space-y-2">
+                <Label htmlFor="typical-score" className="font-inter text-sm font-medium text-primary">
+                  What do you typically shoot over 18 holes?
+                </Label>
+                <Input
+                  id="typical-score"
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="e.g. 95, or 90-100 if unsure"
+                  value={typicalScore}
+                  onChange={(e) => setTypicalScore(e.target.value.slice(0, 20))}
+                />
+                <p className="text-xs text-muted-foreground font-inter">
+                  Helps us set your starting handicap. A rough estimate is fine.
+                </p>
+              </div>
+
+
 
               {/* Info note */}
               <div className="rounded-md bg-muted/50 p-3">
