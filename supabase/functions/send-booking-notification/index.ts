@@ -277,11 +277,12 @@ serve(async (req) => {
       }
     }
 
-    // Fetch custom email template
+    // Fetch custom email template.
+    // NOTE: For first-time unstaffed bookings we still use the STANDARD
+    // confirmation template; we just append an extra "First Time Booking"
+    // callout with the support phone number into the body below.
     const templateKey =
-      notification_type === "confirmation"
-        ? (isFirstTimeUnstaffed ? "booking_confirmation_first_unstaffed" : "booking_confirmation")
-        : "booking_cancellation";
+      notification_type === "confirmation" ? "booking_confirmation" : "booking_cancellation";
     const { data: emailTemplate, error: templateError } = await supabaseClient
       .from("email_templates")
       .select("*")
