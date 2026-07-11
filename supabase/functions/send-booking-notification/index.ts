@@ -549,6 +549,8 @@ serve(async (req) => {
                 </tr>
               </table>
 
+              ${firstTimeUnstaffedHtml}
+
               ${reviewCtaHtml}
               
               <p style="margin:18px 0 0; font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">
