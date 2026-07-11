@@ -235,8 +235,8 @@ export default function BayController() {
       enabled: true,
       displayLabel: "",
       notifications: [
-        { id: "5min", minutesBefore: 5, message: "Hi {firstName}, your session ends in 5 minutes. Please book more time now if needed.", enabled: true, durationSeconds: 30 },
-        { id: "1min", minutesBefore: 1, message: "Hi {firstName}, your session will shutdown in 1 minute.", enabled: true, durationSeconds: 30 }
+        { id: "5min", minutesBefore: 5, message: "Hi {firstName}, your session ends in 5 minutes. Please book more time now if needed.", enabled: true, durationSeconds: 30, showExtendQr: true },
+        { id: "1min", minutesBefore: 1, message: "Hi {firstName}, your session will shutdown in 1 minute.", enabled: true, durationSeconds: 30, showExtendQr: false }
       ]
     };
   });
