@@ -497,6 +497,7 @@ serve(async (req) => {
                     <p style="margin:5px 0;"><strong>Time:</strong> ${startTime12hr} - ${endTime12hr}</p>
                     <p style="margin:5px 0;"><strong>Duration:</strong> ${booking.duration_hours} hour${booking.duration_hours > 1 ? "s" : ""}</p>
                     <p style="margin:5px 0;"><strong>Bay:</strong> ${bayName}</p>
+                    <p style="margin:5px 0;"><strong>Status:</strong> ${staffedStatus}</p>
                     <p style="margin:5px 0;"><strong>Players:</strong> ${booking.player_count}</p>
                     <p style="margin:5px 0;"><strong>Total:</strong> $${booking.total_price.toFixed(2)}</p>
                   </td>
