@@ -2075,9 +2075,9 @@ ipcMain.handle('close-welcome-windows', async () => {
 
 let notificationWindow = null;
 
-ipcMain.handle('show-notification-popup', async (event, { message, displayLabel, durationMs }) => {
+ipcMain.handle('show-notification-popup', async (event, { message, displayLabel, durationMs, extendUrl }) => {
   try {
-    console.log(`Showing notification popup on display: ${displayLabel}, duration: ${durationMs}ms`);
+    console.log(`Showing notification popup on display: ${displayLabel}, duration: ${durationMs}ms${extendUrl ? ', with extend QR' : ''}`);
     
     // Close existing notification if any
     if (notificationWindow && !notificationWindow.isDestroyed()) {
@@ -2090,7 +2090,6 @@ ipcMain.handle('show-notification-popup', async (event, { message, displayLabel,
     let targetDisplay = displays[0]; // Default to primary
     
     for (const display of displays) {
-      // Get display label similar to getDisplayInfo function
       const label = display.label || `Display ${displays.indexOf(display) + 1}`;
       if (label === displayLabel) {
         targetDisplay = display;
@@ -2100,14 +2099,14 @@ ipcMain.handle('show-notification-popup', async (event, { message, displayLabel,
     
     const { x, y, width, height } = targetDisplay.bounds;
     
-    // Calculate popup size and position (bottom-right of the target display)
-    const popupWidth = 500;
-    const popupHeight = 200;
+    // Wider/taller when we render the QR
+    const hasQr = !!extendUrl;
+    const popupWidth = hasQr ? 640 : 500;
+    const popupHeight = hasQr ? 280 : 200;
     const margin = 40;
     const popupX = x + width - popupWidth - margin;
     const popupY = y + height - popupHeight - margin;
     
-    // Create a frameless, always-on-top popup window
     notificationWindow = new BrowserWindow({
       width: popupWidth,
       height: popupHeight,
@@ -2126,10 +2125,20 @@ ipcMain.handle('show-notification-popup', async (event, { message, displayLabel,
       }
     });
     
-    // Set always on top with screen-saver level to appear above fullscreen apps like GSPro
     notificationWindow.setAlwaysOnTop(true, 'screen-saver');
     
-    // Generate HTML content for the notification
+    const safeMessage = message.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const qrSrc = hasQr
+      ? `https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=0&data=${encodeURIComponent(extendUrl)}`
+      : '';
+    
+    const qrBlock = hasQr ? `
+      <div class="qr-block">
+        <img class="qr" src="${qrSrc}" alt="Extend booking QR" />
+        <div class="qr-caption">Scan to extend<br/>your session</div>
+      </div>
+    ` : '';
+    
     const htmlContent = `
       <!DOCTYPE html>
       <html>
@@ -2148,13 +2157,17 @@ ipcMain.handle('show-notification-popup', async (event, { message, displayLabel,
           .notification {
             background: linear-gradient(135deg, #ec622d, #d55627);
             color: white;
-            padding: 30px 40px;
+            padding: 24px 28px;
             border-radius: 16px;
             box-shadow: 0 10px 40px rgba(0,0,0,0.3);
             max-width: 100%;
-            text-align: center;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            gap: 20px;
             animation: slideIn 0.3s ease-out;
           }
+          .content { flex: 1; text-align: ${hasQr ? 'left' : 'center'}; }
           @keyframes slideIn {
             from { transform: translateY(20px); opacity: 0; }
             to { transform: translateY(0); opacity: 1; }
@@ -2162,33 +2175,40 @@ ipcMain.handle('show-notification-popup', async (event, { message, displayLabel,
           .title {
             font-size: 18px;
             font-weight: 600;
-            margin-bottom: 12px;
+            margin-bottom: 10px;
             display: flex;
             align-items: center;
-            justify-content: center;
+            justify-content: ${hasQr ? 'flex-start' : 'center'};
             gap: 10px;
           }
-          .message {
-            font-size: 22px;
-            font-weight: 500;
-            line-height: 1.4;
+          .message { font-size: 20px; font-weight: 500; line-height: 1.4; }
+          .bell-icon { width: 24px; height: 24px; }
+          .qr-block {
+            background: white;
+            border-radius: 12px;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
           }
-          .bell-icon {
-            width: 24px;
-            height: 24px;
-          }
+          .qr { width: 180px; height: 180px; display: block; }
+          .qr-caption { color: #1F4C25; font-size: 12px; font-weight: 600; text-align: center; line-height: 1.2; }
         </style>
       </head>
       <body>
         <div class="notification">
-          <div class="title">
-            <svg class="bell-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-              <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
-            </svg>
-            Session Ending Soon
+          <div class="content">
+            <div class="title">
+              <svg class="bell-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+              </svg>
+              Session Ending Soon
+            </div>
+            <div class="message">${safeMessage}</div>
           </div>
-          <div class="message">${message.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
+          ${qrBlock}
         </div>
       </body>
       </html>
