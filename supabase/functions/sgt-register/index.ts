@@ -11,7 +11,7 @@ const SGT_BASE_URL = "https://simulatorgolftour.com/sgt-api/club-admin";
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
 // Build branded email for new member notification with onboarding link
-function buildNewMemberEmail(data: { username: string; email: string; sgtUserId: number; registeredAt: string; onboardingUrl: string }): string {
+function buildNewMemberEmail(data: { username: string; email: string; sgtUserId: number; registeredAt: string; onboardingUrl: string; typicalScore?: string }): string {
   const registrationDate = new Date(data.registeredAt).toLocaleString("en-AU", {
     timeZone: "Australia/Brisbane",
     dateStyle: "full",
