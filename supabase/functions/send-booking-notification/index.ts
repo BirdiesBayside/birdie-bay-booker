@@ -553,6 +553,7 @@ serve(async (req) => {
                     <p style="margin:5px 0;"><strong>Date:</strong> ${bookingDate}</p>
                     <p style="margin:5px 0;"><strong>Time:</strong> ${startTime12hr} - ${endTime12hr}</p>
                     <p style="margin:5px 0;"><strong>Bay:</strong> ${bayName}</p>
+                    <p style="margin:5px 0;"><strong>Status:</strong> ${staffedStatus}</p>
                   </td>
                 </tr>
               </table>
