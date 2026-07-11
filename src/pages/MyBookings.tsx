@@ -1,9 +1,9 @@
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Calendar, Clock, MapPin, X, RefreshCw } from "lucide-react";
+import { ArrowLeft, Calendar, Clock, MapPin, X, RefreshCw, Plus } from "lucide-react";
 import { format, parseISO, isPast, isToday } from "date-fns";
 import { toast } from "sonner";
 import birdiesLogo from "@/assets/birdies-logo.png";
@@ -19,6 +19,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { RescheduleDialog } from "@/components/booking/RescheduleDialog";
+import { ExtendDialog } from "@/components/booking/ExtendDialog";
 
 interface Booking {
   id: string;
@@ -43,6 +44,8 @@ const MyBookings = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [rescheduleBooking, setRescheduleBooking] = useState<Booking | null>(null);
+  const [extendBooking, setExtendBooking] = useState<Booking | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -55,6 +58,20 @@ const MyBookings = () => {
       fetchBookings();
     }
   }, [user]);
+
+  // Deep-link: /my-bookings?extend=<booking_id> auto-opens the extend dialog
+  useEffect(() => {
+    const targetId = searchParams.get("extend");
+    if (!targetId || bookings.length === 0) return;
+    const target = bookings.find((b) => b.id === targetId);
+    if (target) {
+      setExtendBooking(target);
+      // Clear the param so it doesn't re-trigger on state changes
+      const next = new URLSearchParams(searchParams);
+      next.delete("extend");
+      setSearchParams(next, { replace: true });
+    }
+  }, [bookings, searchParams, setSearchParams]);
 
   const fetchBookings = async () => {
     if (!user) return;
@@ -250,22 +267,44 @@ const MyBookings = () => {
                           </span>
                         </div>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2">
                         {(() => {
                           // Booking times are stored as Brisbane local (AEST, UTC+10, no DST).
                           const startMs = Date.parse(`${booking.booking_date}T${booking.start_time}+10:00`);
-                          const canReschedule = Number.isNaN(startMs) || (Date.now() - startMs) / 60000 <= 10;
-                          if (!canReschedule) return null;
+                          const endMs = Date.parse(`${booking.booking_date}T${booking.end_time}+10:00`);
+                          const now = Date.now();
+                          const minsSinceStart = (now - startMs) / 60000;
+                          const minsUntilEnd = (endMs - now) / 60000;
+                          const canReschedule = Number.isNaN(startMs) || minsSinceStart <= 10;
+                          // Extend: active session (started, not yet ended, at least 10min left to make it worthwhile)
+                          const canExtend =
+                            !Number.isNaN(startMs) && !Number.isNaN(endMs) &&
+                            minsSinceStart >= -15 && minsUntilEnd > 5;
                           return (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setRescheduleBooking(booking)}
-                              className="text-primary border-primary hover:bg-primary hover:text-primary-foreground"
-                            >
-                              <RefreshCw className="h-4 w-4 mr-1" />
-                              Reschedule
-                            </Button>
+                            <>
+                              {canExtend && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setExtendBooking(booking)}
+                                  className="text-primary border-primary hover:bg-primary hover:text-primary-foreground"
+                                >
+                                  <Plus className="h-4 w-4 mr-1" />
+                                  Extend
+                                </Button>
+                              )}
+                              {canReschedule && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setRescheduleBooking(booking)}
+                                  className="text-primary border-primary hover:bg-primary hover:text-primary-foreground"
+                                >
+                                  <RefreshCw className="h-4 w-4 mr-1" />
+                                  Reschedule
+                                </Button>
+                              )}
+                            </>
                           );
                         })()}
                         <AlertDialog>
@@ -395,6 +434,16 @@ const MyBookings = () => {
           booking={rescheduleBooking}
           open={!!rescheduleBooking}
           onOpenChange={(open) => !open && setRescheduleBooking(null)}
+          onSuccess={fetchBookings}
+        />
+      )}
+
+      {/* Extend Dialog */}
+      {extendBooking && (
+        <ExtendDialog
+          booking={extendBooking}
+          open={!!extendBooking}
+          onOpenChange={(open) => !open && setExtendBooking(null)}
           onSuccess={fetchBookings}
         />
       )}

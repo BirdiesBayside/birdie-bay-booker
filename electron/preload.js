@@ -152,8 +152,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // =====================================================
   
   // Show a notification popup on a specific display
-  showNotificationPopup: (message, displayLabel, durationMs) => 
-    ipcRenderer.invoke('show-notification-popup', { message, displayLabel, durationMs }),
+  showNotificationPopup: (message, displayLabel, durationMs, extendUrl) => 
+    ipcRenderer.invoke('show-notification-popup', { message, displayLabel, durationMs, extendUrl }),
   
   // Close the notification popup
   closeNotificationPopup: () => ipcRenderer.invoke('close-notification-popup'),
