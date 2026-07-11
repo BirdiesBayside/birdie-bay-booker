@@ -237,43 +237,39 @@ serve(async (req) => {
     }
     logStep("Profile fetched", { email: profile.email, phone: profile.phone });
 
-    // Determine whether this is a first-time customer booking during unstaffed hours.
-    // In that case, both the confirmation email and SMS are swapped for a variant
-    // that focuses on the support phone number and the Quick Start guide inside the bay.
-    // (Reschedules and cancellations always use the standard templates.)
+    // Determine whether the booking start falls inside a staffed window.
+    // Used for the {staffed_status} merge tag in all booking emails/SMS,
+    // and to swap in the first-time-unstaffed confirmation template.
+    let insideStaffed = true;
+    try {
+      const bookingDay = new Date(`${booking.booking_date}T00:00:00`).getDay(); // 0=Sun
+      const { data: staffed } = await supabaseClient
+        .from("staffed_hours")
+        .select("start_time, end_time, is_staffed")
+        .eq("day_of_week", bookingDay);
+      const start = booking.start_time as string; // HH:MM:SS
+      insideStaffed = (staffed || []).some(
+        (s: any) => s.is_staffed && s.start_time <= start && start < s.end_time,
+      );
+      logStep("Staffed window check", { bookingDay, start, insideStaffed });
+    } catch (e: any) {
+      logStep("Staffed detection failed (defaulting to staffed)", { error: e.message });
+    }
+    const staffedStatus = insideStaffed ? "Staffed hours" : "Unstaffed hours";
+
     let isFirstTimeUnstaffed = false;
-    if (notification_type === "confirmation") {
+    if (notification_type === "confirmation" && !insideStaffed) {
       try {
-        // First-time = no OTHER confirmed bookings for this user
         const { count: priorConfirmed } = await supabaseClient
           .from("bookings")
           .select("id", { count: "exact", head: true })
           .eq("user_id", booking.user_id)
           .eq("status", "confirmed")
           .neq("id", booking.id);
-
-        // Unstaffed = booking start time is NOT inside any is_staffed window
-        // on the booking's day of week.
-        const bookingDay = new Date(`${booking.booking_date}T00:00:00`).getDay(); // 0=Sun
-        const { data: staffed } = await supabaseClient
-          .from("staffed_hours")
-          .select("start_time, end_time, is_staffed")
-          .eq("day_of_week", bookingDay);
-
-        const start = booking.start_time as string; // HH:MM:SS
-        const insideStaffed = (staffed || []).some(
-          (s: any) => s.is_staffed && s.start_time <= start && start < s.end_time,
-        );
-
-        isFirstTimeUnstaffed = (priorConfirmed ?? 0) === 0 && !insideStaffed;
-        logStep("First-time / unstaffed check", {
-          priorConfirmed,
-          bookingDay,
-          insideStaffed,
-          isFirstTimeUnstaffed,
-        });
+        isFirstTimeUnstaffed = (priorConfirmed ?? 0) === 0;
+        logStep("First-time unstaffed check", { priorConfirmed, isFirstTimeUnstaffed });
       } catch (e: any) {
-        logStep("First-time/unstaffed detection failed (falling back to standard)", { error: e.message });
+        logStep("First-time detection failed", { error: e.message });
       }
     }
 
@@ -377,6 +373,7 @@ serve(async (req) => {
       '{short_date}': formattedSmsDate,
       '{start_time_24}': startTime,
       '{end_time_24}': endTime,
+      '{staffed_status}': staffedStatus,
       '{refund_amount}': '', // Will be populated if refund occurred
     };
 
@@ -500,6 +497,7 @@ serve(async (req) => {
                     <p style="margin:5px 0;"><strong>Time:</strong> ${startTime12hr} - ${endTime12hr}</p>
                     <p style="margin:5px 0;"><strong>Duration:</strong> ${booking.duration_hours} hour${booking.duration_hours > 1 ? "s" : ""}</p>
                     <p style="margin:5px 0;"><strong>Bay:</strong> ${bayName}</p>
+                    <p style="margin:5px 0;"><strong>Status:</strong> ${staffedStatus}</p>
                     <p style="margin:5px 0;"><strong>Players:</strong> ${booking.player_count}</p>
                     <p style="margin:5px 0;"><strong>Total:</strong> $${booking.total_price.toFixed(2)}</p>
                   </td>
@@ -555,6 +553,7 @@ serve(async (req) => {
                     <p style="margin:5px 0;"><strong>Date:</strong> ${bookingDate}</p>
                     <p style="margin:5px 0;"><strong>Time:</strong> ${startTime12hr} - ${endTime12hr}</p>
                     <p style="margin:5px 0;"><strong>Bay:</strong> ${bayName}</p>
+                    <p style="margin:5px 0;"><strong>Status:</strong> ${staffedStatus}</p>
                   </td>
                 </tr>
               </table>

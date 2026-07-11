@@ -39,6 +39,7 @@ const SMS_TAGS: Record<string, { tag: string; description: string }[]> = {
     { tag: "{bay_number}", description: "Bay number (e.g. 3)" },
     { tag: "{bay_name}", description: "Bay name (e.g. Bay 3)" },
     { tag: "{door_code}", description: "Door code (from Settings)" },
+    { tag: "{staffed_status}", description: "Staffed hours / Unstaffed hours indicator" },
   ],
   booking_confirmation_first_unstaffed: [
     { tag: "{first_name}", description: "Customer's first name" },
@@ -47,6 +48,7 @@ const SMS_TAGS: Record<string, { tag: string; description: string }[]> = {
     { tag: "{end_time}", description: "End time, 12-hour" },
     { tag: "{bay_number}", description: "Bay number" },
     { tag: "{door_code}", description: "Door code (from Settings)" },
+    { tag: "{staffed_status}", description: "Staffed hours / Unstaffed hours indicator" },
   ],
 
   booking_reschedule: [
@@ -59,6 +61,7 @@ const SMS_TAGS: Record<string, { tag: string; description: string }[]> = {
     { tag: "{bay_number}", description: "Bay number" },
     { tag: "{bay_name}", description: "Bay name" },
     { tag: "{door_code}", description: "Door code (from Settings)" },
+    { tag: "{staffed_status}", description: "Staffed hours / Unstaffed hours indicator" },
   ],
   booking_cancellation: [
     { tag: "{first_name}", description: "Customer's first name" },
@@ -66,6 +69,7 @@ const SMS_TAGS: Record<string, { tag: string; description: string }[]> = {
     { tag: "{start_time_24}", description: "Start time, 24-hour (e.g. 14:00)" },
     { tag: "{end_time_24}", description: "End time, 24-hour" },
     { tag: "{bay_number}", description: "Bay number" },
+    { tag: "{staffed_status}", description: "Staffed hours / Unstaffed hours indicator" },
   ],
   boom_gate_access: [
     { tag: "{first_name}", description: "Customer's first name" },
@@ -187,7 +191,8 @@ export function SmsTemplatesSection() {
       .replace(/{end_time_24}/g, "16:00")
       .replace(/{bay_number}/g, "3")
       .replace(/{bay_name}/g, "Bay 3")
-      .replace(/{door_code}/g, doorCode);
+      .replace(/{door_code}/g, doorCode)
+      .replace(/{staffed_status}/g, "Staffed hours");
 
   return (
     <>
