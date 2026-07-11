@@ -4002,6 +4002,26 @@ export default function BayController() {
                     </SelectContent>
                   </Select>
                 </div>
+
+                <div className="flex items-center justify-between pt-2 border-t border-border/50">
+                  <div className="space-y-0.5 pr-2">
+                    <Label className="text-xs">Show Extend QR code</Label>
+                    <p className="text-[10px] text-muted-foreground">
+                      Adds a QR customers can scan to extend their session
+                    </p>
+                  </div>
+                  <Switch
+                    checked={!!notification.showExtendQr}
+                    onCheckedChange={(checked) => {
+                      setNotificationConfig(prev => ({
+                        ...prev,
+                        notifications: prev.notifications.map((n, i) =>
+                          i === index ? { ...n, showExtendQr: checked } : n
+                        )
+                      }));
+                    }}
+                  />
+                </div>
               </div>
             ))}
 
