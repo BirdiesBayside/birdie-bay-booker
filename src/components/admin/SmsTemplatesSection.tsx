@@ -204,9 +204,6 @@ export function SmsTemplatesSection() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="rounded-md border border-primary/30 bg-primary/5 p-3 text-xs text-muted-foreground">
-            <strong className="text-foreground">First-Time (Unstaffed) variant</strong> automatically <em>replaces</em> the standard Booking Confirmation SMS when a customer's first-ever booking starts outside staffed hours. The boom gate access SMS runs independently on its own timing rules.
-          </div>
           {isLoading ? (
             <Skeleton className="h-32" />
           ) : templates.length === 0 ? (

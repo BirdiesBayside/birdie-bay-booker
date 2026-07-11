@@ -278,11 +278,12 @@ serve(async (req) => {
     }
 
     // Fetch custom email template.
-    // NOTE: For first-time unstaffed bookings we still use the STANDARD
-    // confirmation template; we just append an extra "First Time Booking"
-    // callout with the support phone number into the body below.
+    // First-time bookings during unstaffed hours use their own dedicated template
+    // that admins edit directly in the Notifications settings.
     const templateKey =
-      notification_type === "confirmation" ? "booking_confirmation" : "booking_cancellation";
+      notification_type === "confirmation"
+        ? (isFirstTimeUnstaffed ? "booking_confirmation_first_unstaffed" : "booking_confirmation")
+        : "booking_cancellation";
     const { data: emailTemplate, error: templateError } = await supabaseClient
       .from("email_templates")
       .select("*")
@@ -453,29 +454,8 @@ serve(async (req) => {
               </table>
       ` : '';
 
-      // First-time-unstaffed callout: same standard email + this extra block
-      const firstTimeUnstaffedHtml = (!isReschedule && isFirstTimeUnstaffed) ? `
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FFFFFF; border-radius:12px; margin:18px 0; border:2px solid #EC622D;">
-                <tr>
-                  <td style="padding:22px; text-align:center; font-family:Inter, Arial, sans-serif; color:#1F4C25;">
-                    <p style="margin:0 0 8px; font-family:Anton, Impact, Arial Black, sans-serif; font-size:22px; color:#1F4C25; letter-spacing:0.3px;">
-                      FIRST TIME AT BIRDIES?
-                    </p>
-                    <p style="margin:0 0 14px; font-size:15px; line-height:1.6;">
-                      Your booking is during our unstaffed hours. Please read the <strong>Quick Start Guide</strong> located inside your bay when you arrive.
-                    </p>
-                    <p style="margin:0 0 6px; font-size:15px; line-height:1.6;">
-                      If you have any issues at all, call us straight away:
-                    </p>
-                    <p style="margin:0;">
-                      <a href="tel:+61721468442" style="display:inline-block; font-family:Anton, Impact, Arial Black, sans-serif; font-size:26px; color:#EC622D; text-decoration:none; letter-spacing:0.5px;">
-                        (07) 2146 8442
-                      </a>
-                    </p>
-                  </td>
-                </tr>
-              </table>
-      ` : '';
+
+
 
       const headingText = isReschedule ? "Booking Rescheduled!" : "Booking Confirmed!";
       
@@ -498,20 +478,11 @@ serve(async (req) => {
             }
           }
         }
-        // Append the first-time-unstaffed callout for first-time customers booking outside staffed hours
-        if (firstTimeUnstaffedHtml) {
-          const lookForwardIndex = bodyContent.indexOf('We look forward');
-          if (lookForwardIndex !== -1) {
-            bodyContent = bodyContent.slice(0, lookForwardIndex) + firstTimeUnstaffedHtml + bodyContent.slice(lookForwardIndex);
-          } else {
-            bodyContent = bodyContent + firstTimeUnstaffedHtml;
-          }
-        }
         htmlContent = buildEmailTemplate(headingText, bodyContent, {
           text: "View My Bookings",
           url: "https://hub.birdiesbayside.com.au/my-bookings"
         });
-        logStep("Using custom email template with wrapper", { reviewCtaInjected: !!reviewCtaHtml, firstTimeUnstaffedInjected: !!firstTimeUnstaffedHtml });
+        logStep("Using custom email template with wrapper", { reviewCtaInjected: !!reviewCtaHtml, templateKey });
       } else {
         const introText = isReschedule 
           ? `Hi ${profile.first_name}, your golf simulator booking has been successfully rescheduled!`
@@ -549,7 +520,7 @@ serve(async (req) => {
                 </tr>
               </table>
 
-              ${firstTimeUnstaffedHtml}
+              
 
               ${reviewCtaHtml}
               
