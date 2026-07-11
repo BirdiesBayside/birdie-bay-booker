@@ -332,7 +332,7 @@ serve(async (req) => {
       );
     }
 
-    const { action, username, password } = await req.json();
+    const { action, username, password, typicalScore } = await req.json();
     console.log(`[SGT-REGISTER] Action: ${action}, User: ${user.id}`);
 
     // Track the API key actually used for downstream calls in this request.
