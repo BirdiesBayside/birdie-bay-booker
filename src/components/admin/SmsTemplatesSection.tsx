@@ -69,6 +69,7 @@ const SMS_TAGS: Record<string, { tag: string; description: string }[]> = {
     { tag: "{start_time_24}", description: "Start time, 24-hour (e.g. 14:00)" },
     { tag: "{end_time_24}", description: "End time, 24-hour" },
     { tag: "{bay_number}", description: "Bay number" },
+    { tag: "{staffed_status}", description: "Staffed hours / Unstaffed hours indicator" },
   ],
   boom_gate_access: [
     { tag: "{first_name}", description: "Customer's first name" },
