@@ -64,6 +64,7 @@ const TEMPLATE_TAGS: Record<string, { tag: string; description: string }[]> = {
     { tag: "{bay_number}", description: "Bay number" },
     { tag: "{bay_name}", description: "Bay name" },
     { tag: "{door_code}", description: "Door access code" },
+    { tag: "{staffed_status}", description: "Staffed hours / Unstaffed hours indicator" },
   ],
 
   booking_cancellation: [
