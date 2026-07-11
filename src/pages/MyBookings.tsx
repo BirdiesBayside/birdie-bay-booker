@@ -251,15 +251,23 @@ const MyBookings = () => {
                         </div>
                       </div>
                       <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setRescheduleBooking(booking)}
-                          className="text-primary border-primary hover:bg-primary hover:text-primary-foreground"
-                        >
-                          <RefreshCw className="h-4 w-4 mr-1" />
-                          Reschedule
-                        </Button>
+                        {(() => {
+                          // Booking times are stored as Brisbane local (AEST, UTC+10, no DST).
+                          const startMs = Date.parse(`${booking.booking_date}T${booking.start_time}+10:00`);
+                          const canReschedule = Number.isNaN(startMs) || (Date.now() - startMs) / 60000 <= 10;
+                          if (!canReschedule) return null;
+                          return (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setRescheduleBooking(booking)}
+                              className="text-primary border-primary hover:bg-primary hover:text-primary-foreground"
+                            >
+                              <RefreshCw className="h-4 w-4 mr-1" />
+                              Reschedule
+                            </Button>
+                          );
+                        })()}
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
                             <Button
