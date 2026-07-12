@@ -219,28 +219,32 @@ export default function AdminMarketing() {
         return createdAt < bulkImportStart || createdAt > bulkImportEnd;
       });
       
-      // Get user_ids who have non-cancelled bookings
+      // Get user_ids who have non-cancelled bookings — batch to avoid PostgREST 1000-row cap
       const userIds = filteredProfiles.map(p => p.user_id);
-      
-      const { data: bookings, error: bookingsError } = await supabase
-        .from("bookings")
-        .select("user_id")
-        .in("user_id", userIds)
-        .neq("status", "cancelled");
-      
-      if (bookingsError) {
-        console.error("Error fetching bookings:", bookingsError);
-        return;
+      const usersWithBookings = new Set<string>();
+      const BATCH = 100;
+      for (let i = 0; i < userIds.length; i += BATCH) {
+        const chunk = userIds.slice(i, i + BATCH);
+        const { data: bookings, error: bookingsError } = await supabase
+          .from("bookings")
+          .select("user_id")
+          .in("user_id", chunk)
+          .neq("status", "cancelled");
+        if (bookingsError) {
+          console.error("Error fetching bookings:", bookingsError);
+          return;
+        }
+        bookings?.forEach(b => usersWithBookings.add(b.user_id));
       }
-      
-      const usersWithBookings = new Set(bookings?.map(b => b.user_id) || []);
+
       const eligibleCount = filteredProfiles.filter(p => !usersWithBookings.has(p.user_id)).length;
-      
+
       setPromoEligibleCount(eligibleCount);
     } catch (error) {
       console.error("Error counting promo eligible users:", error);
     }
   };
+
 
   useEffect(() => {
     if (composerOpen) {
