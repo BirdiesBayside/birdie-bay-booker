@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { RescheduleDialog } from "@/components/booking/RescheduleDialog";
 import { ExtendDialog } from "@/components/booking/ExtendDialog";
+import { AuthForm } from "@/components/auth/AuthForm";
 
 interface Booking {
   id: string;
@@ -47,11 +48,10 @@ const MyBookings = () => {
   const [extendBooking, setExtendBooking] = useState<Booking | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
 
-  useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
-      navigate("/");
-    }
-  }, [isAuthenticated, authLoading, navigate]);
+  // Note: do NOT redirect unauthenticated users away — we need to preserve the
+  // URL (including ?extend=<id>) so that after they sign in inline, the extend
+  // deep-link effect below can auto-open the ExtendDialog.
+
 
   useEffect(() => {
     if (user) {
@@ -191,8 +191,26 @@ const MyBookings = () => {
   }
 
   if (!isAuthenticated) {
-    return null;
+    const extendId = searchParams.get("extend");
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6">
+        <div className="w-full max-w-md space-y-4">
+          <div className="text-center space-y-2">
+            <h1 className="font-display text-3xl tracking-wide text-primary">
+              {extendId ? "SIGN IN TO EXTEND" : "SIGN IN"}
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              {extendId
+                ? "Sign in to your Birdies account to extend your current session."
+                : "Sign in to view your bookings."}
+            </p>
+          </div>
+          <AuthForm />
+        </div>
+      </div>
+    );
   }
+
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
