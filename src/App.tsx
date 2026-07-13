@@ -34,6 +34,7 @@ const CardAdded = lazy(() => import("./pages/CardAdded"));
 const WelcomePreview = lazy(() => import("./pages/WelcomePreview"));
 const BirdiesGuide = lazy(() => import("./pages/BirdiesGuide"));
 const Unsubscribe = lazy(() => import("./pages/Unsubscribe"));
+const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
 const BayOrder = lazy(() => import("./pages/BayOrder"));
 const Feedback = lazy(() => import("./pages/Feedback"));
 const CompSurvey = lazy(() => import("./pages/CompSurvey"));
@@ -225,6 +226,7 @@ const App = () => (
             <Route path="/welcome-preview" element={<WelcomePreview />} />
             <Route path="/birdies-guide" element={<BirdiesGuide />} />
             <Route path="/unsubscribe" element={<Unsubscribe />} />
+            <Route path="/privacy" element={<PrivacyPolicy />} />
             <Route path="/order/:bayNumber" element={<BayOrder />} />
             <Route path="/feedback" element={<Feedback />} />
             <Route path="/feedback/:token" element={<Feedback />} />
