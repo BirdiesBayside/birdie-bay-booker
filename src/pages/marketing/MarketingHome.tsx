@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import MarketingLayout from "@/components/marketing/MarketingLayout";
-import { Check, Clock, DollarSign, Trophy, Target, ArrowRight } from "lucide-react";
+import { Check, Clock, DollarSign, Trophy, Target, ArrowRight, BarChart3, Crosshair, TrendingUp, Activity, Gauge } from "lucide-react";
 import heroVideo from "@/assets/hero-video.mp4.asset.json";
 import heroPoster from "@/assets/hero-poster.jpg.asset.json";
 import simulatorBay from "@/assets/simulator-bay.png.asset.json";
@@ -11,6 +11,15 @@ const features = [
   { icon: Clock, title: "Flexible 5am - 11pm Access", body: "Six fully automated bays, book any time, play any time." },
   { icon: DollarSign, title: "Affordable Memberships", body: "Pay a simple weekly fee to unlock your member hourly rate." },
   { icon: Trophy, title: "Competitions & League", body: "Birdie & Eagle members get access to the Birdies League. Weekday members can still jump into our Wednesday local comp." },
+];
+
+const swingLabFeatures = [
+  { icon: Target, title: "Automatic Shot Capture", body: "Export your session from the GSPro driving range — your shots appear in the Hub automatically." },
+  { icon: BarChart3, title: "Per-Club Gapping", body: "See average and max carry and total distance for every club in your bag." },
+  { icon: Crosshair, title: "Dispersion Analysis", body: "Visual scatter plots with 95% ellipses, shape pattern and landing zone for each club." },
+  { icon: Activity, title: "Swing Dynamics", body: "Dive into club path, face angle, face-to-path, angle of attack and spin axis." },
+  { icon: TrendingUp, title: "Progress Tracking", body: "Compare consistency, speed and dispersion against your previous 30, 90 or 180 days." },
+  { icon: Gauge, title: "Tour Benchmarking", body: "Benchmark your numbers against PGA Tour and amateur averages, plus a focus-point coaching cue." },
 ];
 
 const MarketingHome = () => {
@@ -117,6 +126,43 @@ const MarketingHome = () => {
               className="inline-flex items-center gap-2 bg-accent hover:bg-accent/90 text-accent-foreground font-display tracking-wide uppercase px-7 py-3.5 rounded-md"
             >
               See Membership Plans <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* SWING LAB */}
+      <section className="bg-muted py-12 sm:py-24">
+        <div className="container mx-auto px-4">
+          <div className="text-center max-w-2xl mx-auto mb-14">
+            <p className="text-accent font-display tracking-[0.2em] uppercase text-sm mb-3">Swing Lab</p>
+            <h2 className="font-display text-4xl sm:text-5xl text-primary leading-tight">
+              Your Personal Driving Range Coach.
+            </h2>
+            <p className="mt-4 text-foreground/80 text-lg leading-relaxed">
+              Every range session becomes actionable data. Track your distances, dispersion, swing dynamics and progress over time — all included with your Birdies membership.
+            </p>
+          </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
+            {swingLabFeatures.map((f) => (
+              <div
+                key={f.title}
+                className="bg-card border border-border rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow"
+              >
+                <div className="w-12 h-12 rounded-lg bg-accent/15 text-accent flex items-center justify-center mb-4">
+                  <f.icon className="h-6 w-6" />
+                </div>
+                <h3 className="font-display text-xl tracking-wide uppercase mb-2">{f.title}</h3>
+                <p className="text-foreground/75 text-sm leading-relaxed">{f.body}</p>
+              </div>
+            ))}
+          </div>
+          <div className="text-center mt-12">
+            <Link
+              to="/membership-info"
+              className="inline-flex items-center gap-2 bg-accent hover:bg-accent/90 text-accent-foreground font-display tracking-wide uppercase px-7 py-3.5 rounded-md"
+            >
+              Unlock Swing Lab <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
         </div>
