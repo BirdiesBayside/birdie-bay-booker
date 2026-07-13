@@ -14,12 +14,12 @@ const features = [
 ];
 
 const swingLabFeatures = [
-  { icon: Target, title: "Automatic Shot Capture", body: "Export your session from the GSPro driving range — your shots appear in the Hub automatically." },
-  { icon: BarChart3, title: "Per-Club Gapping", body: "See average and max carry and total distance for every club in your bag." },
-  { icon: Crosshair, title: "Dispersion Analysis", body: "Visual scatter plots with 95% ellipses, shape pattern and landing zone for each club." },
-  { icon: Activity, title: "Swing Dynamics", body: "Dive into club path, face angle, face-to-path, angle of attack and spin axis." },
-  { icon: TrendingUp, title: "Progress Tracking", body: "Compare consistency, speed and dispersion against your previous 30, 90 or 180 days." },
-  { icon: Gauge, title: "Tour Benchmarking", body: "Benchmark your numbers against PGA Tour and amateur averages, plus a focus-point coaching cue." },
+  { icon: Target, title: "Automatic shot capture from GSPro range sessions" },
+  { icon: BarChart3, title: "Per-club gapping and distance averages" },
+  { icon: Crosshair, title: "Dispersion analysis with visual scatter plots" },
+  { icon: Activity, title: "Swing dynamics: path, face angle, attack angle and spin" },
+  { icon: TrendingUp, title: "Progress tracking over 30, 90 and 180 days" },
+  { icon: Gauge, title: "Tour and amateur benchmarking with focus cues" },
 ];
 
 const MarketingHome = () => {
@@ -143,17 +143,16 @@ const MarketingHome = () => {
               Every range session becomes actionable data. Track your distances, dispersion, swing dynamics and progress over time — all included with your Birdies membership.
             </p>
           </div>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-5xl mx-auto">
             {swingLabFeatures.map((f) => (
               <div
                 key={f.title}
-                className="bg-card border border-border rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow"
+                className="bg-card border border-border rounded-xl px-5 py-4 shadow-sm hover:shadow-md transition-shadow flex items-center gap-4"
               >
-                <div className="w-12 h-12 rounded-lg bg-accent/15 text-accent flex items-center justify-center mb-4">
-                  <f.icon className="h-6 w-6" />
+                <div className="w-10 h-10 rounded-lg bg-accent/15 text-accent flex items-center justify-center shrink-0">
+                  <f.icon className="h-5 w-5" />
                 </div>
-                <h3 className="font-display text-xl tracking-wide uppercase mb-2">{f.title}</h3>
-                <p className="text-foreground/75 text-sm leading-relaxed">{f.body}</p>
+                <h3 className="font-display text-base tracking-wide uppercase leading-snug">{f.title}</h3>
               </div>
             ))}
           </div>
