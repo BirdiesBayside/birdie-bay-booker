@@ -47,11 +47,10 @@ const MyBookings = () => {
   const [extendBooking, setExtendBooking] = useState<Booking | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
 
-  useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
-      navigate("/");
-    }
-  }, [isAuthenticated, authLoading, navigate]);
+  // Note: do NOT redirect unauthenticated users away — we need to preserve the
+  // URL (including ?extend=<id>) so that after they sign in inline, the extend
+  // deep-link effect below can auto-open the ExtendDialog.
+
 
   useEffect(() => {
     if (user) {
