@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import MarketingLayout from "@/components/marketing/MarketingLayout";
-import { Check, Clock, DollarSign, Trophy, Target, ArrowRight } from "lucide-react";
+import { Check, Clock, DollarSign, Trophy, Target, ArrowRight, BarChart3, Crosshair, TrendingUp, Activity, Gauge } from "lucide-react";
 import heroVideo from "@/assets/hero-video.mp4.asset.json";
 import heroPoster from "@/assets/hero-poster.jpg.asset.json";
 import simulatorBay from "@/assets/simulator-bay.png.asset.json";
@@ -11,6 +11,15 @@ const features = [
   { icon: Clock, title: "Flexible 5am - 11pm Access", body: "Six fully automated bays, book any time, play any time." },
   { icon: DollarSign, title: "Affordable Memberships", body: "Pay a simple weekly fee to unlock your member hourly rate." },
   { icon: Trophy, title: "Competitions & League", body: "Birdie & Eagle members get access to the Birdies League. Weekday members can still jump into our Wednesday local comp." },
+];
+
+const swingLabFeatures = [
+  { icon: Target, title: "Automatic Shot Capture", body: "Export your session from the GSPro driving range — your shots appear in the Hub automatically." },
+  { icon: BarChart3, title: "Per-Club Gapping", body: "See average and max carry and total distance for every club in your bag." },
+  { icon: Crosshair, title: "Dispersion Analysis", body: "Visual scatter plots with 95% ellipses, shape pattern and landing zone for each club." },
+  { icon: Activity, title: "Swing Dynamics", body: "Dive into club path, face angle, face-to-path, angle of attack and spin axis." },
+  { icon: TrendingUp, title: "Progress Tracking", body: "Compare consistency, speed and dispersion against your previous 30, 90 or 180 days." },
+  { icon: Gauge, title: "Tour Benchmarking", body: "Benchmark your numbers against PGA Tour and amateur averages, plus a focus-point coaching cue." },
 ];
 
 const MarketingHome = () => {
