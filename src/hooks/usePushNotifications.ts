@@ -12,16 +12,16 @@ export const usePushNotifications = () => {
   const saveTokenToDatabase = async (pushToken: string, uId: string) => {
     try {
       console.log('[PUSH] Saving token to database for user:', uId);
-      // Development builds from Xcode use sandbox, App Store builds use production
-      // We can detect this by checking if we're in a debug/development environment
-      // For now, we'll store both and let the server try both endpoints
+
+      const platform = Capacitor.getPlatform(); // 'ios' | 'android' | 'web'
+
       const { error } = await supabase
         .from('push_tokens')
         .upsert(
           { 
             user_id: uId, 
             token: pushToken, 
-            platform: 'ios',
+            platform,
             updated_at: new Date().toISOString()
           },
           { onConflict: 'user_id,token' }
@@ -67,7 +67,6 @@ export const usePushNotifications = () => {
       setIsSupported(true);
 
       // IMPORTANT: Add listeners BEFORE registering, otherwise the token callback can be missed.
-      // (This is a common gotcha if APNs responds quickly.)
       PushNotifications.addListener('registration', async (tokenData) => {
         console.log('[PUSH] ✅ Registration SUCCESS! Token:', tokenData.value.substring(0, 20) + '...');
         setToken(tokenData.value);
@@ -100,9 +99,9 @@ export const usePushNotifications = () => {
         }
         
         if (permStatus.receive === 'granted') {
-          console.log('[PUSH] Permission granted, registering with APNs...');
+          console.log('[PUSH] Permission granted, registering with push provider...');
           await PushNotifications.register();
-          console.log('[PUSH] Registration request sent to APNs');
+          console.log('[PUSH] Registration request sent');
         } else {
           console.log('[PUSH] Permission denied or not determined:', permStatus.receive);
         }
