@@ -131,6 +131,43 @@ const MarketingHome = () => {
         </div>
       </section>
 
+      {/* SWING LAB */}
+      <section className="bg-muted py-12 sm:py-24">
+        <div className="container mx-auto px-4">
+          <div className="text-center max-w-2xl mx-auto mb-14">
+            <p className="text-accent font-display tracking-[0.2em] uppercase text-sm mb-3">Swing Lab</p>
+            <h2 className="font-display text-4xl sm:text-5xl text-primary leading-tight">
+              Your Personal Driving Range Coach.
+            </h2>
+            <p className="mt-4 text-foreground/80 text-lg leading-relaxed">
+              Every range session becomes actionable data. Track your distances, dispersion, swing dynamics and progress over time — all included with your Birdies membership.
+            </p>
+          </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
+            {swingLabFeatures.map((f) => (
+              <div
+                key={f.title}
+                className="bg-card border border-border rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow"
+              >
+                <div className="w-12 h-12 rounded-lg bg-accent/15 text-accent flex items-center justify-center mb-4">
+                  <f.icon className="h-6 w-6" />
+                </div>
+                <h3 className="font-display text-xl tracking-wide uppercase mb-2">{f.title}</h3>
+                <p className="text-foreground/75 text-sm leading-relaxed">{f.body}</p>
+              </div>
+            ))}
+          </div>
+          <div className="text-center mt-12">
+            <Link
+              to="/membership-info"
+              className="inline-flex items-center gap-2 bg-accent hover:bg-accent/90 text-accent-foreground font-display tracking-wide uppercase px-7 py-3.5 rounded-md"
+            >
+              Unlock Swing Lab <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+        </div>
+      </section>
+
       {/* PRICING SNAPSHOT */}
       <section className="py-12 sm:py-24">
         <div className="container mx-auto px-4">
