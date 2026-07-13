@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { RescheduleDialog } from "@/components/booking/RescheduleDialog";
 import { ExtendDialog } from "@/components/booking/ExtendDialog";
+import { AuthForm } from "@/components/auth/AuthForm";
 
 interface Booking {
   id: string;
