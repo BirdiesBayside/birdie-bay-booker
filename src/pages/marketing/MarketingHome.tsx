@@ -14,12 +14,12 @@ const features = [
 ];
 
 const swingLabFeatures = [
-  { icon: Target, title: "Automatic Shot Capture", body: "Export your session from the GSPro driving range — your shots appear in the Hub automatically." },
-  { icon: BarChart3, title: "Per-Club Gapping", body: "See average and max carry and total distance for every club in your bag." },
-  { icon: Crosshair, title: "Dispersion Analysis", body: "Visual scatter plots with 95% ellipses, shape pattern and landing zone for each club." },
-  { icon: Activity, title: "Swing Dynamics", body: "Dive into club path, face angle, face-to-path, angle of attack and spin axis." },
-  { icon: TrendingUp, title: "Progress Tracking", body: "Compare consistency, speed and dispersion against your previous 30, 90 or 180 days." },
-  { icon: Gauge, title: "Tour Benchmarking", body: "Benchmark your numbers against PGA Tour and amateur averages, plus a focus-point coaching cue." },
+  { icon: Target, title: "Automatic shot capture from GSPro range sessions" },
+  { icon: BarChart3, title: "Per-club gapping and distance averages" },
+  { icon: Crosshair, title: "Dispersion analysis with visual scatter plots" },
+  { icon: Activity, title: "Swing dynamics: path, face angle, attack angle and spin" },
+  { icon: TrendingUp, title: "Progress tracking over 30, 90 and 180 days" },
+  { icon: Gauge, title: "Tour and amateur benchmarking with focus cues" },
 ];
 
 const MarketingHome = () => {
