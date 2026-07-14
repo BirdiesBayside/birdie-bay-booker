@@ -296,49 +296,44 @@ const MyBookings = () => {
                           </span>
                         </div>
                       </div>
-                      <div className="flex flex-wrap gap-2">
-                        {(() => {
-                          // Booking times are stored as Brisbane local (AEST, UTC+10, no DST).
-                          const startMs = Date.parse(`${booking.booking_date}T${booking.start_time}+10:00`);
-                          const endMs = Date.parse(`${booking.booking_date}T${booking.end_time}+10:00`);
-                          const now = Date.now();
-                          const minsSinceStart = (now - startMs) / 60000;
-                          const minsUntilEnd = (endMs - now) / 60000;
-                          const canReschedule = Number.isNaN(startMs) || minsSinceStart <= 10;
-                          // Extend: allow anytime from 15min before start through the end of the session
-                          // (customers often scan the QR in the last minute — that's the whole point)
-                          const canExtend =
-                            !Number.isNaN(startMs) && !Number.isNaN(endMs) &&
-                            minsSinceStart >= -15 && minsUntilEnd > -1;
-                          const isActive = minsSinceStart >= 0 && minsUntilEnd > 0;
-                          return (
-                            <>
-                              {canExtend && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => setExtendBooking(booking)}
-                                  className="text-primary border-primary hover:bg-primary hover:text-primary-foreground"
-                                >
-                                  <Plus className="h-4 w-4 mr-1" />
-                                  Extend
-                                </Button>
-                              )}
-                              {canReschedule && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => setRescheduleBooking(booking)}
-                                  className="text-primary border-primary hover:bg-primary hover:text-primary-foreground"
-                                >
-                                  <RefreshCw className="h-4 w-4 mr-1" />
-                                  Reschedule
-                                </Button>
-                              )}
-                            </>
-                          );
-                        })()}
-                        {!isActive && (
+                      {(() => {
+                        // Booking times are stored as Brisbane local (AEST, UTC+10, no DST).
+                        const startMs = Date.parse(`${booking.booking_date}T${booking.start_time}+10:00`);
+                        const endMs = Date.parse(`${booking.booking_date}T${booking.end_time}+10:00`);
+                        const now = Date.now();
+                        const minsSinceStart = (now - startMs) / 60000;
+                        const minsUntilEnd = (endMs - now) / 60000;
+                        const canReschedule = Number.isNaN(startMs) || minsSinceStart <= 10;
+                        const canExtend =
+                          !Number.isNaN(startMs) && !Number.isNaN(endMs) &&
+                          minsSinceStart >= -15 && minsUntilEnd > -1;
+                        const isActive = minsSinceStart >= 0 && minsUntilEnd > 0;
+                        const canCancel = Number.isNaN(startMs) || minsSinceStart < 0;
+                        return (
+                        <div className="flex flex-wrap gap-2">
+                          {canExtend && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setExtendBooking(booking)}
+                              className="text-primary border-primary hover:bg-primary hover:text-primary-foreground"
+                            >
+                              <Plus className="h-4 w-4 mr-1" />
+                              Extend
+                            </Button>
+                          )}
+                          {canReschedule && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setRescheduleBooking(booking)}
+                              className="text-primary border-primary hover:bg-primary hover:text-primary-foreground"
+                            >
+                              <RefreshCw className="h-4 w-4 mr-1" />
+                              Reschedule
+                            </Button>
+                          )}
+                          {canCancel && (
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
                             <Button
