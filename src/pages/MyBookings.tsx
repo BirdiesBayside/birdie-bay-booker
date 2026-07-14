@@ -384,7 +384,6 @@ const MyBookings = () => {
                   </div>
                   );
                 })}
-                })}
               </div>
             )}
           </section>
