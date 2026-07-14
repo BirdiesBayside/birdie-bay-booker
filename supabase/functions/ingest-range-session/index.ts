@@ -153,6 +153,15 @@ Deno.serve(async (req) => {
       else if (key === "club_type") { if (val) rec.club_type = val; }
       else if (NUMERIC_COLS.has(key)) { const n = num(val); if (n !== null) rec[key] = n; }
     });
+    // GSPro exports BackSpin + SideSpin but no combined "Spin" column. Derive
+    // total spin (rpm) from the two axes so Swing Lab's spin tiles have data.
+    if (rec.spin_rate == null) {
+      const bs = rec.back_spin as number | undefined;
+      const ss = (rec.side_spin as number | undefined) ?? 0;
+      if (typeof bs === "number" && Number.isFinite(bs)) {
+        rec.spin_rate = Math.round(Math.sqrt(bs * bs + ss * ss));
+      }
+    }
     rec.raw = raw;
     return rec;
   });
