@@ -1548,10 +1548,10 @@ export default function BayController() {
           // Show notification popup on configured display using Electron API
           if (window.electronAPI && notificationConfig.displayLabel) {
             try {
-              // Use the current origin so it works on whichever domain the controller runs on
-              // (both hub.birdiesbayside.com.au and birdiesbayside.com.au serve /my-bookings).
+              // Always use the public Hub URL — the controller runs inside Electron
+              // where window.location.origin is a file:// path that phones can't open.
               const extendUrl = notification.showExtendQr && activeBooking?.id
-                ? `${window.location.origin}/my-bookings?extend=${activeBooking.id}`
+                ? `https://hub.birdiesbayside.com.au/my-bookings?extend=${activeBooking.id}`
                 : undefined;
               await window.electronAPI.showNotificationPopup(
                 message,
