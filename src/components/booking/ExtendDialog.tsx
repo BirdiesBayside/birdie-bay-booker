@@ -61,8 +61,12 @@ export const ExtendDialog = ({ booking, open, onOpenChange, onSuccess }: Props) 
     setSelectedHours(1);
     (async () => {
       setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          setLoading(false);
+          return;
+        }
 
       const [profRes, priceRes, nextRes, hoursRes] = await Promise.all([
         supabase
