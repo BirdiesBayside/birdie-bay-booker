@@ -39,7 +39,7 @@ interface Props {
   onSuccess: () => void;
 }
 
-const MAX_TOTAL = 4;
+
 
 const addHours = (time: string, hours: number) => {
   const [h, m] = time.split(":").map(Number);
@@ -114,8 +114,8 @@ export const ExtendDialog = ({ booking, open, onOpenChange, onSuccess }: Props) 
 
   // How many whole hours can be added?
   const maxExtendHours = useMemo(() => {
-    // duration cap
-    let cap = MAX_TOTAL - booking.duration_hours;
+    // No overall duration cap — extensions can push past the 4hr booking max
+    let cap = 3;
     // next booking gap
     if (nextBookingStart) {
       const [eh, em] = booking.end_time.split(":").map(Number);

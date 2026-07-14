@@ -127,12 +127,9 @@ serve(async (req) => {
       throw new Error("This booking has ended. Please book a new session.");
     }
 
-    // Duration cap
+    // No max-duration cap on extensions — customers can extend beyond the 4hr booking cap
     const currentDuration = Number(booking.duration_hours);
     const newDuration = currentDuration + additional_hours;
-    if (newDuration > MAX_TOTAL_HOURS) {
-      throw new Error(`Maximum booking length is ${MAX_TOTAL_HOURS} hours`);
-    }
 
     // Compute new end_time
     const [eh, em] = booking.end_time.split(":").map(Number);
