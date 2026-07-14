@@ -186,15 +186,10 @@ const MyBookings = () => {
     (b) => b.status !== "confirmed" || isBookingPast(b.booking_date, b.end_time)
   );
 
-  if (authLoading || isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="animate-pulse text-muted-foreground">Loading...</div>
-      </div>
-    );
-  }
-
-  if (!isAuthenticated) {
+  // Show sign-in form as soon as we know there's no user — don't wait on the
+  // bookings fetch (which never runs when signed out). Only show the spinner
+  // while auth is still resolving.
+  if (!authLoading && !isAuthenticated) {
     const extendId = searchParams.get("extend");
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6">
@@ -211,6 +206,14 @@ const MyBookings = () => {
           </div>
           <AuthForm />
         </div>
+      </div>
+    );
+  }
+
+  if (authLoading || isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="animate-pulse text-muted-foreground">Loading...</div>
       </div>
     );
   }
