@@ -103,8 +103,12 @@ export const ExtendDialog = ({ booking, open, onOpenChange, onSuccess }: Props) 
         hoursRes.data?.is_open && hoursRes.data?.close_time
           ? String(hoursRes.data.close_time).slice(0, 5)
           : null,
-      );
-      setLoading(false);
+        );
+      } catch (e) {
+        console.error("ExtendDialog load failed", e);
+      } finally {
+        setLoading(false);
+      }
     })();
   }, [open, booking.id, booking.bay_id, booking.booking_date, booking.end_time]);
 
