@@ -67,6 +67,12 @@ serve(async (req) => {
       throw new Error("Booking is already cancelled");
     }
 
+    // Block self-serve cancellation once the session has started (Brisbane, UTC+10 no DST)
+    const startMs = Date.parse(`${booking.booking_date}T${booking.start_time}+10:00`);
+    if (!Number.isNaN(startMs) && Date.now() >= startMs) {
+      throw new Error("This booking has already started and can no longer be cancelled. Please contact staff if you need assistance.");
+    }
+
     console.log("[CANCEL-BOOKING] Booking found:", {
       id: booking.id,
       payment_intent: booking.stripe_payment_intent_id,

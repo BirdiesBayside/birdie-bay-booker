@@ -338,6 +338,7 @@ const MyBookings = () => {
                             </>
                           );
                         })()}
+                        {!isActive && (
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
                             <Button
@@ -380,6 +381,7 @@ const MyBookings = () => {
                           </AlertDialogFooter>
                         </AlertDialogContent>
                       </AlertDialog>
+                        )}
                       </div>
                     </div>
                   </div>
