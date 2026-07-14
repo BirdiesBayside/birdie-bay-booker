@@ -2871,30 +2871,48 @@ export default function BayController() {
         const baseline = await window.electronAPI.restoreBaselineNow();
         if (baseline?.success) {
           const ok = (baseline.results || []).filter((r: any) => r.success).map((r: any) => r.file);
-          if (ok.length) addLog(`Applied shared baseline before launch: ${ok.join(', ')}`, 'info');
+          const msg = ok.length
+            ? `[Settings] Applied shared baseline before launch: ${ok.join(', ')}`
+            : `[Settings] Baseline apply returned no files`;
+          addLog(msg, 'info');
+          bayLogger.sendLog('automation_decision', msg, { bookingId: activeBooking?.id });
         } else if (baseline?.error) {
-          addLog(`Baseline apply skipped: ${baseline.error}`, 'info');
+          addLog(`[Settings] Baseline apply skipped: ${baseline.error}`, 'info');
+          bayLogger.sendLog('automation_decision', `[Settings] Baseline apply skipped: ${baseline.error}`, { bookingId: activeBooking?.id, level: 'warning' });
         }
       } catch (e) {
         console.error('[BayController] restoreBaselineNow (pre-launch) failed:', e);
+        bayLogger.logError('[Settings] Baseline apply exception (pre-launch)', e, activeBooking?.id);
       }
 
       // Step B: Overlay this customer's saved GSPro snapshot (SGT login, prefs) on top of baseline.
       if (activeBooking?.user_id) {
         try {
+          bayLogger.sendLog('automation_decision', `[Settings] Restoring snapshot for user ${activeBooking.user_id} (booking ${activeBooking.id})`, { bookingId: activeBooking.id });
           const restored = await restoreUserGsproSettings(activeBooking.user_id, {
             bayNumber: selectedBay,
             bookingId: activeBooking.id,
             appVersion,
           });
-          if (restored.restored.length) addLog(`Overlaid customer GSPro settings: ${restored.restored.join(', ')}`, 'info');
-          else addLog('No customer snapshot found — using shared baseline for this session', 'info');
+          if (restored.restored.length) {
+            const msg = `[Settings] Overlaid customer GSPro snapshot: ${restored.restored.join(', ')}`;
+            addLog(msg, 'info');
+            bayLogger.sendLog('automation_decision', msg, { bookingId: activeBooking.id });
+          } else {
+            const msg = `[Settings] No customer snapshot restored${restored.error ? ` (error: ${restored.error})` : ''}${restored.missing.length ? ` — missing: ${restored.missing.join(', ')}` : ''}`;
+            addLog(msg, 'info');
+            bayLogger.sendLog('automation_decision', msg, { bookingId: activeBooking.id, level: restored.error ? 'warning' : 'info' });
+          }
         } catch (e) {
           console.error('[BayController] restoreUserGsproSettings failed:', e);
+          bayLogger.logError('[Settings] Restore snapshot exception', e, activeBooking.id);
         }
       } else {
-        addLog('No user_id on active booking — using shared baseline only', 'info');
+        addLog('[Settings] No user_id on active booking — using shared baseline only', 'info');
+        bayLogger.sendLog('automation_decision', '[Settings] No user_id on active booking — using shared baseline only', { bookingId: activeBooking?.id, level: 'warning' });
       }
+
+
 
       const result = await window.electronAPI.runAppSequence(launchConfig);
       
