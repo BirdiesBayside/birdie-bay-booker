@@ -1740,12 +1740,27 @@ export default function BayController() {
                   // Restore next customer's saved GSPro settings (SGT login, prefs) if they have any.
                   if (nextBooking.user_id) {
                     try {
-                      const restored = await restoreUserGsproSettings(nextBooking.user_id);
-                      if (restored.restored.length) addLog(`[Changeover] Restored ${firstName}'s GSPro settings: ${restored.restored.join(', ')}`, 'info');
+                      bayLogger.sendLog('automation_decision', `[Changeover Settings] Restoring snapshot for user ${nextBooking.user_id}`, { bookingId: nextBooking.id });
+                      const restored = await restoreUserGsproSettings(nextBooking.user_id, {
+                        bayNumber: selectedBay,
+                        bookingId: nextBooking.id,
+                        appVersion,
+                      });
+                      if (restored.restored.length) {
+                        const msg = `[Changeover Settings] Restored ${firstName}'s GSPro snapshot: ${restored.restored.join(', ')}`;
+                        addLog(msg, 'info');
+                        bayLogger.sendLog('automation_decision', msg, { bookingId: nextBooking.id });
+                      } else {
+                        const msg = `[Changeover Settings] No snapshot restored${restored.error ? ` (error: ${restored.error})` : ''}${restored.missing.length ? ` — missing: ${restored.missing.join(', ')}` : ''}`;
+                        addLog(msg, 'info');
+                        bayLogger.sendLog('automation_decision', msg, { bookingId: nextBooking.id, level: restored.error ? 'warning' : 'info' });
+                      }
                     } catch (e) {
                       console.error('[Changeover] restoreUserGsproSettings failed:', e);
+                      bayLogger.logError('[Changeover Settings] Restore exception', e, nextBooking.id);
                     }
                   }
+
 
                   const result = await window.electronAPI.runAppSequence({
                     gsproPath: appLaunchConfig.gsproPath,
