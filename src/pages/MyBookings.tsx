@@ -56,8 +56,12 @@ const MyBookings = () => {
   useEffect(() => {
     if (user) {
       fetchBookings();
+    } else if (!authLoading) {
+      // Not signed in — stop showing the loading spinner so the inline
+      // sign-in form (and the extend deep-link) can render.
+      setIsLoading(false);
     }
-  }, [user]);
+  }, [user, authLoading]);
 
   // Deep-link: /my-bookings?extend=<booking_id> auto-opens the extend dialog
   useEffect(() => {
