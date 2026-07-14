@@ -376,9 +376,12 @@ const MyBookings = () => {
                           </AlertDialogFooter>
                         </AlertDialogContent>
                       </AlertDialog>
-                        )}
-                      </div>
+                          )}
+                        </div>
+                        );
+                      })()}
                     </div>
+                  </div>
                   </div>
                   );
                 })}
