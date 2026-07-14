@@ -294,10 +294,12 @@ const MyBookings = () => {
                           const minsSinceStart = (now - startMs) / 60000;
                           const minsUntilEnd = (endMs - now) / 60000;
                           const canReschedule = Number.isNaN(startMs) || minsSinceStart <= 10;
-                          // Extend: active session (started, not yet ended, at least 10min left to make it worthwhile)
+                          // Extend: allow anytime from 15min before start through the end of the session
+                          // (customers often scan the QR in the last minute — that's the whole point)
                           const canExtend =
                             !Number.isNaN(startMs) && !Number.isNaN(endMs) &&
-                            minsSinceStart >= -15 && minsUntilEnd > 5;
+                            minsSinceStart >= -15 && minsUntilEnd > -1;
+                          const isActive = minsSinceStart >= 0 && minsUntilEnd > 0;
                           return (
                             <>
                               {canExtend && (
