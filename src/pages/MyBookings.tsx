@@ -256,7 +256,12 @@ const MyBookings = () => {
               </div>
             ) : (
               <div className="space-y-4">
-                {upcomingBookings.map((booking) => (
+                {upcomingBookings.map((booking) => {
+                  const bStartMs = Date.parse(`${booking.booking_date}T${booking.start_time}+10:00`);
+                  const bEndMs = Date.parse(`${booking.booking_date}T${booking.end_time}+10:00`);
+                  const bNow = Date.now();
+                  const bIsActive = !Number.isNaN(bStartMs) && !Number.isNaN(bEndMs) && bNow >= bStartMs && bNow < bEndMs;
+                  return (
                   <div
                     key={booking.id}
                     className="bg-card rounded-lg p-5 border border-border shadow-sm"
@@ -267,6 +272,12 @@ const MyBookings = () => {
                           <MapPin className="h-4 w-4" />
                           Bay {booking.bay_number}
                           {booking.bay_name && ` - ${booking.bay_name}`}
+                          {bIsActive && (
+                            <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-accent/15 px-2 py-0.5 text-xs font-medium text-accent">
+                              <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
+                              Live
+                            </span>
+                          )}
                         </div>
                         <div className="flex items-center gap-4 text-sm text-muted-foreground">
                           <span className="flex items-center gap-1">
