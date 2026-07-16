@@ -1230,8 +1230,6 @@ function DispersionChart({ shots, dLbl, sessions }: { shots: Shot[]; dLbl: strin
                     const cx = xScale(ellipse.cx);
                     const cy = yScale(ellipse.cy);
                     // Convert world semi-axes to pixel space via scale slope
-                    const xUnit = Math.abs(xScale(1) - xScale(0));
-                    const yUnit = Math.abs(yScale(1) - yScale(0));
                     const rxPx = ellipse.rx * xUnit;
                     const ryPx = ellipse.ry * yUnit;
                     const angleDeg = (ellipse.angleRad * 180) / Math.PI;
