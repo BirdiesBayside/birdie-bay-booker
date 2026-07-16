@@ -1199,10 +1199,32 @@ function DispersionChart({ shots, dLbl, sessions }: { shots: Shot[]; dLbl: strin
               if (!xAxis || !yAxis) return null;
               const xScale = xAxis.scale;
               const yScale = yAxis.scale;
+              const xUnit = Math.abs(xScale(1) - xScale(0));
+              const yUnit = Math.abs(yScale(1) - yScale(0));
+              // Average fairway width ~ 40 yards (~37 m) at landing zone
+              const fairwayHalfWidth = dLbl === "m" ? 18 : 20;
               return (
                 <g>
-                  {clubData.map(({ club, color, ellipse }) => {
-                    if (!ellipse) return null;
+                  {showFairway && (() => {
+                    const x0 = xScale(-fairwayHalfWidth);
+                    const x1 = xScale(fairwayHalfWidth);
+                    const yTop = yScale(bounds.yMax);
+                    const yBot = yScale(bounds.yMin);
+                    return (
+                      <rect
+                        x={Math.min(x0, x1)}
+                        y={Math.min(yTop, yBot)}
+                        width={Math.abs(x1 - x0)}
+                        height={Math.abs(yBot - yTop)}
+                        fill="#4ade80"
+                        fillOpacity={0.18}
+                        stroke="#22c55e"
+                        strokeOpacity={0.4}
+                        strokeWidth={1}
+                        strokeDasharray="6 4"
+                      />
+                    );
+                  })()}
                     const cx = xScale(ellipse.cx);
                     const cy = yScale(ellipse.cy);
                     // Convert world semi-axes to pixel space via scale slope
