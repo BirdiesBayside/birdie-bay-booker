@@ -1132,6 +1132,14 @@ function DispersionChart({ shots, dLbl, sessions }: { shots: Shot[]; dLbl: strin
           <CardTitle className="text-base">Shot dispersion ({dLbl})</CardTitle>
           <div className="flex gap-2 text-xs">
             <button
+              onClick={() => setShowFairway((v) => !v)}
+              className={`px-2 py-1 rounded border transition ${
+                showFairway
+                  ? "bg-green-600/20 border-green-600 text-green-700 dark:text-green-400"
+                  : "border-border hover:bg-muted"
+              }`}
+            >{showFairway ? "Hide fairway" : "Show fairway"}</button>
+            <button
               onClick={() => setSelected(new Set(allClubs))}
               className="px-2 py-1 rounded border border-border hover:bg-muted"
             >Select all</button>
