@@ -1018,21 +1018,25 @@ function DispersionChart({ shots, dLbl, sessions }: { shots: Shot[]; dLbl: strin
     });
   }, [selected, filteredShots]);
 
-  // Chart bounds
+  // Chart bounds — locked to 1:1 physical aspect so lateral dispersion is
+  // shown to true scale (matches fairway/tour-average realism instead of
+  // being visually stretched by the container width).
+  // CHART_ASPECT must match ResponsiveContainer's aspect prop below.
+  const CHART_ASPECT = 1.6; // width / height
   const bounds = useMemo(() => {
     const all = clubData.flatMap((c) => c.pts);
     if (all.length === 0) return { xMin: -20, xMax: 20, yMin: 0, yMax: 100 };
     const sides = all.map((p) => p.side);
     const carries = all.map((p) => p.carry);
     const pad = 10;
-    const xMin = Math.min(...sides) - pad;
-    const xMax = Math.max(...sides) + pad;
-    const spread = Math.max(Math.abs(xMin), Math.abs(xMax));
-    return {
-      xMin: -spread, xMax: spread,
-      yMin: Math.max(0, Math.min(...carries) - pad),
-      yMax: Math.max(...carries) + pad,
-    };
+    const yMin = Math.max(0, Math.min(...carries) - pad);
+    const yMax = Math.max(...carries) + pad;
+    const yRange = yMax - yMin;
+    // Ensure X spans at least what's needed for the data, but always at least
+    // yRange * aspect so 1 side-unit == 1 carry-unit on screen.
+    const dataSpread = Math.max(Math.abs(Math.min(...sides) - pad), Math.abs(Math.max(...sides) + pad));
+    const spread = Math.max(dataSpread, (yRange * CHART_ASPECT) / 2);
+    return { xMin: -spread, xMax: spread, yMin, yMax };
   }, [clubData]);
 
   const DATE_RANGES: { value: DateRange; label: string }[] = [
