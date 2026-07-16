@@ -1161,7 +1161,7 @@ function DispersionChart({ shots, dLbl, sessions }: { shots: Shot[]; dLbl: strin
       </CardHeader>
 
       <CardContent>
-        <ResponsiveContainer width="100%" height={560}>
+        <ResponsiveContainer width="100%" aspect={CHART_ASPECT}>
           <ScatterChart margin={{ top: 10, right: 20, left: 10, bottom: 10 }}>
             <CartesianGrid opacity={0.15} />
             <XAxis
