@@ -990,6 +990,7 @@ function DispersionChart({ shots, dLbl, sessions }: { shots: Shot[]; dLbl: strin
     [filteredShots]
   );
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [showFairway, setShowFairway] = useState(false);
 
   const toggle = (c: string) => {
     const next = new Set(selected);
