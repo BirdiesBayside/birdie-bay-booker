@@ -1,6 +1,6 @@
 import MarketingLayout from "@/components/marketing/MarketingLayout";
 import { ArrowRight, LayoutGrid, Monitor, BadgePercent, Trophy, Smartphone } from "lucide-react";
-import simulatorBay from "@/assets/simulator-bay.png.asset.json";
+import birdiesNeonSign from "@/assets/birdies-neon-sign.png.asset.json";
 
 const HERO = "https://cdn.shopify.com/s/files/1/0758/7030/6550/files/Birdies_Golf.jpg?v=1751956878&width=3840";
 
