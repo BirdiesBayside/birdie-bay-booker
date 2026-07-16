@@ -953,6 +953,19 @@ function SwingStatsTable({ rows }: { rows: ReturnType<typeof swingStatsByClub> }
 function DispersionChart({ shots, dLbl, sessions }: { shots: Shot[]; dLbl: string; sessions?: Session[] }) {
   type DateRange = "all" | "30" | "60" | "90" | "180" | "365";
   const [dateRange, setDateRange] = useState<DateRange>("all");
+  const [isMobileChart, setIsMobileChart] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia("(max-width: 640px)").matches;
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const media = window.matchMedia("(max-width: 640px)");
+    const handleChange = () => setIsMobileChart(media.matches);
+    handleChange();
+    media.addEventListener("change", handleChange);
+    return () => media.removeEventListener("change", handleChange);
+  }, []);
 
   // Session id -> date map
   const sessionDateMap = useMemo(() => {
@@ -1023,7 +1036,7 @@ function DispersionChart({ shots, dLbl, sessions }: { shots: Shot[]; dLbl: strin
   // shown to true scale (matches fairway/tour-average realism instead of
   // being visually stretched by the container width).
   // CHART_ASPECT must match ResponsiveContainer's aspect prop below.
-  const CHART_ASPECT = 1.6; // width / height
+  const CHART_ASPECT = isMobileChart ? 0.72 : 1.6; // width / height
   const bounds = useMemo(() => {
     const all = clubData.flatMap((c) => c.pts);
     if (all.length === 0) return { xMin: -20, xMax: 20, yMin: 0, yMax: 100 };

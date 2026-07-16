@@ -4,6 +4,7 @@ import { Check, Clock, DollarSign, Trophy, Target, ArrowRight, BarChart3, Crossh
 import heroVideo from "@/assets/hero-video.mp4.asset.json";
 import heroPoster from "@/assets/hero-poster.jpg.asset.json";
 import simulatorBay from "@/assets/simulator-bay.png.asset.json";
+import swingLabBadge from "@/assets/swing-lab-badge.png.asset.json";
 const COMMUNITY_IMG = "https://cdn.shopify.com/s/files/1/0758/7030/6550/files/Birdies_Golf.jpg?v=1751956878&width=3840";
 
 const features = [
@@ -135,6 +136,12 @@ const MarketingHome = () => {
       <section className="bg-muted py-12 sm:py-24">
         <div className="container mx-auto px-4">
           <div className="text-center max-w-2xl mx-auto mb-14">
+            <img
+              src={swingLabBadge.url}
+              alt="Swing Lab Birdies Redland Bay badge"
+              className="h-28 sm:h-36 w-auto mx-auto mb-6 object-contain"
+              loading="lazy"
+            />
             <p className="text-accent font-display tracking-[0.2em] uppercase text-sm mb-3">Swing Lab</p>
             <h2 className="font-display text-4xl sm:text-5xl text-primary leading-tight">
               Your Personal Driving Range Coach.
