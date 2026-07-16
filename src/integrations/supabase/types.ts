@@ -456,6 +456,59 @@ export type Database = {
         }
         Relationships: []
       }
+      booking_notification_log: {
+        Row: {
+          attempt_count: number
+          booking_id: string
+          created_at: string
+          email_sent: boolean
+          gate_sms_sent: boolean
+          id: string
+          last_error: string | null
+          last_response: Json | null
+          notification_type: string
+          sms_sent: boolean
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempt_count?: number
+          booking_id: string
+          created_at?: string
+          email_sent?: boolean
+          gate_sms_sent?: boolean
+          id?: string
+          last_error?: string | null
+          last_response?: Json | null
+          notification_type: string
+          sms_sent?: boolean
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempt_count?: number
+          booking_id?: string
+          created_at?: string
+          email_sent?: boolean
+          gate_sms_sent?: boolean
+          id?: string
+          last_error?: string | null
+          last_response?: Json | null
+          notification_type?: string
+          sms_sent?: boolean
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_notification_log_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bookings: {
         Row: {
           bay_id: string
@@ -2729,7 +2782,23 @@ export type Database = {
       }
     }
     Functions: {
+      claim_booking_notification: {
+        Args: { _booking_id: string; _notification_type: string }
+        Returns: Json
+      }
       cleanup_stale_pending_bookings: { Args: never; Returns: number }
+      complete_booking_notification: {
+        Args: {
+          _email_sent?: boolean
+          _gate_sms_sent?: boolean
+          _last_error?: string
+          _last_response?: Json
+          _log_id: string
+          _sms_sent?: boolean
+          _status: string
+        }
+        Returns: undefined
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
