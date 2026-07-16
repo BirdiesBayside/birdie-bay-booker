@@ -1,6 +1,6 @@
 import MarketingLayout from "@/components/marketing/MarketingLayout";
 import { ArrowRight, LayoutGrid, Monitor, BadgePercent, Trophy, Smartphone } from "lucide-react";
-import simulatorBay from "@/assets/simulator-bay.png.asset.json";
+import birdiesNeonSign from "@/assets/birdies-neon-sign.png.asset.json";
 
 const HERO = "https://cdn.shopify.com/s/files/1/0758/7030/6550/files/Birdies_Golf.jpg?v=1751956878&width=3840";
 
@@ -99,7 +99,7 @@ const MarketingAbout = () => (
           </div>
         </div>
         <div className="rounded-2xl overflow-hidden shadow-xl aspect-[4/3]">
-          <img src={simulatorBay.url} alt="Birdies golf simulator bay" className="w-full h-full object-cover" />
+          <img src={birdiesNeonSign.url} alt="Birdies neon sign" className="w-full h-full object-cover" />
         </div>
       </div>
     </section>
