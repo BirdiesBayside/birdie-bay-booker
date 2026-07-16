@@ -99,7 +99,7 @@ const MarketingAbout = () => (
           </div>
         </div>
         <div className="rounded-2xl overflow-hidden shadow-xl aspect-[4/3]">
-          <img src={simulatorBay.url} alt="Birdies golf simulator bay" className="w-full h-full object-cover" />
+          <img src={birdiesNeonSign.url} alt="Birdies neon sign" className="w-full h-full object-cover" />
         </div>
       </div>
     </section>
