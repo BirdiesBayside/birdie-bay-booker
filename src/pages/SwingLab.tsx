@@ -1225,6 +1225,8 @@ function DispersionChart({ shots, dLbl, sessions }: { shots: Shot[]; dLbl: strin
                       />
                     );
                   })()}
+                  {clubData.map(({ club, color, ellipse }) => {
+                    if (!ellipse) return null;
                     const cx = xScale(ellipse.cx);
                     const cy = yScale(ellipse.cy);
                     // Convert world semi-axes to pixel space via scale slope
