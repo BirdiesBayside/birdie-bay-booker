@@ -1,80 +1,39 @@
-# Extend Booking Feature
+## What I found
 
-Let customers add more time to an in-progress booking from their phone, with a QR code on the Bay Controller warning popup as the fast path.
+- Aayden and Tom’s bookings were paid and marked confirmed, but the confirmation notification path did not run reliably.
+- This affects the no-card / first-card Stripe Checkout flow, where the browser returns to the success page and the payment webhook may race each other.
+- The success-page verifier has a bug: if the booking is already confirmed, it returns success without sending a confirmation.
+- The same verifier also triggers the notification without waiting for it to finish, so the function can end before email/SMS are actually sent.
+- Current logs show no successful `send-booking-notification` run for those booking IDs, which matches the customer reports.
 
-## 1. Backend: `extend-booking` edge function
+## Fix plan
 
-New edge function mirroring `reschedule-booking`'s pricing + payment logic.
+1. Make booking confirmation notifications idempotent
+   - Track each booking confirmation send in a backend notification ledger.
+   - Only one process can claim a confirmation send at a time.
+   - If it already sent, skip duplicates.
+   - If a previous attempt failed or got stuck, allow a retry.
 
-**Inputs:** `booking_id`, `additional_hours` (1–3)
+2. Fix the success-page payment verifier
+   - When it finds a booking already confirmed, it will still call the notification sender.
+   - Replace the unawaited background call with an awaited call.
+   - Surface notification send failures in logs instead of silently swallowing them.
 
-**Rules:**
-- Booking must be `confirmed` and currently active (between `start_time` and `end_time + 10min` buffer).
-- New `end_time` must not exceed operating hours for that day (`operating_hours` table).
-- New `end_time` must not overlap any other confirmed/pending booking on the **same bay** (no bay switching).
-- Total duration cap: same as booking config (4hr).
+3. Harden the Stripe webhook
+   - Confirm the booking as it does now.
+   - Call the same idempotent notification sender.
+   - Check the notification function response and log the real error body if it fails.
 
-**Pricing:** recalculate cost of the additional hours using the same tier/peak logic as reschedule (`calculateHourlyRate`). Charge extra to balance first, then saved card. If no card + insufficient balance → 400 with "Add a card to extend."
+4. Backfill the two affected bookings
+   - Re-send confirmation email/SMS for Aayden Dodd and Tom Scallon using the normal booking confirmation function.
+   - Because the new ledger is idempotent, this can be done safely.
 
-**Update:** bumps `end_time`, `duration_hours`, `total_price`, `updated_at`. The Bay Controller precision scheduler already re-reads live bookings, so plugs/apps stay on automatically — no changeover fires.
-
-## 2. Availability helper endpoint
-
-Add a lightweight read the dialog uses to know max extendable hours:
-
-- Query next confirmed/pending booking on same bay after current `end_time`.
-- Query operating hours close time for that date.
-- `maxExtendHours = min(gap_to_next_booking, gap_to_close, 4 - current_duration)` rounded down to whole hours.
-
-Done client-side in the dialog via existing `bookings` and `operating_hours` tables (no new function needed).
-
-## 3. Frontend: `ExtendDialog` component
-
-Shown from My Bookings on any active booking (start ≤ now ≤ end + 10min).
-
-Dialog contents:
-- Current booking summary
-- Extend by: 1hr / 2hr / 3hr buttons (only shown if `maxExtendHours` allows)
-- If `maxExtendHours = 0`: message "Bay is booked at 4:00pm — no additional time available. You can book another bay from the home screen."
-- Live price breakdown (additional hours × rate, peak/off-peak label)
-- Payment source line (Balance / Card ending 4242)
-- Confirm button → calls `extend-booking`
-
-## 4. My Bookings changes
-
-- Add "Extend" button on any booking where `now` is between start and end+10min.
-- Auto-open dialog when URL contains `?extend=<booking_id>` (from QR deep link).
-
-## 5. Bay Controller: QR toggle in Notifications
-
-In the Notifications config section, add per-notification toggles:
-
-- "Show Extend QR code" checkbox on each notification (5min, 1min)
-- Saved to `notificationConfig.notifications[].showExtendQr` in localStorage
-
-## 6. Popup enhancement
-
-Update `show-notification-popup` IPC handler (electron/main.js) to accept `extendQrUrl` param. When present, render a QR code + "Scan to extend your session" line beneath the message.
-
-QR encodes: `https://hub.birdiesbayside.com.au/my-bookings?extend=<booking_id>`
-
-QR generated inline via a lightweight approach (server-side via `api.qrserver.com` image URL, no npm dep needed in Electron).
-
-BayController.tsx passes the URL + toggle state through when calling `showNotificationPopup`.
-
----
+5. Validate
+   - Deploy the updated functions.
+   - Trigger/check the notification function for both affected booking IDs.
+   - Confirm the notification ledger shows the confirmations as sent.
 
 ## Technical notes
 
-- `end_time` overlap check uses same query pattern as `reschedule-booking`.
-- Booking times remain Brisbane local (AEST/UTC+10) — same parsing as the reschedule 10-min guard we just added.
-- No changes needed to Bay Controller scheduler, plugs, GSPro launch, or CSV watcher — they all key off live DB `end_time`.
-- Reuses `pricing_config` + `calculateHourlyRate` for consistency.
-- Deep-link `?extend=<id>` cleared from URL after dialog opens to avoid re-triggering.
-- Preload/electron.d.ts updated to accept optional `extendQrUrl` param.
-
-## Out of scope
-
-- Suggesting alternate bays (per your call — they can just book fresh).
-- Extending completed bookings.
-- Partial-hour extensions.
+- I already added the notification ledger table and backend helper functions needed for idempotency.
+- The remaining work is wiring `send-booking-notification`, `verify-booking-payment`, and `stripe-webhook` to use it.

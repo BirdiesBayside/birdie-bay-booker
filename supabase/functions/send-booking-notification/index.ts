@@ -19,6 +19,40 @@ const logStep = (step: string, details?: any) => {
   console.log(`[SEND-BOOKING-NOTIFICATION] ${step}${detailsStr}`);
 };
 
+const completeNotificationLog = async (
+  logId: string | null,
+  status: "sent" | "failed",
+  result: {
+    email_sent?: boolean;
+    sms_sent?: boolean;
+    gate_sms_sent?: boolean;
+    error?: string | null;
+    response?: Record<string, unknown> | null;
+  } = {},
+) => {
+  if (!logId) return;
+
+  try {
+    const supabaseClient = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+      { auth: { persistSession: false } },
+    );
+
+    await supabaseClient.rpc("complete_booking_notification", {
+      _log_id: logId,
+      _status: status,
+      _email_sent: result.email_sent ?? false,
+      _sms_sent: result.sms_sent ?? false,
+      _gate_sms_sent: result.gate_sms_sent ?? false,
+      _last_error: result.error ?? null,
+      _last_response: result.response ?? null,
+    });
+  } catch (e: any) {
+    logStep("Failed to update notification log", { error: e.message });
+  }
+};
+
 // Format phone number for SMS Broadcast (Australian format)
 const formatPhoneForSMS = (phone: string | null): string | null => {
   if (!phone) return null;
@@ -194,6 +228,8 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  let notificationLogId: string | null = null;
+
   try {
     logStep("Function started");
 
@@ -208,6 +244,42 @@ serve(async (req) => {
 
     if (!booking_id || !notification_type) {
       throw new Error("Missing booking_id or notification_type");
+    }
+
+    if (notification_type === "confirmation") {
+      const { data: claim, error: claimError } = await supabaseClient.rpc(
+        "claim_booking_notification",
+        {
+          _booking_id: booking_id,
+          _notification_type: notification_type,
+        },
+      );
+
+      if (claimError) {
+        logStep("Notification claim failed", { error: claimError.message });
+        throw new Error("Failed to claim booking notification");
+      }
+
+      notificationLogId = (claim as any)?.log_id ?? null;
+      if (!(claim as any)?.should_send) {
+        logStep("Confirmation notification already handled", claim);
+        return new Response(
+          JSON.stringify({
+            success: true,
+            email_sent: !!(claim as any)?.email_sent,
+            sms_sent: !!(claim as any)?.sms_sent,
+            gate_sms_sent: !!(claim as any)?.gate_sms_sent,
+            skipped: true,
+            reason: (claim as any)?.reason || "already_handled",
+          }),
+          {
+            status: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+
+      logStep("Confirmation notification claimed", claim);
     }
 
     // Fetch booking details with bay info
@@ -296,6 +368,12 @@ serve(async (req) => {
     // Check if template is disabled - skip sending if so
     if (emailTemplate && emailTemplate.is_active === false) {
       logStep("Template is disabled, skipping email notification");
+      await completeNotificationLog(notificationLogId, "sent", {
+        email_sent: false,
+        sms_sent: false,
+        gate_sms_sent: false,
+        response: { message: `${notification_type} notification skipped - template disabled` },
+      });
       return new Response(
         JSON.stringify({ 
           success: true, 
@@ -667,8 +745,7 @@ serve(async (req) => {
       logStep("No phone number, skipping SMS");
     }
 
-    return new Response(
-      JSON.stringify({ 
+    const responsePayload = { 
         success: true, 
         email_sent: true,
         sms_sent: smsResult.success,
@@ -676,7 +753,17 @@ serve(async (req) => {
         gate_sms_sent: gateSmsResult?.success || false,
         gate_sms_error: gateSmsResult?.error || null,
         message: `${notification_type} notification sent successfully` 
-      }),
+      };
+
+    await completeNotificationLog(notificationLogId, "sent", {
+      email_sent: true,
+      sms_sent: smsResult.success,
+      gate_sms_sent: gateSmsResult?.success || false,
+      response: responsePayload,
+    });
+
+    return new Response(
+      JSON.stringify(responsePayload),
       {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -684,6 +771,10 @@ serve(async (req) => {
     );
   } catch (error: any) {
     logStep("ERROR", { message: error.message });
+    await completeNotificationLog(notificationLogId, "failed", {
+      error: error.message,
+      response: { success: false, error: error.message },
+    });
     return new Response(
       JSON.stringify({ success: false, error: error.message }),
       {
