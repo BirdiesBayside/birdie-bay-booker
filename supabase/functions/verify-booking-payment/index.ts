@@ -94,11 +94,39 @@ serve(async (req) => {
       { auth: { persistSession: false } }
     );
 
-    const { bookingId } = await req.json();
+    const { bookingId, sessionId } = await req.json();
     if (!bookingId) throw new Error("Missing bookingId");
-    logStep("Request parsed", { bookingId });
+    logStep("Request parsed", { bookingId, sessionId });
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
+
+    const getMatchingSessions = async (): Promise<Stripe.Checkout.Session[]> => {
+      if (sessionId && typeof sessionId === "string") {
+        try {
+          const session = await stripe.checkout.sessions.retrieve(sessionId);
+          if (session.metadata?.booking_id === bookingId) {
+            logStep("Retrieved checkout session by ID", {
+              sessionId: session.id,
+              paymentStatus: session.payment_status,
+            });
+            return [session];
+          }
+
+          logStep("Checkout session ID did not match booking", {
+            sessionId: session.id,
+            sessionBookingId: session.metadata?.booking_id,
+          });
+        } catch (e: any) {
+          logStep("Could not retrieve checkout session by ID", { sessionId, error: e.message });
+        }
+      }
+
+      // Fallback for old success URLs that did not include session_id.
+      const sessions = await stripe.checkout.sessions.list({ limit: 50 });
+      return sessions.data.filter(
+        (s: Stripe.Checkout.Session) => s.metadata?.booking_id === bookingId,
+      );
+    };
 
     // Check if booking exists (using UUID provides security - only holder knows it)
     const { data: booking, error: bookingError } = await supabaseClient
@@ -122,8 +150,8 @@ serve(async (req) => {
       logStep("Booking not found - checking for orphaned payment to refund", { bookingId });
       
       // Find any paid session for this booking ID and refund it
-      const sessions = await stripe.checkout.sessions.list({ limit: 50 });
-      const paidSession = sessions.data.find(
+      const matchingSessions = await getMatchingSessions();
+      const paidSession = matchingSessions.find(
         (s: Stripe.Checkout.Session) => 
           s.metadata?.booking_id === bookingId && s.payment_status === "paid"
       );
@@ -161,8 +189,8 @@ serve(async (req) => {
       logStep("Booking already confirmed", { bookingId });
       
       // Check if there's a DIFFERENT paid session trying to confirm the same booking
-      const sessions = await stripe.checkout.sessions.list({ limit: 50 });
-      const paidSessions = sessions.data.filter(
+      const matchingSessions = await getMatchingSessions();
+      const paidSessions = matchingSessions.filter(
         (s: Stripe.Checkout.Session) => 
           s.metadata?.booking_id === bookingId && s.payment_status === "paid"
       );
@@ -199,15 +227,9 @@ serve(async (req) => {
       });
     }
 
-    // Find checkout sessions for this booking (increased limit for high traffic periods)
-    const sessions = await stripe.checkout.sessions.list({
-      limit: 50,
-    });
-
-    // Look for any session matching this booking
-    const matchingSessions = sessions.data.filter(
-      (s: Stripe.Checkout.Session) => s.metadata?.booking_id === bookingId
-    );
+    // Find checkout sessions for this booking. New success URLs include session_id;
+    // older redirects fall back to the recent-session search.
+    const matchingSessions = await getMatchingSessions();
 
     // Check for paid session first
     const paidSession = matchingSessions.find(
