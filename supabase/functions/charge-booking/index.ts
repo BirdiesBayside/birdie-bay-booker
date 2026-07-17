@@ -43,6 +43,41 @@ serve(async (req) => {
     if (!bookingId || !amount) throw new Error("Missing bookingId or amount");
     logStep("Request parsed", { bookingId, amount, description, paymentMethodId, mode });
 
+    // Fix B: guard against rapid duplicate bookings. If this user already has
+    // ANOTHER confirmed booking created in the last 90s (different bookingId),
+    // block this charge to prevent double-charging on accidental double-clicks.
+    const { data: currentBooking } = await supabaseClient
+      .from("bookings")
+      .select("id, bay_id, booking_date, start_time, status")
+      .eq("id", bookingId)
+      .maybeSingle();
+
+    if (currentBooking) {
+      const since = new Date(Date.now() - 90 * 1000).toISOString();
+      const { data: recentDupes } = await supabaseClient
+        .from("bookings")
+        .select("id, stripe_payment_intent_id, created_at")
+        .eq("user_id", user.id)
+        .eq("status", "confirmed")
+        .neq("id", bookingId)
+        .gte("created_at", since);
+
+      if (recentDupes && recentDupes.length > 0) {
+        logStep("Blocked duplicate booking attempt", {
+          bookingId,
+          existingBookingId: recentDupes[0].id,
+          windowSeconds: 90,
+        });
+        return new Response(JSON.stringify({
+          error: "You just made another booking a few seconds ago. If that wasn't intentional, please refresh — otherwise wait a minute before trying again.",
+          code: "duplicate_booking_blocked",
+        }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 409,
+        });
+      }
+    }
+
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
 
     // Check if customer exists in Stripe
