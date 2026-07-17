@@ -1,39 +1,60 @@
-## What I found
+## Refunds for Martin — final state you want
 
-- Aayden and Tom’s bookings were paid and marked confirmed, but the confirmation notification path did not run reliably.
-- This affects the no-card / first-card Stripe Checkout flow, where the browser returns to the success page and the payment webhook may race each other.
-- The success-page verifier has a bug: if the booking is already confirmed, it returns success without sending a confirmation.
-- The same verifier also triggers the notification without waiting for it to finish, so the function can end before email/SMS are actually sent.
-- Current logs show no successful `send-booking-notification` run for those booking IDs, which matches the customer reports.
+Keep: $10 Bay 1 booking + active **Birdie** subscription ($27/wk, next bill $27).
+Refund: everything else.
 
-## Fix plan
+### Refunds to issue
 
-1. Make booking confirmation notifications idempotent
-   - Track each booking confirmation send in a backend notification ledger.
-   - Only one process can claim a confirmation send at a time.
-   - If it already sent, skip duplicates.
-   - If a previous attempt failed or got stuck, allow a retry.
 
-2. Fix the success-page payment verifier
-   - When it finds a booking already confirmed, it will still call the notification sender.
-   - Replace the unawaited background call with an awaited call.
-   - Surface notification send failures in logs instead of silently swallowing them.
+| #   | Charge                                  | Amount                                               | Action                                                                                   |
+| --- | --------------------------------------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| 1   | `ch_3Tu9x2…` — orphan $35               | $35                                                  | Already auto-refunded by Stripe. Verify, no action.                                      |
+| 2   | `ch_3Tu9y7…` — Eagle sub first invoice  | **Refund $35.00**                                    | `reason=duplicate` (bug, not customer)                                                   |
+| 3   | `ch_3TuA31…` — accidental Bay 2 booking | **Refund $35.00** + cancel booking `ae740e88…`       | `reason=duplicate`                                                                       |
+| 4   | Birdie sub first invoice (goodwill)     | **Refund $27.00** (or full amount if it was charged) | `reason=requested_by_customer`                                                           |
+| 5   | Stripe customer balance                 | **Reset to $0**                                      | So the ~$8 Eagle→Birdie proration credit doesn't silently offset next week's $27 invoice |
 
-3. Harden the Stripe webhook
-   - Confirm the booking as it does now.
-   - Call the same idempotent notification sender.
-   - Check the notification function response and log the real error body if it fails.
 
-4. Backfill the two affected bookings
-   - Re-send confirmation email/SMS for Aayden Dodd and Tom Scallon using the normal booking confirmation function.
-   - Because the new ledger is idempotent, this can be done safely.
+**Ordering note:** I'll run `stripe_api_read` on `cus_UtxK9YsjGaTWqy` first to confirm (a) the exact amount of the Birdie first invoice, (b) the current customer_balance, so refund #4 uses the real number and #5 zeroes correctly. Next Birdie invoice must land as a clean $27 charge next week.
 
-5. Validate
-   - Deploy the updated functions.
-   - Trigger/check the notification function for both affected booking IDs.
-   - Confirm the notification ledger shows the confirmations as sent.
+**Verification after:**
 
-## Technical notes
+- `bookings`: only `34ccfff9` (Bay 1 $10) remains confirmed; `ae740e88` = cancelled.
+- Stripe subs: only the Birdie `sub_1TuA0X…` active.
+- Stripe customer balance = 0.
+- Upcoming invoice on the sub = $27.00.
 
-- I already added the notification ledger table and backend helper functions needed for idempotency.
-- The remaining work is wiring `send-booking-notification`, `verify-booking-payment`, and `stripe-webhook` to use it.
+### One goodwill email
+
+I will email him personally, do not send any emails to Martin 
+
+---
+
+## Preventing the double-fire — backend only, zero UI change
+
+You're right that the button is already disabled during submit — that's not where the leak is. The bug is in two backend places, and both fixes are invisible to the customer.
+
+### Fix A — Membership checkout: stable idempotency key
+
+`create-membership-checkout` currently appends `crypto.randomUUID().slice(0,8)` to the idempotency key, which means every retry (double-tap, network hiccup, tier switch) is a *new* Stripe request → new PaymentIntent → duplicate charge like Charge A.
+Change: derive the key from `user_id + tierKey + priceId + floor(now / 60_000)` (per-minute bucket). Retries inside 60s hit the same Stripe slot and Stripe returns the original response instead of charging again. Retries after 60s (i.e. genuine second attempt) still work.
+
+### Fix B — Booking: server-side "recent duplicate" guard
+
+`charge-booking` will reject if the same `user_id` already has a booking created in the last **90 seconds** with an overlapping time window. Returns a soft error the client already handles ("This slot was just booked — check My Bookings"). This is the exact case that produced Charge E: two POSTs 46 seconds apart, both went through. Problem is, sometimes people genuinely want to book two bays?
+
+### Fix C — Membership tier-switch refund policy
+
+When `create-membership-checkout` cancels an existing sub to switch tier and the cancelled sub was created **less than 10 minutes ago**, refund its most recent paid invoice to the card (instead of leaving a Stripe credit balance). This is what would have prevented today's Eagle→Birdie mess without any manual intervention.
+
+None of the above touches the UI. No spinners, no confirm dialogs, no extra clicks. All three are pure server-side hardening.
+
+---
+
+## What I need from you
+
+1. **Approve the refunds + booking cancellation.** I'll confirm the exact Birdie invoice amount from Stripe first, then execute.
+2. **Yes/no on the goodwill email.**
+3. **Approve fixes A, B, C** so I ship them in the same build turn.
+
+Say "go" and I do all of it.
