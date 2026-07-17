@@ -32,6 +32,7 @@ const BookingSuccess = () => {
   const [error, setError] = useState<string | null>(null);
 
   const bookingId = searchParams.get("booking_id");
+  const sessionId = searchParams.get("session_id");
 
   useEffect(() => {
     const verifyAndFetchBooking = async () => {
@@ -44,7 +45,7 @@ const BookingSuccess = () => {
       try {
         const { data: verifyResult, error: verifyError } = await supabase.functions.invoke(
           "verify-booking-payment",
-          { body: { bookingId } }
+          { body: { bookingId, sessionId } }
         );
 
         if (verifyError) {
@@ -99,7 +100,7 @@ const BookingSuccess = () => {
     };
 
     verifyAndFetchBooking();
-  }, [bookingId]);
+  }, [bookingId, sessionId]);
 
   const formatTime = (time: string) => {
     const [hours, minutes] = time.split(":");

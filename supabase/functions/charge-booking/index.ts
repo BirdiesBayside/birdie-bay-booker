@@ -150,7 +150,7 @@ serve(async (req) => {
       const origin = req.headers.get("origin") || "https://hub.birdiesbayside.com.au";
 
       // Always use HTTPS URLs - for native apps, the WebView handles the redirect naturally
-      const successUrl = `${origin}/booking-success?booking_id=${bookingId}`;
+      const successUrl = `${origin}/booking-success?booking_id=${bookingId}&session_id={CHECKOUT_SESSION_ID}`;
       const cancelUrl = `${origin}/booking?booking_cancelled=true&booking_id=${bookingId}`;
 
       const session = await stripe.checkout.sessions.create({
@@ -212,7 +212,7 @@ serve(async (req) => {
       const origin = req.headers.get("origin") || "https://hub.birdiesbayside.com.au";
       
       // Always use HTTPS URLs - for native apps, the WebView handles the redirect naturally
-      const successUrl = `${origin}/booking-success?booking_id=${bookingId}`;
+      const successUrl = `${origin}/booking-success?booking_id=${bookingId}&session_id={CHECKOUT_SESSION_ID}`;
       const cancelUrl = `${origin}/booking?booking_cancelled=true&booking_id=${bookingId}`;
       
       const session = await stripe.checkout.sessions.create({
