@@ -103,9 +103,32 @@ serve(async (req) => {
         const defaultPaymentMethod = paymentMethods.data[0].id;
         logStep("Using saved payment method", { paymentMethodId: defaultPaymentMethod });
 
-        // Cancel existing subscriptions first
+        // Cancel existing subscriptions first — and if any was created less
+        // than 10 minutes ago (i.e. an accidental double-signup on a different
+        // tier), refund the initial charge so the customer only pays for the
+        // tier they actually kept. Fix C.
         if (existingSubscriptions.data.length > 0) {
           for (const sub of existingSubscriptions.data) {
+            const ageMs = Date.now() - (sub.created * 1000);
+            if (ageMs < 10 * 60 * 1000) {
+              try {
+                const invoices = await stripe.invoices.list({ subscription: sub.id, limit: 5 });
+                for (const inv of invoices.data) {
+                  if (inv.status === "paid" && inv.charge && inv.amount_paid > 0) {
+                    const chargeId = typeof inv.charge === "string" ? inv.charge : inv.charge.id;
+                    const refund = await stripe.refunds.create({
+                      charge: chargeId,
+                      reason: "duplicate",
+                    });
+                    logStep("Refunded accidental sub charge on tier switch", {
+                      subscriptionId: sub.id, chargeId, refundId: refund.id, ageMs,
+                    });
+                  }
+                }
+              } catch (refundErr) {
+                logStep("WARN: refund on tier switch failed", { error: String(refundErr) });
+              }
+            }
             await stripe.subscriptions.cancel(sub.id, { prorate: true });
             logStep("Cancelled existing subscription", { subscriptionId: sub.id });
           }
