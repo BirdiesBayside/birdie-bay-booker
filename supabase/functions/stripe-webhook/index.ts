@@ -13,6 +13,47 @@ const logStep = (step: string, details?: any) => {
   console.log(`[STRIPE-WEBHOOK] ${step}${detailsStr}`);
 };
 
+const triggerBookingConfirmation = async (bookingId: string) => {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error("Missing backend configuration for booking notification");
+  }
+
+  const response = await fetch(`${supabaseUrl}/functions/v1/send-booking-notification`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${supabaseKey}`,
+    },
+    body: JSON.stringify({
+      booking_id: bookingId,
+      notification_type: "confirmation",
+    }),
+  });
+
+  const responseText = await response.text();
+  let responseBody: any = responseText;
+  try {
+    responseBody = responseText ? JSON.parse(responseText) : null;
+  } catch {
+    // Keep raw text body for logging.
+  }
+
+  if (!response.ok) {
+    logStep("Booking notification failed", {
+      bookingId,
+      status: response.status,
+      response: responseBody,
+    });
+    return { success: false, status: response.status, response: responseBody };
+  }
+
+  logStep("Booking notification completed", { bookingId, response: responseBody });
+  return { success: true, status: response.status, response: responseBody };
+};
+
 const TIER_NAMES: Record<string, string> = {
   "weekday": "Weekday",
   "birdie": "Birdie",
@@ -625,23 +666,12 @@ serve(async (req) => {
           logStep("Booking confirmed successfully", { bookingId });
 
           try {
-            const supabaseUrl = Deno.env.get("SUPABASE_URL");
-            const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-            
-            await fetch(`${supabaseUrl}/functions/v1/send-booking-notification`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${supabaseKey}`,
-              },
-              body: JSON.stringify({
-                booking_id: bookingId,
-                notification_type: "confirmation",
-              }),
-            });
-            logStep("Booking notification sent");
+            const notificationResult = await triggerBookingConfirmation(bookingId);
+            logStep("Booking notification handled", notificationResult);
           } catch (notificationError) {
-            logStep("Failed to send booking notification", { error: notificationError });
+            logStep("Failed to send booking notification", {
+              error: notificationError instanceof Error ? notificationError.message : String(notificationError),
+            });
           }
         }
       }

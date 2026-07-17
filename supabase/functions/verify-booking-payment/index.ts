@@ -34,6 +34,47 @@ const refundOrphanedPayment = async (
   }
 };
 
+const triggerBookingConfirmation = async (bookingId: string) => {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error("Missing backend configuration for booking notification");
+  }
+
+  const response = await fetch(`${supabaseUrl}/functions/v1/send-booking-notification`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${supabaseKey}`,
+    },
+    body: JSON.stringify({
+      booking_id: bookingId,
+      notification_type: "confirmation",
+    }),
+  });
+
+  const responseText = await response.text();
+  let responseBody: any = responseText;
+  try {
+    responseBody = responseText ? JSON.parse(responseText) : null;
+  } catch {
+    // Keep raw text body for logging.
+  }
+
+  if (!response.ok) {
+    logStep("Booking notification failed", {
+      bookingId,
+      status: response.status,
+      response: responseBody,
+    });
+    return { success: false, status: response.status, response: responseBody };
+  }
+
+  logStep("Booking notification completed", { bookingId, response: responseBody });
+  return { success: true, status: response.status, response: responseBody };
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -53,11 +94,39 @@ serve(async (req) => {
       { auth: { persistSession: false } }
     );
 
-    const { bookingId } = await req.json();
+    const { bookingId, sessionId } = await req.json();
     if (!bookingId) throw new Error("Missing bookingId");
-    logStep("Request parsed", { bookingId });
+    logStep("Request parsed", { bookingId, sessionId });
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
+
+    const getMatchingSessions = async (): Promise<Stripe.Checkout.Session[]> => {
+      if (sessionId && typeof sessionId === "string") {
+        try {
+          const session = await stripe.checkout.sessions.retrieve(sessionId);
+          if (session.metadata?.booking_id === bookingId) {
+            logStep("Retrieved checkout session by ID", {
+              sessionId: session.id,
+              paymentStatus: session.payment_status,
+            });
+            return [session];
+          }
+
+          logStep("Checkout session ID did not match booking", {
+            sessionId: session.id,
+            sessionBookingId: session.metadata?.booking_id,
+          });
+        } catch (e: any) {
+          logStep("Could not retrieve checkout session by ID", { sessionId, error: e.message });
+        }
+      }
+
+      // Fallback for old success URLs that did not include session_id.
+      const sessions = await stripe.checkout.sessions.list({ limit: 50 });
+      return sessions.data.filter(
+        (s: Stripe.Checkout.Session) => s.metadata?.booking_id === bookingId,
+      );
+    };
 
     // Check if booking exists (using UUID provides security - only holder knows it)
     const { data: booking, error: bookingError } = await supabaseClient
@@ -81,8 +150,8 @@ serve(async (req) => {
       logStep("Booking not found - checking for orphaned payment to refund", { bookingId });
       
       // Find any paid session for this booking ID and refund it
-      const sessions = await stripe.checkout.sessions.list({ limit: 50 });
-      const paidSession = sessions.data.find(
+      const matchingSessions = await getMatchingSessions();
+      const paidSession = matchingSessions.find(
         (s: Stripe.Checkout.Session) => 
           s.metadata?.booking_id === bookingId && s.payment_status === "paid"
       );
@@ -120,8 +189,8 @@ serve(async (req) => {
       logStep("Booking already confirmed", { bookingId });
       
       // Check if there's a DIFFERENT paid session trying to confirm the same booking
-      const sessions = await stripe.checkout.sessions.list({ limit: 50 });
-      const paidSessions = sessions.data.filter(
+      const matchingSessions = await getMatchingSessions();
+      const paidSessions = matchingSessions.filter(
         (s: Stripe.Checkout.Session) => 
           s.metadata?.booking_id === bookingId && s.payment_status === "paid"
       );
@@ -143,11 +212,14 @@ serve(async (req) => {
           }
         }
       }
+
+      const notificationResult = await triggerBookingConfirmation(bookingId);
       
       return new Response(JSON.stringify({ 
         success: true, 
         status: "confirmed",
         alreadyConfirmed: true,
+        notification: notificationResult,
         booking: bookingDetails
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -155,15 +227,9 @@ serve(async (req) => {
       });
     }
 
-    // Find checkout sessions for this booking (increased limit for high traffic periods)
-    const sessions = await stripe.checkout.sessions.list({
-      limit: 50,
-    });
-
-    // Look for any session matching this booking
-    const matchingSessions = sessions.data.filter(
-      (s: Stripe.Checkout.Session) => s.metadata?.booking_id === bookingId
-    );
+    // Find checkout sessions for this booking. New success URLs include session_id;
+    // older redirects fall back to the recent-session search.
+    const matchingSessions = await getMatchingSessions();
 
     // Check for paid session first
     const paidSession = matchingSessions.find(
@@ -251,26 +317,17 @@ serve(async (req) => {
 
     logStep("Booking confirmed successfully", { bookingId });
 
-    // Send booking confirmation notification in background
+    // Send booking confirmation notification now. The notification function is idempotent,
+    // so this is safe even if the Stripe webhook races this verifier.
+    let notificationResult: any = null;
     try {
-      const supabaseUrl = Deno.env.get("SUPABASE_URL");
-      const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-      
-      fetch(`${supabaseUrl}/functions/v1/send-booking-notification`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${supabaseKey}`,
-        },
-        body: JSON.stringify({
-          booking_id: bookingId,
-          notification_type: "confirmation",
-        }),
-      }).catch((err) => logStep("Notification error", { error: err.message }));
-      
-      logStep("Booking notification triggered");
+      notificationResult = await triggerBookingConfirmation(bookingId);
     } catch (notificationError) {
-      logStep("Failed to send booking notification", { error: notificationError });
+      notificationResult = {
+        success: false,
+        error: notificationError instanceof Error ? notificationError.message : String(notificationError),
+      };
+      logStep("Failed to send booking notification", notificationResult);
     }
 
     // Refetch booking to get updated status and bay details
@@ -297,6 +354,7 @@ serve(async (req) => {
     return new Response(JSON.stringify({ 
       success: true, 
       status: "confirmed",
+      notification: notificationResult,
       booking: confirmedBookingDetails
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
