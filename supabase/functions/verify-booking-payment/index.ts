@@ -34,6 +34,47 @@ const refundOrphanedPayment = async (
   }
 };
 
+const triggerBookingConfirmation = async (bookingId: string) => {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error("Missing backend configuration for booking notification");
+  }
+
+  const response = await fetch(`${supabaseUrl}/functions/v1/send-booking-notification`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${supabaseKey}`,
+    },
+    body: JSON.stringify({
+      booking_id: bookingId,
+      notification_type: "confirmation",
+    }),
+  });
+
+  const responseText = await response.text();
+  let responseBody: any = responseText;
+  try {
+    responseBody = responseText ? JSON.parse(responseText) : null;
+  } catch {
+    // Keep raw text body for logging.
+  }
+
+  if (!response.ok) {
+    logStep("Booking notification failed", {
+      bookingId,
+      status: response.status,
+      response: responseBody,
+    });
+    return { success: false, status: response.status, response: responseBody };
+  }
+
+  logStep("Booking notification completed", { bookingId, response: responseBody });
+  return { success: true, status: response.status, response: responseBody };
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -143,11 +184,14 @@ serve(async (req) => {
           }
         }
       }
+
+      const notificationResult = await triggerBookingConfirmation(bookingId);
       
       return new Response(JSON.stringify({ 
         success: true, 
         status: "confirmed",
         alreadyConfirmed: true,
+        notification: notificationResult,
         booking: bookingDetails
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -251,26 +295,17 @@ serve(async (req) => {
 
     logStep("Booking confirmed successfully", { bookingId });
 
-    // Send booking confirmation notification in background
+    // Send booking confirmation notification now. The notification function is idempotent,
+    // so this is safe even if the Stripe webhook races this verifier.
+    let notificationResult: any = null;
     try {
-      const supabaseUrl = Deno.env.get("SUPABASE_URL");
-      const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-      
-      fetch(`${supabaseUrl}/functions/v1/send-booking-notification`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${supabaseKey}`,
-        },
-        body: JSON.stringify({
-          booking_id: bookingId,
-          notification_type: "confirmation",
-        }),
-      }).catch((err) => logStep("Notification error", { error: err.message }));
-      
-      logStep("Booking notification triggered");
+      notificationResult = await triggerBookingConfirmation(bookingId);
     } catch (notificationError) {
-      logStep("Failed to send booking notification", { error: notificationError });
+      notificationResult = {
+        success: false,
+        error: notificationError instanceof Error ? notificationError.message : String(notificationError),
+      };
+      logStep("Failed to send booking notification", notificationResult);
     }
 
     // Refetch booking to get updated status and bay details
@@ -297,6 +332,7 @@ serve(async (req) => {
     return new Response(JSON.stringify({ 
       success: true, 
       status: "confirmed",
+      notification: notificationResult,
       booking: confirmedBookingDetails
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
