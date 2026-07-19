@@ -40,6 +40,7 @@ export default function LeagueLeaderboard() {
   const [scoreType, setScoreType] = useState<"gross" | "net">("net");
   const [showAllWeeks, setShowAllWeeks] = useState(false);
   const [activeTab, setActiveTab] = useState<"monthly" | "weekly">("weekly");
+  const [weeklyView, setWeeklyView] = useState<"scores" | "stats">("scores");
   const [monthlyStandings, setMonthlyStandings] = useState<MonthlyStanding[]>([]);
   const [monthlyLoading, setMonthlyLoading] = useState(false);
 
