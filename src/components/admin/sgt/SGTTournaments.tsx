@@ -36,10 +36,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Search, Calendar, Plus, MoreHorizontal, Pencil, XCircle } from "lucide-react";
+import { Search, Calendar, Plus, MoreHorizontal, Pencil, XCircle, BarChart3 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "@/hooks/use-toast";
 import { TournamentFormDialog } from "./TournamentFormDialog";
+import { TournamentStatsDialog } from "./TournamentStatsDialog";
 
 export function SGTTournaments() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -50,6 +51,8 @@ export function SGTTournaments() {
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
   const [tournamentToClose, setTournamentToClose] = useState<any>(null);
   const [isClosing, setIsClosing] = useState(false);
+  const [statsDialogOpen, setStatsDialogOpen] = useState(false);
+  const [statsTournament, setStatsTournament] = useState<any>(null);
   const queryClient = useQueryClient();
 
   // Fetch tournaments
@@ -253,6 +256,15 @@ export function SGTTournaments() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="bg-background">
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setStatsTournament(tournament);
+                              setStatsDialogOpen(true);
+                            }}
+                          >
+                            <BarChart3 className="h-4 w-4 mr-2" />
+                            View Stats
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => handleEditTournament(tournament)}>
                             <Pencil className="h-4 w-4 mr-2" />
                             Edit
@@ -295,6 +307,15 @@ export function SGTTournaments() {
         tours={tours || []}
         defaultTourId={tourFilter !== "all" ? parseInt(tourFilter) : undefined}
       />
+
+      {/* Tournament Stats Dialog */}
+      <TournamentStatsDialog
+        open={statsDialogOpen}
+        onOpenChange={setStatsDialogOpen}
+        tournament={statsTournament}
+      />
+
+
 
       {/* Close Tournament Confirmation Dialog */}
       <AlertDialog open={closeDialogOpen} onOpenChange={setCloseDialogOpen}>

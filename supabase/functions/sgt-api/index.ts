@@ -453,7 +453,49 @@ serve(async (req) => {
         }));
         break;
       }
-        
+
+      case "tournament-stats": {
+        if (!params.tournamentId) throw new Error("tournamentId required");
+
+        // Admin-only (calls live SGT API using the club's shared API key)
+        const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+        const adminClient = createClient(supabaseUrl, serviceKey);
+
+        const { data: isAdmin } = await adminClient.rpc("has_role", {
+          _user_id: user.id,
+          _role: "admin",
+        });
+        if (!isAdmin) {
+          return new Response(JSON.stringify({ error: "Forbidden" }), {
+            status: 403,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        const { data: apiConfig } = await adminClient
+          .from("sgt_api_config")
+          .select("api_key")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (!apiConfig?.api_key) throw new Error("No SGT API key configured");
+
+        const url = new URL(
+          "https://simulatorgolftour.com/sgt-api/club-admin/birdiesbayside/tournaments/stats"
+        );
+        url.searchParams.append("api-key", apiConfig.api_key);
+        url.searchParams.append("tournamentId", String(params.tournamentId));
+
+        const sgtResp = await fetch(url.toString());
+        if (!sgtResp.ok) {
+          const body = await sgtResp.text();
+          throw new Error(`SGT API error ${sgtResp.status}: ${body}`);
+        }
+        data = await sgtResp.json();
+        break;
+      }
+
       default:
         throw new Error(`Unknown action: ${action}`);
     }
