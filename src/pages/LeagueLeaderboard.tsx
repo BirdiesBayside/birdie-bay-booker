@@ -364,7 +364,52 @@ export default function LeagueLeaderboard() {
             </div>
           </div>
 
-          {tournamentStandingsLoading ? (
+          {/* Scores vs Stats sub-tabs */}
+          <div className="flex justify-center mb-6">
+            <div className="flex rounded-full bg-muted overflow-hidden">
+              <button
+                onClick={() => setWeeklyView("scores")}
+                className={cn(
+                  "px-6 py-2 font-inter text-sm font-medium transition-colors rounded-full",
+                  weeklyView === "scores"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Scores
+              </button>
+              <button
+                onClick={() => setWeeklyView("stats")}
+                className={cn(
+                  "px-6 py-2 font-inter text-sm font-medium transition-colors rounded-full",
+                  weeklyView === "stats"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Stats
+              </button>
+            </div>
+          </div>
+
+          {weeklyView === "stats" ? (
+            <div className="bg-card rounded-xl border border-border p-4 sm:p-6 animate-slide-up">
+              {selectedTournament ? (
+                <TournamentStatsView
+                  tournamentId={selectedTournament}
+                  isCompleted={
+                    filteredTournaments.find((t) => t.tournament_id === selectedTournament)
+                      ?.status === "Completed"
+                  }
+                />
+              ) : (
+                <p className="text-center text-muted-foreground py-12 font-inter">
+                  Select a week to view stats.
+                </p>
+              )}
+            </div>
+          ) : (
+
             <div className="flex items-center justify-center py-20">
               <Loader2 className="h-8 w-8 text-secondary animate-spin" />
             </div>
