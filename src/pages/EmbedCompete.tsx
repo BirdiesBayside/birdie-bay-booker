@@ -364,8 +364,10 @@ export default function EmbedCompete({ hideHero = false }: { hideHero?: boolean 
                   </div>
                 )}
               </div>
+              )}
               <FooterCTA href="/embed/leaderboard?tab=weekly" label="Full leaderboard" />
             </div>
+
           )}
         </div>
       </section>
