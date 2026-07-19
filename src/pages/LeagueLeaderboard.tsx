@@ -612,8 +612,7 @@ export default function LeagueLeaderboard() {
               </div>
             </div>
           )}
-          </>
-          )}
+
 
         </TabsContent>
       </Tabs>
