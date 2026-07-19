@@ -36,10 +36,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Search, Calendar, Plus, MoreHorizontal, Pencil, XCircle } from "lucide-react";
+import { Search, Calendar, Plus, MoreHorizontal, Pencil, XCircle, BarChart3 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "@/hooks/use-toast";
 import { TournamentFormDialog } from "./TournamentFormDialog";
+import { TournamentStatsDialog } from "./TournamentStatsDialog";
 
 export function SGTTournaments() {
   const [searchQuery, setSearchQuery] = useState("");
