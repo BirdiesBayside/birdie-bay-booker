@@ -418,6 +418,18 @@ serve(async (req) => {
 
       logStep("Subscription cancelled", { subscriptionId: subscription.id });
 
+      // Skip if this cancellation was part of an in-flight upgrade/tier switch —
+      // create-membership-checkout tags the old sub before cancelling it.
+      if (subscription.metadata?.cancellation_reason === "upgrade") {
+        logStep("Cancellation is part of an upgrade, skipping tier reset + email", {
+          subscriptionId: subscription.id,
+          upgradeTo: subscription.metadata?.upgrade_to_tier,
+        });
+        return new Response(JSON.stringify({ received: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       const customer = await stripe.customers.retrieve(customerId);
       if (customer.deleted) {
         logStep("Customer deleted, skipping");
