@@ -230,6 +230,7 @@ Deno.serve(async (req) => {
     const NET_OVERRIDES: Record<string, Record<string, { hcp: number; r1: string; r2: string; total: string }>> = {
       "62628": {
         "Jarrod": { hcp: 10, r1: "-9", r2: "+3", total: "-6" },
+        "JakeDavies": { hcp: 20, r1: "E", r2: "-2", total: "-2" },
       },
     };
 
