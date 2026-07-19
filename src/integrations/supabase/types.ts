@@ -364,6 +364,8 @@ export type Database = {
           id: string
           is_online: boolean
           last_seen: string | null
+          obs_ws_password: string | null
+          obs_ws_url: string | null
           plug_status: string | null
           updated_at: string
         }
@@ -375,6 +377,8 @@ export type Database = {
           id?: string
           is_online?: boolean
           last_seen?: string | null
+          obs_ws_password?: string | null
+          obs_ws_url?: string | null
           plug_status?: string | null
           updated_at?: string
         }
@@ -386,6 +390,8 @@ export type Database = {
           id?: string
           is_online?: boolean
           last_seen?: string | null
+          obs_ws_password?: string | null
+          obs_ws_url?: string | null
           plug_status?: string | null
           updated_at?: string
         }
