@@ -256,6 +256,15 @@ export function SGTTournaments() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="bg-background">
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setStatsTournament(tournament);
+                              setStatsDialogOpen(true);
+                            }}
+                          >
+                            <BarChart3 className="h-4 w-4 mr-2" />
+                            View Stats
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => handleEditTournament(tournament)}>
                             <Pencil className="h-4 w-4 mr-2" />
                             Edit
