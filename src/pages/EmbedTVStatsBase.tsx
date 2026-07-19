@@ -243,7 +243,7 @@ export default function EmbedTVStats({ variant }: { variant: "current" | "previo
         </div>
       </div>
 
-      {/* Top 3 mini tables */}
+      {/* Top 3 mini tables - row 1 */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <MiniTable
           title="Scoring Average"
@@ -270,6 +270,37 @@ export default function EmbedTVStats({ variant }: { variant: "current" | "previo
           title="Putts / Round"
           rows={data?.puttsPerRound}
           valueKey="putts_per_round"
+          digits={2}
+        />
+      </div>
+
+      {/* Top 3 mini tables - row 2 */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <MiniTable
+          title="Fairways in Reg"
+          rows={data?.drivingAccuracy}
+          valueKey="fir_percent"
+          digits={1}
+          suffix="%"
+        />
+        <MiniTable
+          title="Scrambling"
+          rows={data?.scrambling}
+          valueKey="scrambling_percent"
+          digits={1}
+          suffix="%"
+        />
+        <MiniTable
+          title="Sand Saves"
+          rows={data?.sandSave}
+          valueKey="sand_save_percent"
+          digits={1}
+          suffix="%"
+        />
+        <MiniTable
+          title="SG: Total"
+          rows={data?.sgTotal}
+          valueKey="sg_total"
           digits={2}
         />
       </div>
