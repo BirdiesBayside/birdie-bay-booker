@@ -171,8 +171,24 @@ serve(async (req) => {
       }
     }
 
-    // No saved payment method - redirect to Stripe Checkout
+    // No saved payment method - redirect to Stripe Checkout.
+    // Still cancel any active subs on other customers to prevent stacked
+    // duplicate tiers once Checkout creates the new sub.
+    if (allCustomers.length > 0) {
+      for (const c of allCustomers) {
+        const subs = await stripe.subscriptions.list({ customer: c.id, status: "active" });
+        for (const sub of subs.data) {
+          try {
+            await stripe.subscriptions.cancel(sub.id, { prorate: true });
+            logStep("Pre-checkout cancel of leftover sub", { subscriptionId: sub.id, customer: c.id });
+          } catch (e) {
+            logStep("WARN: pre-checkout cancel failed", { subscriptionId: sub.id, error: String(e) });
+          }
+        }
+      }
+    }
     logStep("No saved payment method, redirecting to checkout");
+
 
     const origin = req.headers.get("origin") || "https://hub.birdiesbayside.com.au";
 
