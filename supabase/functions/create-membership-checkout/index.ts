@@ -137,8 +137,16 @@ serve(async (req) => {
             }
           }
           try {
+            // Tag as upgrade so the webhook skips the cancellation email + tier reset
+            await stripe.subscriptions.update(sub.id, {
+              metadata: {
+                ...(sub.metadata || {}),
+                cancellation_reason: "upgrade",
+                upgrade_to_tier: tierKey,
+              },
+            });
             await stripe.subscriptions.cancel(sub.id, { prorate: true });
-            logStep("Cancelled existing subscription", { subscriptionId: sub.id, customer: sub.customer });
+            logStep("Cancelled existing subscription (upgrade)", { subscriptionId: sub.id, customer: sub.customer });
           } catch (cancelErr) {
             logStep("WARN: cancel failed", { subscriptionId: sub.id, error: String(cancelErr) });
           }
