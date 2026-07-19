@@ -308,6 +308,15 @@ export function SGTTournaments() {
         defaultTourId={tourFilter !== "all" ? parseInt(tourFilter) : undefined}
       />
 
+      {/* Tournament Stats Dialog */}
+      <TournamentStatsDialog
+        open={statsDialogOpen}
+        onOpenChange={setStatsDialogOpen}
+        tournament={statsTournament}
+      />
+
+
+
       {/* Close Tournament Confirmation Dialog */}
       <AlertDialog open={closeDialogOpen} onOpenChange={setCloseDialogOpen}>
         <AlertDialogContent>
