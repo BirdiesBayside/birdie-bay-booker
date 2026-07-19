@@ -187,8 +187,15 @@ serve(async (req) => {
         const subs = await stripe.subscriptions.list({ customer: c.id, status: "active" });
         for (const sub of subs.data) {
           try {
+            await stripe.subscriptions.update(sub.id, {
+              metadata: {
+                ...(sub.metadata || {}),
+                cancellation_reason: "upgrade",
+                upgrade_to_tier: tierKey,
+              },
+            });
             await stripe.subscriptions.cancel(sub.id, { prorate: true });
-            logStep("Pre-checkout cancel of leftover sub", { subscriptionId: sub.id, customer: c.id });
+            logStep("Pre-checkout cancel of leftover sub (upgrade)", { subscriptionId: sub.id, customer: c.id });
           } catch (e) {
             logStep("WARN: pre-checkout cancel failed", { subscriptionId: sub.id, error: String(e) });
           }
