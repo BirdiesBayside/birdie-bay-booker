@@ -4,9 +4,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { useActiveTourData } from "@/hooks/useActiveTourData";
 import type { StatsResponse } from "@/components/sgt/TournamentStatsView";
 import birdiesLogo from "@/assets/birdies-b-orange.png";
-import { cn } from "@/lib/utils";
 
 type PlayerRow = Record<string, unknown> & { user_name?: string; numrounds?: number };
+
+const YARDS_TO_M = 0.9144;
+const FEET_TO_M = 0.3048;
 
 const fmt = (v: unknown, digits = 2): string =>
   typeof v === "number" ? v.toFixed(digits) : v == null ? "-" : String(v);
@@ -18,11 +20,14 @@ interface AwardProps {
   valueKey: string;
   digits?: number;
   suffix?: string;
-  desc?: "asc" | "desc";
+  transform?: (n: number) => number;
 }
 
-function AwardBig({ icon: Icon, label, rows, valueKey, digits = 2, suffix = "" }: AwardProps) {
+function AwardBig({ icon: Icon, label, rows, valueKey, digits = 2, suffix = "", transform }: AwardProps) {
   const winner = rows?.[0];
+  const raw = winner?.[valueKey];
+  const displayValue =
+    typeof raw === "number" ? fmt(transform ? transform(raw) : raw, digits) : fmt(raw, digits);
   return (
     <div className="bg-white rounded-2xl border-2 border-[hsl(128,20%,85%)] shadow-sm p-5 flex flex-col">
       <div className="flex items-center gap-2 text-[hsl(128,20%,40%)] text-sm uppercase tracking-wide font-semibold mb-2">
@@ -33,62 +38,12 @@ function AwardBig({ icon: Icon, label, rows, valueKey, digits = 2, suffix = "" }
         {winner?.user_name ? String(winner.user_name) : "—"}
       </p>
       <p className="text-3xl font-black text-[hsl(18,84%,55%)] mt-1 font-mono">
-        {winner ? `${fmt(winner[valueKey], digits)}${suffix}` : "—"}
+        {winner ? `${displayValue}${suffix}` : "—"}
       </p>
     </div>
   );
 }
 
-function MiniLeaderboard({
-  title,
-  rows,
-  valueKey,
-  digits = 2,
-  suffix = "",
-  limit = 5,
-}: {
-  title: string;
-  rows?: PlayerRow[];
-  valueKey: string;
-  digits?: number;
-  suffix?: string;
-  limit?: number;
-}) {
-  return (
-    <div className="bg-white rounded-2xl border-2 border-[hsl(128,20%,85%)] shadow-sm overflow-hidden">
-      <div className="px-4 py-2 bg-[hsl(128,42%,21%)] text-white font-bold text-base">
-        {title}
-      </div>
-      <div className="divide-y divide-[hsl(128,20%,90%)]">
-        {(!rows || rows.length === 0) && (
-          <div className="px-4 py-6 text-center text-sm text-[hsl(128,20%,40%)]">
-            No data yet
-          </div>
-        )}
-        {rows?.slice(0, limit).map((r, i) => (
-          <div
-            key={`${r.user_name}-${i}`}
-            className={cn(
-              "grid grid-cols-12 gap-2 items-center px-4 py-2",
-              i === 0 && "bg-[hsl(37,100%,97%)]"
-            )}
-          >
-            <div className="col-span-1 text-center font-bold text-[hsl(128,20%,40%)]">
-              {i + 1}
-            </div>
-            <div className="col-span-8 font-semibold text-[hsl(128,42%,21%)] truncate">
-              {r.user_name}
-            </div>
-            <div className="col-span-3 text-right font-mono font-bold text-[hsl(128,42%,21%)]">
-              {fmt(r[valueKey], digits)}
-              {suffix}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 export default function EmbedTVStats({ variant }: { variant: "current" | "previous" }) {
   const { currentTournament, previousTournament, isLoading: tourLoading } = useActiveTourData();
