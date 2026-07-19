@@ -61,7 +61,7 @@ const GREEN_FIRMNESS_OPTIONS = ["Soft", "Normal", "Hard", "Firm", "Links"] as co
 const FAIRWAY_FIRMNESS_OPTIONS = ["Soft", "Normal", "Hard", "Firm", "Links"] as const;
 const TEES_OPTIONS = ["Black", "Blue", "White", "Yellow", "Green", "Red", "Junior", "Par3"] as const;
 const PINS_OPTIONS = ["Thursday", "Friday", "Saturday", "Sunday"] as const;
-const WIND_OPTIONS = ["Calm", "Breezy", "Gusty"] as const;
+const WIND_OPTIONS = ["No Wind", "Calm", "Breezy", "Gusty"] as const;
 
 const roundConfigSchema = z.object({
   courseId: z.number().optional(),
