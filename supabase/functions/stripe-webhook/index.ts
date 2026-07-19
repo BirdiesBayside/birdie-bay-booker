@@ -323,6 +323,12 @@ serve(async (req) => {
 
           const previousTier = profile?.membership_tier;
           const isNewMembership = previousTier === "visitor" || !previousTier;
+          const isTierChange = !isNewMembership && previousTier && previousTier !== newTier;
+          const previousTierName = previousTier ? (TIER_NAMES[previousTier] || previousTier) : "";
+
+          // Rank tiers to detect upgrade vs downgrade
+          const TIER_RANK: Record<string, number> = { weekday: 1, birdie: 2, eagle: 3 };
+          const isUpgrade = isTierChange && (TIER_RANK[newTier] || 0) > (TIER_RANK[previousTier || ""] || 0);
 
           const { error } = await supabaseAdmin
             .from("profiles")
@@ -334,37 +340,89 @@ serve(async (req) => {
             throw error;
           }
 
-          logStep("Membership tier updated successfully");
+          logStep("Membership tier updated successfully", { previousTier, newTier, isNewMembership, isTierChange, isUpgrade });
 
-          // Send membership confirmation email for new memberships or upgrades
-          if (resend && (isNewMembership || event.type === "customer.subscription.created")) {
+          // Send confirmation email — welcome for new members, upgrade/change for tier switches
+          if (resend && (isNewMembership || isTierChange || event.type === "customer.subscription.created")) {
             const firstName = profile?.first_name || customer.name?.split(" ")[0] || "there";
             const lastName = profile?.last_name || "";
             const tierName = TIER_NAMES[newTier] || newTier;
             const weeklyPrice = TIER_WEEKLY_PRICES[newTier] || "";
 
-            const { data: emailTemplate } = await supabaseAdmin
+            // Pick the right template
+            const templateKey = isTierChange
+              ? (isUpgrade ? "membership_upgraded" : "membership_changed")
+              : "membership_activated";
+
+            let { data: emailTemplate } = await supabaseAdmin
               .from("email_templates")
               .select("*")
-              .eq("template_key", "membership_activated")
+              .eq("template_key", templateKey)
               .eq("is_active", true)
-              .single();
+              .maybeSingle();
+
+            // Fallback to the standard activation template if a change template isn't configured
+            if (!emailTemplate && isTierChange) {
+              const { data: fallback } = await supabaseAdmin
+                .from("email_templates")
+                .select("*")
+                .eq("template_key", "membership_activated")
+                .eq("is_active", true)
+                .maybeSingle();
+              emailTemplate = fallback;
+            }
 
             const templateTags: Record<string, string> = {
               '{first_name}': firstName,
               '{last_name}': lastName,
               '{email}': email,
               '{tier_name}': tierName,
+              '{previous_tier_name}': previousTierName,
               '{weekly_price}': weeklyPrice,
             };
 
-            let subject = emailTemplate?.subject || `Welcome to the ${tierName} Membership!`;
+            const defaultSubject = isTierChange
+              ? (isUpgrade
+                  ? `You've Upgraded to ${tierName} — Welcome!`
+                  : `Your Membership Has Changed to ${tierName}`)
+              : `Welcome to the ${tierName} Membership!`;
+
+            const heading = isTierChange
+              ? (isUpgrade ? `Upgraded to ${tierName}!` : `Now on ${tierName}`)
+              : `Welcome to ${tierName}!`;
+
+            let subject = emailTemplate?.subject || defaultSubject;
             let htmlContent: string;
 
             if (emailTemplate?.html_content) {
               const bodyContent = replaceTemplateTags(emailTemplate.html_content, templateTags);
               subject = replaceTemplateTags(subject, templateTags);
-              htmlContent = buildEmailTemplate(`Welcome to ${tierName}!`, bodyContent, {
+              htmlContent = buildEmailTemplate(heading, bodyContent, {
+                text: "Book Now",
+                url: "https://hub.birdiesbayside.com.au/booking"
+              });
+            } else if (isTierChange) {
+              const changeCopy = isUpgrade
+                ? `Hi ${firstName}, your membership has been <strong>upgraded from ${previousTierName} to ${tierName}</strong>. Your new benefits are active immediately.`
+                : `Hi ${firstName}, your membership has been changed from <strong>${previousTierName}</strong> to <strong>${tierName}</strong>. Your new plan is active immediately.`;
+              const bodyContent = `
+                <p style="margin:0 0 18px; font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">
+                  ${changeCopy}
+                </p>
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FFFFFF; border-radius:12px; margin:18px 0; border-left:4px solid #EC622D;">
+                  <tr>
+                    <td style="padding:20px; font-family:Inter, Arial, sans-serif; font-size:15px; color:#1F4C25; text-align:center;">
+                      <p style="margin:5px 0;"><strong>Previous:</strong> ${previousTierName}</p>
+                      <p style="margin:5px 0;"><strong>New Membership:</strong> ${tierName}</p>
+                      <p style="margin:5px 0;"><strong>Weekly Price:</strong> ${weeklyPrice}</p>
+                    </td>
+                  </tr>
+                </table>
+                <p style="margin:18px 0 0; font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">
+                  Your old plan has been cancelled and any duplicate charges from the switch are handled automatically. If anything doesn't look right, just reply to this email.
+                </p>
+              `;
+              htmlContent = buildEmailTemplate(heading, bodyContent, {
                 text: "Book Now",
                 url: "https://hub.birdiesbayside.com.au/booking"
               });
@@ -385,7 +443,7 @@ serve(async (req) => {
                   You now have access to discounted bay rates and exclusive member benefits including the Birdies League!
                 </p>
               `;
-              htmlContent = buildEmailTemplate(`Welcome to ${tierName}!`, bodyContent, {
+              htmlContent = buildEmailTemplate(heading, bodyContent, {
                 text: "Book Now",
                 url: "https://hub.birdiesbayside.com.au/booking"
               });
@@ -398,9 +456,9 @@ serve(async (req) => {
                 subject: subject,
                 html: htmlContent,
               });
-              logStep("Membership confirmation email sent", { email, tier: tierName });
+              logStep("Membership email sent", { email, tier: tierName, templateKey, isTierChange, isUpgrade });
             } catch (emailError) {
-              logStep("Failed to send membership confirmation email", { error: emailError });
+              logStep("Failed to send membership email", { error: emailError });
             }
           }
         } else {
@@ -417,6 +475,18 @@ serve(async (req) => {
       const customerId = subscription.customer as string;
 
       logStep("Subscription cancelled", { subscriptionId: subscription.id });
+
+      // Skip if this cancellation was part of an in-flight upgrade/tier switch —
+      // create-membership-checkout tags the old sub before cancelling it.
+      if (subscription.metadata?.cancellation_reason === "upgrade") {
+        logStep("Cancellation is part of an upgrade, skipping tier reset + email", {
+          subscriptionId: subscription.id,
+          upgradeTo: subscription.metadata?.upgrade_to_tier,
+        });
+        return new Response(JSON.stringify({ received: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
 
       const customer = await stripe.customers.retrieve(customerId);
       if (customer.deleted) {
