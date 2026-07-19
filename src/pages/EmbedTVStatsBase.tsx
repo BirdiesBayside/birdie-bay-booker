@@ -243,6 +243,37 @@ export default function EmbedTVStats({ variant }: { variant: "current" | "previo
         </div>
       </div>
 
+      {/* Top 3 mini tables */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <MiniTable
+          title="Scoring Average"
+          rows={data?.scoringAverage}
+          valueKey="scoring_avg"
+          digits={2}
+        />
+        <MiniTable
+          title="Greens in Reg"
+          rows={data?.greenAccuracy}
+          valueKey="gir_percent"
+          digits={1}
+          suffix="%"
+        />
+        <MiniTable
+          title="Driving Distance"
+          rows={data?.drivingDistance}
+          valueKey="longest_drive"
+          digits={1}
+          suffix=" m"
+          transform={(n) => n * YARDS_TO_M}
+        />
+        <MiniTable
+          title="Putts / Round"
+          rows={data?.puttsPerRound}
+          valueKey="putts_per_round"
+          digits={2}
+        />
+      </div>
+
 
       {/* Footer */}
       <div className="text-center text-lg text-[hsl(128,20%,40%)] flex items-center justify-center gap-2">
