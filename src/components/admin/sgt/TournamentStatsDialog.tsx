@@ -82,8 +82,8 @@ interface StatsResponse {
 }
 
 // Format helpers
-const fmt = (v: unknown, digits = 2) =>
-  typeof v === "number" ? v.toFixed(digits) : v ?? "-";
+const fmt = (v: unknown, digits = 2): string =>
+  typeof v === "number" ? v.toFixed(digits) : v == null ? "-" : String(v);
 
 const AwardCard = ({
   icon: Icon,
