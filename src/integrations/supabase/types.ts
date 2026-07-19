@@ -791,6 +791,30 @@ export type Database = {
           },
         ]
       }
+      email_layout: {
+        Row: {
+          footer_html: string
+          header_html: string
+          id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          footer_html: string
+          header_html: string
+          id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          footer_html?: string
+          header_html?: string
+          id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       email_templates: {
         Row: {
           created_at: string
