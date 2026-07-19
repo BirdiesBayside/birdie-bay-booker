@@ -1,17 +1,68 @@
 // Shared branded email wrapper used by all customer-facing transactional emails.
-// Every email sent to a customer MUST be wrapped with buildEmailTemplate so it
-// renders with the consistent Birdies header (logo) and footer (socials + contact).
+// The HTML <header> and <footer> sections are stored in the `email_layout` table
+// so they can be edited from the admin panel and reused across every email
+// template. Individual template bodies should contain body content ONLY.
 
 export interface EmailCta {
   text: string;
   url: string;
 }
 
+export interface EmailLayout {
+  header_html: string;
+  footer_html: string;
+}
+
+// --- Defaults (used as fallback if the DB lookup fails or when called in
+// a context without a Supabase client). Keep in sync with the initial rows
+// seeded by the email_layout migration. ---
+export const DEFAULT_HEADER_HTML = `<tr>
+  <td align="center" style="background-color:#1F4C25; padding:18px; border-radius:16px 16px 0 0;">
+    <img
+      src="https://cdn.shopify.com/s/files/1/0758/7030/6550/files/NO-BG_BIRDIES-LOGOS_WORK-DOC_AMENDED-9.7.25-01.png?v=1761536603"
+      width="140"
+      alt="Birdies Bayside"
+      style="display:block; width:140px; height:auto; border:0;"
+    />
+  </td>
+</tr>`;
+
+export const DEFAULT_FOOTER_HTML = `<tr>
+  <td style="background-color:#1F4C25; padding:22px; border-radius:0 0 16px 16px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+      <tr>
+        <td align="center" style="padding-bottom:14px;">
+          <a href="https://www.instagram.com/birdiesbayside" style="margin:0 8px; text-decoration:none;">
+            <img src="https://cdn-icons-png.flaticon.com/512/174/174855.png" alt="Instagram" width="28" height="28" style="display:inline-block; border:0;" />
+          </a>
+          <a href="https://www.facebook.com/share/17NifCh2vH/" style="margin:0 8px; text-decoration:none;">
+            <img src="https://cdn-icons-png.flaticon.com/512/174/174848.png" alt="Facebook" width="28" height="28" style="display:inline-block; border:0;" />
+          </a>
+        </td>
+      </tr>
+      <tr>
+        <td align="center" style="font-family:Inter, Arial, sans-serif; font-size:14px; line-height:1.7; color:#FFFFFF;">
+          <div><a href="https://maps.app.goo.gl/vTXLZvd8XPZEeRn16" style="color:#FFFFFF; text-decoration:underline;">Unit 2, 86 Jardine Drive, Redland Bay QLD 4165</a></div>
+          <div><a href="tel:+61721468442" style="color:#FFFFFF; text-decoration:underline;">(07) 2146 8442</a></div>
+          <div><a href="https://birdiesbayside.com.au" style="color:#FFFFFF; text-decoration:underline;">birdiesbayside.com.au</a></div>
+          <div style="margin-top:10px; font-size:12px; opacity:0.75;">© Birdies Bayside</div>
+        </td>
+      </tr>
+    </table>
+  </td>
+</tr>`;
+
+// Sync builder — accepts optional layout override. When no override is
+// supplied (or DB lookup wasn't performed) the defaults above are used.
 export function buildEmailTemplate(
   heading: string,
   bodyContent: string,
-  ctaButton?: EmailCta
+  ctaButton?: EmailCta,
+  layout?: Partial<EmailLayout>,
 ): string {
+  const header = layout?.header_html || DEFAULT_HEADER_HTML;
+  const footer = layout?.footer_html || DEFAULT_FOOTER_HTML;
+
   const buttonHtml = ctaButton
     ? `
               <table role="presentation" align="center" cellpadding="0" cellspacing="0" border="0" style="margin:22px auto 0;">
@@ -43,16 +94,7 @@ export function buildEmailTemplate(
     <tr>
       <td align="center" style="padding:24px 12px;">
         <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="max-width:600px; width:100%;">
-          <tr>
-            <td align="center" style="background-color:#1F4C25; padding:18px; border-radius:16px 16px 0 0;">
-              <img
-                src="https://cdn.shopify.com/s/files/1/0758/7030/6550/files/NO-BG_BIRDIES-LOGOS_WORK-DOC_AMENDED-9.7.25-01.png?v=1761536603"
-                width="140"
-                alt="Birdies Bayside"
-                style="display:block; width:140px; height:auto; border:0;"
-              />
-            </td>
-          </tr>
+          ${header}
           <tr>
             <td style="background-color:#FFF5E4; padding:26px 22px; border-left:1px solid rgba(31,76,37,0.12); border-right:1px solid rgba(31,76,37,0.12);">
               <h1 style="margin:0 0 14px; font-family:Anton, Impact, Arial Black, sans-serif; font-size:34px; line-height:1.1; color:#1F4C25; text-align:center;">
@@ -62,34 +104,46 @@ export function buildEmailTemplate(
               ${buttonHtml}
             </td>
           </tr>
-          <tr>
-            <td style="background-color:#1F4C25; padding:22px; border-radius:0 0 16px 16px;">
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-                <tr>
-                  <td align="center" style="padding-bottom:14px;">
-                    <a href="https://www.instagram.com/birdiesbayside" style="margin:0 8px; text-decoration:none;">
-                      <img src="https://cdn-icons-png.flaticon.com/512/174/174855.png" alt="Instagram" width="28" height="28" style="display:inline-block; border:0;" />
-                    </a>
-                    <a href="https://www.facebook.com/share/17NifCh2vH/" style="margin:0 8px; text-decoration:none;">
-                      <img src="https://cdn-icons-png.flaticon.com/512/174/174848.png" alt="Facebook" width="28" height="28" style="display:inline-block; border:0;" />
-                    </a>
-                  </td>
-                </tr>
-                <tr>
-                  <td align="center" style="font-family:Inter, Arial, sans-serif; font-size:14px; line-height:1.7; color:#FFFFFF;">
-                    <div><a href="https://maps.app.goo.gl/vTXLZvd8XPZEeRn16" style="color:#FFFFFF; text-decoration:underline;">Unit 2, 86 Jardine Drive, Redland Bay QLD 4165</a></div>
-                    <div><a href="tel:+61721468442" style="color:#FFFFFF; text-decoration:underline;">(07) 2146 8442</a></div>
-                    <div><a href="https://birdiesbayside.com.au" style="color:#FFFFFF; text-decoration:underline;">birdiesbayside.com.au</a></div>
-                    <div style="margin-top:10px; font-size:12px; opacity:0.75;">© Birdies Bayside</div>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
+          ${footer}
         </table>
       </td>
     </tr>
   </table>
 </body>
 </html>`;
+}
+
+// Fetches the current email layout from the DB, falling back to defaults on
+// any error. Accepts any Supabase client that exposes `.from().select()`.
+export async function fetchEmailLayout(supabase: any): Promise<EmailLayout> {
+  try {
+    const { data } = await supabase
+      .from("email_layout")
+      .select("header_html, footer_html")
+      .eq("id", "global")
+      .maybeSingle();
+
+    return {
+      header_html: data?.header_html || DEFAULT_HEADER_HTML,
+      footer_html: data?.footer_html || DEFAULT_FOOTER_HTML,
+    };
+  } catch (_err) {
+    return {
+      header_html: DEFAULT_HEADER_HTML,
+      footer_html: DEFAULT_FOOTER_HTML,
+    };
+  }
+}
+
+// Convenience async helper: fetches the layout then renders the template.
+// This is the recommended entry point for all send-* edge functions so that
+// admin edits to the layout apply everywhere automatically.
+export async function renderBrandedEmail(
+  supabase: any,
+  heading: string,
+  bodyContent: string,
+  ctaButton?: EmailCta,
+): Promise<string> {
+  const layout = await fetchEmailLayout(supabase);
+  return buildEmailTemplate(heading, bodyContent, ctaButton, layout);
 }
