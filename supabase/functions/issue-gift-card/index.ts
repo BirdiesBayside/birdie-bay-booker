@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
 import { Resend } from "npm:resend@2.0.0";
-import { buildEmailTemplate } from "../_shared/email-wrapper.ts";
+import { renderBrandedEmail } from "../_shared/email-wrapper.ts";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
@@ -152,7 +152,7 @@ serve(async (req: Request): Promise<Response> => {
 
       const body = intro + messageBlock + amountBlock + footer;
 
-      const html = buildEmailTemplate(heading, body, {
+      const html = await renderBrandedEmail(supabase, heading, body, {
         text: autoApplied ? "Book a Bay" : "Activate Your Gift",
         url: autoApplied ? "https://hub.birdiesbayside.com.au/booking" : SIGNUP_URL,
       });
@@ -225,7 +225,7 @@ serve(async (req: Request): Promise<Response> => {
         </table>
       `;
 
-      const html = buildEmailTemplate("Your Printable Gift Card", body);
+      const html = await renderBrandedEmail(supabase, "Your Printable Gift Card", body);
 
       try {
         const r = await resend.emails.send({
