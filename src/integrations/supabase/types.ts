@@ -1025,6 +1025,103 @@ export type Database = {
         }
         Relationships: []
       }
+      highlight_clips: {
+        Row: {
+          approved_at: string
+          approved_by: string | null
+          created_at: string
+          duration_seconds: number | null
+          hole_number: number | null
+          id: string
+          notes: string | null
+          player_name: string | null
+          recording_hole_id: string | null
+          storage_path: string
+          tags: string[]
+          tournament_name: string | null
+        }
+        Insert: {
+          approved_at?: string
+          approved_by?: string | null
+          created_at?: string
+          duration_seconds?: number | null
+          hole_number?: number | null
+          id?: string
+          notes?: string | null
+          player_name?: string | null
+          recording_hole_id?: string | null
+          storage_path: string
+          tags?: string[]
+          tournament_name?: string | null
+        }
+        Update: {
+          approved_at?: string
+          approved_by?: string | null
+          created_at?: string
+          duration_seconds?: number | null
+          hole_number?: number | null
+          id?: string
+          notes?: string | null
+          player_name?: string | null
+          recording_hole_id?: string | null
+          storage_path?: string
+          tags?: string[]
+          tournament_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "highlight_clips_recording_hole_id_fkey"
+            columns: ["recording_hole_id"]
+            isOneToOne: false
+            referencedRelation: "recording_holes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      highlight_events: {
+        Row: {
+          created_at: string
+          id: string
+          metric_unit: string | null
+          metric_value: number | null
+          recording_hole_id: string
+          rule_key: string
+          shot_index: number | null
+          tag_emoji: string | null
+          tag_label: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          metric_unit?: string | null
+          metric_value?: number | null
+          recording_hole_id: string
+          rule_key: string
+          shot_index?: number | null
+          tag_emoji?: string | null
+          tag_label: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          metric_unit?: string | null
+          metric_value?: number | null
+          recording_hole_id?: string
+          rule_key?: string
+          shot_index?: number | null
+          tag_emoji?: string | null
+          tag_label?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "highlight_events_recording_hole_id_fkey"
+            columns: ["recording_hole_id"]
+            isOneToOne: false
+            referencedRelation: "recording_holes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       local_comp_players: {
         Row: {
           created_at: string
@@ -1952,6 +2049,124 @@ export type Database = {
           },
         ]
       }
+      recording_holes: {
+        Row: {
+          clip_end_seconds: number | null
+          clip_start_seconds: number | null
+          created_at: string
+          hole_number: number
+          id: string
+          par: number | null
+          recording_session_id: string
+          score: number | null
+          shot_timeline: Json
+          status: string
+          storage_path: string | null
+          updated_at: string
+        }
+        Insert: {
+          clip_end_seconds?: number | null
+          clip_start_seconds?: number | null
+          created_at?: string
+          hole_number: number
+          id?: string
+          par?: number | null
+          recording_session_id: string
+          score?: number | null
+          shot_timeline?: Json
+          status?: string
+          storage_path?: string | null
+          updated_at?: string
+        }
+        Update: {
+          clip_end_seconds?: number | null
+          clip_start_seconds?: number | null
+          created_at?: string
+          hole_number?: number
+          id?: string
+          par?: number | null
+          recording_session_id?: string
+          score?: number | null
+          shot_timeline?: Json
+          status?: string
+          storage_path?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recording_holes_recording_session_id_fkey"
+            columns: ["recording_session_id"]
+            isOneToOne: false
+            referencedRelation: "recording_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recording_sessions: {
+        Row: {
+          bay_number: number
+          booking_id: string | null
+          created_at: string
+          ended_at: string | null
+          error_message: string | null
+          file_size_bytes: number | null
+          id: string
+          mkv_path: string | null
+          player_name: string | null
+          retention_until: string | null
+          sgt_tournament_id: string | null
+          sgt_user_id: string | null
+          started_at: string | null
+          status: string
+          tournament_name: string | null
+          updated_at: string
+        }
+        Insert: {
+          bay_number: number
+          booking_id?: string | null
+          created_at?: string
+          ended_at?: string | null
+          error_message?: string | null
+          file_size_bytes?: number | null
+          id?: string
+          mkv_path?: string | null
+          player_name?: string | null
+          retention_until?: string | null
+          sgt_tournament_id?: string | null
+          sgt_user_id?: string | null
+          started_at?: string | null
+          status?: string
+          tournament_name?: string | null
+          updated_at?: string
+        }
+        Update: {
+          bay_number?: number
+          booking_id?: string | null
+          created_at?: string
+          ended_at?: string | null
+          error_message?: string | null
+          file_size_bytes?: number | null
+          id?: string
+          mkv_path?: string | null
+          player_name?: string | null
+          retention_until?: string | null
+          sgt_tournament_id?: string | null
+          sgt_user_id?: string | null
+          started_at?: string | null
+          status?: string
+          tournament_name?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recording_sessions_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sgt_api_config: {
         Row: {
           api_key: string
@@ -2666,6 +2881,8 @@ export type Database = {
         Row: {
           created_at: string
           door_code: string
+          highlight_recording_enabled: boolean
+          highlight_recording_pilot_bay: number | null
           id: string
           timezone: string
           updated_at: string
@@ -2673,6 +2890,8 @@ export type Database = {
         Insert: {
           created_at?: string
           door_code?: string
+          highlight_recording_enabled?: boolean
+          highlight_recording_pilot_bay?: number | null
           id?: string
           timezone?: string
           updated_at?: string
@@ -2680,6 +2899,8 @@ export type Database = {
         Update: {
           created_at?: string
           door_code?: string
+          highlight_recording_enabled?: boolean
+          highlight_recording_pilot_bay?: number | null
           id?: string
           timezone?: string
           updated_at?: string

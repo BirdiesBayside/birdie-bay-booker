@@ -2,7 +2,8 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
 
 // Version tracking for deployment debugging
-const VERSION = "2.1.0";
+const VERSION = "2.2.0";
+const HIGHLIGHTS_BUCKET = "league-highlights";
 const DEPLOYED_AT = new Date().toISOString();
 const SETTINGS_FILES = new Set(["dpsV2x3.gss", "Settings.vgs"]);
 const SETTINGS_BUCKET = "gspro-user-settings";
@@ -371,6 +372,118 @@ serve(async (req) => {
         });
 
         return jsonResponse({ ok: true, session_id: sessionId, shot_count: shotRows.length, started_at: started, ended_at: ended, csv_path: finalCsvPath });
+      }
+
+      case "should_record": {
+        // Query: is this bay the pilot AND is the given booking a league tournament round?
+        const bookingId = url.searchParams.get("booking_id") ?? (body as { booking_id?: string } | null)?.booking_id;
+        if (!bookingId) return jsonResponse({ should_record: false, reason: "missing booking_id" });
+
+        const { data: cfg } = await supabase
+          .from("system_settings")
+          .select("highlight_recording_enabled, highlight_recording_pilot_bay")
+          .eq("id", "global")
+          .single();
+
+        if (!cfg?.highlight_recording_enabled || cfg?.highlight_recording_pilot_bay !== bayNumber) {
+          return jsonResponse({ should_record: false, reason: "bay not pilot or disabled" });
+        }
+
+        const { data: booking } = await supabase
+          .from("bookings")
+          .select("id, user_id, customer_name, booking_date, start_time, end_time")
+          .eq("id", bookingId)
+          .single();
+        if (!booking) return jsonResponse({ should_record: false, reason: "booking not found" });
+
+        const { data: prof } = await supabase.from("profiles").select("sgt_user_id").eq("user_id", booking.user_id).maybeSingle();
+        if (!prof?.sgt_user_id) return jsonResponse({ should_record: false, reason: "not an SGT member" });
+
+        // Any active/current SGT tournament that this user is registered in?
+        const nowIso = new Date().toISOString();
+        const { data: tourney } = await supabase
+          .from("sgt_tournaments")
+          .select("sgt_tournament_id, name, start_date, end_date")
+          .lte("start_date", nowIso.slice(0, 10))
+          .gte("end_date", nowIso.slice(0, 10))
+          .order("start_date", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (!tourney) return jsonResponse({ should_record: false, reason: "no active tournament" });
+
+        return jsonResponse({
+          should_record: true,
+          booking_id: bookingId,
+          sgt_user_id: prof.sgt_user_id,
+          sgt_tournament_id: tourney.sgt_tournament_id,
+          player_name: booking.customer_name,
+          tournament_name: tourney.name,
+          booking_end_time: `${booking.booking_date}T${booking.end_time}`,
+        });
+      }
+
+      case "recording_start": {
+        const b = body as { booking_id?: string; sgt_user_id?: string; sgt_tournament_id?: string; player_name?: string; tournament_name?: string; mkv_path?: string; started_at?: string; retention_days?: number } | null;
+        if (!b?.booking_id) return jsonResponse({ error: "booking_id required" }, 400);
+        const retentionDays = b.retention_days ?? 14;
+        const retentionUntil = new Date(Date.now() + retentionDays * 86400_000).toISOString();
+        const { data, error } = await supabase.from("recording_sessions").insert({
+          booking_id: b.booking_id,
+          bay_number: bayNumber,
+          sgt_user_id: b.sgt_user_id ?? null,
+          sgt_tournament_id: b.sgt_tournament_id ?? null,
+          player_name: b.player_name ?? null,
+          tournament_name: b.tournament_name ?? null,
+          mkv_path: b.mkv_path ?? null,
+          started_at: b.started_at ?? new Date().toISOString(),
+          status: "recording",
+          retention_until: retentionUntil,
+        }).select("id").single();
+        if (error) return jsonResponse({ error: error.message }, 500);
+        return jsonResponse({ ok: true, recording_session_id: data.id });
+      }
+
+      case "recording_stop": {
+        const b = body as { recording_session_id?: string; ended_at?: string; file_size_bytes?: number; status?: string; error_message?: string } | null;
+        if (!b?.recording_session_id) return jsonResponse({ error: "recording_session_id required" }, 400);
+        const { error } = await supabase.from("recording_sessions").update({
+          ended_at: b.ended_at ?? new Date().toISOString(),
+          file_size_bytes: b.file_size_bytes ?? null,
+          status: b.status ?? "pending_split",
+          error_message: b.error_message ?? null,
+          updated_at: new Date().toISOString(),
+        }).eq("id", b.recording_session_id);
+        if (error) return jsonResponse({ error: error.message }, 500);
+        return jsonResponse({ ok: true });
+      }
+
+      case "recording_upload_url": {
+        const b = body as { recording_session_id?: string; hole_number?: number; filename?: string } | null;
+        if (!b?.recording_session_id || b.hole_number == null) return jsonResponse({ error: "recording_session_id + hole_number required" }, 400);
+        const safeName = (b.filename ?? `hole-${b.hole_number}.mkv`).replace(/[^a-zA-Z0-9._-]/g, "_");
+        const objectPath = `${b.recording_session_id}/${safeName}`;
+        const { data, error } = await supabase.storage.from(HIGHLIGHTS_BUCKET).createSignedUploadUrl(objectPath);
+        if (error) return jsonResponse({ error: error.message }, 500);
+        return jsonResponse({ ok: true, signed_url: data.signedUrl, path: objectPath, token: data.token });
+      }
+
+      case "recording_hole": {
+        const b = body as { recording_session_id?: string; hole_number?: number; par?: number; score?: number; clip_start_seconds?: number; clip_end_seconds?: number; storage_path?: string; shot_timeline?: unknown[] } | null;
+        if (!b?.recording_session_id || b.hole_number == null) return jsonResponse({ error: "recording_session_id + hole_number required" }, 400);
+        const { error } = await supabase.from("recording_holes").upsert({
+          recording_session_id: b.recording_session_id,
+          hole_number: b.hole_number,
+          par: b.par ?? null,
+          score: b.score ?? null,
+          clip_start_seconds: b.clip_start_seconds ?? null,
+          clip_end_seconds: b.clip_end_seconds ?? null,
+          storage_path: b.storage_path ?? null,
+          shot_timeline: b.shot_timeline ?? [],
+          status: b.storage_path ? "uploaded" : "pending",
+          updated_at: new Date().toISOString(),
+        }, { onConflict: "recording_session_id,hole_number" });
+        if (error) return jsonResponse({ error: error.message }, 500);
+        return jsonResponse({ ok: true });
       }
 
       case "bookings":
