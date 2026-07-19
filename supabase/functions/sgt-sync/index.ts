@@ -168,15 +168,30 @@ serve(async (req) => {
     console.log("[SGT-SYNC] Syncing members...");
     const membersResponse = await sgtRequest("/members/list", apiKey);
     const members = extractArray(membersResponse, ['members', 'results']);
-    
+
+    // Pre-fetch paying members (birdie/eagle) so we never mark them Inactive locally
+    // even if SGT's own user_active flag is 0 (e.g. their SGT subscription lapsed).
+    const { data: payingProfiles } = await supabase
+      .from("profiles")
+      .select("sgt_user_id")
+      .in("membership_tier", ["birdie", "eagle"])
+      .not("sgt_user_id", "is", null);
+    const payingSgtIds = new Set(
+      ((payingProfiles || []) as { sgt_user_id: number | null }[])
+        .map((p) => p.sgt_user_id)
+        .filter((v): v is number => !!v)
+    );
+
     for (const member of members) {
       const m = member as { user_id: number; user_name: string; user_email?: string; user_active?: number; user_country_code?: string; user_has_avatar?: string; user_game_id?: string };
-      
+      const isPayingBirdiesMember = payingSgtIds.has(m.user_id);
+      const localActive = isPayingBirdiesMember ? 1 : (m.user_active ?? 1);
+
       await supabase.from("sgt_members").upsert({
         user_id: m.user_id,
         user_name: m.user_name,
         user_email: m.user_email,
-        user_active: m.user_active ?? 1,
+        user_active: localActive,
         user_country_code: m.user_country_code,
         user_has_avatar: m.user_has_avatar,
         user_game_id: m.user_game_id || null,
@@ -184,7 +199,7 @@ serve(async (req) => {
       }, { onConflict: 'user_id' });
       totalRecords++;
     }
-    console.log(`[SGT-SYNC] Synced ${members.length} members`);
+    console.log(`[SGT-SYNC] Synced ${members.length} members (${payingSgtIds.size} forced-active as paying Birdies members)`);
 
     // 1b. Auto-link SGT members to Birdies profiles by email match
     // This catches users who registered on SGT externally (not via sgt-register)
