@@ -45,14 +45,16 @@ serve(async (req) => {
       user = authedUser;
     }
     
-    // Get the user's profile to find their SGT user ID
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("sgt_user_id")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    const userSgtId = profile?.sgt_user_id;
+    // Get the user's profile to find their SGT user ID (only for authenticated actions)
+    let userSgtId: number | null = null;
+    if (user) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("sgt_user_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      userSgtId = profile?.sgt_user_id ?? null;
+    }
     
     let data;
     
