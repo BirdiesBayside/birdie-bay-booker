@@ -247,6 +247,21 @@ serve(async (req) => {
 
     console.log(`[SGT-AUTO-REG] Processing registration for SGT user ${sgt_user_id}`);
 
+    // Refresh custom handicaps FIRST so registration uses the latest best-3-of-6 average.
+    // Otherwise, if the weekly recalc runs after auto-registration, players get registered
+    // against a stale custom_hcp (this is why Jake Davies was off 33 instead of ~21).
+    try {
+      console.log("[SGT-AUTO-REG] Recalculating custom handicaps before registration...");
+      const recalcRes = await fetch(`${supabaseUrl}/functions/v1/sgt-recalc-handicaps`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${supabaseKey}` },
+      });
+      const recalcJson = await recalcRes.json().catch(() => ({}));
+      console.log("[SGT-AUTO-REG] Recalc result:", recalcJson?.success ?? recalcJson);
+    } catch (recalcErr) {
+      console.error("[SGT-AUTO-REG] Recalc failed (continuing with existing custom_hcp):", recalcErr);
+    }
+
     // Check if this member has been onboarded (exists in sgt_tour_members)
     const { data: tourMemberRecords, error: tmError } = await supabaseClient
       .from("sgt_tour_members")
