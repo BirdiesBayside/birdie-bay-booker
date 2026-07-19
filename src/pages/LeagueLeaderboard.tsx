@@ -408,8 +408,7 @@ export default function LeagueLeaderboard() {
                 </p>
               )}
             </div>
-          ) : (
-
+          ) : tournamentStandingsLoading ? (
             <div className="flex items-center justify-center py-20">
               <Loader2 className="h-8 w-8 text-secondary animate-spin" />
             </div>
