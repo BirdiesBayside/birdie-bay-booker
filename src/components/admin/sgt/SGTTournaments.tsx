@@ -51,6 +51,8 @@ export function SGTTournaments() {
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
   const [tournamentToClose, setTournamentToClose] = useState<any>(null);
   const [isClosing, setIsClosing] = useState(false);
+  const [statsDialogOpen, setStatsDialogOpen] = useState(false);
+  const [statsTournament, setStatsTournament] = useState<any>(null);
   const queryClient = useQueryClient();
 
   // Fetch tournaments
