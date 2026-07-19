@@ -25,19 +25,25 @@ serve(async (req) => {
   });
 
   try {
-    // Verify the user is authenticated
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
-    if (authError || !user) {
-      console.error("[SGT-API] Auth error:", authError);
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
     const { action, params = {} } = await req.json();
     console.log(`[SGT-API] Action: ${action}`, params);
+
+    // Actions that are safe for public/unauthenticated access (read-only aggregate data
+    // used by TV embeds, Shopify compete embed, etc.)
+    const PUBLIC_ACTIONS = new Set(["tournament-stats"]);
+
+    let user: { id: string } | null = null;
+    if (!PUBLIC_ACTIONS.has(action)) {
+      const { data: { user: authedUser }, error: authError } = await supabase.auth.getUser();
+      if (authError || !authedUser) {
+        console.error("[SGT-API] Auth error:", authError);
+        return new Response(
+          JSON.stringify({ error: "Unauthorized" }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      user = authedUser;
+    }
     
     // Get the user's profile to find their SGT user ID
     const { data: profile } = await supabase
