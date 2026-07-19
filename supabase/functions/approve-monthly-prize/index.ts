@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
-import { buildEmailTemplate } from "../_shared/email-wrapper.ts";
+import { renderBrandedEmail } from "../_shared/email-wrapper.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -103,7 +103,7 @@ serve(async (req) => {
             let subject = emailSubject || `Congratulations! You're the ${month} Monthly Winner!`;
             subject = subject.replace(/\{\{month\}\}/g, month);
 
-            const htmlContent = buildEmailTemplate(
+            const htmlContent = await renderBrandedEmail(supabase, 
               `${month} Monthly Winner!`,
               bodyContent
             );
