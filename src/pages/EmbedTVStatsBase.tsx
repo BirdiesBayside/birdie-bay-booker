@@ -243,67 +243,46 @@ export default function EmbedTVStats({ variant }: { variant: "current" | "previo
         </div>
       </div>
 
-      {/* Top 3 mini tables - row 1 */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <MiniTable
-          title="Scoring Average"
-          rows={data?.scoringAverage}
-          valueKey="scoring_avg"
-          digits={2}
-        />
-        <MiniTable
-          title="Greens in Reg"
-          rows={data?.greenAccuracy}
-          valueKey="gir_percent"
-          digits={1}
-          suffix="%"
-        />
-        <MiniTable
-          title="Driving Distance"
-          rows={data?.drivingDistance}
-          valueKey="longest_drive"
-          digits={1}
-          suffix=" m"
-          transform={(n) => n * YARDS_TO_M}
-        />
-        <MiniTable
-          title="Putts / Round"
-          rows={data?.puttsPerRound}
-          valueKey="putts_per_round"
-          digits={2}
-        />
+      {/* All available top-3 stat tables */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+        {(
+          [
+            { title: "Scoring Average", key: "scoringAverage", valueKey: "scoring_avg", digits: 2 },
+            { title: "Driving Distance", key: "drivingDistance", valueKey: "longest_drive", digits: 1, suffix: " m", transform: (n: number) => n * YARDS_TO_M },
+            { title: "Fairways in Reg", key: "drivingAccuracy", valueKey: "fir_percent", digits: 1, suffix: "%" },
+            { title: "Greens in Reg", key: "greenAccuracy", valueKey: "gir_percent", digits: 1, suffix: "%" },
+            { title: "GIR Proximity", key: "girProx", valueKey: "gir_prox", digits: 2, suffix: " m", transform: (n: number) => n * FEET_TO_M },
+            { title: "Scrambling", key: "scrambling", valueKey: "scrambling_percent", digits: 1, suffix: "%" },
+            { title: "Sand Saves", key: "sandSave", valueKey: "sand_save_percent", digits: 1, suffix: "%" },
+            { title: "Putts / Round", key: "puttsPerRound", valueKey: "putts_per_round", digits: 2 },
+            { title: "Putts / GIR", key: "puttsPerGIR", valueKey: "putts_per_gir", digits: 2 },
+            { title: "Feet Putts Made", key: "feetPuttsMade", valueKey: "feet_putts_made", digits: 2, suffix: " m", transform: (n: number) => n * FEET_TO_M },
+            { title: "Make % 5-10 ft", key: "puttMakePct1", valueKey: "putt_make_pct", digits: 1, suffix: "%" },
+            { title: "Make % 10-15 ft", key: "puttMakePct2", valueKey: "putt_make_pct", digits: 1, suffix: "%" },
+            { title: "Make % 15-20 ft", key: "puttMakePct3", valueKey: "putt_make_pct", digits: 1, suffix: "%" },
+            { title: "Prox 100-125 yd", key: "prox100to125", valueKey: "proximity", digits: 2, suffix: " m", transform: (n: number) => n * FEET_TO_M },
+            { title: "Prox 125-150 yd", key: "prox125to150", valueKey: "proximity", digits: 2, suffix: " m", transform: (n: number) => n * FEET_TO_M },
+            { title: "Prox 150-175 yd", key: "prox150to175", valueKey: "proximity", digits: 2, suffix: " m", transform: (n: number) => n * FEET_TO_M },
+            { title: "SG: Total", key: "sgTotal", valueKey: "sg_total", digits: 2 },
+            { title: "SG: Tee", key: "sgTee", valueKey: "sg_tee", digits: 2 },
+            { title: "SG: Approach", key: "sgApproach", valueKey: "sg_approach", digits: 2 },
+            { title: "SG: Around Green", key: "sgATG", valueKey: "sg_atg", digits: 2 },
+            { title: "SG: Putting", key: "sgGreen", valueKey: "sg_green", digits: 2 },
+            { title: "SG: Tee to Green", key: "sgTeeToGreen", valueKey: "sg_tee_to_green", digits: 2 },
+          ] as const
+        ).map((t) => (
+          <MiniTable
+            key={t.key}
+            title={t.title}
+            rows={data?.[t.key as keyof StatsResponse] as PlayerRow[] | undefined}
+            valueKey={t.valueKey}
+            digits={t.digits}
+            suffix={"suffix" in t ? t.suffix : ""}
+            transform={"transform" in t ? t.transform : undefined}
+          />
+        ))}
       </div>
 
-      {/* Top 3 mini tables - row 2 */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <MiniTable
-          title="Fairways in Reg"
-          rows={data?.drivingAccuracy}
-          valueKey="fir_percent"
-          digits={1}
-          suffix="%"
-        />
-        <MiniTable
-          title="Scrambling"
-          rows={data?.scrambling}
-          valueKey="scrambling_percent"
-          digits={1}
-          suffix="%"
-        />
-        <MiniTable
-          title="Sand Saves"
-          rows={data?.sandSave}
-          valueKey="sand_save_percent"
-          digits={1}
-          suffix="%"
-        />
-        <MiniTable
-          title="SG: Total"
-          rows={data?.sgTotal}
-          valueKey="sg_total"
-          digits={2}
-        />
-      </div>
 
 
       {/* Footer */}
