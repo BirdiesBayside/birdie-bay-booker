@@ -2881,6 +2881,8 @@ export type Database = {
         Row: {
           created_at: string
           door_code: string
+          highlight_recording_enabled: boolean
+          highlight_recording_pilot_bay: number | null
           id: string
           timezone: string
           updated_at: string
@@ -2888,6 +2890,8 @@ export type Database = {
         Insert: {
           created_at?: string
           door_code?: string
+          highlight_recording_enabled?: boolean
+          highlight_recording_pilot_bay?: number | null
           id?: string
           timezone?: string
           updated_at?: string
@@ -2895,6 +2899,8 @@ export type Database = {
         Update: {
           created_at?: string
           door_code?: string
+          highlight_recording_enabled?: boolean
+          highlight_recording_pilot_bay?: number | null
           id?: string
           timezone?: string
           updated_at?: string
