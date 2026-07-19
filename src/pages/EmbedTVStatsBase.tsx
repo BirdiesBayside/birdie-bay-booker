@@ -4,9 +4,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { useActiveTourData } from "@/hooks/useActiveTourData";
 import type { StatsResponse } from "@/components/sgt/TournamentStatsView";
 import birdiesLogo from "@/assets/birdies-b-orange.png";
-import { cn } from "@/lib/utils";
 
 type PlayerRow = Record<string, unknown> & { user_name?: string; numrounds?: number };
+
+const YARDS_TO_M = 0.9144;
+const FEET_TO_M = 0.3048;
 
 const fmt = (v: unknown, digits = 2): string =>
   typeof v === "number" ? v.toFixed(digits) : v == null ? "-" : String(v);
@@ -18,11 +20,14 @@ interface AwardProps {
   valueKey: string;
   digits?: number;
   suffix?: string;
-  desc?: "asc" | "desc";
+  transform?: (n: number) => number;
 }
 
-function AwardBig({ icon: Icon, label, rows, valueKey, digits = 2, suffix = "" }: AwardProps) {
+function AwardBig({ icon: Icon, label, rows, valueKey, digits = 2, suffix = "", transform }: AwardProps) {
   const winner = rows?.[0];
+  const raw = winner?.[valueKey];
+  const displayValue =
+    typeof raw === "number" ? fmt(transform ? transform(raw) : raw, digits) : fmt(raw, digits);
   return (
     <div className="bg-white rounded-2xl border-2 border-[hsl(128,20%,85%)] shadow-sm p-5 flex flex-col">
       <div className="flex items-center gap-2 text-[hsl(128,20%,40%)] text-sm uppercase tracking-wide font-semibold mb-2">
@@ -33,62 +38,12 @@ function AwardBig({ icon: Icon, label, rows, valueKey, digits = 2, suffix = "" }
         {winner?.user_name ? String(winner.user_name) : "—"}
       </p>
       <p className="text-3xl font-black text-[hsl(18,84%,55%)] mt-1 font-mono">
-        {winner ? `${fmt(winner[valueKey], digits)}${suffix}` : "—"}
+        {winner ? `${displayValue}${suffix}` : "—"}
       </p>
     </div>
   );
 }
 
-function MiniLeaderboard({
-  title,
-  rows,
-  valueKey,
-  digits = 2,
-  suffix = "",
-  limit = 5,
-}: {
-  title: string;
-  rows?: PlayerRow[];
-  valueKey: string;
-  digits?: number;
-  suffix?: string;
-  limit?: number;
-}) {
-  return (
-    <div className="bg-white rounded-2xl border-2 border-[hsl(128,20%,85%)] shadow-sm overflow-hidden">
-      <div className="px-4 py-2 bg-[hsl(128,42%,21%)] text-white font-bold text-base">
-        {title}
-      </div>
-      <div className="divide-y divide-[hsl(128,20%,90%)]">
-        {(!rows || rows.length === 0) && (
-          <div className="px-4 py-6 text-center text-sm text-[hsl(128,20%,40%)]">
-            No data yet
-          </div>
-        )}
-        {rows?.slice(0, limit).map((r, i) => (
-          <div
-            key={`${r.user_name}-${i}`}
-            className={cn(
-              "grid grid-cols-12 gap-2 items-center px-4 py-2",
-              i === 0 && "bg-[hsl(37,100%,97%)]"
-            )}
-          >
-            <div className="col-span-1 text-center font-bold text-[hsl(128,20%,40%)]">
-              {i + 1}
-            </div>
-            <div className="col-span-8 font-semibold text-[hsl(128,42%,21%)] truncate">
-              {r.user_name}
-            </div>
-            <div className="col-span-3 text-right font-mono font-bold text-[hsl(128,42%,21%)]">
-              {fmt(r[valueKey], digits)}
-              {suffix}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 export default function EmbedTVStats({ variant }: { variant: "current" | "previous" }) {
   const { currentTournament, previousTournament, isLoading: tourLoading } = useActiveTourData();
@@ -197,7 +152,8 @@ export default function EmbedTVStats({ variant }: { variant: "current" | "previo
           rows={data?.drivingDistance}
           valueKey="longest_drive"
           digits={1}
-          suffix=" yd"
+          suffix=" m"
+          transform={(n) => n * YARDS_TO_M}
         />
         <AwardBig
           icon={Trophy}
@@ -215,7 +171,7 @@ export default function EmbedTVStats({ variant }: { variant: "current" | "previo
             {overallCtp?.user_name || "—"}
           </p>
           <p className="text-3xl font-black text-[hsl(18,84%,55%)] mt-1 font-mono">
-            {overallCtp ? `${overallCtp.distance.toFixed(2)} ft` : "—"}
+            {overallCtp ? `${(overallCtp.distance * FEET_TO_M).toFixed(2)} m` : "—"}
           </p>
           {overallCtp && (
             <p className="text-xs text-[hsl(128,20%,40%)] mt-1">
@@ -225,63 +181,6 @@ export default function EmbedTVStats({ variant }: { variant: "current" | "previo
         </div>
       </div>
 
-      {/* Mini leaderboards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 flex-1">
-        <MiniLeaderboard
-          title="Scoring Average"
-          rows={data?.scoringAverage}
-          valueKey="scoring_avg"
-          digits={2}
-        />
-        <MiniLeaderboard
-          title="GIR %"
-          rows={data?.greenAccuracy}
-          valueKey="gir_percent"
-          digits={1}
-          suffix="%"
-        />
-        <MiniLeaderboard
-          title="FIR %"
-          rows={data?.drivingAccuracy}
-          valueKey="fir_percent"
-          digits={1}
-          suffix="%"
-        />
-        <MiniLeaderboard
-          title="Driving Distance (yd)"
-          rows={data?.drivingDistance}
-          valueKey="longest_drive"
-          digits={1}
-          suffix=" yd"
-        />
-        <MiniLeaderboard
-          title="Putts per Round"
-          rows={data?.puttsPerRound}
-          valueKey="putts_per_round"
-          digits={2}
-        />
-        <MiniLeaderboard
-          title="GIR Proximity"
-          rows={data?.girProx}
-          valueKey="gir_prox"
-          digits={1}
-          suffix=" ft"
-        />
-        <MiniLeaderboard
-          title="Sand Saves"
-          rows={data?.sandSave}
-          valueKey="sand_save_percent"
-          digits={1}
-          suffix="%"
-        />
-        <MiniLeaderboard
-          title="Scrambling"
-          rows={data?.scrambling}
-          valueKey="scrambling_percent"
-          digits={1}
-          suffix="%"
-        />
-      </div>
 
       {/* Footer */}
       <div className="text-center text-lg text-[hsl(128,20%,40%)] flex items-center justify-center gap-2">
