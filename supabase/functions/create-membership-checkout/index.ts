@@ -61,30 +61,38 @@ serve(async (req) => {
     const idempotencyKey = `membership_v5_${user.id}_${tierKey}_${priceId}_${bucket}`;
     logStep("Using idempotency key", { idempotencyKey });
 
-    // Check if customer already exists
-    const customers = await stripe.customers.list({ email: user.email, limit: 1 });
+    // Fix D: search ALL Stripe customers with this email, not just one.
+    // Historically a second Stripe customer could be created (e.g. via a
+    // Checkout Session without a pre-existing customer), leaving the old
+    // customer's subscription silently billing forever. We now gather every
+    // customer for the email and act across all of them.
+    const customersList = await stripe.customers.list({ email: user.email, limit: 20 });
+    const allCustomers = customersList.data;
     let customerId: string | undefined;
-    
-    if (customers.data.length > 0) {
-      customerId = customers.data[0].id;
-      logStep("Existing customer found", { customerId });
 
-      // Check for existing active subscription with the SAME price
-      const existingSubscriptions = await stripe.subscriptions.list({
-        customer: customerId,
-        status: "active",
-      });
+    if (allCustomers.length > 0) {
+      // Prefer the customer that already has a saved card; else the newest.
+      customerId = allCustomers[0].id;
+      logStep("Existing customer(s) found", { count: allCustomers.length, primaryCustomerId: customerId, allIds: allCustomers.map(c => c.id) });
 
-      // Check if already subscribed to the requested tier
-      for (const sub of existingSubscriptions.data) {
+      // Aggregate active subscriptions across ALL customers for this email.
+      const allActiveSubs: Array<Stripe.Subscription> = [];
+      for (const c of allCustomers) {
+        const subs = await stripe.subscriptions.list({ customer: c.id, status: "active" });
+        allActiveSubs.push(...subs.data);
+      }
+      logStep("Active subscriptions across all customers", { count: allActiveSubs.length });
+
+      // Already subscribed to the requested tier on any customer → no-op.
+      for (const sub of allActiveSubs) {
         const existingPriceId = sub.items.data[0]?.price?.id;
         if (existingPriceId === priceId) {
-          logStep("Already subscribed to this tier", { subscriptionId: sub.id, priceId });
-          return new Response(JSON.stringify({ 
-            success: true, 
+          logStep("Already subscribed to this tier", { subscriptionId: sub.id, priceId, customer: sub.customer });
+          return new Response(JSON.stringify({
+            success: true,
             subscriptionId: sub.id,
             tierKey: tierKey,
-            message: "Already subscribed to this tier"
+            message: "Already subscribed to this tier",
           }), {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
             status: 200,
@@ -92,47 +100,50 @@ serve(async (req) => {
         }
       }
 
-      // Check if customer has a saved payment method
-      const paymentMethods = await stripe.paymentMethods.list({
-        customer: customerId,
-        type: "card",
-      });
+      // Find a saved payment method on any customer. Prefer the customer that
+      // already has one so the new sub reuses their existing card.
+      let defaultPaymentMethod: string | undefined;
+      for (const c of allCustomers) {
+        const pms = await stripe.paymentMethods.list({ customer: c.id, type: "card" });
+        if (pms.data.length > 0) {
+          defaultPaymentMethod = pms.data[0].id;
+          customerId = c.id;
+          logStep("Using saved payment method", { paymentMethodId: defaultPaymentMethod, customerId });
+          break;
+        }
+      }
 
-      if (paymentMethods.data.length > 0) {
-        // Use the saved payment method to create subscription directly
-        const defaultPaymentMethod = paymentMethods.data[0].id;
-        logStep("Using saved payment method", { paymentMethodId: defaultPaymentMethod });
-
-        // Cancel existing subscriptions first — and if any was created less
-        // than 10 minutes ago (i.e. an accidental double-signup on a different
-        // tier), refund the initial charge so the customer only pays for the
-        // tier they actually kept. Fix C.
-        if (existingSubscriptions.data.length > 0) {
-          for (const sub of existingSubscriptions.data) {
-            const ageMs = Date.now() - (sub.created * 1000);
-            if (ageMs < 10 * 60 * 1000) {
-              try {
-                const invoices = await stripe.invoices.list({ subscription: sub.id, limit: 5 });
-                for (const inv of invoices.data) {
-                  if (inv.status === "paid" && inv.charge && inv.amount_paid > 0) {
-                    const chargeId = typeof inv.charge === "string" ? inv.charge : inv.charge.id;
-                    const refund = await stripe.refunds.create({
-                      charge: chargeId,
-                      reason: "duplicate",
-                    });
-                    logStep("Refunded accidental sub charge on tier switch", {
-                      subscriptionId: sub.id, chargeId, refundId: refund.id, ageMs,
-                    });
-                  }
+      if (defaultPaymentMethod) {
+        // Cancel EVERY active subscription across ALL customers so we can
+        // never leave a duplicate tier silently billing. Refund recent
+        // accidental charges (created <10min ago) as duplicates.
+        for (const sub of allActiveSubs) {
+          const ageMs = Date.now() - (sub.created * 1000);
+          if (ageMs < 10 * 60 * 1000) {
+            try {
+              const invoices = await stripe.invoices.list({ subscription: sub.id, limit: 5 });
+              for (const inv of invoices.data) {
+                if (inv.status === "paid" && (inv as any).charge && inv.amount_paid > 0) {
+                  const chargeRef = (inv as any).charge;
+                  const chargeId = typeof chargeRef === "string" ? chargeRef : chargeRef.id;
+                  const refund = await stripe.refunds.create({ charge: chargeId, reason: "duplicate" });
+                  logStep("Refunded accidental sub charge on tier switch", {
+                    subscriptionId: sub.id, chargeId, refundId: refund.id, ageMs,
+                  });
                 }
-              } catch (refundErr) {
-                logStep("WARN: refund on tier switch failed", { error: String(refundErr) });
               }
+            } catch (refundErr) {
+              logStep("WARN: refund on tier switch failed", { error: String(refundErr) });
             }
+          }
+          try {
             await stripe.subscriptions.cancel(sub.id, { prorate: true });
-            logStep("Cancelled existing subscription", { subscriptionId: sub.id });
+            logStep("Cancelled existing subscription", { subscriptionId: sub.id, customer: sub.customer });
+          } catch (cancelErr) {
+            logStep("WARN: cancel failed", { subscriptionId: sub.id, error: String(cancelErr) });
           }
         }
+
 
         // Create subscription - charges immediately
         const subscription = await stripe.subscriptions.create({
