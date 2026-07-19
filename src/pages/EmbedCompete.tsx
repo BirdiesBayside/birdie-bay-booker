@@ -269,7 +269,37 @@ export default function EmbedCompete({ hideHero = false }: { hideHero?: boolean 
           </button>
           {weeklyOpen && (
             <div className="border-t" style={{ borderColor: BORDER }}>
+              <div className="px-5 pt-3 pb-1 flex justify-center">
+                <div className="flex rounded-full overflow-hidden p-1" style={{ backgroundColor: CREAM_DEEP }}>
+                  {(["scores", "stats"] as const).map((v) => (
+                    <button
+                      key={v}
+                      onClick={() => setWeeklyView(v)}
+                      className="px-5 py-1.5 text-xs font-bold uppercase tracking-wider rounded-full transition-all"
+                      style={{
+                        backgroundColor: weeklyView === v ? GREEN : "transparent",
+                        color: weeklyView === v ? "white" : MUTED,
+                      }}
+                    >
+                      {v}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {weeklyView === "stats" ? (
+                <div className="px-5 py-4">
+                  {weeklyTournamentId ? (
+                    <TournamentStatsView
+                      tournamentId={weeklyTournamentId}
+                      isCompleted={weeklyIsCompleted}
+                    />
+                  ) : (
+                    <EmptyState text="No tournament yet." />
+                  )}
+                </div>
+              ) : (
               <div className="px-5 py-2">
+
                 {tourLoading || weeklyLoading ? (
                   <LoadingRow />
                 ) : weeklyStandings.length === 0 ? (
