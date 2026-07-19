@@ -241,4 +241,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('desktop-csv-detected', handler);
     return () => ipcRenderer.removeListener('desktop-csv-detected', handler);
   },
+
+  // =====================================================
+  // OBS RECORDING APIs (League Highlights pilot)
+  // =====================================================
+  obsConfigure: (url, password) => ipcRenderer.invoke('obs-configure', { url, password }),
+  obsStartRecording: (url, password) => ipcRenderer.invoke('obs-start-recording', { url, password }),
+  obsStopRecording: () => ipcRenderer.invoke('obs-stop-recording'),
+  obsGetStatus: () => ipcRenderer.invoke('obs-get-status'),
+  obsUploadFile: (filePath, signedUrl, contentType) =>
+    ipcRenderer.invoke('obs-upload-file', { filePath, signedUrl, contentType }),
+  obsDeleteFile: (filePath) => ipcRenderer.invoke('obs-delete-file', { filePath }),
 });
