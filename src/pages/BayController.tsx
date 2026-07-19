@@ -412,14 +412,22 @@ export default function BayController() {
             return;
           }
 
-          // Load OBS config for this bay
-          const { data: dev } = await supabase
+          // Load OBS config for this bay (columns added via migration; cast avoids stale type errors)
+          const { data: dev } = await (supabase as unknown as {
+            from: (t: string) => {
+              select: (c: string) => {
+                eq: (col: string, val: number) => {
+                  maybeSingle: () => Promise<{ data: { obs_ws_url?: string; obs_ws_password?: string } | null }>;
+                };
+              };
+            };
+          })
             .from("bay_devices")
             .select("obs_ws_url, obs_ws_password")
             .eq("bay_number", selectedBay)
             .maybeSingle();
-          const obsUrl = (dev as { obs_ws_url?: string } | null)?.obs_ws_url || "ws://127.0.0.1:4455";
-          const obsPass = (dev as { obs_ws_password?: string } | null)?.obs_ws_password || "";
+          const obsUrl = dev?.obs_ws_url || "ws://127.0.0.1:4455";
+          const obsPass = dev?.obs_ws_password || "";
 
           addLog(`[Highlights] Starting OBS recording for ${shouldData.player_name} (${shouldData.tournament_name})`, 'info');
           const startRes = await window.electronAPI!.obsStartRecording!(obsUrl, obsPass);
