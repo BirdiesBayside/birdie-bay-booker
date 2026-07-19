@@ -225,10 +225,39 @@ Deno.serve(async (req) => {
       standings = parseTournamentStandings(html);
     }
 
+    // Manual net-score overrides (applied only to tournament net leaderboards)
+    // Format: { [tournamentId]: { [playerName]: { hcp, r1Net, r2Net, total } } }
+    const NET_OVERRIDES: Record<string, Record<string, { hcp: number; r1: string; r2: string; total: string }>> = {
+      "62628": {
+        "Jarrod": { hcp: 10, r1: "-9", r2: "+3", total: "-6" },
+      },
+    };
+
+    if (type === "tournament" && scoreType === "net" && NET_OVERRIDES[id]) {
+      const overrides = NET_OVERRIDES[id];
+      const tStandings = standings as TournamentStanding[];
+      for (const s of tStandings) {
+        const o = overrides[s.playerName];
+        if (o) {
+          s.hcp = o.hcp;
+          s.r1 = o.r1;
+          s.r2 = o.r2;
+          s.total = o.total;
+          s.toPar = o.total;
+        }
+      }
+      // Re-sort by total (numeric, lower = better; E = 0)
+      const toNum = (v: string) => v === "E" ? 0 : parseInt(v, 10) || 0;
+      tStandings.sort((a, b) => toNum(a.total) - toNum(b.total));
+      tStandings.forEach((s, i) => { s.position = i + 1; });
+      standings = tStandings;
+    }
+
     console.log(`[SGT-EMBED-SCRAPE] Parsed ${standings.length} standings`);
     if (standings.length > 0) {
       console.log(`[SGT-EMBED-SCRAPE] First standing:`, JSON.stringify(standings[0]));
     }
+
 
     return new Response(
       JSON.stringify({ 
