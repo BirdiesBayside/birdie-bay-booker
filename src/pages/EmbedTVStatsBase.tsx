@@ -25,9 +25,15 @@ interface AwardProps {
 
 function AwardBig({ icon: Icon, label, rows, valueKey, digits = 2, suffix = "", transform }: AwardProps) {
   const winner = rows?.[0];
-  const raw = winner?.[valueKey];
+  const rawUnknown = winner?.[valueKey];
+  const rawNum =
+    typeof rawUnknown === "number"
+      ? rawUnknown
+      : typeof rawUnknown === "string" && rawUnknown.trim() !== "" && !isNaN(Number(rawUnknown))
+        ? Number(rawUnknown)
+        : null;
   const displayValue =
-    typeof raw === "number" ? fmt(transform ? transform(raw) : raw, digits) : fmt(raw, digits);
+    rawNum !== null ? (transform ? transform(rawNum) : rawNum).toFixed(digits) : "—";
   return (
     <div className="bg-white rounded-2xl border-2 border-[hsl(128,20%,85%)] shadow-sm p-5 flex flex-col">
       <div className="flex items-center gap-2 text-[hsl(128,20%,40%)] text-sm uppercase tracking-wide font-semibold mb-2">
@@ -43,6 +49,62 @@ function AwardBig({ icon: Icon, label, rows, valueKey, digits = 2, suffix = "", 
     </div>
   );
 }
+
+function MiniTable({
+  title,
+  rows,
+  valueKey,
+  digits = 2,
+  suffix = "",
+  transform,
+}: {
+  title: string;
+  rows?: PlayerRow[];
+  valueKey: string;
+  digits?: number;
+  suffix?: string;
+  transform?: (n: number) => number;
+}) {
+  const top = (rows ?? []).slice(0, 3);
+  return (
+    <div className="bg-white rounded-2xl border-2 border-[hsl(128,20%,85%)] shadow-sm overflow-hidden flex flex-col">
+      <div className="px-4 py-2 bg-[hsl(128,42%,21%)] text-white font-bold text-base text-center">
+        {title}
+      </div>
+      <div className="divide-y divide-[hsl(128,20%,90%)] flex-1">
+        {top.length === 0 && (
+          <div className="px-4 py-6 text-center text-sm text-[hsl(128,20%,40%)]">No data yet</div>
+        )}
+        {top.map((r, i) => {
+          const rawUnknown = r[valueKey];
+          const rawNum =
+            typeof rawUnknown === "number"
+              ? rawUnknown
+              : typeof rawUnknown === "string" && rawUnknown.trim() !== "" && !isNaN(Number(rawUnknown))
+                ? Number(rawUnknown)
+                : null;
+          const val = rawNum !== null ? (transform ? transform(rawNum) : rawNum).toFixed(digits) : "—";
+          return (
+            <div
+              key={`${r.user_name}-${i}`}
+              className={i === 0 ? "grid grid-cols-12 gap-2 items-center px-4 py-2.5 bg-[hsl(37,100%,97%)]" : "grid grid-cols-12 gap-2 items-center px-4 py-2.5"}
+            >
+              <div className="col-span-1 text-center font-bold text-[hsl(128,20%,40%)]">{i + 1}</div>
+              <div className="col-span-7 font-semibold text-[hsl(128,42%,21%)] truncate">
+                {r.user_name}
+              </div>
+              <div className="col-span-4 text-right font-mono font-bold text-[hsl(128,42%,21%)]">
+                {val}
+                {suffix}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 
 
 export default function EmbedTVStats({ variant }: { variant: "current" | "previous" }) {
@@ -179,6 +241,37 @@ export default function EmbedTVStats({ variant }: { variant: "current" | "previo
             </p>
           )}
         </div>
+      </div>
+
+      {/* Top 3 mini tables */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <MiniTable
+          title="Scoring Average"
+          rows={data?.scoringAverage}
+          valueKey="scoring_avg"
+          digits={2}
+        />
+        <MiniTable
+          title="Greens in Reg"
+          rows={data?.greenAccuracy}
+          valueKey="gir_percent"
+          digits={1}
+          suffix="%"
+        />
+        <MiniTable
+          title="Driving Distance"
+          rows={data?.drivingDistance}
+          valueKey="longest_drive"
+          digits={1}
+          suffix=" m"
+          transform={(n) => n * YARDS_TO_M}
+        />
+        <MiniTable
+          title="Putts / Round"
+          rows={data?.puttsPerRound}
+          valueKey="putts_per_round"
+          digits={2}
+        />
       </div>
 
 
