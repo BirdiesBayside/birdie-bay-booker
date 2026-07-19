@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
 import { Resend } from "npm:resend@2.0.0";
-import { buildEmailTemplate } from "../_shared/email-wrapper.ts";
+import { renderBrandedEmail } from "../_shared/email-wrapper.ts";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
@@ -65,7 +65,7 @@ serve(async (req: Request): Promise<Response> => {
 
     const footer = `<p style="margin:18px 0 0; font-family:Inter, Arial, sans-serif; font-size:15px; line-height:1.6; color:#1F4C25; text-align:center;">Create your free account using <strong>this email address</strong> and your credit applies automatically at checkout.</p>`;
 
-    const html = buildEmailTemplate(heading, intro + amountBlock + footer, {
+    const html = await renderBrandedEmail(supabase, heading, intro + amountBlock + footer, {
       text: "Activate Your Gift",
       url: SIGNUP_URL,
     });

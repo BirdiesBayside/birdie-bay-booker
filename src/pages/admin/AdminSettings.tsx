@@ -36,6 +36,7 @@ import { DailyHoursEditor } from "@/components/admin/DailyHoursEditor";
 import { PublicHolidaysSection } from "@/components/admin/PublicHolidaysSection";
 import { SmsTemplatesSection } from "@/components/admin/SmsTemplatesSection";
 import { AiCaddy } from "@/components/admin/ai-caddy/AiCaddy";
+import { EmailLayoutEditor } from "@/components/admin/EmailLayoutEditor";
 import { format } from "date-fns";
 
 // Template types and their available placeholder tags
@@ -1050,7 +1051,14 @@ export default function AdminSettings() {
 
           {/* Notifications Settings */}
           <TabsContent value="notifications" className="space-y-4">
-            <CollapsibleSection title="Email Templates" description="Customize email notification templates">
+            <CollapsibleSection
+              title="Email Header & Footer"
+              description="Shared HTML wrapper applied to every customer email. Templates below only hold body content."
+            >
+              <EmailLayoutEditor />
+            </CollapsibleSection>
+
+            <CollapsibleSection title="Email Templates" description="Body content only — the shared header & footer above are applied automatically">
               <Card>
                 <CardContent className="space-y-4 pt-6">
 

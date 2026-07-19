@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { buildEmailTemplate } from "../_shared/email-wrapper.ts";
+import { renderBrandedEmail } from "../_shared/email-wrapper.ts";
 
 
 const corsHeaders = {
@@ -221,7 +221,7 @@ serve(async (req) => {
         subject = subject.replace(new RegExp(escaped, 'g'), value);
       }
 
-      const wrappedHtml = buildEmailTemplate("Welcome to the Birdies League!", bodyContent, {
+      const wrappedHtml = await renderBrandedEmail(supabaseClient, "Welcome to the Birdies League!", bodyContent, {
         text: "Read the Player Guide",
         url: guideUrl,
       });
@@ -493,7 +493,7 @@ serve(async (req) => {
               subject = subject.replace(new RegExp(escaped, 'g'), value);
             }
 
-            const wrappedHtml = buildEmailTemplate("Welcome to the Birdies League!", bodyContent, {
+            const wrappedHtml = await renderBrandedEmail(supabaseClient, "Welcome to the Birdies League!", bodyContent, {
               text: "Read the Player Guide",
               url: guideUrl,
             });
