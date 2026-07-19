@@ -1,0 +1,293 @@
+import { Loader2, Trophy, Target, Flag, TrendingUp, Crosshair, Ruler } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useActiveTourData } from "@/hooks/useActiveTourData";
+import type { StatsResponse } from "@/components/sgt/TournamentStatsView";
+import birdiesLogo from "@/assets/birdies-b-orange.png";
+import { cn } from "@/lib/utils";
+
+type PlayerRow = Record<string, unknown> & { user_name?: string; numrounds?: number };
+
+const fmt = (v: unknown, digits = 2): string =>
+  typeof v === "number" ? v.toFixed(digits) : v == null ? "-" : String(v);
+
+interface AwardProps {
+  icon: typeof Trophy;
+  label: string;
+  rows?: PlayerRow[];
+  valueKey: string;
+  digits?: number;
+  suffix?: string;
+  desc?: "asc" | "desc";
+}
+
+function AwardBig({ icon: Icon, label, rows, valueKey, digits = 2, suffix = "" }: AwardProps) {
+  const winner = rows?.[0];
+  return (
+    <div className="bg-white rounded-2xl border-2 border-[hsl(128,20%,85%)] shadow-sm p-5 flex flex-col">
+      <div className="flex items-center gap-2 text-[hsl(128,20%,40%)] text-sm uppercase tracking-wide font-semibold mb-2">
+        <Icon className="h-4 w-4 text-[hsl(18,84%,55%)]" />
+        {label}
+      </div>
+      <p className="text-2xl font-bold text-[hsl(128,42%,21%)] truncate">
+        {winner?.user_name ? String(winner.user_name) : "—"}
+      </p>
+      <p className="text-3xl font-black text-[hsl(18,84%,55%)] mt-1 font-mono">
+        {winner ? `${fmt(winner[valueKey], digits)}${suffix}` : "—"}
+      </p>
+    </div>
+  );
+}
+
+function MiniLeaderboard({
+  title,
+  rows,
+  valueKey,
+  digits = 2,
+  suffix = "",
+  limit = 5,
+}: {
+  title: string;
+  rows?: PlayerRow[];
+  valueKey: string;
+  digits?: number;
+  suffix?: string;
+  limit?: number;
+}) {
+  return (
+    <div className="bg-white rounded-2xl border-2 border-[hsl(128,20%,85%)] shadow-sm overflow-hidden">
+      <div className="px-4 py-2 bg-[hsl(128,42%,21%)] text-white font-bold text-base">
+        {title}
+      </div>
+      <div className="divide-y divide-[hsl(128,20%,90%)]">
+        {(!rows || rows.length === 0) && (
+          <div className="px-4 py-6 text-center text-sm text-[hsl(128,20%,40%)]">
+            No data yet
+          </div>
+        )}
+        {rows?.slice(0, limit).map((r, i) => (
+          <div
+            key={`${r.user_name}-${i}`}
+            className={cn(
+              "grid grid-cols-12 gap-2 items-center px-4 py-2",
+              i === 0 && "bg-[hsl(37,100%,97%)]"
+            )}
+          >
+            <div className="col-span-1 text-center font-bold text-[hsl(128,20%,40%)]">
+              {i + 1}
+            </div>
+            <div className="col-span-8 font-semibold text-[hsl(128,42%,21%)] truncate">
+              {r.user_name}
+            </div>
+            <div className="col-span-3 text-right font-mono font-bold text-[hsl(128,42%,21%)]">
+              {fmt(r[valueKey], digits)}
+              {suffix}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export default function EmbedTVStats({ variant }: { variant: "current" | "previous" }) {
+  const { currentTournament, previousTournament, isLoading: tourLoading } = useActiveTourData();
+  const tournament = variant === "current" ? currentTournament : previousTournament;
+  const tournamentId = tournament?.tournament_id ?? null;
+
+  const { data, isLoading, dataUpdatedAt } = useQuery({
+    queryKey: ["sgt-tournament-stats", tournamentId],
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("sgt-api", {
+        body: { action: "tournament-stats", params: { tournamentId: tournamentId! } },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data as StatsResponse;
+    },
+    enabled: !!tournamentId,
+    staleTime: 30_000,
+    refetchInterval: 30_000,
+  });
+
+  // Overall NTP winner from closestToPin
+  const overallCtp = (() => {
+    if (!data?.closestToPin) return null;
+    let best: { user_name: string; distance: number; round: string; hole: string } | null = null;
+    for (const [round, holes] of Object.entries(data.closestToPin)) {
+      for (const [hole, info] of Object.entries(holes)) {
+        for (const c of info.ctps || []) {
+          if (!best || c.distanceToPin < best.distance) {
+            best = { user_name: c.user_name, distance: c.distanceToPin, round, hole };
+          }
+        }
+      }
+    }
+    return best;
+  })();
+
+  const busy = tourLoading || (isLoading && !!tournamentId);
+  const lastUpdated = dataUpdatedAt ? new Date(dataUpdatedAt) : null;
+  const isCurrent = variant === "current";
+  const badge = isCurrent ? "CURRENT WEEK STATS" : "PREVIOUS WEEK STATS";
+
+  if (busy) {
+    return (
+      <div className="min-h-screen bg-[hsl(37,100%,95%)] flex items-center justify-center">
+        <Loader2 className="h-16 w-16 text-[hsl(18,84%,55%)] animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-[hsl(37,100%,95%)] p-6 flex flex-col gap-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-6">
+          <img src={birdiesLogo} alt="Birdies" className="h-16" />
+          <div>
+            <h1 className="font-bold text-4xl text-[hsl(128,42%,21%)] tracking-tight">
+              {tournament?.name || (isCurrent ? "This Week" : "Previous Week")}
+            </h1>
+            <p className="text-xl text-[hsl(128,20%,40%)]">
+              {tournament?.course_name || "Birdies Tour"} • Tournament Stats
+            </p>
+          </div>
+        </div>
+        <div className="text-right">
+          <div className="px-6 py-3 bg-[hsl(18,84%,55%)] text-white rounded-lg text-xl font-bold">
+            {badge}
+          </div>
+          {lastUpdated && (
+            <p className="text-sm text-[hsl(128,20%,40%)] mt-2">
+              Updated: {lastUpdated.toLocaleTimeString()}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Weekly Award Winners */}
+      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+        <AwardBig
+          icon={Trophy}
+          label="Low Scoring Avg"
+          rows={data?.scoringAverage}
+          valueKey="scoring_avg"
+          digits={2}
+        />
+        <AwardBig
+          icon={Flag}
+          label="Greens in Reg"
+          rows={data?.greenAccuracy}
+          valueKey="gir_percent"
+          digits={1}
+          suffix="%"
+        />
+        <AwardBig
+          icon={Target}
+          label="Fairways in Reg"
+          rows={data?.drivingAccuracy}
+          valueKey="fir_percent"
+          digits={1}
+          suffix="%"
+        />
+        <AwardBig
+          icon={TrendingUp}
+          label="Driving Distance"
+          rows={data?.drivingDistance}
+          valueKey="longest_drive"
+          digits={1}
+          suffix=" yd"
+        />
+        <AwardBig
+          icon={Trophy}
+          label="Fewest Putts / Rd"
+          rows={data?.puttsPerRound}
+          valueKey="putts_per_round"
+          digits={2}
+        />
+        <div className="bg-white rounded-2xl border-2 border-[hsl(128,20%,85%)] shadow-sm p-5 flex flex-col">
+          <div className="flex items-center gap-2 text-[hsl(128,20%,40%)] text-sm uppercase tracking-wide font-semibold mb-2">
+            <Crosshair className="h-4 w-4 text-[hsl(18,84%,55%)]" />
+            Nearest to Pin
+          </div>
+          <p className="text-2xl font-bold text-[hsl(128,42%,21%)] truncate">
+            {overallCtp?.user_name || "—"}
+          </p>
+          <p className="text-3xl font-black text-[hsl(18,84%,55%)] mt-1 font-mono">
+            {overallCtp ? `${overallCtp.distance.toFixed(2)} ft` : "—"}
+          </p>
+          {overallCtp && (
+            <p className="text-xs text-[hsl(128,20%,40%)] mt-1">
+              R{overallCtp.round} · Hole {overallCtp.hole}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Mini leaderboards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 flex-1">
+        <MiniLeaderboard
+          title="Scoring Average"
+          rows={data?.scoringAverage}
+          valueKey="scoring_avg"
+          digits={2}
+        />
+        <MiniLeaderboard
+          title="GIR %"
+          rows={data?.greenAccuracy}
+          valueKey="gir_percent"
+          digits={1}
+          suffix="%"
+        />
+        <MiniLeaderboard
+          title="FIR %"
+          rows={data?.drivingAccuracy}
+          valueKey="fir_percent"
+          digits={1}
+          suffix="%"
+        />
+        <MiniLeaderboard
+          title="Driving Distance (yd)"
+          rows={data?.drivingDistance}
+          valueKey="longest_drive"
+          digits={1}
+          suffix=" yd"
+        />
+        <MiniLeaderboard
+          title="Putts per Round"
+          rows={data?.puttsPerRound}
+          valueKey="putts_per_round"
+          digits={2}
+        />
+        <MiniLeaderboard
+          title="GIR Proximity"
+          rows={data?.girProx}
+          valueKey="gir_prox"
+          digits={1}
+          suffix=" ft"
+        />
+        <MiniLeaderboard
+          title="Sand Saves"
+          rows={data?.sandSave}
+          valueKey="sand_save_percent"
+          digits={1}
+          suffix="%"
+        />
+        <MiniLeaderboard
+          title="Scrambling"
+          rows={data?.scrambling}
+          valueKey="scrambling_percent"
+          digits={1}
+          suffix="%"
+        />
+      </div>
+
+      {/* Footer */}
+      <div className="text-center text-lg text-[hsl(128,20%,40%)] flex items-center justify-center gap-2">
+        <Ruler className="h-4 w-4" />
+        Live updates every 30 seconds • Powered by Birdies League Hub
+      </div>
+    </div>
+  );
+}

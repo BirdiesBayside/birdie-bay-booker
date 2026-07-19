@@ -30,6 +30,8 @@ const EmbedLeaderboard = lazy(() => import("./pages/EmbedLeaderboard"));
 const EmbedTVCurrentWeek = lazy(() => import("./pages/EmbedTVCurrentWeek"));
 const EmbedTVPreviousWeek = lazy(() => import("./pages/EmbedTVPreviousWeek"));
 const EmbedTVMonthlyWinner = lazy(() => import("./pages/EmbedTVMonthlyWinner"));
+const EmbedTVStatsCurrentWeek = lazy(() => import("./pages/EmbedTVStatsCurrentWeek"));
+const EmbedTVStatsPreviousWeek = lazy(() => import("./pages/EmbedTVStatsPreviousWeek"));
 const CardAdded = lazy(() => import("./pages/CardAdded"));
 const WelcomePreview = lazy(() => import("./pages/WelcomePreview"));
 const BirdiesGuide = lazy(() => import("./pages/BirdiesGuide"));
@@ -221,6 +223,10 @@ const App = () => (
             <Route path="/embed/tv-current-week" element={<EmbedTVCurrentWeek />} />
             <Route path="/embed/tv-previous-week" element={<EmbedTVPreviousWeek />} />
             <Route path="/embed/tv-monthly-winner" element={<EmbedTVMonthlyWinner />} />
+            <Route path="/embed/tv-stats-current-week" element={<EmbedTVStatsCurrentWeek />} />
+            <Route path="/embed/tv-stats-previous-week" element={<EmbedTVStatsPreviousWeek />} />
+
+
             <Route path="/bay-controller" element={<BayController />} />
             <Route path="/card-added" element={<CardAdded />} />
             <Route path="/welcome-preview" element={<WelcomePreview />} />
