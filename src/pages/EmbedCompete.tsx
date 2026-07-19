@@ -56,8 +56,15 @@ export default function EmbedCompete({ hideHero = false }: { hideHero?: boolean 
   const { activeTour, currentTournament, previousTournament, isLoading: tourLoading } = useActiveTourData();
   const [scoreType, setScoreType] = useState<"gross" | "net">("net");
   const [weeklyOpen, setWeeklyOpen] = useState(false);
+  const [weeklyView, setWeeklyView] = useState<"scores" | "stats">("scores");
   const [monthlyOpen, setMonthlyOpen] = useState(false);
   const [ambroseOpen, setAmbroseOpen] = useState(false);
+
+  const weeklyTournamentId =
+    currentTournament?.tournament_id ?? previousTournament?.tournament_id ?? null;
+  const weeklyIsCompleted =
+    (currentTournament ?? previousTournament)?.status === "Completed";
+
 
   // Weekly tournament standings
   const { standings: weeklyStandings, isLoading: weeklyLoading } = useSGTTournamentStandings({
