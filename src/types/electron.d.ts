@@ -108,6 +108,14 @@ declare global {
       scanDesktopCsvs: (sinceMs?: number) => Promise<{ success: boolean; csvs: { filename: string; base64: string; mtime: number; size: number }[]; error?: string }>;
       deleteDesktopCsv: (filename: string) => Promise<{ success: boolean; error?: string }>;
       onDesktopCsvDetected: (callback: (payload: { filename: string; base64: string; size: number; mtime: number }) => void) => () => void;
+
+      // OBS Recording (League Highlights pilot)
+      obsConfigure: (url: string, password: string) => Promise<{ success: boolean; error?: string }>;
+      obsStartRecording: (url: string, password: string) => Promise<{ success: boolean; startedAtMs?: number; alreadyRecording?: boolean; error?: string }>;
+      obsStopRecording: () => Promise<{ success: boolean; filePath?: string | null; sizeBytes?: number | null; error?: string }>;
+      obsGetStatus: () => Promise<{ success: boolean; connected?: boolean; recording?: boolean; timecode?: string; error?: string }>;
+      obsUploadFile: (filePath: string, signedUrl: string, contentType?: string) => Promise<{ success: boolean; sizeBytes?: number; error?: string }>;
+      obsDeleteFile: (filePath: string) => Promise<{ success: boolean; alreadyGone?: boolean; error?: string }>;
     };
   }
 }
