@@ -152,7 +152,8 @@ export default function EmbedTVStats({ variant }: { variant: "current" | "previo
           rows={data?.drivingDistance}
           valueKey="longest_drive"
           digits={1}
-          suffix=" yd"
+          suffix=" m"
+          transform={(n) => n * YARDS_TO_M}
         />
         <AwardBig
           icon={Trophy}
@@ -170,7 +171,7 @@ export default function EmbedTVStats({ variant }: { variant: "current" | "previo
             {overallCtp?.user_name || "—"}
           </p>
           <p className="text-3xl font-black text-[hsl(18,84%,55%)] mt-1 font-mono">
-            {overallCtp ? `${overallCtp.distance.toFixed(2)} ft` : "—"}
+            {overallCtp ? `${(overallCtp.distance * FEET_TO_M).toFixed(2)} m` : "—"}
           </p>
           {overallCtp && (
             <p className="text-xs text-[hsl(128,20%,40%)] mt-1">
@@ -180,63 +181,6 @@ export default function EmbedTVStats({ variant }: { variant: "current" | "previo
         </div>
       </div>
 
-      {/* Mini leaderboards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 flex-1">
-        <MiniLeaderboard
-          title="Scoring Average"
-          rows={data?.scoringAverage}
-          valueKey="scoring_avg"
-          digits={2}
-        />
-        <MiniLeaderboard
-          title="GIR %"
-          rows={data?.greenAccuracy}
-          valueKey="gir_percent"
-          digits={1}
-          suffix="%"
-        />
-        <MiniLeaderboard
-          title="FIR %"
-          rows={data?.drivingAccuracy}
-          valueKey="fir_percent"
-          digits={1}
-          suffix="%"
-        />
-        <MiniLeaderboard
-          title="Driving Distance (yd)"
-          rows={data?.drivingDistance}
-          valueKey="longest_drive"
-          digits={1}
-          suffix=" yd"
-        />
-        <MiniLeaderboard
-          title="Putts per Round"
-          rows={data?.puttsPerRound}
-          valueKey="putts_per_round"
-          digits={2}
-        />
-        <MiniLeaderboard
-          title="GIR Proximity"
-          rows={data?.girProx}
-          valueKey="gir_prox"
-          digits={1}
-          suffix=" ft"
-        />
-        <MiniLeaderboard
-          title="Sand Saves"
-          rows={data?.sandSave}
-          valueKey="sand_save_percent"
-          digits={1}
-          suffix="%"
-        />
-        <MiniLeaderboard
-          title="Scrambling"
-          rows={data?.scrambling}
-          valueKey="scrambling_percent"
-          digits={1}
-          suffix="%"
-        />
-      </div>
 
       {/* Footer */}
       <div className="text-center text-lg text-[hsl(128,20%,40%)] flex items-center justify-center gap-2">
