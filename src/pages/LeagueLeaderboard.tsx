@@ -16,6 +16,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { getCurrentBlockLabel } from "@/lib/league-block";
+import { TournamentStatsView } from "@/components/sgt/TournamentStatsView";
 
 interface MonthlyStanding {
   id: string;
