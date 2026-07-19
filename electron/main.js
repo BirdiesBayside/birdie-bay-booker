@@ -3797,6 +3797,117 @@ ipcMain.handle('scan-desktop-csvs', async (_e, { sinceMs } = {}) => {
   }
 });
 
+// =====================================================
+// OBS RECORDING (League Highlights pilot)
+// =====================================================
+// Requires OBS Studio 28+ with obs-websocket 5 enabled on 127.0.0.1:4455.
+// Renderer configures URL+password, starts/stops recording, and provides a
+// signed upload URL. Main uploads the resulting .mkv directly (avoids
+// shipping 1-5 GB files through IPC as base64).
+let obsController = null;
+function ensureObs({ url, password }) {
+  try {
+    const { OBSController } = require('./obs-controller');
+    if (!obsController) obsController = new OBSController({ url, password });
+    else { obsController.url = url; obsController.password = password; }
+    return obsController;
+  } catch (e) {
+    console.error('[OBS] Failed to load obs-controller:', e.message);
+    throw e;
+  }
+}
+
+ipcMain.handle('obs-configure', async (_e, { url, password } = {}) => {
+  try {
+    ensureObs({ url: url || 'ws://127.0.0.1:4455', password: password || '' });
+    return { success: true };
+  } catch (e) { return { success: false, error: e.message }; }
+});
+
+ipcMain.handle('obs-start-recording', async (_e, { url, password } = {}) => {
+  try {
+    const ctl = ensureObs({ url: url || 'ws://127.0.0.1:4455', password: password || '' });
+    if (!ctl.identified) await ctl.connect();
+    const status = await ctl.getStatus();
+    if (status?.outputActive) {
+      console.log('[OBS] Recording already active, reusing');
+      return { success: true, startedAtMs: Date.now(), alreadyRecording: true };
+    }
+    await ctl.startRecording();
+    const startedAtMs = Date.now();
+    console.log(`[OBS] Recording started at ${new Date(startedAtMs).toISOString()}`);
+    return { success: true, startedAtMs };
+  } catch (e) {
+    console.error('[OBS] start failed:', e.message);
+    return { success: false, error: e.message };
+  }
+});
+
+ipcMain.handle('obs-stop-recording', async () => {
+  try {
+    if (!obsController || !obsController.identified) {
+      return { success: false, error: 'OBS not connected' };
+    }
+    const res = await obsController.stopRecording();
+    // v5 protocol returns outputPath in responseData
+    const filePath = res?.outputPath || null;
+    let sizeBytes = null;
+    if (filePath && fs.existsSync(filePath)) {
+      try { sizeBytes = fs.statSync(filePath).size; } catch {}
+    }
+    console.log(`[OBS] Recording stopped: ${filePath} (${sizeBytes} bytes)`);
+    return { success: true, filePath, sizeBytes };
+  } catch (e) {
+    console.error('[OBS] stop failed:', e.message);
+    return { success: false, error: e.message };
+  }
+});
+
+ipcMain.handle('obs-get-status', async () => {
+  try {
+    if (!obsController || !obsController.identified) return { success: true, connected: false, recording: false };
+    const s = await obsController.getStatus();
+    return { success: true, connected: true, recording: !!s?.outputActive, timecode: s?.outputTimecode };
+  } catch (e) { return { success: false, error: e.message }; }
+});
+
+// Upload a local file (e.g. OBS recording) to a Supabase signed upload URL.
+// Streams the file so we don't blow renderer memory on multi-GB captures.
+ipcMain.handle('obs-upload-file', async (_e, { filePath, signedUrl, contentType } = {}) => {
+  try {
+    if (!filePath || !fs.existsSync(filePath)) return { success: false, error: 'File not found' };
+    if (!signedUrl) return { success: false, error: 'Missing signedUrl' };
+    const stat = fs.statSync(filePath);
+    const buf = fs.readFileSync(filePath);
+    const resp = await fetch(signedUrl, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': contentType || 'video/x-matroska',
+        'Content-Length': String(stat.size),
+      },
+      body: buf,
+    });
+    if (!resp.ok) {
+      const txt = await resp.text().catch(() => '');
+      return { success: false, error: `Upload HTTP ${resp.status}: ${txt.slice(0, 200)}` };
+    }
+    console.log(`[OBS] Uploaded ${filePath} (${stat.size} bytes) → ${signedUrl.split('?')[0]}`);
+    return { success: true, sizeBytes: stat.size };
+  } catch (e) {
+    console.error('[OBS] upload failed:', e.message);
+    return { success: false, error: e.message };
+  }
+});
+
+ipcMain.handle('obs-delete-file', async (_e, { filePath } = {}) => {
+  try {
+    if (!filePath) return { success: false, error: 'Missing path' };
+    if (!fs.existsSync(filePath)) return { success: true, alreadyGone: true };
+    fs.unlinkSync(filePath);
+    return { success: true };
+  } catch (e) { return { success: false, error: e.message }; }
+});
+
 // Delete a CSV file from the desktop by filename (safety: filename must not contain path separators)
 ipcMain.handle('delete-desktop-csv', async (_e, { filename } = {}) => {
   try {
