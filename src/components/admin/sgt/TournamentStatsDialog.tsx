@@ -550,19 +550,19 @@ export function TournamentStatsDialog({ open, onOpenChange, tournament }: Props)
                         </p>
                       ) : (
                         <>
-                          {[
-                            { key: "sgTotal", label: "SG: Total" },
-                            { key: "sgTee", label: "SG: Tee" },
-                            { key: "sgApproach", label: "SG: Approach" },
-                            { key: "sgATG", label: "SG: Around the Green" },
-                            { key: "sgGreen", label: "SG: Putting" },
-                            { key: "sgTeeToGreen", label: "SG: Tee to Green" },
-                          ].map((b) => (
+                          {([
+                            { key: "sgTotal", label: "SG: Total", valKey: "sg_total" },
+                            { key: "sgTee", label: "SG: Tee", valKey: "sg_tee" },
+                            { key: "sgApproach", label: "SG: Approach", valKey: "sg_approach" },
+                            { key: "sgATG", label: "SG: Around the Green", valKey: "sg_atg" },
+                            { key: "sgGreen", label: "SG: Putting", valKey: "sg_green" },
+                            { key: "sgTeeToGreen", label: "SG: Tee to Green", valKey: "sg_tee_to_green" },
+                          ] as const).map((b) => (
                             <div key={b.key}>
                               <p className="font-medium mb-2">{b.label}</p>
                               <StatTable
-                                rows={data?.[b.key as keyof StatsResponse] as PlayerRow[]}
-                                valueKey={b.key.replace(/^sg/, "sg_").toLowerCase().replace("sg_teetogreen", "sg_tee_to_green").replace("sg_atg", "sg_atg").replace("sg_approach", "sg_approach").replace("sg_tee", "sg_tee").replace("sg_green", "sg_green").replace("sg_total", "sg_total")}
+                                rows={data?.[b.key] as PlayerRow[] | undefined}
+                                valueKey={b.valKey}
                                 valueLabel="Strokes"
                                 digits={2}
                               />
