@@ -403,7 +403,7 @@ serve(async (req) => {
         const nowIso = new Date().toISOString();
         const { data: tourney } = await supabase
           .from("sgt_tournaments")
-          .select("sgt_tournament_id, name, start_date, end_date")
+          .select("tournament_id, name, start_date, end_date")
           .lte("start_date", nowIso.slice(0, 10))
           .gte("end_date", nowIso.slice(0, 10))
           .order("start_date", { ascending: false })
@@ -415,7 +415,7 @@ serve(async (req) => {
           should_record: true,
           booking_id: bookingId,
           sgt_user_id: prof.sgt_user_id,
-          sgt_tournament_id: tourney.sgt_tournament_id,
+          sgt_tournament_id: tourney.tournament_id,
           player_name: booking.customer_name,
           tournament_name: tourney.name,
           booking_end_time: `${booking.booking_date}T${booking.end_time}`,

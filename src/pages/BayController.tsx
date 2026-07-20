@@ -412,20 +412,20 @@ export default function BayController() {
             return;
           }
 
-          // Load OBS config for this bay (columns added via migration; cast avoids stale type errors)
-          const { data: dev } = await (supabase as unknown as {
-            from: (t: string) => {
-              select: (c: string) => {
-                eq: (col: string, val: number) => {
-                  maybeSingle: () => Promise<{ data: { obs_ws_url?: string; obs_ws_password?: string } | null }>;
-                };
-              };
-            };
-          })
-            .from("bay_devices")
-            .select("obs_ws_url, obs_ws_password")
+          // Load OBS config for this bay. bay_devices stores settings against bay_id,
+          // so we first resolve the bay_id from the selected bay number.
+          const { data: bayData } = await supabase
+            .from("bays")
+            .select("id")
             .eq("bay_number", selectedBay)
             .maybeSingle();
+
+          const { data: dev } = await supabase
+            .from("bay_devices")
+            .select("obs_ws_url, obs_ws_password")
+            .eq("bay_id", bayData?.id ?? "")
+            .maybeSingle() as { data: { obs_ws_url?: string | null; obs_ws_password?: string | null } | null };
+
           const obsUrl = dev?.obs_ws_url || "ws://127.0.0.1:4455";
           const obsPass = dev?.obs_ws_password || "";
 
