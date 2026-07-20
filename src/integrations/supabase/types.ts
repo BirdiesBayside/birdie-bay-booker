@@ -2065,6 +2065,7 @@ export type Database = {
           hole_number: number
           id: string
           par: number | null
+          pre_existing: boolean
           recording_session_id: string
           score: number | null
           shot_timeline: Json
@@ -2081,6 +2082,7 @@ export type Database = {
           hole_number: number
           id?: string
           par?: number | null
+          pre_existing?: boolean
           recording_session_id: string
           score?: number | null
           shot_timeline?: Json
@@ -2097,6 +2099,7 @@ export type Database = {
           hole_number?: number
           id?: string
           par?: number | null
+          pre_existing?: boolean
           recording_session_id?: string
           score?: number | null
           shot_timeline?: Json
