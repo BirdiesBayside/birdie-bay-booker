@@ -141,3 +141,6 @@ verify_jwt = false
 
 
 
+
+[functions.restore-range-session]
+verify_jwt = false
