@@ -77,14 +77,19 @@ Deno.serve(async (req) => {
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
   const admin = createClient(supabaseUrl, serviceKey);
 
-  // Require signed-in admin
-  const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
-  if (!token) return json({ error: "unauthorized" }, 401);
-  const authClient = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: `Bearer ${token}` } } });
-  const { data: userRes, error: uErr } = await authClient.auth.getUser();
-  if (uErr || !userRes?.user) return json({ error: "unauthorized" }, 401);
-  const { data: isAdmin } = await admin.rpc("has_role", { _user_id: userRes.user.id, _role: "admin" });
-  if (!isAdmin) return json({ error: "forbidden" }, 403);
+  // Auth: signed-in admin OR SYNC_SECRET header (for one-shot restores).
+  const syncSecret = Deno.env.get("SYNC_SECRET");
+  const headerSecret = req.headers.get("x-sync-secret");
+  const secretOk = !!syncSecret && headerSecret === syncSecret;
+  if (!secretOk) {
+    const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
+    if (!token) return json({ error: "unauthorized" }, 401);
+    const authClient = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: `Bearer ${token}` } } });
+    const { data: userRes, error: uErr } = await authClient.auth.getUser();
+    if (uErr || !userRes?.user) return json({ error: "unauthorized" }, 401);
+    const { data: isAdmin } = await admin.rpc("has_role", { _user_id: userRes.user.id, _role: "admin" });
+    if (!isAdmin) return json({ error: "forbidden" }, 403);
+  }
 
   let body: any;
   try { body = await req.json(); } catch { return json({ error: "invalid_json" }, 400); }
