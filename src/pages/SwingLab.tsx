@@ -491,7 +491,8 @@ export default function SwingLab() {
                                   const { error } = await supabase
                                     .from("range_sessions")
                                     .delete()
-                                    .eq("id", s.id);
+                                    .eq("id", s.id)
+                                    .eq("user_id", user!.id);
                                   if (error) {
                                     toast.error("Couldn't delete session: " + error.message);
                                     return;
