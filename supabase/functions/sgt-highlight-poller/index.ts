@@ -106,12 +106,14 @@ Deno.serve(async (req) => {
     }
 
     // What holes have we already logged for this session?
+    // pre_existing=true means the hole was already scored on the SGT scorecard
+    // BEFORE this recording started (played in a previous session) — skip it.
     const { data: known } = await supabase
       .from("recording_holes")
-      .select("hole_number, hole_completed_at, score")
+      .select("hole_number, hole_completed_at, score, pre_existing")
       .eq("recording_session_id", sess.id);
-    const knownMap = new Map<number, { completed: boolean; score: number | null }>(
-      (known ?? []).map((k) => [k.hole_number, { completed: !!k.hole_completed_at, score: k.score }]),
+    const knownMap = new Map<number, { completed: boolean; score: number | null; preExisting: boolean }>(
+      (known ?? []).map((k) => [k.hole_number, { completed: !!k.hole_completed_at, score: k.score, preExisting: !!k.pre_existing }]),
     );
 
     let newlyCompleted = 0;
@@ -119,7 +121,8 @@ Deno.serve(async (req) => {
     for (const h of holes) {
       if (h.score == null) continue; // hole not finished yet
       const existing = knownMap.get(h.hole_number);
-      if (existing?.completed) continue; // already tracked
+      if (existing?.preExisting) continue; // played in an earlier session — not ours to clip
+      if (existing?.completed) continue; // already tracked this session
 
       const nowIso = new Date().toISOString();
 
