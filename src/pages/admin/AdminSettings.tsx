@@ -171,6 +171,16 @@ interface Bay {
   is_active: boolean;
 }
 
+interface BayDevice {
+  id: string;
+  bay_id: string;
+  obs_ws_url: string | null;
+  obs_ws_password: string | null;
+  is_online: boolean;
+  last_seen: string | null;
+  app_version: string | null;
+}
+
 interface BayBooking {
   id: string;
   booking_date: string;
