@@ -71,6 +71,11 @@ class OBSController {
     return this.request('StopRecord');
   }
   async getStatus() { return this.request('GetRecordStatus'); }
+  // Requires OBS 30.2+ / obs-websocket 5.5+. Injects a chapter marker in the
+  // active recording so reviewers can jump between holes in the trim UI.
+  async addChapter(name) {
+    return this.request('CreateRecordChapter', { chapterName: String(name || '') });
+  }
 
   disconnect() { try { this.ws?.close(); } catch { /* noop */ } this.ws = null; this.identified = false; }
 }

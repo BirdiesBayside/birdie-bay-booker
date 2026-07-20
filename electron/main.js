@@ -3871,6 +3871,24 @@ ipcMain.handle('obs-get-status', async () => {
   } catch (e) { return { success: false, error: e.message }; }
 });
 
+// Inject an OBS chapter marker mid-recording (e.g. "Hole 7").
+// Silently no-ops if OBS is not connected or the running recording isn't active.
+ipcMain.handle('obs-add-chapter', async (_e, { name } = {}) => {
+  try {
+    if (!obsController || !obsController.identified) {
+      return { success: false, error: 'OBS not connected' };
+    }
+    const status = await obsController.getStatus().catch(() => null);
+    if (!status?.outputActive) return { success: false, error: 'not recording' };
+    await obsController.addChapter(name || 'Chapter');
+    console.log(`[OBS] Chapter marker inserted: ${name}`);
+    return { success: true };
+  } catch (e) {
+    console.error('[OBS] addChapter failed:', e.message);
+    return { success: false, error: e.message };
+  }
+});
+
 // Upload a local file (e.g. OBS recording) to a Supabase signed upload URL.
 // Streams the file so we don't blow renderer memory on multi-GB captures.
 ipcMain.handle('obs-upload-file', async (_e, { filePath, signedUrl, contentType } = {}) => {
