@@ -252,4 +252,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   obsUploadFile: (filePath, signedUrl, contentType) =>
     ipcRenderer.invoke('obs-upload-file', { filePath, signedUrl, contentType }),
   obsDeleteFile: (filePath) => ipcRenderer.invoke('obs-delete-file', { filePath }),
+  obsAddChapter: (name) => ipcRenderer.invoke('obs-add-chapter', { name }),
 });

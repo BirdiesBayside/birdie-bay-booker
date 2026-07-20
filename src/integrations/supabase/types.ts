@@ -2057,9 +2057,11 @@ export type Database = {
       }
       recording_holes: {
         Row: {
+          chapter_marked_at: string | null
           clip_end_seconds: number | null
           clip_start_seconds: number | null
           created_at: string
+          hole_completed_at: string | null
           hole_number: number
           id: string
           par: number | null
@@ -2071,9 +2073,11 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          chapter_marked_at?: string | null
           clip_end_seconds?: number | null
           clip_start_seconds?: number | null
           created_at?: string
+          hole_completed_at?: string | null
           hole_number: number
           id?: string
           par?: number | null
@@ -2085,9 +2089,11 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          chapter_marked_at?: string | null
           clip_end_seconds?: number | null
           clip_start_seconds?: number | null
           created_at?: string
+          hole_completed_at?: string | null
           hole_number?: number
           id?: string
           par?: number | null
