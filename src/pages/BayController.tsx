@@ -1470,8 +1470,9 @@ export default function BayController() {
             const holeNum = holeMatch ? Number(holeMatch[1]) : null;
             const chapterName = holeNum ? `Hole ${holeNum}` : 'Chapter';
             try {
-              if (window.electron?.obsAddChapter) {
-                const res = await window.electron.obsAddChapter(chapterName);
+              const electronApi: any = (window as any).electronAPI;
+              if (electronApi?.obsAddChapter) {
+                const res = await electronApi.obsAddChapter(chapterName);
                 if (res?.success) {
                   console.log(`[OBS] Chapter marker set: ${chapterName}`);
                   // Stamp chapter_marked_at on the corresponding hole
