@@ -551,7 +551,10 @@ export default function BayController() {
         }
       })();
     }
+
+    recordingPrevBookingRef.current = curr;
   }, [activeBooking, isElectron, selectedBay, addLog, bayLogger]);
+
 
 
 
