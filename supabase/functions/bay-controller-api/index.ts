@@ -389,14 +389,20 @@ serve(async (req) => {
           return jsonResponse({ should_record: false, reason: "bay not pilot or disabled" });
         }
 
-        const { data: booking } = await supabase
+        const { data: booking, error: bookingErr } = await supabase
           .from("bookings")
-          .select("id, user_id, customer_name, booking_date, start_time, end_time")
+          .select("id, user_id, booking_date, start_time, end_time")
           .eq("id", bookingId)
           .single();
+        if (bookingErr) console.error("[should_record] booking lookup error:", bookingErr.message);
         if (!booking) return jsonResponse({ should_record: false, reason: "booking not found" });
 
-        const { data: prof } = await supabase.from("profiles").select("sgt_user_id").eq("user_id", booking.user_id).maybeSingle();
+        const { data: prof, error: profErr } = await supabase
+          .from("profiles")
+          .select("first_name, last_name, sgt_user_id")
+          .eq("user_id", booking.user_id)
+          .maybeSingle();
+        if (profErr) console.error("[should_record] profile lookup error:", profErr.message);
         if (!prof?.sgt_user_id) return jsonResponse({ should_record: false, reason: "not an SGT member" });
 
         // Any active/current SGT tournament that this user is registered in?
@@ -411,12 +417,13 @@ serve(async (req) => {
           .maybeSingle();
         if (!tourney) return jsonResponse({ should_record: false, reason: "no active tournament" });
 
+        const playerName = [prof.first_name, prof.last_name].filter(Boolean).join(" ").trim() || "Player";
         return jsonResponse({
           should_record: true,
           booking_id: bookingId,
           sgt_user_id: prof.sgt_user_id,
           sgt_tournament_id: tourney.tournament_id,
-          player_name: booking.customer_name,
+          player_name: playerName,
           tournament_name: tourney.name,
           booking_end_time: `${booking.booking_date}T${booking.end_time}`,
         });
