@@ -390,7 +390,7 @@ export default function AdminSettings() {
     setIsSavingTemplate(false);
   };
 
-  // Fetch bays and their upcoming bookings
+  // Fetch bays, their devices, and upcoming bookings
   const fetchBays = async () => {
     setIsLoadingBays(true);
     const { data, error } = await supabase
@@ -400,6 +400,17 @@ export default function AdminSettings() {
 
     if (!error && data) {
       setBays(data);
+      // Fetch bay devices for all bays in one query
+      const { data: devices } = await supabase
+        .from("bay_devices")
+        .select("id, bay_id, obs_ws_url, obs_ws_password, is_online, last_seen, app_version");
+      
+      const devicesMap: Record<string, BayDevice> = {};
+      for (const device of (devices || [])) {
+        devicesMap[device.bay_id] = device;
+      }
+      setBayDevices(devicesMap);
+
       // Fetch only truly upcoming bookings (end time in the future)
       const now = new Date();
       const today = format(now, "yyyy-MM-dd");
