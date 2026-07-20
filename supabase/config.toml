@@ -136,4 +136,9 @@ verify_jwt = false
 [functions.retry-membership-payment]
 verify_jwt = false
 
+[functions.restore-range-session]
+verify_jwt = false
+
+
+
 
