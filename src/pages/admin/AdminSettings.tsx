@@ -200,23 +200,38 @@ export default function AdminSettings() {
   const [timezone, setTimezone] = useState("Australia/Sydney");
   const [isLoadingTimezone, setIsLoadingTimezone] = useState(true);
 
-  // Load timezone from database on mount
+  // League Highlights settings
+  const [highlightRecordingEnabled, setHighlightRecordingEnabled] = useState(false);
+  const [highlightPilotBay, setHighlightPilotBay] = useState<number | null>(null);
+  const [isSavingHighlights, setIsSavingHighlights] = useState(false);
+
+  // Bay device settings (OBS WebSocket per bay)
+  const [bayDevices, setBayDevices] = useState<Record<string, BayDevice>>({});
+  const [savingBayDevice, setSavingBayDevice] = useState<string | null>(null);
+
+  // Load timezone and highlight settings from database on mount
   useEffect(() => {
-    const loadTimezone = async () => {
+    const loadSettings = async () => {
       const { data } = await supabase
         .from("system_settings")
-        .select("timezone")
+        .select("timezone, highlight_recording_enabled, highlight_recording_pilot_bay")
         .eq("id", "global")
         .single();
       
       if (data?.timezone) {
         setTimezone(data.timezone);
       }
+      if (data?.highlight_recording_enabled !== undefined) {
+        setHighlightRecordingEnabled(data.highlight_recording_enabled);
+      }
+      if (data?.highlight_recording_pilot_bay !== undefined && data.highlight_recording_pilot_bay !== null) {
+        setHighlightPilotBay(data.highlight_recording_pilot_bay);
+      }
       setIsLoadingTimezone(false);
     };
     
     if (isAdmin) {
-      loadTimezone();
+      loadSettings();
     }
   }, [isAdmin]);
 
