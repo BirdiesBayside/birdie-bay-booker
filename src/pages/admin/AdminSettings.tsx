@@ -211,6 +211,19 @@ export default function AdminSettings() {
   const [savingBayDevice, setSavingBayDevice] = useState<string | null>(null);
   const [expandedBayDevice, setExpandedBayDevice] = useState<string | null>(null);
 
+  // Initialize bay device form values when devices load
+  useEffect(() => {
+    const initial: Record<string, { obs_ws_url: string; obs_ws_password: string }> = {};
+    for (const bayId of Object.keys(bayDevices)) {
+      const device = bayDevices[bayId];
+      initial[bayId] = {
+        obs_ws_url: device?.obs_ws_url || "ws://127.0.0.1:4455",
+        obs_ws_password: device?.obs_ws_password || "",
+      };
+    }
+    setBayDeviceForm(initial);
+  }, [bayDevices]);
+
   // Load timezone and highlight settings from database on mount
   useEffect(() => {
     const loadSettings = async () => {
