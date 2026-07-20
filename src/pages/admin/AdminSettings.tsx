@@ -542,13 +542,16 @@ export default function AdminSettings() {
   };
 
   // Save per-bay OBS WebSocket settings
-  const saveBayDeviceSettings = async (bayId: string, url: string, password: string) => {
+  const saveBayDeviceSettings = async (bayId: string) => {
+    const form = bayDeviceForm[bayId];
+    if (!form) return;
+
     setSavingBayDevice(bayId);
     const device = bayDevices[bayId];
     const payload = {
       bay_id: bayId,
-      obs_ws_url: url || null,
-      obs_ws_password: password || null,
+      obs_ws_url: form.obs_ws_url || null,
+      obs_ws_password: form.obs_ws_password || null,
     };
 
     const { error } = device?.id
