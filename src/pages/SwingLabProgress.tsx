@@ -83,6 +83,7 @@ export default function SwingLabProgress() {
       const { data, error } = await supabase
         .from("range_sessions")
         .select("id, session_date")
+        .eq("user_id", user!.id)
         .order("session_date", { ascending: false });
       if (error) throw error;
       return data as Session[];

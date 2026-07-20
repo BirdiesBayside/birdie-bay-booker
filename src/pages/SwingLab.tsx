@@ -99,6 +99,7 @@ export default function SwingLab() {
       const { data, error } = await supabase
         .from("range_sessions")
         .select("id, session_date, started_at, ended_at, shot_count, duration_minutes, bay_id, source_filename, created_at")
+        .eq("user_id", user!.id)
         .order("session_date", { ascending: false })
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -490,7 +491,8 @@ export default function SwingLab() {
                                   const { error } = await supabase
                                     .from("range_sessions")
                                     .delete()
-                                    .eq("id", s.id);
+                                    .eq("id", s.id)
+                                    .eq("user_id", user!.id);
                                   if (error) {
                                     toast.error("Couldn't delete session: " + error.message);
                                     return;
