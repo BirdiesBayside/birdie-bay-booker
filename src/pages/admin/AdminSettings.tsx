@@ -171,6 +171,16 @@ interface Bay {
   is_active: boolean;
 }
 
+interface BayDevice {
+  id: string;
+  bay_id: string;
+  obs_ws_url: string | null;
+  obs_ws_password: string | null;
+  is_online: boolean;
+  last_seen: string | null;
+  app_version: string | null;
+}
+
 interface BayBooking {
   id: string;
   booking_date: string;
@@ -190,23 +200,53 @@ export default function AdminSettings() {
   const [timezone, setTimezone] = useState("Australia/Sydney");
   const [isLoadingTimezone, setIsLoadingTimezone] = useState(true);
 
-  // Load timezone from database on mount
+  // League Highlights settings
+  const [highlightRecordingEnabled, setHighlightRecordingEnabled] = useState(false);
+  const [highlightPilotBay, setHighlightPilotBay] = useState<number | null>(null);
+  const [isSavingHighlights, setIsSavingHighlights] = useState(false);
+
+  // Bay device settings (OBS WebSocket per bay)
+  const [bayDevices, setBayDevices] = useState<Record<string, BayDevice>>({});
+  const [bayDeviceForm, setBayDeviceForm] = useState<Record<string, { obs_ws_url: string; obs_ws_password: string }>>({});
+  const [savingBayDevice, setSavingBayDevice] = useState<string | null>(null);
+  const [expandedBayDevice, setExpandedBayDevice] = useState<string | null>(null);
+
+  // Initialize bay device form values when devices load
   useEffect(() => {
-    const loadTimezone = async () => {
+    const initial: Record<string, { obs_ws_url: string; obs_ws_password: string }> = {};
+    for (const bayId of Object.keys(bayDevices)) {
+      const device = bayDevices[bayId];
+      initial[bayId] = {
+        obs_ws_url: device?.obs_ws_url || "ws://127.0.0.1:4455",
+        obs_ws_password: device?.obs_ws_password || "",
+      };
+    }
+    setBayDeviceForm(initial);
+  }, [bayDevices]);
+
+  // Load timezone and highlight settings from database on mount
+  useEffect(() => {
+    const loadSettings = async () => {
       const { data } = await supabase
         .from("system_settings")
-        .select("timezone")
+        .select("timezone, highlight_recording_enabled, highlight_recording_pilot_bay")
         .eq("id", "global")
         .single();
       
       if (data?.timezone) {
         setTimezone(data.timezone);
       }
+      if (data?.highlight_recording_enabled !== undefined) {
+        setHighlightRecordingEnabled(data.highlight_recording_enabled);
+      }
+      if (data?.highlight_recording_pilot_bay !== undefined && data.highlight_recording_pilot_bay !== null) {
+        setHighlightPilotBay(data.highlight_recording_pilot_bay);
+      }
       setIsLoadingTimezone(false);
     };
     
     if (isAdmin) {
-      loadTimezone();
+      loadSettings();
     }
   }, [isAdmin]);
 
@@ -365,7 +405,7 @@ export default function AdminSettings() {
     setIsSavingTemplate(false);
   };
 
-  // Fetch bays and their upcoming bookings
+  // Fetch bays, their devices, and upcoming bookings
   const fetchBays = async () => {
     setIsLoadingBays(true);
     const { data, error } = await supabase
@@ -375,6 +415,17 @@ export default function AdminSettings() {
 
     if (!error && data) {
       setBays(data);
+      // Fetch bay devices for all bays in one query
+      const { data: devices } = await supabase
+        .from("bay_devices")
+        .select("id, bay_id, obs_ws_url, obs_ws_password, is_online, last_seen, app_version");
+      
+      const devicesMap: Record<string, BayDevice> = {};
+      for (const device of (devices || [])) {
+        devicesMap[device.bay_id] = device;
+      }
+      setBayDevices(devicesMap);
+
       // Fetch only truly upcoming bookings (end time in the future)
       const now = new Date();
       const today = format(now, "yyyy-MM-dd");
@@ -460,6 +511,69 @@ export default function AdminSettings() {
       fetchBays();
     }
     setTogglingBay(null);
+  };
+
+  // Save global League Highlights settings
+  const saveHighlightSettings = async () => {
+    setIsSavingHighlights(true);
+    const { error } = await supabase
+      .from("system_settings")
+      .update({
+        highlight_recording_enabled: highlightRecordingEnabled,
+        highlight_recording_pilot_bay: highlightPilotBay,
+      })
+      .eq("id", "global");
+
+    if (error) {
+      toast({
+        title: "Error saving highlight settings",
+        description: error.message,
+        variant: "destructive",
+        duration: 4000,
+      });
+    } else {
+      toast({
+        title: "Highlight settings saved",
+        description: "League recording configuration updated.",
+        duration: 3000,
+      });
+    }
+    setIsSavingHighlights(false);
+  };
+
+  // Save per-bay OBS WebSocket settings
+  const saveBayDeviceSettings = async (bayId: string) => {
+    const form = bayDeviceForm[bayId];
+    if (!form) return;
+
+    setSavingBayDevice(bayId);
+    const device = bayDevices[bayId];
+    const payload = {
+      bay_id: bayId,
+      obs_ws_url: form.obs_ws_url || null,
+      obs_ws_password: form.obs_ws_password || null,
+    };
+
+    const { error } = device?.id
+      ? await supabase.from("bay_devices").update(payload).eq("id", device.id)
+      : await supabase.from("bay_devices").insert(payload);
+
+    if (error) {
+      toast({
+        title: "Error saving device settings",
+        description: error.message,
+        variant: "destructive",
+        duration: 4000,
+      });
+    } else {
+      toast({
+        title: "Device settings saved",
+        description: "OBS WebSocket credentials updated for this bay.",
+        duration: 3000,
+      });
+      fetchBays();
+    }
+    setSavingBayDevice(null);
   };
 
   useEffect(() => {
@@ -765,9 +879,68 @@ export default function AdminSettings() {
             <ActivityLog />
 
             {/* Bay Management */}
-            <CollapsibleSection title="Bay Management" description="Control bay availability for customers. Take bays offline for maintenance.">
+            <CollapsibleSection title="Bay Management" description="Control bay availability, League Highlights pilot bay, and per-bay OBS device settings.">
               <Card>
-                <CardContent className="space-y-4 pt-6">
+                <CardContent className="space-y-6 pt-6">
+                  {/* League Highlights global settings */}
+                  <div className="p-4 border rounded-lg bg-muted/20 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="font-medium">League Highlights</h3>
+                        <p className="text-sm text-muted-foreground">
+                          Auto-record GSPro sessions for SGT rounds and add hole chapter markers.
+                        </p>
+                      </div>
+                      <Switch
+                        checked={highlightRecordingEnabled}
+                        onCheckedChange={(checked) => {
+                          setHighlightRecordingEnabled(checked);
+                          // Auto-save when toggled
+                          setTimeout(() => saveHighlightSettings(), 0);
+                        }}
+                        disabled={isSavingHighlights}
+                      />
+                    </div>
+
+                    {highlightRecordingEnabled && (
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label htmlFor="pilot-bay">Pilot Bay</Label>
+                          <Select
+                            value={highlightPilotBay?.toString() || ""}
+                            onValueChange={(value) => {
+                              setHighlightPilotBay(value ? parseInt(value, 10) : null);
+                            }}
+                          >
+                            <SelectTrigger id="pilot-bay">
+                              <SelectValue placeholder="Select pilot bay" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {bays.map((bay) => (
+                                <SelectItem key={bay.id} value={bay.bay_number.toString()}>
+                                  {bay.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <p className="text-xs text-muted-foreground">
+                            Only this bay will auto-start OBS recording for League sessions.
+                          </p>
+                        </div>
+                        <div className="flex items-end">
+                          <Button
+                            onClick={saveHighlightSettings}
+                            disabled={isSavingHighlights}
+                            className="w-full sm:w-auto"
+                          >
+                            {isSavingHighlights ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                            Save Pilot Bay
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   {isLoadingBays ? (
                     <div className="space-y-3">
                       {[1, 2, 3].map((i) => (
@@ -780,6 +953,10 @@ export default function AdminSettings() {
                         const upcomingBookings = bayBookings[bay.id] || [];
                         const hasBookings = upcomingBookings.length > 0;
                         const isToggling = togglingBay === bay.id;
+                        const device = bayDevices[bay.id];
+                        const isPilotBay = highlightPilotBay === bay.bay_number;
+                        const isExpanded = expandedBayDevice === bay.id;
+                        const form = bayDeviceForm[bay.id] || { obs_ws_url: "ws://127.0.0.1:4455", obs_ws_password: "" };
 
                         return (
                           <div
@@ -789,11 +966,20 @@ export default function AdminSettings() {
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-3">
                                 <div className={`w-3 h-3 rounded-full ${bay.is_active ? "bg-green-500" : "bg-red-500"}`} />
-                                <div>
+                                <div className="flex items-center gap-2 flex-wrap">
                                   <span className="font-medium">{bay.name}</span>
-                                  <Badge variant={bay.is_active ? "default" : "secondary"} className="ml-2">
+                                  <Badge variant={bay.is_active ? "default" : "secondary"}>
                                     {bay.is_active ? "Online" : "Offline"}
                                   </Badge>
+                                  {isPilotBay && highlightRecordingEnabled && (
+                                    <Badge className="bg-orange-500 hover:bg-orange-600 text-white">Pilot</Badge>
+                                  )}
+                                  {device?.is_online && (
+                                    <Badge variant="outline" className="text-xs">Controller Online</Badge>
+                                  )}
+                                  {device?.app_version && (
+                                    <span className="text-xs text-muted-foreground">v{device.app_version}</span>
+                                  )}
                                 </div>
                               </div>
                               <div className="flex items-center gap-3">
@@ -834,6 +1020,65 @@ export default function AdminSettings() {
                                 </div>
                               </div>
                             )}
+
+                            {/* Device settings toggle */}
+                            <div className="mt-3 pt-3 border-t">
+                              <button
+                                type="button"
+                                onClick={() => setExpandedBayDevice(isExpanded ? null : bay.id)}
+                                className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                              >
+                                <Settings className="h-4 w-4" />
+                                <span>Device settings</span>
+                                <ChevronDown className={`h-4 w-4 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
+                              </button>
+
+                              {isExpanded && (
+                                <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                                  <div className="space-y-2">
+                                    <Label htmlFor={`obs-url-${bay.id}`}>OBS WebSocket URL</Label>
+                                    <Input
+                                      id={`obs-url-${bay.id}`}
+                                      value={form.obs_ws_url}
+                                      onChange={(e) =>
+                                        setBayDeviceForm((prev) => ({
+                                          ...prev,
+                                          [bay.id]: { ...form, obs_ws_url: e.target.value },
+                                        }))
+                                      }
+                                      placeholder="ws://127.0.0.1:4455"
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label htmlFor={`obs-password-${bay.id}`}>OBS WebSocket Password</Label>
+                                    <Input
+                                      id={`obs-password-${bay.id}`}
+                                      type="password"
+                                      value={form.obs_ws_password}
+                                      onChange={(e) =>
+                                        setBayDeviceForm((prev) => ({
+                                          ...prev,
+                                          [bay.id]: { ...form, obs_ws_password: e.target.value },
+                                        }))
+                                      }
+                                      placeholder="Paste OBS WebSocket password"
+                                    />
+                                  </div>
+                                  <div className="sm:col-span-2 flex justify-end">
+                                    <Button
+                                      onClick={() => saveBayDeviceSettings(bay.id)}
+                                      disabled={savingBayDevice === bay.id}
+                                      size="sm"
+                                    >
+                                      {savingBayDevice === bay.id ? (
+                                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                      ) : null}
+                                      Save Device Settings
+                                    </Button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
                           </div>
                         );
                       })}
