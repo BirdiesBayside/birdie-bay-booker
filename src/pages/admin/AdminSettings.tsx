@@ -207,7 +207,9 @@ export default function AdminSettings() {
 
   // Bay device settings (OBS WebSocket per bay)
   const [bayDevices, setBayDevices] = useState<Record<string, BayDevice>>({});
+  const [bayDeviceForm, setBayDeviceForm] = useState<Record<string, { obs_ws_url: string; obs_ws_password: string }>>({});
   const [savingBayDevice, setSavingBayDevice] = useState<string | null>(null);
+  const [expandedBayDevice, setExpandedBayDevice] = useState<string | null>(null);
 
   // Load timezone and highlight settings from database on mount
   useEffect(() => {
