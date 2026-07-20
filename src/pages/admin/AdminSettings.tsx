@@ -498,6 +498,66 @@ export default function AdminSettings() {
     setTogglingBay(null);
   };
 
+  // Save global League Highlights settings
+  const saveHighlightSettings = async () => {
+    setIsSavingHighlights(true);
+    const { error } = await supabase
+      .from("system_settings")
+      .update({
+        highlight_recording_enabled: highlightRecordingEnabled,
+        highlight_recording_pilot_bay: highlightPilotBay,
+      })
+      .eq("id", "global");
+
+    if (error) {
+      toast({
+        title: "Error saving highlight settings",
+        description: error.message,
+        variant: "destructive",
+        duration: 4000,
+      });
+    } else {
+      toast({
+        title: "Highlight settings saved",
+        description: "League recording configuration updated.",
+        duration: 3000,
+      });
+    }
+    setIsSavingHighlights(false);
+  };
+
+  // Save per-bay OBS WebSocket settings
+  const saveBayDeviceSettings = async (bayId: string, url: string, password: string) => {
+    setSavingBayDevice(bayId);
+    const device = bayDevices[bayId];
+    const payload = {
+      bay_id: bayId,
+      obs_ws_url: url || null,
+      obs_ws_password: password || null,
+    };
+
+    const { error } = device?.id
+      ? await supabase.from("bay_devices").update(payload).eq("id", device.id)
+      : await supabase.from("bay_devices").insert(payload);
+
+    if (error) {
+      toast({
+        title: "Error saving device settings",
+        description: error.message,
+        variant: "destructive",
+        duration: 4000,
+      });
+    } else {
+      toast({
+        title: "Device settings saved",
+        description: "OBS WebSocket credentials updated for this bay.",
+        duration: 3000,
+      });
+      fetchBays();
+    }
+    setSavingBayDevice(null);
+  };
+
   useEffect(() => {
     if (isAdmin) {
       fetchBays();
