@@ -53,6 +53,7 @@ export function LeagueHighlights() {
                recording_sessions!inner(player_name, tournament_name, bay_number, started_at),
                highlight_events(rule_key, tag_label, tag_emoji, metric_value, metric_unit)`)
       .eq("status", "uploaded")
+      .eq("pre_existing", false)
       .gte("updated_at", since)
       .order("updated_at", { ascending: false })
       .limit(200);

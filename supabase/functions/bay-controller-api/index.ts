@@ -427,6 +427,7 @@ serve(async (req) => {
         if (!b?.booking_id) return jsonResponse({ error: "booking_id required" }, 400);
         const retentionDays = b.retention_days ?? 14;
         const retentionUntil = new Date(Date.now() + retentionDays * 86400_000).toISOString();
+        const startedAt = b.started_at ?? new Date().toISOString();
         const { data, error } = await supabase.from("recording_sessions").insert({
           booking_id: b.booking_id,
           bay_number: bayNumber,
@@ -435,11 +436,54 @@ serve(async (req) => {
           player_name: b.player_name ?? null,
           tournament_name: b.tournament_name ?? null,
           mkv_path: b.mkv_path ?? null,
-          started_at: b.started_at ?? new Date().toISOString(),
+          started_at: startedAt,
           status: "recording",
           retention_until: retentionUntil,
         }).select("id").single();
         if (error) return jsonResponse({ error: error.message }, 500);
+
+        // Snapshot already-scored holes so the poller ignores holes played
+        // in a PREVIOUS session on the same tournament scorecard. Only holes
+        // scored AFTER this session starts should trigger clips/chapters.
+        // Pre-seeded rows are marked pre_existing=true so split/upload skips them.
+        if (b.sgt_user_id && b.sgt_tournament_id) {
+          try {
+            const sgtBase = (Deno.env.get("SGT_CLUB_URL") ?? "").replace(/\/$/, "");
+            const sgtKey = Deno.env.get("SGT_API_KEY") ?? "";
+            if (sgtBase && sgtKey) {
+              const url = `${sgtBase}/api/live-scorecard.php?apikey=${encodeURIComponent(sgtKey)}&playerId=${encodeURIComponent(b.sgt_user_id)}&tournamentId=${encodeURIComponent(b.sgt_tournament_id)}`;
+              const res = await fetch(url);
+              if (res.ok) {
+                const card = await res.json();
+                const preSeed: Array<{ recording_session_id: string; hole_number: number; par: number | null; score: number | null; hole_completed_at: string; status: string; pre_existing: boolean }> = [];
+                const push = (n: number, par: number | null, score: number | null) => {
+                  if (score != null && score !== 0) {
+                    preSeed.push({ recording_session_id: data.id, hole_number: n, par, score, hole_completed_at: startedAt, status: "pre_existing", pre_existing: true });
+                  }
+                };
+                if (Array.isArray(card?.holes)) {
+                  for (const h of card.holes) {
+                    const n = Number(h.hole ?? 0);
+                    if (n >= 1 && n <= 18) push(n, h.par != null ? Number(h.par) : null, h.score != null && h.score !== "" ? Number(h.score) : null);
+                  }
+                } else if (card?.holeData && typeof card.holeData === "object") {
+                  for (let n = 1; n <= 18; n++) {
+                    const s = card.holeData[String(n)];
+                    const p = card.parData?.[String(n)];
+                    push(n, p != null ? Number(p) : null, s != null && s !== "" ? Number(s) : null);
+                  }
+                }
+                if (preSeed.length > 0) {
+                  await supabase.from("recording_holes").upsert(preSeed, { onConflict: "recording_session_id,hole_number" });
+                  console.log(`[recording_start] Pre-seeded ${preSeed.length} already-scored holes for session ${data.id}`);
+                }
+              }
+            }
+          } catch (e) {
+            console.error("[recording_start] pre-seed snapshot failed:", (e as Error).message);
+          }
+        }
+
         return jsonResponse({ ok: true, recording_session_id: data.id });
       }
 
