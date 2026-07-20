@@ -390,11 +390,16 @@ export default function BayController() {
     startedAtMs: number;
     filePath?: string;
   } | null>(null);
+  // Dedicated prev-booking ref for the recording effect. The logging effect
+  // above mutates previousActiveBookingRef in the same commit, so this effect
+  // can never observe a real transition if it shares that ref.
+  const recordingPrevBookingRef = useRef<Booking | null>(null);
 
   useEffect(() => {
     if (!isElectron) return;
-    const prev = previousActiveBookingRef.current;
+    const prev = recordingPrevBookingRef.current;
     const curr = activeBooking;
+
 
     // Booking started
     if (curr && (!prev || prev.id !== curr.id) && !recordingRef.current) {
@@ -546,7 +551,10 @@ export default function BayController() {
         }
       })();
     }
+
+    recordingPrevBookingRef.current = curr;
   }, [activeBooking, isElectron, selectedBay, addLog, bayLogger]);
+
 
 
 
