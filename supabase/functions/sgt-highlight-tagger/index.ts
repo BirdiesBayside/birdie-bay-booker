@@ -45,8 +45,8 @@ Deno.serve(async (req) => {
   let body: { recording_session_id?: string; hole_id?: string } = {};
   if (req.method === "POST") { try { body = await req.json(); } catch { /* cron */ } }
 
-  const cols = "id,hole_number,par,score,recording_session_id";
-  let holesQuery = supabase.from("recording_holes").select(cols);
+  const cols = "id,hole_number,par,score,recording_session_id,pre_existing";
+  let holesQuery = supabase.from("recording_holes").select(cols).eq("pre_existing", false);
 
   if (body.hole_id) {
     holesQuery = holesQuery.eq("id", body.hole_id);
