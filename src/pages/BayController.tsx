@@ -1464,6 +1464,43 @@ export default function BayController() {
             return;
           }
 
+          // OBS chapter marker (format: "obs_chapter:hole=7")
+          if (typeof command.command === 'string' && command.command.startsWith('obs_chapter:')) {
+            const holeMatch = command.command.match(/hole=(\d+)/);
+            const holeNum = holeMatch ? Number(holeMatch[1]) : null;
+            const chapterName = holeNum ? `Hole ${holeNum}` : 'Chapter';
+            try {
+              if (window.electron?.obsAddChapter) {
+                const res = await window.electron.obsAddChapter(chapterName);
+                if (res?.success) {
+                  console.log(`[OBS] Chapter marker set: ${chapterName}`);
+                  // Stamp chapter_marked_at on the corresponding hole
+                  if (holeNum && activeBooking?.user_id) {
+                    await supabase
+                      .from('recording_holes')
+                      .update({ chapter_marked_at: new Date().toISOString() })
+                      .eq('hole_number', holeNum)
+                      .in('recording_session_id',
+                        (await supabase
+                          .from('recording_sessions')
+                          .select('id')
+                          .eq('status', 'recording')
+                          .eq('bay_number', selectedBay)
+                        ).data?.map(r => r.id) ?? []
+                      );
+                  }
+                }
+              }
+            } catch (e) {
+              console.error('[OBS] chapter marker failed:', e);
+            }
+            await supabase
+              .from('bay_commands')
+              .update({ status: 'executed', executed_at: new Date().toISOString() })
+              .eq('id', command.id);
+            return;
+          }
+
           // For on/off commands, also switch to manual mode and update DB
           setManualOverride(true);
           updateControlModeInDb(true);
