@@ -205,6 +205,19 @@ export function LeagueHighlights() {
     return () => clearInterval(interval);
   }, []);
 
+  // Auto-kick Cloudflare Stream ingest for any session that has an uploaded MKV
+  // but no stream yet. Runs silently so highlights are ready to edit on open.
+  useEffect(() => {
+    for (const sess of sessions) {
+      if (sess.stream_uid) continue;
+      if (sess.stream_status === "failed") continue;
+      if (!sess.storage_path) continue;
+      if (autoKickedRef.current.has(sess.session_id)) continue;
+      autoKickedRef.current.add(sess.session_id);
+      void ensureStream(sess, { silent: true });
+    }
+  }, [sessions]);
+
   const saveConfig = async (nextEnabled: boolean, nextBay: number | null) => {
     const { error } = await supabase.from("system_settings").update({
       highlight_recording_enabled: nextEnabled,
