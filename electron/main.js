@@ -3715,16 +3715,42 @@ function readFileBase64(filePath) {
   return buf.toString('base64');
 }
 
-// Read current GSPro user settings files (returns base64 for each present file)
+// Read current GSPro user settings files (returns base64 for each present file).
+// Skips any file whose contents are byte-identical to the stored baseline —
+// that means the user never saved a change this session, so uploading would
+// just overwrite their previous good snapshot with the shared baseline.
 ipcMain.handle('read-gspro-user-settings', async () => {
   try {
     if (!baselineConfig.gsproFolderPath) return { success: false, error: 'GSPro folder not configured' };
+    const crypto = require('crypto');
+    const baselinePath = getBaselineStoragePath();
     const files = {};
+    const skipped = [];
     for (const name of USER_SETTINGS_FILES) {
       const p = path.join(baselineConfig.gsproFolderPath, name);
-      if (fs.existsSync(p)) files[name] = readFileBase64(p);
+      if (!fs.existsSync(p)) continue;
+      const buf = fs.readFileSync(p);
+
+      // Hash-compare against baseline; skip if identical (user never saved).
+      const baselineFile = path.join(baselinePath, name);
+      if (fs.existsSync(baselineFile)) {
+        try {
+          const baselineBuf = fs.readFileSync(baselineFile);
+          const curHash = crypto.createHash('sha256').update(buf).digest('hex');
+          const baseHash = crypto.createHash('sha256').update(baselineBuf).digest('hex');
+          if (curHash === baseHash) {
+            skipped.push(name);
+            console.log(`[Settings] Skip ${name} — identical to baseline (${buf.length} bytes)`);
+            continue;
+          }
+        } catch (e) {
+          console.warn(`[Settings] Baseline hash compare failed for ${name}:`, e.message);
+        }
+      }
+
+      files[name] = buf.toString('base64');
     }
-    return { success: true, files };
+    return { success: true, files, skipped };
   } catch (error) {
     return { success: false, error: error.message };
   }

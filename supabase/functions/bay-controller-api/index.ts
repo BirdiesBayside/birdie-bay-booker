@@ -272,14 +272,8 @@ serve(async (req) => {
         try { bytes = decodeBase64(base64); }
         catch { return jsonResponse({ error: "invalid_base64" }, 400); }
 
-        // Guard against GSPro stub files (near-empty configs written when the
-        // user never opened the corresponding panel). Uploading these
-        // overwrites the customer's last good snapshot and, on their next
-        // session, clobbers the shared baseline.
-        const MIN_SNAPSHOT_BYTES = 2048;
-        if (bytes.length < MIN_SNAPSHOT_BYTES) {
-          return jsonResponse({ ok: false, skipped: true, reason: "stub_file_below_min_bytes", bytes: bytes.length, min: MIN_SNAPSHOT_BYTES });
-        }
+        // Baseline-hash comparison happens client-side in the Bay Controller;
+        // any file that reaches this point is a genuine user-modified snapshot.
 
         const path = `${userId}/${file}`;
         const { error } = await supabase.storage.from(SETTINGS_BUCKET).upload(path, bytes, { upsert: true, contentType: "application/octet-stream" });
