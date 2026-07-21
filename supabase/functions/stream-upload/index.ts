@@ -58,6 +58,12 @@ async function getStreamVideo(accountId: string, token: string, uid: string) {
   }
 }
 
+function getCloudflareCredentials() {
+  const accountId = (Deno.env.get("CLOUDFLARE_ACCOUNT_ID") ?? "").trim();
+  const token = (Deno.env.get("CLOUDFLARE_STREAM_API_TOKEN") ?? "").trim();
+  return { accountId, token };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -97,9 +103,11 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "session has no mkv_path" }, 400);
   }
 
-  const accountId = Deno.env.get("CLOUDFLARE_ACCOUNT_ID")!;
-  const token = Deno.env.get("CLOUDFLARE_STREAM_API_TOKEN")!;
-  const playbackUrl = (uid: string) => `https://customer-${accountId}.cloudflarestream.com/${uid}/manifest/video.m3u8`;
+  const { accountId, token } = getCloudflareCredentials();
+  if (!accountId || !token) {
+    return jsonResponse({ error: "Cloudflare Stream credentials are not configured" }, 500);
+  }
+  const fallbackPlaybackUrl = (uid: string) => `https://customer-${accountId}.cloudflarestream.com/${uid}/manifest/video.m3u8`;
 
   // If we already have a UID, check current status first.
   if (sess.stream_uid) {
@@ -126,7 +134,7 @@ Deno.serve(async (req) => {
         stream_created_at: video.created ?? null,
       }).eq("id", sess.id);
       if (state === "ready") {
-        return jsonResponse({ stream_uid: sess.stream_uid, status: "ready", playback_url: playbackUrl(sess.stream_uid) });
+        return jsonResponse({ stream_uid: sess.stream_uid, status: "ready", playback_url: video.playback?.hls ?? fallbackPlaybackUrl(sess.stream_uid) });
       }
       if (failed) {
         return jsonResponse({ stream_uid: sess.stream_uid, status: "failed", error: streamError ?? "Cloudflare Stream processing failed", playback_url: null });
