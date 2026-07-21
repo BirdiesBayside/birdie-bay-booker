@@ -34,18 +34,30 @@ const SiteFooter = () => {
               <Instagram className="h-4 w-4" />
             </a>
           </div>
-          <a
-            href="https://apps.apple.com/au/app/birdies-hub/id6758370714"
-            target="_blank"
-            rel="noreferrer"
-            className="inline-block mt-5"
-          >
-            <img
-              src={APP_STORE_BADGE_URL}
-              alt="Download Birdies Hub on the App Store"
-              className="h-10 w-auto"
-            />
-          </a>
+          <div className="flex flex-wrap items-center gap-3 mt-5">
+            <a
+              href="https://apps.apple.com/au/app/birdies-hub/id6758370714"
+              target="_blank"
+              rel="noreferrer"
+            >
+              <img
+                src={APP_STORE_BADGE_URL}
+                alt="Download Birdies Hub on the App Store"
+                className="h-10 w-auto"
+              />
+            </a>
+            <a
+              href="https://play.google.com/store/apps/details?id=com.birdiesbayside.hub"
+              target="_blank"
+              rel="noreferrer"
+            >
+              <img
+                src={googlePlayBadge}
+                alt="Get Birdies Hub on Google Play"
+                className="h-10 w-auto"
+              />
+            </a>
+          </div>
         </div>
 
         <div>
