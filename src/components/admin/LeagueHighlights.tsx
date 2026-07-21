@@ -89,6 +89,7 @@ export function LeagueHighlights() {
   const [bays, setBays] = useState<Bay[]>([]);
   const [pilotBay, setPilotBay] = useState<number | null>(null);
   const [enabled, setEnabled] = useState(false);
+  const [retentionDays, setRetentionDays] = useState<number>(14);
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [runningTagger, setRunningTagger] = useState(false);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
@@ -131,11 +132,12 @@ export function LeagueHighlights() {
     if (!silent) setLoading(true);
     const [{ data: bayRows }, { data: cfg }] = await Promise.all([
       supabase.from("bays").select("id, bay_number, name").order("bay_number"),
-      supabase.from("system_settings").select("highlight_recording_pilot_bay, highlight_recording_enabled").eq("id", "global").maybeSingle(),
+      supabase.from("system_settings").select("highlight_recording_pilot_bay, highlight_recording_enabled, highlight_retention_days").eq("id", "global").maybeSingle(),
     ]);
     setBays(bayRows ?? []);
     setPilotBay(cfg?.highlight_recording_pilot_bay ?? null);
     setEnabled(!!cfg?.highlight_recording_enabled);
+    setRetentionDays(cfg?.highlight_retention_days ?? 14);
 
     const since = new Date(Date.now() - 14 * 86400_000).toISOString();
     // Full-session rows (hole_number = 0) hold the storage_path for the raw video.
@@ -220,13 +222,24 @@ export function LeagueHighlights() {
     }
   }, [sessions]);
 
-  const saveConfig = async (nextEnabled: boolean, nextBay: number | null) => {
+  const saveConfig = async (nextEnabled: boolean, nextBay: number | null, nextRetention: number = retentionDays) => {
     const { error } = await supabase.from("system_settings").update({
       highlight_recording_enabled: nextEnabled,
       highlight_recording_pilot_bay: nextBay,
+      highlight_retention_days: nextRetention,
     }).eq("id", "global");
-    if (error) toast({ title: "Save failed", description: error.message, variant: "destructive" });
-    else toast({ title: "Saved", description: `Recording ${nextEnabled ? "enabled" : "disabled"}${nextBay ? ` on Bay ${nextBay}` : ""}.` });
+    if (error) { toast({ title: "Save failed", description: error.message, variant: "destructive" }); return; }
+    toast({ title: "Saved", description: `Recording ${nextEnabled ? "enabled" : "disabled"}${nextBay ? ` on Bay ${nextBay}` : ""} · keep ${nextRetention}d.` });
+  };
+
+  const applyRetentionToExisting = async () => {
+    const nextIso = new Date(Date.now() + retentionDays * 86400_000).toISOString();
+    const { error, count } = await supabase
+      .from("recording_sessions")
+      .update({ retention_until: nextIso }, { count: "exact" })
+      .neq("status", "purged");
+    if (error) toast({ title: "Update failed", description: error.message, variant: "destructive" });
+    else toast({ title: "Retention updated", description: `${count ?? 0} session${count === 1 ? "" : "s"} now expire in ${retentionDays} days.` });
   };
 
   const runTagger = async () => {
@@ -398,9 +411,23 @@ export function LeagueHighlights() {
                 </SelectContent>
               </Select>
             </div>
+            <div className="flex items-center gap-2">
+              <Label>Auto-delete after:</Label>
+              <Select value={retentionDays.toString()} onValueChange={(v) => { const n = parseInt(v); setRetentionDays(n); void saveConfig(enabled, pilotBay, n); }}>
+                <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="7">7 days</SelectItem>
+                  <SelectItem value="14">14 days</SelectItem>
+                  <SelectItem value="21">21 days</SelectItem>
+                  <SelectItem value="30">30 days</SelectItem>
+                  <SelectItem value="60">60 days</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button size="sm" variant="outline" onClick={applyRetentionToExisting}>Apply to existing</Button>
+            </div>
           </div>
           <p className="text-sm text-muted-foreground">
-            Raw MKVs are kept intact. Per-hole timestamps come from the SGT scorecard poller (every 1 min) and are shown as chapter markers you can jump to. Highlights auto-tag birdies, eagles, albatrosses, and holes-in-one.
+            Raw MKVs are kept intact. Per-hole timestamps come from the SGT scorecard poller (every 1 min) and are shown as chapter markers you can jump to. Highlights auto-tag birdies, eagles, albatrosses, and holes-in-one. When retention expires, the storage MKV <strong>and</strong> the Cloudflare Stream copy are both deleted by the daily purge job.
           </p>
         </CardContent>
       </Card>

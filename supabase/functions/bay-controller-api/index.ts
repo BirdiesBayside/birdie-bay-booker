@@ -453,7 +453,18 @@ serve(async (req) => {
       case "recording_start": {
         const b = body as { booking_id?: string; sgt_user_id?: string; sgt_tournament_id?: string; player_name?: string; tournament_name?: string; mkv_path?: string; started_at?: string; retention_days?: number } | null;
         if (!b?.booking_id) return jsonResponse({ error: "booking_id required" }, 400);
-        const retentionDays = b.retention_days ?? 14;
+        // Prefer the globally-configured retention from system_settings so admins
+        // can change it in one place (Admin > SGT > Highlights). Falls back to
+        // any override sent by the bay, then to a 14-day safe default.
+        let retentionDays = b.retention_days ?? 14;
+        const { data: settingsRow } = await supabase
+          .from("system_settings")
+          .select("highlight_retention_days")
+          .eq("id", "global")
+          .maybeSingle();
+        if (settingsRow?.highlight_retention_days && settingsRow.highlight_retention_days > 0) {
+          retentionDays = settingsRow.highlight_retention_days;
+        }
         const retentionUntil = new Date(Date.now() + retentionDays * 86400_000).toISOString();
         const startedAt = b.started_at ?? new Date().toISOString();
         const { data, error } = await supabase.from("recording_sessions").insert({
