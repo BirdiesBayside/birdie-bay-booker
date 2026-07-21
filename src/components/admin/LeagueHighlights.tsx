@@ -411,9 +411,23 @@ export function LeagueHighlights() {
                 </SelectContent>
               </Select>
             </div>
+            <div className="flex items-center gap-2">
+              <Label>Auto-delete after:</Label>
+              <Select value={retentionDays.toString()} onValueChange={(v) => { const n = parseInt(v); setRetentionDays(n); void saveConfig(enabled, pilotBay, n); }}>
+                <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="7">7 days</SelectItem>
+                  <SelectItem value="14">14 days</SelectItem>
+                  <SelectItem value="21">21 days</SelectItem>
+                  <SelectItem value="30">30 days</SelectItem>
+                  <SelectItem value="60">60 days</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button size="sm" variant="outline" onClick={applyRetentionToExisting}>Apply to existing</Button>
+            </div>
           </div>
           <p className="text-sm text-muted-foreground">
-            Raw MKVs are kept intact. Per-hole timestamps come from the SGT scorecard poller (every 1 min) and are shown as chapter markers you can jump to. Highlights auto-tag birdies, eagles, albatrosses, and holes-in-one.
+            Raw MKVs are kept intact. Per-hole timestamps come from the SGT scorecard poller (every 1 min) and are shown as chapter markers you can jump to. Highlights auto-tag birdies, eagles, albatrosses, and holes-in-one. When retention expires, the storage MKV <strong>and</strong> the Cloudflare Stream copy are both deleted by the daily purge job.
           </p>
         </CardContent>
       </Card>
