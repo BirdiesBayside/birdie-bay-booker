@@ -69,6 +69,17 @@ const MarketingHome = () => {
                 className="h-12 w-auto rounded-md"
               />
             </a>
+            <a
+              href="https://play.google.com/store/apps/details?id=com.birdiesbayside.hub"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <img
+                src="/src/assets/google-play-badge.svg"
+                alt="Get it on Google Play"
+                className="h-12 w-auto"
+              />
+            </a>
           </div>
         </div>
       </section>
