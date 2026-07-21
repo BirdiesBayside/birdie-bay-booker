@@ -58,6 +58,27 @@ async function getStreamVideo(accountId: string, token: string, uid: string) {
   }
 }
 
+function getCloudflareCredentials() {
+  const accountId = (Deno.env.get("CLOUDFLARE_ACCOUNT_ID") ?? "").trim();
+  const token = (Deno.env.get("CLOUDFLARE_STREAM_API_TOKEN") ?? "").trim();
+  return { accountId, token };
+}
+
+async function verifyCloudflareToken(token: string) {
+  const res = await fetch("https://api.cloudflare.com/client/v4/user/tokens/verify", {
+    headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(10_000),
+  });
+  const text = await res.text();
+  let json: any = {};
+  try { json = JSON.parse(text); } catch {}
+  return {
+    ok: res.ok && json?.success !== false,
+    statusCode: res.status,
+    error: res.ok && json?.success !== false ? null : cloudflareError(json, `Cloudflare token verification failed (${res.status})`),
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -97,9 +118,22 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "session has no mkv_path" }, 400);
   }
 
-  const accountId = Deno.env.get("CLOUDFLARE_ACCOUNT_ID")!;
-  const token = Deno.env.get("CLOUDFLARE_STREAM_API_TOKEN")!;
+  const { accountId, token } = getCloudflareCredentials();
+  if (!accountId || !token) {
+    return jsonResponse({ error: "Cloudflare Stream credentials are not configured" }, 500);
+  }
   const playbackUrl = (uid: string) => `https://customer-${accountId}.cloudflarestream.com/${uid}/manifest/video.m3u8`;
+
+  const tokenCheck = await verifyCloudflareToken(token);
+  if (!tokenCheck.ok) {
+    const msg = `${tokenCheck.error ?? "Cloudflare token verification failed"}. This usually means the saved token has hidden whitespace/newlines, is revoked, or is not an API Token.`;
+    console.error("[stream-upload] CF token verification failed", { statusCode: tokenCheck.statusCode, hasAccountId: !!accountId, tokenLooksLikeApiToken: token.startsWith("cfat_") });
+    await admin.from("recording_sessions").update({
+      stream_status: "auth_failed",
+      stream_error: msg,
+    }).eq("id", sess.id);
+    return jsonResponse({ stream_uid: sess.stream_uid ?? null, status: "auth_failed", error: msg, playback_url: null }, 200);
+  }
 
   // If we already have a UID, check current status first.
   if (sess.stream_uid) {
