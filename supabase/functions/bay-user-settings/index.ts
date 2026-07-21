@@ -56,12 +56,8 @@ Deno.serve(async (req) => {
     let bytes: Uint8Array;
     try { bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0)); }
     catch { return json({ error: "invalid_base64" }, 400); }
-    // Guard: reject near-empty stub files so a user's real snapshot isn't
-    // clobbered on a session where GSPro never wrote a full config.
-    const MIN_SNAPSHOT_BYTES = 2048;
-    if (bytes.length < MIN_SNAPSHOT_BYTES) {
-      return json({ ok: false, skipped: true, reason: "stub_file_below_min_bytes", bytes: bytes.length, min: MIN_SNAPSHOT_BYTES });
-    }
+    // Baseline-hash comparison happens client-side in the Bay Controller;
+    // any file that reaches this point is a genuine user-modified snapshot.
     const path = `${user_id}/${file}`;
     const { error } = await admin.storage.from(BUCKET).upload(path, bytes, { upsert: true, contentType: "application/octet-stream" });
     if (error) return json({ error: "upload_failed", detail: error.message }, 500);
