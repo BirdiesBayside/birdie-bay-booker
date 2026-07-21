@@ -59,7 +59,6 @@ export function LeagueHighlights() {
       .limit(200);
 
     const mapped: HighlightRow[] = (holes ?? [])
-      .filter((h: any) => (h.highlight_events?.length ?? 0) > 0)
       .map((h: any) => ({
         hole_id: h.id,
         session_id: h.recording_session_id,
@@ -72,7 +71,10 @@ export function LeagueHighlights() {
         bay_number: h.recording_sessions?.bay_number,
         started_at: h.recording_sessions?.started_at ?? null,
         events: h.highlight_events ?? [],
-      }));
+      }))
+      // Show rows with tagged highlights OR full-session uploads (hole_number = 0)
+      // so raw recordings never stay invisible when the poller couldn't reach SGT.
+      .filter((r) => r.events.length > 0 || r.hole_number === 0);
     setRows(mapped);
     setLoading(false);
   };
