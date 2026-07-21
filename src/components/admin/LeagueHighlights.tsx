@@ -165,6 +165,20 @@ export function LeagueHighlights() {
     void videoRef.current.play().catch(() => {});
   };
 
+  const downloadSession = async (sess: SessionRow) => {
+    if (!sess.storage_path) return;
+    const { data, error } = await supabase.functions.invoke("league-highlights-signed-url", { body: { path: sess.storage_path, expires_in: 3600 } });
+    if (error || !data?.signed_url) return toast({ title: "Download failed", description: error?.message ?? "no url", variant: "destructive" });
+    const filename = `${sess.player_name ?? "session"}-bay${sess.bay_number}-${(sess.started_at ?? "").slice(0, 10)}.mkv`.replace(/\s+/g, "_");
+    const a = document.createElement("a");
+    a.href = data.signed_url;
+    a.download = filename;
+    a.rel = "noopener";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  };
+
   const dismissSession = async (sess: SessionRow) => {
     const holeIds = [sess.session_id]; // delete session row + child chapters
     if (!confirm(`Dismiss recording for ${sess.player_name ?? "player"}? This removes it from the queue.`)) return;
