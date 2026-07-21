@@ -5,6 +5,7 @@ import heroVideo from "@/assets/hero-video.mp4.asset.json";
 import heroPoster from "@/assets/hero-poster.jpg.asset.json";
 import simulatorBay from "@/assets/simulator-bay.png.asset.json";
 import swingLabBadge from "@/assets/swing-lab-badge.png.asset.json";
+import googlePlayBadge from "@/assets/google-play-badge.svg";
 const COMMUNITY_IMG = "https://cdn.shopify.com/s/files/1/0758/7030/6550/files/Birdies_Golf.jpg?v=1751956878&width=3840";
 
 const features = [
