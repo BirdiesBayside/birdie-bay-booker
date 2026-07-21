@@ -77,6 +77,16 @@ export async function restoreUserGsproSettings(
 
   const writeRes = await window.electronAPI.writeGsproUserSettings(files);
   if (!writeRes.success) return { restored: [], missing, error: writeRes.error };
+
+  // Capture a session-start snapshot so close-time upload can attribute
+  // changes to THIS user (even if the active booking changes later) and
+  // skip uploading if nothing was saved.
+  try {
+    if (window.electronAPI.captureUserSettingsSnapshot) {
+      await window.electronAPI.captureUserSettingsSnapshot(userId);
+    }
+  } catch { /* non-fatal; falls back to baseline compare */ }
+
   return { restored: writeRes.written ?? [], missing };
 }
 

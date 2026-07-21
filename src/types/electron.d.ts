@@ -102,8 +102,9 @@ declare global {
       onGsproClosed: (callback: () => void) => () => void;
       onBaselineRestored: (callback: (results: { file: string; success: boolean; error?: string }[]) => void) => () => void;
       // Range session / per-customer GSPro settings file IPCs
-      readGsproUserSettings: () => Promise<{ success: boolean; files?: Record<string, string>; error?: string }>;
+      readGsproUserSettings: () => Promise<{ success: boolean; files?: Record<string, string>; skipped?: string[]; restoredForUserId?: string | null; snapshotCapturedAt?: number | null; error?: string }>;
       writeGsproUserSettings: (files: Record<string, string>) => Promise<{ success: boolean; written?: string[]; error?: string }>;
+      captureUserSettingsSnapshot: (userId: string) => Promise<{ success: boolean; files?: string[]; error?: string }>;
       getGsproLaunchTs: () => Promise<{ ts: number | null }>;
       scanDesktopCsvs: (sinceMs?: number) => Promise<{ success: boolean; csvs: { filename: string; base64: string; mtime: number; size: number }[]; error?: string }>;
       deleteDesktopCsv: (filename: string) => Promise<{ success: boolean; error?: string }>;
