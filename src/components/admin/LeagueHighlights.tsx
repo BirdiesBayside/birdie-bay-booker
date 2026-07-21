@@ -172,10 +172,17 @@ export function LeagueHighlights() {
                  <div className="flex-1 min-w-0">
                    <div className="flex items-center gap-2 flex-wrap">
                      <span className="font-semibold">{row.player_name ?? "Unknown"}</span>
-                     <span className="text-muted-foreground text-sm">· Hole {row.hole_number} · Par {row.par ?? "?"} · Score {row.score ?? "?"}</span>
+                     {row.hole_number === 0 ? (
+                       <span className="text-muted-foreground text-sm">· Full session (untagged)</span>
+                     ) : (
+                       <span className="text-muted-foreground text-sm">· Hole {row.hole_number} · Par {row.par ?? "?"} · Score {row.score ?? "?"}</span>
+                     )}
                      <span className="text-muted-foreground text-xs">· Bay {row.bay_number} · {row.tournament_name}</span>
                    </div>
                    <div className="flex gap-2 mt-2 flex-wrap">
+                     {row.events.length === 0 && row.hole_number === 0 && (
+                       <Badge variant="outline">Raw recording — SGT hole data unavailable</Badge>
+                     )}
                      {row.events.map((e, i) => (
                        <Badge key={i} variant="secondary">{e.tag_emoji} {e.tag_label}{e.metric_value != null ? ` (${e.metric_value.toFixed(1)}${e.metric_unit ?? ""})` : ""}</Badge>
                      ))}
