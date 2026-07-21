@@ -92,7 +92,8 @@ export function LeagueHighlights() {
   const [runningTagger, setRunningTagger] = useState(false);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [activeSession, setActiveSession] = useState<SessionRow | null>(null);
-  const [streamBusy, setStreamBusy] = useState(false);
+  const [streamBusyIds, setStreamBusyIds] = useState<Set<string>>(new Set());
+  const autoKickedRef = useRef<Set<string>>(new Set());
   const [clipStart, setClipStartState] = useState<number | null>(null);
   const [clipEnd, setClipEndState] = useState<number | null>(null);
   const [clipLoading, setClipLoading] = useState(false);
@@ -204,6 +205,19 @@ export function LeagueHighlights() {
     return () => clearInterval(interval);
   }, []);
 
+  // Auto-kick Cloudflare Stream ingest for any session that has an uploaded MKV
+  // but no stream yet. Runs silently so highlights are ready to edit on open.
+  useEffect(() => {
+    for (const sess of sessions) {
+      if (sess.stream_uid) continue;
+      if (sess.stream_status === "failed") continue;
+      if (!sess.storage_path) continue;
+      if (autoKickedRef.current.has(sess.session_id)) continue;
+      autoKickedRef.current.add(sess.session_id);
+      void ensureStream(sess, { silent: true });
+    }
+  }, [sessions]);
+
   const saveConfig = async (nextEnabled: boolean, nextBay: number | null) => {
     const { error } = await supabase.from("system_settings").update({
       highlight_recording_enabled: nextEnabled,
@@ -221,19 +235,23 @@ export function LeagueHighlights() {
     else { toast({ title: "Tagger complete", description: `Processed ${data?.holes_processed} holes, created ${data?.events_created} tags.` }); void load(); }
   };
 
-  const ensureStream = async (sess: SessionRow): Promise<string | null> => {
-    setStreamBusy(true);
+  const ensureStream = async (sess: SessionRow, opts: { silent?: boolean } = {}): Promise<string | null> => {
+    const { silent = false } = opts;
+    setStreamBusyIds((prev) => { const next = new Set(prev); next.add(sess.session_id); return next; });
     try {
       const { data, error } = await supabase.functions.invoke("stream-upload", { body: { recording_session_id: sess.session_id } });
       if (error || !data?.stream_uid) {
         const description = await getFunctionErrorMessage(error, data);
-        toast({ title: "Stream upload failed", description, variant: "destructive" });
+        if (!silent) toast({ title: "Stream upload failed", description, variant: "destructive" });
         return null;
       }
       if (data?.playback_url) {
         setSessions((prev) => prev.map((s) => s.session_id === sess.session_id ? { ...s, stream_uid: data.stream_uid, stream_status: "ready" } : s));
         return data.playback_url as string;
       }
+      // Reflect in-progress status immediately so the badge updates.
+      setSessions((prev) => prev.map((s) => s.session_id === sess.session_id ? { ...s, stream_uid: data.stream_uid, stream_status: data.status ?? "inprogress" } : s));
+      if (silent) return null; // Background kickoff — poller will pick it up.
       // Poll for readiness.
       for (let i = 0; i < 60; i++) {
         const { data: poll, error: pollErr } = await supabase.functions.invoke("stream-upload", { body: { recording_session_id: sess.session_id } });
@@ -251,9 +269,10 @@ export function LeagueHighlights() {
       toast({ title: "Stream still processing", description: "The video is being prepared. Try opening again shortly.", variant: "default" });
       return null;
     } finally {
-      setStreamBusy(false);
+      setStreamBusyIds((prev) => { const next = new Set(prev); next.delete(sess.session_id); return next; });
     }
   };
+
 
   const openSession = async (sess: SessionRow) => {
     const url = await ensureStream(sess);
@@ -401,8 +420,8 @@ export function LeagueHighlights() {
                        </div>
                      </div>
                      <div className="flex gap-2 flex-wrap md:flex-nowrap md:shrink-0">
-                       <Button size="sm" variant="outline" onClick={() => openSession(sess)} disabled={streamBusy}>
-                         {streamBusy ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Play className="h-4 w-4 mr-1" />}Open
+                       <Button size="sm" variant="outline" onClick={() => openSession(sess)} disabled={streamBusyIds.has(sess.session_id)}>
+                         {streamBusyIds.has(sess.session_id) ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Play className="h-4 w-4 mr-1" />}Open
                        </Button>
                        <Button size="sm" variant="outline" onClick={() => downloadSession(sess)} disabled={!sess.storage_path}><Download className="h-4 w-4 mr-1" />Download</Button>
                        <Button size="sm" variant="ghost" onClick={() => dismissSession(sess)}><Trash2 className="h-4 w-4" /></Button>
