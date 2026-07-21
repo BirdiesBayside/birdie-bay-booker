@@ -76,7 +76,7 @@ const MarketingHome = () => {
               rel="noopener noreferrer"
             >
               <img
-                src="/src/assets/google-play-badge.svg"
+                src={googlePlayBadge}
                 alt="Get it on Google Play"
                 className="h-12 w-auto"
               />
