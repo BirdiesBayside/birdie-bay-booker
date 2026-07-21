@@ -261,23 +261,7 @@ export function LeagueHighlights() {
       // Reflect in-progress status immediately so the badge updates.
       setSessions((prev) => prev.map((s) => s.session_id === sess.session_id ? { ...s, stream_uid: data.stream_uid, stream_status: data.status ?? "inprogress", stream_error: null } : s));
       if (silent) return null; // Background kickoff — poller will pick it up.
-      // Poll for readiness.
-      for (let i = 0; i < 8; i++) {
-        const { data: poll, error: pollErr } = await supabase.functions.invoke("stream-upload", { body: { recording_session_id: sess.session_id } });
-        if (pollErr || poll?.error || ["failed", "status_failed", "error"].includes(poll?.status)) {
-          const description = await getFunctionErrorMessage(pollErr, poll);
-          toast({ title: "Stream status check failed", description, variant: "destructive" });
-          setSessions((prev) => prev.map((s) => s.session_id === sess.session_id ? { ...s, stream_uid: poll?.stream_uid ?? s.stream_uid, stream_status: poll?.status ?? "status_failed", stream_error: description } : s));
-          return null;
-        }
-        if (poll?.playback_url) {
-          setSessions((prev) => prev.map((s) => s.session_id === sess.session_id ? { ...s, stream_uid: poll.stream_uid, stream_status: "ready", stream_error: null } : s));
-          return poll.playback_url as string;
-        }
-        setSessions((prev) => prev.map((s) => s.session_id === sess.session_id ? { ...s, stream_uid: poll?.stream_uid ?? s.stream_uid, stream_status: poll?.status ?? "inprogress", stream_error: null } : s));
-        await new Promise((r) => setTimeout(r, 3000));
-      }
-      toast({ title: "Stream still processing", description: "The video is being prepared. Try opening again shortly.", variant: "default" });
+      toast({ title: "Stream still processing", description: "The video is still being prepared. This page will update automatically when it is ready.", variant: "default" });
       return null;
     } finally {
       setStreamBusyIds((prev) => { const next = new Set(prev); next.delete(sess.session_id); return next; });
