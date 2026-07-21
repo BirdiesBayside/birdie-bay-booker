@@ -62,18 +62,24 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ error: "source video is not ready yet", status: source?.status?.state ?? "unknown" }), { status: 425, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
 
-  const clipRes = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/stream/${streamUid}/clip`, {
+  const clipRes = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/stream/clip`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ start: start_seconds, end: end_seconds }),
+    body: JSON.stringify({
+      clippedFromVideoUID: streamUid,
+      startTimeSeconds: Math.floor(start_seconds),
+      endTimeSeconds: Math.ceil(end_seconds),
+    }),
   });
 
   const clipJson = await clipRes.json().catch(() => ({}));
   if (!clipRes.ok) {
-    return new Response(JSON.stringify({ error: clipJson.errors?.[0]?.message ?? "Cloudflare clip failed" }), { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    const errMsg = clipJson.errors?.[0]?.message ?? clipJson.errors?.[0]?.code ?? `Cloudflare clip failed (${clipRes.status})`;
+    console.error("[stream-clip] CF clip failed", { status: clipRes.status, body: clipJson });
+    return new Response(JSON.stringify({ error: errMsg, details: clipJson }), { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
 
   const clipUid = clipJson.result?.uid;
