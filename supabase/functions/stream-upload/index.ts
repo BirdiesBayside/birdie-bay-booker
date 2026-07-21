@@ -96,6 +96,8 @@ Deno.serve(async (req) => {
 
   // Start a fresh copy upload.
   const title = `${sess.player_name ?? "Unknown"} — Bay ${sess.bay_number}${sess.tournament_name ? ` — ${sess.tournament_name}` : ""}`;
+  console.log("[stream-upload] Requesting CF copy", { accountId: accountId?.slice(0, 6) + "…", hasToken: !!token, title, signedUrlHost: new URL(signed.signedUrl).host });
+
   const copyRes = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/stream/copy`, {
     method: "POST",
     headers: {
@@ -110,9 +112,14 @@ Deno.serve(async (req) => {
     }),
   });
 
-  const copyJson = await copyRes.json().catch(() => ({}));
+  const copyText = await copyRes.text();
+  let copyJson: any = {};
+  try { copyJson = JSON.parse(copyText); } catch {}
   if (!copyRes.ok) {
-    return new Response(JSON.stringify({ error: copyJson.errors?.[0]?.message ?? "Cloudflare copy failed" }), { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    console.error("[stream-upload] CF copy failed", copyRes.status, copyText);
+    const cfError = copyJson.errors?.[0];
+    const msg = cfError ? `CF ${cfError.code}: ${cfError.message}` : `Cloudflare copy failed (${copyRes.status})`;
+    return new Response(JSON.stringify({ error: msg, cf_status: copyRes.status, cf_body: copyText.slice(0, 500) }), { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
 
   const uid = copyJson.result?.uid;
