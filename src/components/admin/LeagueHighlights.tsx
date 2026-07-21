@@ -92,7 +92,8 @@ export function LeagueHighlights() {
   const [runningTagger, setRunningTagger] = useState(false);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [activeSession, setActiveSession] = useState<SessionRow | null>(null);
-  const [streamBusy, setStreamBusy] = useState(false);
+  const [streamBusyIds, setStreamBusyIds] = useState<Set<string>>(new Set());
+  const autoKickedRef = useRef<Set<string>>(new Set());
   const [clipStart, setClipStartState] = useState<number | null>(null);
   const [clipEnd, setClipEndState] = useState<number | null>(null);
   const [clipLoading, setClipLoading] = useState(false);
