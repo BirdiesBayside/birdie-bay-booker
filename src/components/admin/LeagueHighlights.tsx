@@ -96,8 +96,8 @@ export function LeagueHighlights() {
     };
   }, [videoUrl]);
 
-  const load = async () => {
-    setLoading(true);
+  const load = async (silent = false) => {
+    if (!silent) setLoading(true);
     const [{ data: bayRows }, { data: cfg }] = await Promise.all([
       supabase.from("bays").select("id, bay_number, name").order("bay_number"),
       supabase.from("system_settings").select("highlight_recording_pilot_bay, highlight_recording_enabled").eq("id", "global").maybeSingle(),
@@ -165,10 +165,15 @@ export function LeagueHighlights() {
       };
     });
     setSessions(mapped);
-    setLoading(false);
+    if (!silent) setLoading(false);
   };
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => {
+    void load();
+    // Live poll stream status / new sessions every 10s without flashing the UI.
+    const interval = setInterval(() => { void load(true); }, 10000);
+    return () => clearInterval(interval);
+  }, []);
 
   const saveConfig = async (nextEnabled: boolean, nextBay: number | null) => {
     const { error } = await supabase.from("system_settings").update({
