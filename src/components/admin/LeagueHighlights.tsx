@@ -222,13 +222,24 @@ export function LeagueHighlights() {
     }
   }, [sessions]);
 
-  const saveConfig = async (nextEnabled: boolean, nextBay: number | null) => {
+  const saveConfig = async (nextEnabled: boolean, nextBay: number | null, nextRetention: number = retentionDays) => {
     const { error } = await supabase.from("system_settings").update({
       highlight_recording_enabled: nextEnabled,
       highlight_recording_pilot_bay: nextBay,
+      highlight_retention_days: nextRetention,
     }).eq("id", "global");
-    if (error) toast({ title: "Save failed", description: error.message, variant: "destructive" });
-    else toast({ title: "Saved", description: `Recording ${nextEnabled ? "enabled" : "disabled"}${nextBay ? ` on Bay ${nextBay}` : ""}.` });
+    if (error) { toast({ title: "Save failed", description: error.message, variant: "destructive" }); return; }
+    toast({ title: "Saved", description: `Recording ${nextEnabled ? "enabled" : "disabled"}${nextBay ? ` on Bay ${nextBay}` : ""} · keep ${nextRetention}d.` });
+  };
+
+  const applyRetentionToExisting = async () => {
+    const nextIso = new Date(Date.now() + retentionDays * 86400_000).toISOString();
+    const { error, count } = await supabase
+      .from("recording_sessions")
+      .update({ retention_until: nextIso }, { count: "exact" })
+      .neq("status", "purged");
+    if (error) toast({ title: "Update failed", description: error.message, variant: "destructive" });
+    else toast({ title: "Retention updated", description: `${count ?? 0} session${count === 1 ? "" : "s"} now expire in ${retentionDays} days.` });
   };
 
   const runTagger = async () => {
