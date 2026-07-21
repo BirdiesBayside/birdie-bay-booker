@@ -100,7 +100,23 @@ Deno.serve(async (req) => {
   }
 
   const playbackUrl = clip.playback?.hls ?? `https://customer-${accountId}.cloudflarestream.com/${clipUid}/manifest/video.m3u8`;
-  const downloadUrl = clip.playback?.mp4 ?? `https://customer-${accountId}.cloudflarestream.com/${clipUid}/downloads/default.mp4`;
+
+  // Enable MP4 downloads for the clip (required before default.mp4 is available).
+  let downloadUrl = `https://customer-${accountId}.cloudflarestream.com/${clipUid}/downloads/default.mp4`;
+  try {
+    const dlRes = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/stream/${clipUid}/downloads`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const dlJson = await dlRes.json().catch(() => ({}));
+    if (dlRes.ok && dlJson.result?.default?.url) {
+      downloadUrl = dlJson.result.default.url;
+    } else if (!dlRes.ok) {
+      console.error("[stream-clip] enable download failed", { status: dlRes.status, body: dlJson });
+    }
+  } catch (e) {
+    console.error("[stream-clip] enable download threw", e);
+  }
 
   // Persist the clip record.
   await admin.from("recording_clips").insert({
