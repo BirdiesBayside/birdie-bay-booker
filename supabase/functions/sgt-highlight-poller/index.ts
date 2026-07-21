@@ -1,13 +1,17 @@
-// Live SGT scorecard poller for League Highlights.
-// Runs every 2 minutes via pg_cron. For each recording_sessions row with
-// status='recording', fetches the player's scorecard directly from the SGT
-// club-admin endpoint (same one sgt-sync uses, so we know the URL shape is
-// correct). Any hole that newly appears in the scorecard gets a
-// recording_holes row stamped with hole_completed_at = now() — this is our
-// per-hole reference timestamp for chapter markers in the raw clip.
+// Live SGT hole tracker for League Highlights (embed-scrape version).
 //
-// Timestamps are approximate (accurate to the 2-minute poll cadence) which
-// is fine: the raw MKV is kept intact and chapters are overlays, not cuts.
+// Instead of hammering the club-admin scorecards API per player, we fetch
+// ONE public embed page per active tournament and parse the "(N)" indicator
+// next to each player's round score to know which hole they're currently on.
+// Format observed at https://simulatorgolftour.com/embed/tournament/<id>/standings/gross:
+//   <td class='... round ...'>+2 <span ...>F</span></td>       ← round complete
+//   <td class='... round ...'>+6 <span ...>(4)</span></td>     ← currently on hole 4 (thru 3)
+//   <td class='... round ...'>  <span ...></span></td>         ← not started
+//
+// When a player's "current hole" advances (e.g. 4 → 5), we stamp
+// hole_completed_at = now() on the hole they just finished (N-1) for the
+// matching recording_sessions row. Score/par data still comes from the
+// morning sgt-sync, which the tagger consumes afterward.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 
@@ -16,34 +20,57 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const SGT_BASE_URL = "https://simulatorgolftour.com/sgt-api/club-admin";
-const CLUB_URL = Deno.env.get("SGT_CLUB_URL") ?? "birdiesbayside";
-
-async function fetchTournamentScorecards(tournamentId: string, apiKey: string) {
-  const url = `${SGT_BASE_URL}/${CLUB_URL}/tournaments/scorecards?api-key=${encodeURIComponent(apiKey)}&tournamentId=${encodeURIComponent(tournamentId)}`;
+async function fetchEmbedHtml(tournamentId: string): Promise<string | null> {
+  const url = `https://simulatorgolftour.com/embed/tournament/${encodeURIComponent(tournamentId)}/standings/gross`;
   try {
-    const res = await fetch(url);
+    const res = await fetch(url, { headers: { "User-Agent": "BirdiesHub-HighlightPoller/1.0" } });
     if (!res.ok) {
-      console.error(`[poller] SGT ${res.status} for tournament ${tournamentId}`);
+      console.error(`[poller] embed ${res.status} for tournament ${tournamentId}`);
       return null;
     }
-    return await res.json();
+    return await res.text();
   } catch (e) {
-    console.error("[poller] SGT fetch failed:", (e as Error).message);
+    console.error("[poller] embed fetch failed:", (e as Error).message);
     return null;
   }
 }
 
-/** Extract per-hole {number, par, score} from an SGT scorecard row. */
-function holesFromScorecard(sc: Record<string, unknown>) {
-  const out: Array<{ hole_number: number; par: number | null; score: number | null }> = [];
-  for (let n = 1; n <= 18; n++) {
-    // sgt-sync stores keys as h1_gross / hole1_gross depending on API version.
-    const scoreVal = sc[`hole${n}_gross`] ?? sc[`h${n}_gross`] ?? sc[`hole${n}`] ?? sc[`h${n}`];
-    const parVal = sc[`hole${n}_par`] ?? sc[`h${n}_par`] ?? sc[`par${n}`];
-    const score = scoreVal != null && scoreVal !== "" && Number(scoreVal) > 0 ? Number(scoreVal) : null;
-    const par = parVal != null && parVal !== "" ? Number(parVal) : null;
-    out.push({ hole_number: n, par, score });
+/**
+ * Parse the embed HTML into a map of { playerName (lowercased) -> currentHole | "F" | null }.
+ * currentHole is the hole number they are CURRENTLY on (i.e. they have completed hole N-1).
+ * "F" means the round is complete (all 18 done).
+ * null means not started / no round cell filled.
+ *
+ * The embed can render multiple round columns (RD 1, RD 2). We take the LAST
+ * non-empty round cell per player as the "active" round.
+ */
+function parseEmbed(html: string): Map<string, { hole: number | null; finished: boolean }> {
+  const out = new Map<string, { hole: number | null; finished: boolean }>();
+  // Split into player rows.
+  const rowRegex = /<tr\s+data-player-name='([^']+)'>([\s\S]*?)<\/tr>/g;
+  let m: RegExpExecArray | null;
+  while ((m = rowRegex.exec(html)) !== null) {
+    const playerName = m[1].trim().toLowerCase();
+    const rowHtml = m[2];
+    // Collect all round cells (class contains "round").
+    const cellRegex = /<td[^>]*class='[^']*\bround\b[^']*'[^>]*>([\s\S]*?)<\/td>/g;
+    let c: RegExpExecArray | null;
+    let latest: { hole: number | null; finished: boolean } | null = null;
+    while ((c = cellRegex.exec(rowHtml)) !== null) {
+      const cellText = c[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+      if (!cellText) continue;
+      if (/\bF\b/.test(cellText)) {
+        latest = { hole: null, finished: true };
+      } else {
+        const paren = cellText.match(/\((\d+)\)/);
+        if (paren) {
+          latest = { hole: Number(paren[1]), finished: false };
+        } else {
+          // score-only cell (e.g. mid-round before SGT adds the "(N)" indicator) — ignore.
+        }
+      }
+    }
+    if (latest) out.set(playerName, latest);
   }
   return out;
 }
@@ -52,21 +79,6 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-
-  // Get active SGT API key (same lookup pattern as sgt-api)
-  const { data: apiConfig } = await supabase
-    .from("sgt_api_config")
-    .select("api_key")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (!apiConfig?.api_key) {
-    return new Response(JSON.stringify({ error: "no SGT api key configured" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
 
   const { data: sessions, error: sessErr } = await supabase
     .from("recording_sessions")
@@ -80,66 +92,80 @@ Deno.serve(async (req) => {
     });
   }
 
+  const activeSessions = (sessions ?? []).filter((s) => s.sgt_user_id && s.sgt_tournament_id);
+
+  // Map sgt_user_id -> SGT username for all active players.
+  const userIds = Array.from(new Set(activeSessions.map((s) => s.sgt_user_id as number)));
+  const nameByUserId = new Map<number, string>();
+  if (userIds.length > 0) {
+    const { data: members } = await supabase
+      .from("sgt_members")
+      .select("user_id, user_name")
+      .in("user_id", userIds);
+    for (const m of members ?? []) {
+      if (m.user_name) nameByUserId.set(m.user_id as number, String(m.user_name).trim().toLowerCase());
+    }
+  }
+
+  // Cache embed HTML per tournament so multiple bays on same tournament = 1 fetch.
+  const embedCache = new Map<string, Map<string, { hole: number | null; finished: boolean }>>();
   const results: Array<Record<string, unknown>> = [];
+  const nowIso = new Date().toISOString();
 
-  // Cache scorecard responses per-tournament so multiple bays on the same
-  // tournament only trigger one fetch.
-  const scorecardCache = new Map<string, unknown>();
-
-  for (const sess of sessions ?? []) {
-    if (!sess.sgt_user_id || !sess.sgt_tournament_id) continue;
-
-    let card = scorecardCache.get(String(sess.sgt_tournament_id));
-    if (card === undefined) {
-      card = await fetchTournamentScorecards(String(sess.sgt_tournament_id), apiConfig.api_key);
-      scorecardCache.set(String(sess.sgt_tournament_id), card);
+  for (const sess of activeSessions) {
+    const tournId = String(sess.sgt_tournament_id);
+    let players = embedCache.get(tournId);
+    if (!players) {
+      const html = await fetchEmbedHtml(tournId);
+      if (!html) {
+        results.push({ session: sess.id, skipped: "embed fetch failed" });
+        continue;
+      }
+      players = parseEmbed(html);
+      embedCache.set(tournId, players);
     }
-    if (!card) {
-      results.push({ session: sess.id, skipped: "no scorecard" });
+
+    const sgtName = nameByUserId.get(sess.sgt_user_id as number);
+    if (!sgtName) {
+      results.push({ session: sess.id, skipped: "no sgt username mapping" });
+      continue;
+    }
+    const state = players.get(sgtName);
+    if (!state) {
+      results.push({ session: sess.id, skipped: "player not on embed", sgt_name: sgtName });
       continue;
     }
 
-    // Find this player's scorecard in the tournament response.
-    const arr: Record<string, unknown>[] =
-      (card as any)?.scorecards ??
-      (card as any)?.results ??
-      (Array.isArray(card) ? (card as any) : []);
-    const mine = arr.find((r) => String(r.playerId ?? r.player_id ?? "") === String(sess.sgt_user_id));
-    if (!mine) {
-      results.push({ session: sess.id, skipped: "player not in tournament" });
-      continue;
-    }
-    const holes = holesFromScorecard(mine);
-
+    // Existing holes for this session.
     const { data: known } = await supabase
       .from("recording_holes")
       .select("hole_number, hole_completed_at, pre_existing")
       .eq("recording_session_id", sess.id);
-    const knownMap = new Map(
-      (known ?? []).map((k) => [k.hole_number, { completed: !!k.hole_completed_at, preExisting: !!k.pre_existing }]),
-    );
-
-    // First-run for this session: mark holes ALREADY scored at recording
-    // start as pre_existing (played in an earlier session, not ours to clip).
+    const knownMap = new Map((known ?? []).map((k) => [k.hole_number, k]));
     const isFirstPoll = (known ?? []).length === 0;
 
+    // Determine which holes are considered COMPLETED right now.
+    // If finished=F: all 18 done. If hole=N: holes 1..(N-1) done.
+    let completedThrough = 0;
+    if (state.finished) completedThrough = 18;
+    else if (state.hole && state.hole > 1) completedThrough = state.hole - 1;
+
+    // First poll: any already-completed holes are pre-existing (played before we hit record).
+    // Subsequent polls: newly-completed holes get hole_completed_at = now().
     let newlyCompleted = 0;
-    const nowIso = new Date().toISOString();
+    let markedPreExisting = 0;
 
-    for (const h of holes) {
-      if (h.score == null) continue;
-      const existing = knownMap.get(h.hole_number);
-      if (existing?.preExisting) continue;
-      if (existing?.completed) continue;
+    for (let n = 1; n <= completedThrough; n++) {
+      const existing = knownMap.get(n);
+      if (existing?.hole_completed_at || existing?.pre_existing) continue;
 
-      const preExisting = isFirstPoll; // already there when we started recording
-
+      const preExisting = isFirstPoll;
       const { error: upErr } = await supabase.from("recording_holes").upsert(
         {
           recording_session_id: sess.id,
-          hole_number: h.hole_number,
-          par: h.par,
-          score: h.score,
+          hole_number: n,
+          par: null,
+          score: null,
           hole_completed_at: preExisting ? null : nowIso,
           pre_existing: preExisting,
           status: "pending",
@@ -148,23 +174,34 @@ Deno.serve(async (req) => {
         { onConflict: "recording_session_id,hole_number" },
       );
       if (upErr) {
-        console.error(`[poller] upsert hole ${h.hole_number} for ${sess.id} failed:`, upErr.message);
+        console.error(`[poller] upsert hole ${n} for ${sess.id} failed:`, upErr.message);
         continue;
       }
-      if (!preExisting) newlyCompleted++;
+      if (preExisting) markedPreExisting++;
+      else newlyCompleted++;
     }
 
-    results.push({ session: sess.id, bay: sess.bay_number, first_poll: isFirstPoll, newly_completed: newlyCompleted });
+    results.push({
+      session: sess.id,
+      bay: sess.bay_number,
+      sgt_name: sgtName,
+      current_hole: state.hole,
+      finished: state.finished,
+      first_poll: isFirstPoll,
+      newly_completed: newlyCompleted,
+      marked_pre_existing: markedPreExisting,
+    });
   }
 
-  // Auto-run the tagger so highlights land in the queue without a separate cron round-trip.
+  // Tagger fills in par/score from the DB (populated by morning sgt-sync).
   try {
     await supabase.functions.invoke("sgt-highlight-tagger", { body: {} });
   } catch (e) {
     console.error("[poller] tagger invoke failed:", (e as Error).message);
   }
 
-  return new Response(JSON.stringify({ ok: true, sessions_polled: sessions?.length ?? 0, results }), {
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
+  return new Response(
+    JSON.stringify({ ok: true, sessions_polled: activeSessions.length, results }),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+  );
 });
