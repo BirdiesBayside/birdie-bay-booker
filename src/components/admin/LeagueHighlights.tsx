@@ -131,11 +131,12 @@ export function LeagueHighlights() {
     if (!silent) setLoading(true);
     const [{ data: bayRows }, { data: cfg }] = await Promise.all([
       supabase.from("bays").select("id, bay_number, name").order("bay_number"),
-      supabase.from("system_settings").select("highlight_recording_pilot_bay, highlight_recording_enabled").eq("id", "global").maybeSingle(),
+      supabase.from("system_settings").select("highlight_recording_pilot_bay, highlight_recording_enabled, highlight_retention_days").eq("id", "global").maybeSingle(),
     ]);
     setBays(bayRows ?? []);
     setPilotBay(cfg?.highlight_recording_pilot_bay ?? null);
     setEnabled(!!cfg?.highlight_recording_enabled);
+    setRetentionDays(cfg?.highlight_retention_days ?? 14);
 
     const since = new Date(Date.now() - 14 * 86400_000).toISOString();
     // Full-session rows (hole_number = 0) hold the storage_path for the raw video.
