@@ -252,6 +252,7 @@ export function LeagueHighlights() {
                        </div>
                      </div>
                      <Button size="sm" variant="outline" onClick={() => openSession(sess)}><Play className="h-4 w-4 mr-1" />Open</Button>
+                     <Button size="sm" variant="outline" onClick={() => downloadSession(sess)} disabled={!sess.storage_path}><Download className="h-4 w-4 mr-1" />Download</Button>
                      <Button size="sm" variant="ghost" onClick={() => dismissSession(sess)}><Trash2 className="h-4 w-4" /></Button>
                    </div>
                  </div>
