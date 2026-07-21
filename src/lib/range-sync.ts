@@ -113,8 +113,21 @@ export async function saveUserGsproSettings(
 
   const saved: string[] = [];
   const failed: string[] = [];
+  const skipped: string[] = [];
+  // Guard: GSPro sometimes leaves near-empty stub files on disk when the user
+  // never opened the corresponding settings panel. Uploading those overwrites
+  // the customer's last good snapshot and, on their next session, clobbers the
+  // baseline. Skip anything below this floor — real configs are always larger.
+  const MIN_SNAPSHOT_BYTES = 2048;
   for (const [file, base64] of Object.entries(read.files)) {
-    const sizeKB = Math.round(((base64 as string).length * 3) / 4 / 1024);
+    const b64 = base64 as string;
+    const approxBytes = Math.floor((b64.length * 3) / 4) - (b64.endsWith("==") ? 2 : b64.endsWith("=") ? 1 : 0);
+    const sizeKB = Math.round(approxBytes / 1024);
+    if (approxBytes < MIN_SNAPSHOT_BYTES) {
+      L(`[Settings] Skipped upload of ${file} — stub file (${approxBytes} bytes < ${MIN_SNAPSHOT_BYTES}). Keeping previous snapshot intact.`, "warning");
+      skipped.push(file);
+      continue;
+    }
     L(`[Settings] Uploading ${file} (~${sizeKB} KB) for user ${userId}`, "info");
     const { data, error } = ctx?.bayNumber
       ? await invokeBayControllerApi("save_user_setting", { user_id: userId, booking_id: ctx.bookingId ?? null, file, base64 }, ctx)
