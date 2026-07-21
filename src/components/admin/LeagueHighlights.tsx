@@ -300,21 +300,52 @@ export function LeagueHighlights() {
     const { data, error } = await supabase.functions.invoke("stream-clip", {
       body: { recording_session_id: activeSession.session_id, start_seconds: clipStart, end_seconds: clipEnd },
     });
-    setClipLoading(false);
     if (error || !data?.download_url) {
+      setClipLoading(false);
       const description = await getFunctionErrorMessage(error, data);
       toast({ title: "Clip failed", description: description || "no download url", variant: "destructive" });
       return;
     }
     const filename = `${activeSession.player_name ?? "clip"}-bay${activeSession.bay_number}-${(activeSession.started_at ?? "").slice(0, 10)}-${fmtOffset(clipStart)}-${fmtOffset(clipEnd)}.mp4`.replace(/\s+/g, "_").replace(/:/g, "-");
-    const a = document.createElement("a");
-    a.href = data.download_url;
-    a.download = filename;
-    a.rel = "noopener";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    toast({ title: "Clip ready", description: `Downloaded ${fmtOffset(clipEnd - clipStart)} clip.` });
+
+    // Try native share sheet first (iPhone: "Save Video" saves to camera roll).
+    try {
+      const res = await fetch(data.download_url);
+      if (!res.ok) throw new Error(`fetch ${res.status}`);
+      const blob = await res.blob();
+      const file = new File([blob], filename, { type: blob.type || "video/mp4" });
+      const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };
+      if (nav.canShare && nav.canShare({ files: [file] }) && typeof navigator.share === "function") {
+        await navigator.share({ files: [file], title: filename });
+        setClipLoading(false);
+        toast({ title: "Clip ready", description: "Choose 'Save Video' to add to your camera roll." });
+        return;
+      }
+      // Fallback: object URL download
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.rel = "noopener";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      setClipLoading(false);
+      toast({ title: "Clip ready", description: `Downloaded ${fmtOffset(clipEnd - clipStart)} clip.` });
+    } catch (e) {
+      // Last resort: open the CDN URL (previous behavior).
+      const a = document.createElement("a");
+      a.href = data.download_url;
+      a.download = filename;
+      a.rel = "noopener";
+      a.target = "_blank";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setClipLoading(false);
+      toast({ title: "Clip opened", description: "Could not share directly; opened in a new tab." });
+    }
   };
 
   const downloadSession = async (sess: SessionRow) => {
