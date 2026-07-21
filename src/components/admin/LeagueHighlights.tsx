@@ -68,6 +68,33 @@ export function LeagueHighlights() {
   const [clipEnd, setClipEndState] = useState<number | null>(null);
   const [clipLoading, setClipLoading] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const hlsRef = useRef<Hls | null>(null);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !videoUrl) return;
+
+    // Clean up previous Hls instance.
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+
+    if (video.canPlayType("application/vnd.apple.mpegurl")) {
+      // Safari / native HLS support.
+      video.src = videoUrl;
+    } else if (Hls.isSupported()) {
+      const hls = new Hls({ maxBufferLength: 60, maxMaxBufferLength: 120 });
+      hls.loadSource(videoUrl);
+      hls.attachMedia(video);
+      hlsRef.current = hls;
+    }
+
+    return () => {
+      hlsRef.current?.destroy();
+      hlsRef.current = null;
+    };
+  }, [videoUrl]);
 
   const load = async () => {
     setLoading(true);
