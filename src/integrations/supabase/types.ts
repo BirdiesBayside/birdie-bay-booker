@@ -2055,6 +2055,50 @@ export type Database = {
           },
         ]
       }
+      recording_clips: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          download_url: string | null
+          end_seconds: number
+          id: string
+          recording_session_id: string
+          start_seconds: number
+          stream_clip_uid: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          download_url?: string | null
+          end_seconds: number
+          id?: string
+          recording_session_id: string
+          start_seconds: number
+          stream_clip_uid?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          download_url?: string | null
+          end_seconds?: number
+          id?: string
+          recording_session_id?: string
+          start_seconds?: number
+          stream_clip_uid?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recording_clips_recording_session_id_fkey"
+            columns: ["recording_session_id"]
+            isOneToOne: false
+            referencedRelation: "recording_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       recording_holes: {
         Row: {
           chapter_marked_at: string | null
@@ -2133,6 +2177,10 @@ export type Database = {
           sgt_user_id: string | null
           started_at: string | null
           status: string
+          stream_created_at: string | null
+          stream_error: string | null
+          stream_status: string | null
+          stream_uid: string | null
           tournament_name: string | null
           updated_at: string
         }
@@ -2151,6 +2199,10 @@ export type Database = {
           sgt_user_id?: string | null
           started_at?: string | null
           status?: string
+          stream_created_at?: string | null
+          stream_error?: string | null
+          stream_status?: string | null
+          stream_uid?: string | null
           tournament_name?: string | null
           updated_at?: string
         }
@@ -2169,6 +2221,10 @@ export type Database = {
           sgt_user_id?: string | null
           started_at?: string | null
           status?: string
+          stream_created_at?: string | null
+          stream_error?: string | null
+          stream_status?: string | null
+          stream_uid?: string | null
           tournament_name?: string | null
           updated_at?: string
         }
