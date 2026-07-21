@@ -222,19 +222,23 @@ export function LeagueHighlights() {
     else { toast({ title: "Tagger complete", description: `Processed ${data?.holes_processed} holes, created ${data?.events_created} tags.` }); void load(); }
   };
 
-  const ensureStream = async (sess: SessionRow): Promise<string | null> => {
-    setStreamBusy(true);
+  const ensureStream = async (sess: SessionRow, opts: { silent?: boolean } = {}): Promise<string | null> => {
+    const { silent = false } = opts;
+    setStreamBusyIds((prev) => { const next = new Set(prev); next.add(sess.session_id); return next; });
     try {
       const { data, error } = await supabase.functions.invoke("stream-upload", { body: { recording_session_id: sess.session_id } });
       if (error || !data?.stream_uid) {
         const description = await getFunctionErrorMessage(error, data);
-        toast({ title: "Stream upload failed", description, variant: "destructive" });
+        if (!silent) toast({ title: "Stream upload failed", description, variant: "destructive" });
         return null;
       }
       if (data?.playback_url) {
         setSessions((prev) => prev.map((s) => s.session_id === sess.session_id ? { ...s, stream_uid: data.stream_uid, stream_status: "ready" } : s));
         return data.playback_url as string;
       }
+      // Reflect in-progress status immediately so the badge updates.
+      setSessions((prev) => prev.map((s) => s.session_id === sess.session_id ? { ...s, stream_uid: data.stream_uid, stream_status: data.status ?? "inprogress" } : s));
+      if (silent) return null; // Background kickoff — poller will pick it up.
       // Poll for readiness.
       for (let i = 0; i < 60; i++) {
         const { data: poll, error: pollErr } = await supabase.functions.invoke("stream-upload", { body: { recording_session_id: sess.session_id } });
@@ -252,9 +256,10 @@ export function LeagueHighlights() {
       toast({ title: "Stream still processing", description: "The video is being prepared. Try opening again shortly.", variant: "default" });
       return null;
     } finally {
-      setStreamBusy(false);
+      setStreamBusyIds((prev) => { const next = new Set(prev); next.delete(sess.session_id); return next; });
     }
   };
+
 
   const openSession = async (sess: SessionRow) => {
     const url = await ensureStream(sess);
