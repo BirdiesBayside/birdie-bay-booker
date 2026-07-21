@@ -3715,42 +3715,104 @@ function readFileBase64(filePath) {
   return buf.toString('base64');
 }
 
+// In-memory record of the files that were on disk immediately after we
+// restored a specific user's snapshot. Used at close-time to detect whether
+// the user actually saved any changes, and to attribute any changes back to
+// the correct user even if the active booking has since changed (mid-session
+// admin cancellation, back-to-back changeover, etc).
+// Map key: bay folder path (single-bay app, but keyed for safety). Value:
+// { userId, hashes: {file: sha256}, capturedAt }
+const sessionSettingsSnapshots = new Map();
+
+function hashFileSync(filePath) {
+  const crypto = require('crypto');
+  const buf = fs.readFileSync(filePath);
+  return { hash: crypto.createHash('sha256').update(buf).digest('hex'), size: buf.length };
+}
+
+// Called by renderer immediately AFTER restoreUserGsproSettings completes.
+// Records the on-disk hash of each settings file so we know what "no changes"
+// looks like for this specific user's session.
+ipcMain.handle('capture-user-settings-snapshot', async (_e, { userId } = {}) => {
+  try {
+    if (!baselineConfig.gsproFolderPath) return { success: false, error: 'GSPro folder not configured' };
+    if (!userId) return { success: false, error: 'missing_user_id' };
+    const hashes = {};
+    for (const name of USER_SETTINGS_FILES) {
+      const p = path.join(baselineConfig.gsproFolderPath, name);
+      if (!fs.existsSync(p)) continue;
+      try { hashes[name] = hashFileSync(p).hash; } catch (e) { /* ignore individual read failure */ }
+    }
+    sessionSettingsSnapshots.set(baselineConfig.gsproFolderPath, {
+      userId,
+      hashes,
+      capturedAt: Date.now(),
+    });
+    console.log(`[Settings] Captured session-start snapshot for user ${userId}: ${Object.keys(hashes).join(', ') || '(none)'}`);
+    return { success: true, files: Object.keys(hashes) };
+  } catch (error) {
+    console.error('[Settings] capture-user-settings-snapshot failed:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 // Read current GSPro user settings files (returns base64 for each present file).
-// Skips any file whose contents are byte-identical to the stored baseline —
-// that means the user never saved a change this session, so uploading would
-// just overwrite their previous good snapshot with the shared baseline.
+// Uses the session-start snapshot (captured just after per-user restore) to:
+//   1. Skip any file that is byte-identical to what we restored (no user save).
+//   2. Return the userId whose files these actually are, so uploads get
+//      attributed correctly even if the active booking changed since launch.
+// Falls back to baseline-hash compare if no session-start snapshot exists.
 ipcMain.handle('read-gspro-user-settings', async () => {
   try {
     if (!baselineConfig.gsproFolderPath) return { success: false, error: 'GSPro folder not configured' };
     const crypto = require('crypto');
     const baselinePath = getBaselineStoragePath();
+    const sessionSnap = sessionSettingsSnapshots.get(baselineConfig.gsproFolderPath) || null;
     const files = {};
     const skipped = [];
     for (const name of USER_SETTINGS_FILES) {
       const p = path.join(baselineConfig.gsproFolderPath, name);
       if (!fs.existsSync(p)) continue;
       const buf = fs.readFileSync(p);
+      const curHash = crypto.createHash('sha256').update(buf).digest('hex');
 
-      // Hash-compare against baseline; skip if identical (user never saved).
+      // Preferred path: compare against the session-start snapshot for the
+      // user we restored files for. Identical hash = user saved nothing.
+      if (sessionSnap && sessionSnap.hashes[name]) {
+        if (sessionSnap.hashes[name] === curHash) {
+          skipped.push(name);
+          console.log(`[Settings] Skip ${name} — identical to session-start snapshot for user ${sessionSnap.userId}`);
+          continue;
+        }
+        files[name] = buf.toString('base64');
+        continue;
+      }
+
+      // Fallback: no session snapshot (e.g. controller restart mid-session).
+      // Compare to baseline; skip if identical (user never saved).
       const baselineFile = path.join(baselinePath, name);
       if (fs.existsSync(baselineFile)) {
         try {
           const baselineBuf = fs.readFileSync(baselineFile);
-          const curHash = crypto.createHash('sha256').update(buf).digest('hex');
           const baseHash = crypto.createHash('sha256').update(baselineBuf).digest('hex');
           if (curHash === baseHash) {
             skipped.push(name);
-            console.log(`[Settings] Skip ${name} — identical to baseline (${buf.length} bytes)`);
+            console.log(`[Settings] Skip ${name} — identical to baseline (fallback path)`);
             continue;
           }
         } catch (e) {
           console.warn(`[Settings] Baseline hash compare failed for ${name}:`, e.message);
         }
       }
-
       files[name] = buf.toString('base64');
     }
-    return { success: true, files, skipped };
+    return {
+      success: true,
+      files,
+      skipped,
+      restoredForUserId: sessionSnap?.userId ?? null,
+      snapshotCapturedAt: sessionSnap?.capturedAt ?? null,
+    };
   } catch (error) {
     return { success: false, error: error.message };
   }
