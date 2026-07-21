@@ -383,7 +383,7 @@ export function LeagueHighlights() {
               <div className="flex-1 bg-black flex flex-col">
                 <div className="flex-1 flex items-center justify-center">
                   {videoUrl ? (
-                    <video ref={videoRef} src={videoUrl} controls autoPlay className="max-w-full max-h-[60vh] md:max-h-[70vh]" />
+                    <video ref={videoRef} controls autoPlay playsInline className="max-w-full max-h-[60vh] md:max-h-[70vh]" />
                   ) : (
                     <div className="text-white p-8"><Loader2 className="animate-spin inline mr-2" /> Preparing stream…</div>
                   )}
