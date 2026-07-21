@@ -89,6 +89,7 @@ export function LeagueHighlights() {
   const [bays, setBays] = useState<Bay[]>([]);
   const [pilotBay, setPilotBay] = useState<number | null>(null);
   const [enabled, setEnabled] = useState(false);
+  const [retentionDays, setRetentionDays] = useState<number>(14);
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [runningTagger, setRunningTagger] = useState(false);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
