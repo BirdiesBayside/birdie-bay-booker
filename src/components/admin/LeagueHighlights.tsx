@@ -230,7 +230,7 @@ export function LeagueHighlights() {
                const highlights = sess.chapters.filter((c) => c.events.length > 0);
                return (
                  <div key={sess.session_id} className="border rounded-lg p-4">
-                   <div className="flex items-start gap-4">
+                   <div className="flex flex-col md:flex-row md:items-start gap-3 md:gap-4">
                      <div className="flex-1 min-w-0">
                        <div className="flex items-center gap-2 flex-wrap">
                          <span className="font-semibold">{sess.player_name ?? "Unknown"}</span>
@@ -251,9 +251,11 @@ export function LeagueHighlights() {
                          )}
                        </div>
                      </div>
-                     <Button size="sm" variant="outline" onClick={() => openSession(sess)}><Play className="h-4 w-4 mr-1" />Open</Button>
-                     <Button size="sm" variant="outline" onClick={() => downloadSession(sess)} disabled={!sess.storage_path}><Download className="h-4 w-4 mr-1" />Download</Button>
-                     <Button size="sm" variant="ghost" onClick={() => dismissSession(sess)}><Trash2 className="h-4 w-4" /></Button>
+                     <div className="flex gap-2 flex-wrap md:flex-nowrap md:shrink-0">
+                       <Button size="sm" variant="outline" onClick={() => openSession(sess)}><Play className="h-4 w-4 mr-1" />Open</Button>
+                       <Button size="sm" variant="outline" onClick={() => downloadSession(sess)} disabled={!sess.storage_path}><Download className="h-4 w-4 mr-1" />Download</Button>
+                       <Button size="sm" variant="ghost" onClick={() => dismissSession(sess)}><Trash2 className="h-4 w-4" /></Button>
+                     </div>
                    </div>
                  </div>
                );
