@@ -24,6 +24,7 @@ interface SessionRow {
   storage_path: string | null;
   stream_uid: string | null;
   stream_status: string | null;
+  stream_error: string | null;
   player_name: string | null;
   tournament_name: string | null;
   bay_number: number;
@@ -140,8 +141,8 @@ export function LeagueHighlights() {
     // Full-session rows (hole_number = 0) hold the storage_path for the raw video.
     const { data: sessRows } = await supabase
       .from("recording_holes")
-      .select(`id, hole_number, storage_path, recording_session_id,
-               recording_sessions!inner(id, player_name, tournament_name, bay_number, started_at, stream_uid, stream_status)`)
+       .select(`id, hole_number, storage_path, recording_session_id,
+                recording_sessions!inner(id, player_name, tournament_name, bay_number, started_at, stream_uid, stream_status, stream_error)`)
       .eq("status", "uploaded")
       .eq("hole_number", 0)
       .gte("updated_at", since)
@@ -186,6 +187,7 @@ export function LeagueHighlights() {
         storage_path: r.storage_path,
         stream_uid: r.recording_sessions?.stream_uid ?? null,
         stream_status: r.recording_sessions?.stream_status ?? null,
+        stream_error: r.recording_sessions?.stream_error ?? null,
         player_name: r.recording_sessions?.player_name ?? null,
         tournament_name: r.recording_sessions?.tournament_name ?? null,
         bay_number: r.recording_sessions?.bay_number,
@@ -240,33 +242,26 @@ export function LeagueHighlights() {
     setStreamBusyIds((prev) => { const next = new Set(prev); next.add(sess.session_id); return next; });
     try {
       const { data, error } = await supabase.functions.invoke("stream-upload", { body: { recording_session_id: sess.session_id } });
-      if (error || !data?.stream_uid) {
+      if (error || data?.error || !data?.stream_uid) {
         const description = await getFunctionErrorMessage(error, data);
         if (!silent) toast({ title: "Stream upload failed", description, variant: "destructive" });
+        setSessions((prev) => prev.map((s) => s.session_id === sess.session_id ? { ...s, stream_status: data?.status ?? "failed", stream_error: description } : s));
         return null;
       }
       if (data?.playback_url) {
-        setSessions((prev) => prev.map((s) => s.session_id === sess.session_id ? { ...s, stream_uid: data.stream_uid, stream_status: "ready" } : s));
+        setSessions((prev) => prev.map((s) => s.session_id === sess.session_id ? { ...s, stream_uid: data.stream_uid, stream_status: "ready", stream_error: null } : s));
         return data.playback_url as string;
       }
-      // Reflect in-progress status immediately so the badge updates.
-      setSessions((prev) => prev.map((s) => s.session_id === sess.session_id ? { ...s, stream_uid: data.stream_uid, stream_status: data.status ?? "inprogress" } : s));
-      if (silent) return null; // Background kickoff — poller will pick it up.
-      // Poll for readiness.
-      for (let i = 0; i < 60; i++) {
-        const { data: poll, error: pollErr } = await supabase.functions.invoke("stream-upload", { body: { recording_session_id: sess.session_id } });
-        if (pollErr) {
-          const description = await getFunctionErrorMessage(pollErr, poll);
-          toast({ title: "Stream status check failed", description, variant: "destructive" });
-          return null;
-        }
-        if (poll?.playback_url) {
-          setSessions((prev) => prev.map((s) => s.session_id === sess.session_id ? { ...s, stream_uid: poll.stream_uid, stream_status: "ready" } : s));
-          return poll.playback_url as string;
-        }
-        await new Promise((r) => setTimeout(r, 3000));
+      if (["failed", "status_failed", "error"].includes(data.status)) {
+        const description = data.error ?? "Cloudflare Stream status check failed.";
+        setSessions((prev) => prev.map((s) => s.session_id === sess.session_id ? { ...s, stream_uid: data.stream_uid, stream_status: data.status, stream_error: description } : s));
+        if (!silent) toast({ title: "Stream status check failed", description, variant: "destructive" });
+        return null;
       }
-      toast({ title: "Stream still processing", description: "The video is being prepared. Try opening again shortly.", variant: "default" });
+      // Reflect in-progress status immediately so the badge updates.
+      setSessions((prev) => prev.map((s) => s.session_id === sess.session_id ? { ...s, stream_uid: data.stream_uid, stream_status: data.status ?? "inprogress", stream_error: null } : s));
+      if (silent) return null; // Background kickoff — poller will pick it up.
+      toast({ title: "Stream still processing", description: "The video is still being prepared. This page will update automatically when it is ready.", variant: "default" });
       return null;
     } finally {
       setStreamBusyIds((prev) => { const next = new Set(prev); next.delete(sess.session_id); return next; });
@@ -394,6 +389,7 @@ export function LeagueHighlights() {
              {sessions.map((sess) => {
                const highlights = sess.chapters.filter((c) => c.events.length > 0);
                const streamReady = sess.stream_status === "ready";
+                const streamFailed = ["failed", "status_failed", "error"].includes(sess.stream_status ?? "");
                return (
                  <div key={sess.session_id} className="border rounded-lg p-4">
                    <div className="flex flex-col md:flex-row md:items-start gap-3 md:gap-4">
@@ -415,9 +411,11 @@ export function LeagueHighlights() {
                          {sess.chapters.length > 0 && highlights.length === 0 && (
                            <Badge variant="outline">{sess.chapters.length} holes tracked · no highlights</Badge>
                          )}
-                         {streamReady && <Badge variant="outline" className="text-green-600">Stream ready</Badge>}
-                         {sess.stream_status && sess.stream_status !== "ready" && <Badge variant="outline">Stream: {sess.stream_status}</Badge>}
+                          {streamReady && <Badge variant="outline" className="text-green-600">Stream ready</Badge>}
+                          {streamFailed && <Badge variant="destructive">Stream check failed</Badge>}
+                          {sess.stream_status && !streamReady && !streamFailed && <Badge variant="outline">Stream: {sess.stream_status}</Badge>}
                        </div>
+                        {sess.stream_error && <p className="text-xs text-destructive mt-2 break-words">{sess.stream_error}</p>}
                      </div>
                      <div className="flex gap-2 flex-wrap md:flex-nowrap md:shrink-0">
                        <Button size="sm" variant="outline" onClick={() => openSession(sess)} disabled={streamBusyIds.has(sess.session_id)}>

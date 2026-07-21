@@ -2,11 +2,7 @@
 // Uses Cloudflare's copy-from-URL endpoint so the file is pulled directly,
 // avoiding Edge Function memory/timeout limits for large MKVs.
 import { createClient } from "npm:@supabase/supabase-js@2";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
 interface SessionRow {
   id: string;
@@ -19,13 +15,47 @@ interface SessionRow {
   stream_status: string | null;
 }
 
-async function getStreamVideo(accountId: string, token: string, uid: string) {
-  const res = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/stream/${uid}`, {
-    headers: { Authorization: `Bearer ${token}` },
+function jsonResponse(body: Record<string, unknown>, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
-  if (!res.ok) return null;
-  const json = await res.json();
-  return json.result ?? null;
+}
+
+function cloudflareError(json: any, fallback: string) {
+  const first = json?.errors?.[0];
+  if (!first) return fallback;
+  return `Cloudflare Stream error ${first.code}: ${first.message}`;
+}
+
+async function getStreamVideo(accountId: string, token: string, uid: string) {
+  try {
+    const res = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/stream/${uid}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(20_000),
+    });
+    const text = await res.text();
+    let json: any = {};
+    try { json = JSON.parse(text); } catch {}
+
+    if (!res.ok) {
+      return {
+        ok: false,
+        video: null,
+        error: `${cloudflareError(json, `Cloudflare status check failed (${res.status})`)}${res.status === 401 ? " — check the Account ID/API token and Stream edit permission." : ""}`,
+        statusCode: res.status,
+      };
+    }
+
+    return { ok: true, video: json.result ?? null, error: null, statusCode: res.status };
+  } catch (err) {
+    return {
+      ok: false,
+      video: null,
+      error: err instanceof Error ? err.message : "Cloudflare status check timed out",
+      statusCode: 0,
+    };
+  }
 }
 
 Deno.serve(async (req) => {
@@ -37,18 +67,18 @@ Deno.serve(async (req) => {
   });
   const { data: userRes } = await authClient.auth.getUser();
   if (!userRes?.user) {
-    return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    return jsonResponse({ error: "unauthorized" }, 401);
   }
 
   const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   const { data: isAdmin } = await admin.rpc("has_role", { _user_id: userRes.user.id, _role: "admin" });
   if (!isAdmin) {
-    return new Response(JSON.stringify({ error: "forbidden" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    return jsonResponse({ error: "forbidden" }, 403);
   }
 
   const { recording_session_id } = await req.json();
   if (!recording_session_id) {
-    return new Response(JSON.stringify({ error: "recording_session_id required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    return jsonResponse({ error: "recording_session_id required" }, 400);
   }
 
   const { data: session, error: sessErr } = await admin
@@ -58,13 +88,13 @@ Deno.serve(async (req) => {
     .single();
 
   if (sessErr || !session) {
-    return new Response(JSON.stringify({ error: sessErr?.message ?? "session not found" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    return jsonResponse({ error: sessErr?.message ?? "session not found" }, 404);
   }
 
   const sess = session as SessionRow;
 
   if (!sess.mkv_path) {
-    return new Response(JSON.stringify({ error: "session has no mkv_path" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    return jsonResponse({ error: "session has no mkv_path" }, 400);
   }
 
   const accountId = Deno.env.get("CLOUDFLARE_ACCOUNT_ID")!;
@@ -74,24 +104,41 @@ Deno.serve(async (req) => {
   // If we already have a UID, check current status first.
   if (sess.stream_uid) {
     const existing = await getStreamVideo(accountId, token, sess.stream_uid);
-    if (existing) {
-      const state = existing.status?.state;
+    if (!existing.ok) {
+      const msg = existing.error ?? "Cloudflare status check failed";
+      console.error("[stream-upload] CF status failed", { uid: sess.stream_uid, statusCode: existing.statusCode, error: msg });
       await admin.from("recording_sessions").update({
-        stream_status: state === "ready" ? "ready" : state ?? "inprogress",
-        stream_error: existing.status?.errorReasonText ?? null,
-        stream_created_at: existing.created ?? null,
+        stream_status: "status_failed",
+        stream_error: msg,
+      }).eq("id", sess.id);
+      return jsonResponse({ stream_uid: sess.stream_uid, status: "status_failed", error: msg, playback_url: null });
+    }
+
+    const video = existing.video;
+    if (video) {
+      const state = video.status?.state ?? "inprogress";
+      const failed = state === "error" || state === "failed";
+      const normalizedState = state === "ready" ? "ready" : failed ? "failed" : state;
+      const streamError = video.status?.errorReasonText ?? video.status?.errorReasonCode ?? null;
+      await admin.from("recording_sessions").update({
+        stream_status: normalizedState,
+        stream_error: streamError,
+        stream_created_at: video.created ?? null,
       }).eq("id", sess.id);
       if (state === "ready") {
-        return new Response(JSON.stringify({ stream_uid: sess.stream_uid, status: "ready", playback_url: playbackUrl(sess.stream_uid) }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        return jsonResponse({ stream_uid: sess.stream_uid, status: "ready", playback_url: playbackUrl(sess.stream_uid) });
       }
-      return new Response(JSON.stringify({ stream_uid: sess.stream_uid, status: state ?? "inprogress", playback_url: null }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      if (failed) {
+        return jsonResponse({ stream_uid: sess.stream_uid, status: "failed", error: streamError ?? "Cloudflare Stream processing failed", playback_url: null });
+      }
+      return jsonResponse({ stream_uid: sess.stream_uid, status: normalizedState, playback_url: null });
     }
   }
 
   // Mint a signed URL for Cloudflare to pull the MKV.
   const { data: signed, error: signedErr } = await admin.storage.from("league-highlights").createSignedUrl(sess.mkv_path, 7200);
   if (signedErr || !signed?.signedUrl) {
-    return new Response(JSON.stringify({ error: signedErr?.message ?? "failed to create signed url" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    return jsonResponse({ error: signedErr?.message ?? "failed to create signed url" }, 500);
   }
 
   // Start a fresh copy upload.
@@ -125,12 +172,12 @@ Deno.serve(async (req) => {
       stream_status: "failed",
       stream_error: msg,
     }).eq("id", sess.id);
-    return new Response(JSON.stringify({ error: msg, cf_status: copyRes.status, cf_body: copyText.slice(0, 500) }), { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    return jsonResponse({ stream_uid: null, status: "failed", error: msg, cf_status: copyRes.status, cf_body: copyText.slice(0, 500) });
   }
 
   const uid = copyJson.result?.uid;
   if (!uid) {
-    return new Response(JSON.stringify({ error: "Cloudflare did not return a stream uid" }), { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    return jsonResponse({ error: "Cloudflare did not return a stream uid" }, 502);
   }
 
   await admin.from("recording_sessions").update({
@@ -139,5 +186,5 @@ Deno.serve(async (req) => {
     stream_created_at: new Date().toISOString(),
   }).eq("id", sess.id);
 
-  return new Response(JSON.stringify({ stream_uid: uid, status: "inprogress", playback_url: null }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+  return jsonResponse({ stream_uid: uid, status: "inprogress", playback_url: null });
 });
