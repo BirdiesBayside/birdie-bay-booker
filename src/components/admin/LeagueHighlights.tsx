@@ -195,7 +195,7 @@ export function LeagueHighlights() {
             </div>
           </div>
           <p className="text-sm text-muted-foreground">
-            Raw MKVs are kept intact. Per-hole timestamps come from the SGT scorecard poller (every 2 min) and are shown as chapter markers you can jump to. Highlights auto-tag birdies, eagles, albatrosses, and holes-in-one.
+            Raw MKVs are kept intact. Per-hole timestamps come from the SGT scorecard poller (every 1 min) and are shown as chapter markers you can jump to. Highlights auto-tag birdies, eagles, albatrosses, and holes-in-one.
           </p>
         </CardContent>
       </Card>
