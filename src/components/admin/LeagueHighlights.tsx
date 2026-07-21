@@ -7,7 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Play, RefreshCw, Trash2, Video } from "lucide-react";
+import { Download, Loader2, Play, RefreshCw, Trash2, Video } from "lucide-react";
 
 interface Bay { id: string; bay_number: number; name: string | null }
 interface HoleChapter {
