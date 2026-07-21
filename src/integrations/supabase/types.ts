@@ -2954,6 +2954,7 @@ export type Database = {
           door_code: string
           highlight_recording_enabled: boolean
           highlight_recording_pilot_bay: number | null
+          highlight_retention_days: number
           id: string
           timezone: string
           updated_at: string
@@ -2963,6 +2964,7 @@ export type Database = {
           door_code?: string
           highlight_recording_enabled?: boolean
           highlight_recording_pilot_bay?: number | null
+          highlight_retention_days?: number
           id?: string
           timezone?: string
           updated_at?: string
@@ -2972,6 +2974,7 @@ export type Database = {
           door_code?: string
           highlight_recording_enabled?: boolean
           highlight_recording_pilot_bay?: number | null
+          highlight_retention_days?: number
           id?: string
           timezone?: string
           updated_at?: string
