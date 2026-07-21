@@ -407,8 +407,8 @@ export function LeagueHighlights() {
                        </div>
                      </div>
                      <div className="flex gap-2 flex-wrap md:flex-nowrap md:shrink-0">
-                       <Button size="sm" variant="outline" onClick={() => openSession(sess)} disabled={streamBusy}>
-                         {streamBusy ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Play className="h-4 w-4 mr-1" />}Open
+                       <Button size="sm" variant="outline" onClick={() => openSession(sess)} disabled={streamBusyIds.has(sess.session_id)}>
+                         {streamBusyIds.has(sess.session_id) ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Play className="h-4 w-4 mr-1" />}Open
                        </Button>
                        <Button size="sm" variant="outline" onClick={() => downloadSession(sess)} disabled={!sess.storage_path}><Download className="h-4 w-4 mr-1" />Download</Button>
                        <Button size="sm" variant="ghost" onClick={() => dismissSession(sess)}><Trash2 className="h-4 w-4" /></Button>
