@@ -77,6 +77,16 @@ export async function restoreUserGsproSettings(
 
   const writeRes = await window.electronAPI.writeGsproUserSettings(files);
   if (!writeRes.success) return { restored: [], missing, error: writeRes.error };
+
+  // Capture a session-start snapshot so close-time upload can attribute
+  // changes to THIS user (even if the active booking changes later) and
+  // skip uploading if nothing was saved.
+  try {
+    if (window.electronAPI.captureUserSettingsSnapshot) {
+      await window.electronAPI.captureUserSettingsSnapshot(userId);
+    }
+  } catch { /* non-fatal; falls back to baseline compare */ }
+
   return { restored: writeRes.written ?? [], missing };
 }
 
@@ -108,6 +118,19 @@ export async function saveUserGsproSettings(
     return { saved: [], failed: [], error: read.error };
   }
   const names = Object.keys(read.files);
+  const skipped = (read as any).skipped as string[] | undefined;
+  if (skipped?.length) L(`[Settings] Skipped ${skipped.length} unchanged file(s): ${skipped.join(", ")}`, "info");
+
+  // Attribute upload to the user whose files were actually on disk. This is
+  // the user we restored settings FOR at session start — not necessarily the
+  // currently active booking (which can differ after admin cancellations or
+  // back-to-back changeovers). Fall back to the caller-provided userId.
+  const attributedUserId = (read as any).restoredForUserId as string | null | undefined;
+  const uploadUserId = attributedUserId || userId;
+  if (attributedUserId && attributedUserId !== userId) {
+    L(`[Settings] Attributing upload to restored user ${attributedUserId} (caller passed ${userId})`, "info");
+  }
+
   L(`[Settings] Read ${names.length} settings file(s) from GSPro folder: ${names.join(", ") || "(none)"}`, "info");
   if (names.length === 0) return { saved: [], failed: [] };
 
@@ -117,11 +140,14 @@ export async function saveUserGsproSettings(
     const b64 = base64 as string;
     const approxBytes = Math.floor((b64.length * 3) / 4) - (b64.endsWith("==") ? 2 : b64.endsWith("=") ? 1 : 0);
     const sizeKB = Math.round(approxBytes / 1024);
-    L(`[Settings] Uploading ${file} (~${sizeKB} KB) for user ${userId}`, "info");
+    L(`[Settings] Uploading ${file} (~${sizeKB} KB) for user ${uploadUserId}`, "info");
+    // If attribution shifted, drop bookingId — the caller's booking belongs
+    // to a different user, and the edge function's access check would reject.
+    const bookingIdForUpload = attributedUserId && attributedUserId !== userId ? null : (ctx?.bookingId ?? null);
     const { data, error } = ctx?.bayNumber
-      ? await invokeBayControllerApi("save_user_setting", { user_id: userId, booking_id: ctx.bookingId ?? null, file, base64 }, ctx)
+      ? await invokeBayControllerApi("save_user_setting", { user_id: uploadUserId, booking_id: bookingIdForUpload, file, base64 }, ctx)
       : await supabase.functions.invoke("bay-user-settings", {
-          body: { user_id: userId, file, base64 },
+          body: { user_id: uploadUserId, file, base64 },
         });
     if (error) {
       L(`[Settings] Upload FAILED for ${file}: ${error.message ?? JSON.stringify(error)}`, "error");

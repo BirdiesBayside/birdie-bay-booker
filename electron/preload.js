@@ -231,6 +231,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // =====================================================
   readGsproUserSettings: () => ipcRenderer.invoke('read-gspro-user-settings'),
   writeGsproUserSettings: (files) => ipcRenderer.invoke('write-gspro-user-settings', { files }),
+  captureUserSettingsSnapshot: (userId) => ipcRenderer.invoke('capture-user-settings-snapshot', { userId }),
   getGsproLaunchTs: () => ipcRenderer.invoke('get-gspro-launch-ts'),
   scanDesktopCsvs: (sinceMs) => ipcRenderer.invoke('scan-desktop-csvs', { sinceMs }),
   deleteDesktopCsv: (filename) => ipcRenderer.invoke('delete-desktop-csv', { filename }),

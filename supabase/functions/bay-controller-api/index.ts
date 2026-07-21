@@ -266,7 +266,25 @@ serve(async (req) => {
         const file = typeof body?.file === "string" ? body.file : "";
         const base64 = typeof body?.base64 === "string" ? body.base64 : "";
         if (!userId || !SETTINGS_FILES.has(file) || !base64) return jsonResponse({ error: "bad_request" }, 400);
-        if (!(await hasBookingAccess(userId, bookingId))) return jsonResponse({ error: "forbidden" }, 403);
+
+        // Access check: either the bookingId matches (normal path) OR the
+        // user has ANY booking on this bay in the last 6 hours (covers the
+        // case where files on disk belong to a user whose booking was
+        // cancelled or ended before we uploaded).
+        let access = bookingId ? await hasBookingAccess(userId, bookingId) : false;
+        if (!access) {
+          const sinceIso = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
+          const { data: recent } = await supabase
+            .from("bookings")
+            .select("id")
+            .eq("user_id", userId)
+            .eq("bay_id", bay.id)
+            .gte("updated_at", sinceIso)
+            .limit(1)
+            .maybeSingle();
+          access = !!recent;
+        }
+        if (!access) return jsonResponse({ error: "forbidden" }, 403);
 
         let bytes: Uint8Array;
         try { bytes = decodeBase64(base64); }
