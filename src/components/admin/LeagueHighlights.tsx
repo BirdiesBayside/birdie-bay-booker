@@ -53,6 +53,35 @@ function scoreLabel(par: number | null, score: number | null): string {
   return diff > 0 ? `+${diff}` : String(diff);
 }
 
+async function getFunctionErrorMessage(error: any, data?: any): Promise<string> {
+  if (data?.error) return String(data.error);
+  const fallback = error?.message ?? "unknown";
+  const response = error?.context;
+  if (!response) return fallback;
+
+  try {
+    const body = typeof response.clone === "function" ? response.clone() : response;
+    if (typeof body.json === "function") {
+      const json = await body.json();
+      return json?.error || json?.message || json?.cf_body || fallback;
+    }
+  } catch {
+    // Try text below.
+  }
+
+  try {
+    const body = typeof response.clone === "function" ? response.clone() : response;
+    if (typeof body.text === "function") {
+      const text = await body.text();
+      return text || fallback;
+    }
+  } catch {
+    // Fall through to generic invoke error.
+  }
+
+  return fallback;
+}
+
 export function LeagueHighlights() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
@@ -197,7 +226,8 @@ export function LeagueHighlights() {
     try {
       const { data, error } = await supabase.functions.invoke("stream-upload", { body: { recording_session_id: sess.session_id } });
       if (error || !data?.stream_uid) {
-        toast({ title: "Stream upload failed", description: error?.message ?? data?.error ?? "unknown", variant: "destructive" });
+        const description = await getFunctionErrorMessage(error, data);
+        toast({ title: "Stream upload failed", description, variant: "destructive" });
         return null;
       }
       if (data?.playback_url) {
@@ -207,7 +237,11 @@ export function LeagueHighlights() {
       // Poll for readiness.
       for (let i = 0; i < 60; i++) {
         const { data: poll, error: pollErr } = await supabase.functions.invoke("stream-upload", { body: { recording_session_id: sess.session_id } });
-        if (pollErr) break;
+        if (pollErr) {
+          const description = await getFunctionErrorMessage(pollErr, poll);
+          toast({ title: "Stream status check failed", description, variant: "destructive" });
+          return null;
+        }
         if (poll?.playback_url) {
           setSessions((prev) => prev.map((s) => s.session_id === sess.session_id ? { ...s, stream_uid: poll.stream_uid, stream_status: "ready" } : s));
           return poll.playback_url as string;
@@ -254,7 +288,8 @@ export function LeagueHighlights() {
     });
     setClipLoading(false);
     if (error || !data?.download_url) {
-      toast({ title: "Clip failed", description: error?.message ?? data?.error ?? "no download url", variant: "destructive" });
+      const description = await getFunctionErrorMessage(error, data);
+      toast({ title: "Clip failed", description: description || "no download url", variant: "destructive" });
       return;
     }
     const filename = `${activeSession.player_name ?? "clip"}-bay${activeSession.bay_number}-${(activeSession.started_at ?? "").slice(0, 10)}-${fmtOffset(clipStart)}-${fmtOffset(clipEnd)}.mp4`.replace(/\s+/g, "_").replace(/:/g, "-");
@@ -271,7 +306,10 @@ export function LeagueHighlights() {
   const downloadSession = async (sess: SessionRow) => {
     if (!sess.storage_path) return;
     const { data, error } = await supabase.functions.invoke("league-highlights-signed-url", { body: { path: sess.storage_path, expires_in: 3600 } });
-    if (error || !data?.signed_url) return toast({ title: "Download failed", description: error?.message ?? "no url", variant: "destructive" });
+    if (error || !data?.signed_url) {
+      const description = await getFunctionErrorMessage(error, data);
+      return toast({ title: "Download failed", description: description || "no url", variant: "destructive" });
+    }
     const filename = `${sess.player_name ?? "session"}-bay${sess.bay_number}-${(sess.started_at ?? "").slice(0, 10)}.mkv`.replace(/\s+/g, "_");
     const a = document.createElement("a");
     a.href = data.signed_url;

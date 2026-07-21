@@ -118,7 +118,13 @@ Deno.serve(async (req) => {
   if (!copyRes.ok) {
     console.error("[stream-upload] CF copy failed", copyRes.status, copyText);
     const cfError = copyJson.errors?.[0];
-    const msg = cfError ? `CF ${cfError.code}: ${cfError.message}` : `Cloudflare copy failed (${copyRes.status})`;
+    const msg = cfError
+      ? `Cloudflare Stream error ${cfError.code}: ${cfError.message}${copyRes.status === 401 ? " — check the Account ID/API token and Stream edit permission." : ""}`
+      : `Cloudflare copy failed (${copyRes.status})`;
+    await admin.from("recording_sessions").update({
+      stream_status: "failed",
+      stream_error: msg,
+    }).eq("id", sess.id);
     return new Response(JSON.stringify({ error: msg, cf_status: copyRes.status, cf_body: copyText.slice(0, 500) }), { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
 
