@@ -7,7 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Download, Loader2, Play, RefreshCw, Trash2, Video } from "lucide-react";
+import { Download, Loader2, Play, RefreshCw, Scissors, Trash2, Video, X } from "lucide-react";
 
 interface Bay { id: string; bay_number: number; name: string | null }
 interface HoleChapter {
@@ -15,12 +15,14 @@ interface HoleChapter {
   hole_number: number;
   par: number | null;
   score: number | null;
-  offset_seconds: number | null; // seconds from session start
+  offset_seconds: number | null;
   events: Array<{ rule_key: string; tag_label: string; tag_emoji: string }>;
 }
 interface SessionRow {
   session_id: string;
   storage_path: string | null;
+  stream_uid: string | null;
+  stream_status: string | null;
   player_name: string | null;
   tournament_name: string | null;
   bay_number: number;
@@ -60,6 +62,10 @@ export function LeagueHighlights() {
   const [runningTagger, setRunningTagger] = useState(false);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [activeSession, setActiveSession] = useState<SessionRow | null>(null);
+  const [streamBusy, setStreamBusy] = useState(false);
+  const [clipStart, setClipStartState] = useState<number | null>(null);
+  const [clipEnd, setClipEndState] = useState<number | null>(null);
+  const [clipLoading, setClipLoading] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
   const load = async () => {
@@ -77,7 +83,7 @@ export function LeagueHighlights() {
     const { data: sessRows } = await supabase
       .from("recording_holes")
       .select(`id, hole_number, storage_path, recording_session_id,
-               recording_sessions!inner(player_name, tournament_name, bay_number, started_at)`)
+               recording_sessions!inner(id, player_name, tournament_name, bay_number, started_at, stream_uid, stream_status)`)
       .eq("status", "uploaded")
       .eq("hole_number", 0)
       .gte("updated_at", since)
@@ -120,6 +126,8 @@ export function LeagueHighlights() {
       return {
         session_id: r.recording_session_id,
         storage_path: r.storage_path,
+        stream_uid: r.recording_sessions?.stream_uid ?? null,
+        stream_status: r.recording_sessions?.stream_status ?? null,
         player_name: r.recording_sessions?.player_name ?? null,
         tournament_name: r.recording_sessions?.tournament_name ?? null,
         bay_number: r.recording_sessions?.bay_number,
@@ -151,18 +159,80 @@ export function LeagueHighlights() {
     else { toast({ title: "Tagger complete", description: `Processed ${data?.holes_processed} holes, created ${data?.events_created} tags.` }); void load(); }
   };
 
+  const ensureStream = async (sess: SessionRow): Promise<string | null> => {
+    setStreamBusy(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("stream-upload", { body: { recording_session_id: sess.session_id } });
+      if (error || !data?.stream_uid) {
+        toast({ title: "Stream upload failed", description: error?.message ?? data?.error ?? "unknown", variant: "destructive" });
+        return null;
+      }
+      if (data?.playback_url) {
+        setSessions((prev) => prev.map((s) => s.session_id === sess.session_id ? { ...s, stream_uid: data.stream_uid, stream_status: "ready" } : s));
+        return data.playback_url as string;
+      }
+      // Poll for readiness.
+      for (let i = 0; i < 60; i++) {
+        const { data: poll, error: pollErr } = await supabase.functions.invoke("stream-upload", { body: { recording_session_id: sess.session_id } });
+        if (pollErr) break;
+        if (poll?.playback_url) {
+          setSessions((prev) => prev.map((s) => s.session_id === sess.session_id ? { ...s, stream_uid: poll.stream_uid, stream_status: "ready" } : s));
+          return poll.playback_url as string;
+        }
+        await new Promise((r) => setTimeout(r, 3000));
+      }
+      toast({ title: "Stream still processing", description: "The video is being prepared. Try opening again shortly.", variant: "default" });
+      return null;
+    } finally {
+      setStreamBusy(false);
+    }
+  };
+
   const openSession = async (sess: SessionRow) => {
-    if (!sess.storage_path) return;
-    const { data, error } = await supabase.functions.invoke("league-highlights-signed-url", { body: { path: sess.storage_path, expires_in: 3600 } });
-    if (error || !data?.signed_url) return toast({ title: "Cannot load clip", description: error?.message ?? "no url", variant: "destructive" });
+    const url = await ensureStream(sess);
+    if (!url) return;
     setActiveSession(sess);
-    setVideoUrl(data.signed_url);
+    setVideoUrl(url);
   };
 
   const seekTo = (secs: number) => {
     if (!videoRef.current) return;
     videoRef.current.currentTime = secs;
     void videoRef.current.play().catch(() => {});
+  };
+
+  const setClipStart = () => {
+    if (!videoRef.current) return;
+    setClipStartState(videoRef.current.currentTime);
+  };
+
+  const setClipEnd = () => {
+    if (!videoRef.current) return;
+    setClipEndState(videoRef.current.currentTime);
+  };
+
+  const clearClip = () => { setClipStartState(null); setClipEndState(null); };
+
+  const downloadClip = async () => {
+    if (!activeSession || clipStart == null || clipEnd == null || clipStart >= clipEnd) return;
+    setClipLoading(true);
+    const { data, error } = await supabase.functions.invoke("stream-clip", {
+      body: { recording_session_id: activeSession.session_id, start_seconds: clipStart, end_seconds: clipEnd },
+    });
+    setClipLoading(false);
+    if (error || !data?.download_url) {
+      toast({ title: "Clip failed", description: error?.message ?? data?.error ?? "no download url", variant: "destructive" });
+      return;
+    }
+    const filename = `${activeSession.player_name ?? "clip"}-bay${activeSession.bay_number}-${(activeSession.started_at ?? "").slice(0, 10)}-${fmtOffset(clipStart)}-${fmtOffset(clipEnd)}.mp4`.replace(/\s+/g, "_").replace(/:/g, "-");
+    const a = document.createElement("a");
+    a.href = data.download_url;
+    a.download = filename;
+    a.rel = "noopener";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    toast({ title: "Clip ready", description: `Downloaded ${fmtOffset(clipEnd - clipStart)} clip.` });
   };
 
   const downloadSession = async (sess: SessionRow) => {
@@ -180,11 +250,16 @@ export function LeagueHighlights() {
   };
 
   const dismissSession = async (sess: SessionRow) => {
-    const holeIds = [sess.session_id]; // delete session row + child chapters
     if (!confirm(`Dismiss recording for ${sess.player_name ?? "player"}? This removes it from the queue.`)) return;
     const { error } = await supabase.from("recording_sessions").delete().eq("id", sess.session_id);
     if (error) toast({ title: "Dismiss failed", description: error.message, variant: "destructive" });
-    else { toast({ title: "Dismissed" }); void load(); void holeIds; }
+    else { toast({ title: "Dismissed" }); void load(); }
+  };
+
+  const closeModal = () => {
+    setVideoUrl(null);
+    setActiveSession(null);
+    clearClip();
   };
 
   return (
@@ -228,6 +303,7 @@ export function LeagueHighlights() {
            <div className="space-y-3">
              {sessions.map((sess) => {
                const highlights = sess.chapters.filter((c) => c.events.length > 0);
+               const streamReady = sess.stream_status === "ready";
                return (
                  <div key={sess.session_id} className="border rounded-lg p-4">
                    <div className="flex flex-col md:flex-row md:items-start gap-3 md:gap-4">
@@ -249,10 +325,14 @@ export function LeagueHighlights() {
                          {sess.chapters.length > 0 && highlights.length === 0 && (
                            <Badge variant="outline">{sess.chapters.length} holes tracked · no highlights</Badge>
                          )}
+                         {streamReady && <Badge variant="outline" className="text-green-600">Stream ready</Badge>}
+                         {sess.stream_status && sess.stream_status !== "ready" && <Badge variant="outline">Stream: {sess.stream_status}</Badge>}
                        </div>
                      </div>
                      <div className="flex gap-2 flex-wrap md:flex-nowrap md:shrink-0">
-                       <Button size="sm" variant="outline" onClick={() => openSession(sess)}><Play className="h-4 w-4 mr-1" />Open</Button>
+                       <Button size="sm" variant="outline" onClick={() => openSession(sess)} disabled={streamBusy}>
+                         {streamBusy ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Play className="h-4 w-4 mr-1" />}Open
+                       </Button>
                        <Button size="sm" variant="outline" onClick={() => downloadSession(sess)} disabled={!sess.storage_path}><Download className="h-4 w-4 mr-1" />Download</Button>
                        <Button size="sm" variant="ghost" onClick={() => dismissSession(sess)}><Trash2 className="h-4 w-4" /></Button>
                      </div>
@@ -264,16 +344,48 @@ export function LeagueHighlights() {
         </CardContent>
       </Card>
 
-      {videoUrl && activeSession && (
-        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={() => { setVideoUrl(null); setActiveSession(null); }}>
-          <div className="bg-background rounded-lg max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+      {activeSession && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={closeModal}>
+          <div className="bg-background rounded-lg max-w-6xl w-full max-h-[95vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="p-4 flex items-center justify-between border-b">
               <div className="flex items-center gap-2"><Video className="h-4 w-4" /><span className="font-semibold">{activeSession.player_name} — {activeSession.tournament_name}</span></div>
-              <Button size="sm" variant="ghost" onClick={() => { setVideoUrl(null); setActiveSession(null); }}>Close</Button>
+              <Button size="sm" variant="ghost" onClick={closeModal}>Close</Button>
             </div>
             <div className="flex flex-col md:flex-row min-h-0 flex-1">
-              <div className="flex-1 bg-black flex items-center justify-center">
-                <video ref={videoRef} src={videoUrl} controls autoPlay className="max-w-full max-h-[70vh]" />
+              <div className="flex-1 bg-black flex flex-col">
+                <div className="flex-1 flex items-center justify-center">
+                  {videoUrl ? (
+                    <video ref={videoRef} src={videoUrl} controls autoPlay className="max-w-full max-h-[60vh] md:max-h-[70vh]" />
+                  ) : (
+                    <div className="text-white p-8"><Loader2 className="animate-spin inline mr-2" /> Preparing stream…</div>
+                  )}
+                </div>
+                {videoUrl && (
+                  <div className="p-3 border-t bg-background space-y-3">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <Button size="sm" variant={clipStart != null ? "default" : "outline"} onClick={setClipStart}>
+                        <Scissors className="h-4 w-4 mr-1" /> Start clip {clipStart != null && <span className="ml-1 font-mono">({fmtOffset(clipStart)})</span>}
+                      </Button>
+                      <Button size="sm" variant={clipEnd != null ? "default" : "outline"} onClick={setClipEnd}>
+                        Stop clip {clipEnd != null && <span className="ml-1 font-mono">({fmtOffset(clipEnd)})</span>}
+                      </Button>
+                      {(clipStart != null || clipEnd != null) && (
+                        <Button size="sm" variant="ghost" onClick={clearClip}><X className="h-4 w-4 mr-1" /> Clear</Button>
+                      )}
+                      {clipStart != null && clipEnd != null && clipEnd > clipStart && (
+                        <Button size="sm" onClick={downloadClip} disabled={clipLoading}>
+                          {clipLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Download className="h-4 w-4 mr-1" />}
+                          Download clip ({fmtOffset(clipEnd - clipStart)})
+                        </Button>
+                      )}
+                    </div>
+                    {clipStart != null && clipEnd != null && (
+                      <div className="text-sm text-muted-foreground">
+                        Clip: <span className="font-mono">{fmtOffset(clipStart)}</span> → <span className="font-mono">{fmtOffset(clipEnd)}</span> · Duration <span className="font-mono">{fmtOffset(Math.max(0, clipEnd - clipStart))}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="w-full md:w-80 border-l overflow-y-auto p-3 space-y-1">
                 <div className="text-xs font-semibold text-muted-foreground uppercase mb-2">Chapters</div>
