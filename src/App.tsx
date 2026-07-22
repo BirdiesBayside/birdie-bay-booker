@@ -75,6 +75,7 @@ const AdminCustomerImport = lazy(() => import("./pages/admin/AdminCustomerImport
 const AdminAnnouncements = lazy(() => import("./pages/admin/AdminAnnouncements"));
 const AdminSGTManager = lazy(() => import("./pages/admin/AdminSGTManager"));
 const AdminLocalComps = lazy(() => import("./pages/admin/AdminLocalComps"));
+const AdminHighlightExports = lazy(() => import("./pages/admin/AdminHighlightExports"));
 const EmbedTVLocalComp = lazy(() => import("./pages/EmbedTVLocalComp"));
 const EmbedCompete = lazy(() => import("./pages/EmbedCompete"));
 
@@ -274,6 +275,7 @@ const App = () => (
             <Route path="/admin/customer-import" element={<AdminCustomerImport />} />
             <Route path="/admin/sgt" element={<AdminSGTManager />} />
             <Route path="/admin/local-comps" element={<AdminLocalComps />} />
+            <Route path="/admin/highlights/:sessionId/exports" element={<AdminHighlightExports />} />
             <Route path="/embed/tv-local-comp" element={<EmbedTVLocalComp />} />
             <Route path="/embed/compete" element={<EmbedCompete />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

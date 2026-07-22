@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import Hls from "hls.js";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,7 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Download, Loader2, Play, RefreshCw, Scissors, Trash2, Video, X } from "lucide-react";
+import { Download, FolderOpen, Loader2, Play, RefreshCw, Scissors, Trash2, Video, X } from "lucide-react";
 
 interface Bay { id: string; bay_number: number; name: string | null }
 interface HoleChapter {
@@ -304,31 +305,28 @@ export function LeagueHighlights() {
 
   const clearClip = () => { setClipStartState(null); setClipEndState(null); };
 
-  const downloadClip = async () => {
+  const queueClip = async () => {
     if (!activeSession || clipStart == null || clipEnd == null || clipStart >= clipEnd) return;
     setClipLoading(true);
+    const start = clipStart;
+    const end = clipEnd;
     const { data, error } = await supabase.functions.invoke("stream-clip", {
-      body: { recording_session_id: activeSession.session_id, start_seconds: clipStart, end_seconds: clipEnd },
+      body: { recording_session_id: activeSession.session_id, start_seconds: start, end_seconds: end },
     });
-    if (error || !data?.download_url) {
-      setClipLoading(false);
+    setClipLoading(false);
+    if (error || !data?.clip_id) {
       const description = await getFunctionErrorMessage(error, data);
-      toast({ title: "Clip failed", description: description || "no download url", variant: "destructive" });
+      toast({ title: "Clip failed", description: description || "unknown error", variant: "destructive" });
       return;
     }
-    // Build a descriptive filename and pass it via Cloudflare's ?filename= param
-    // so the browser saves it as e.g. daniel-dowling-bay2-2026-07-20-00-01-30_00-02-15.mp4
-    // instead of the generic default.mp4 (which collides on repeat downloads).
-    const safe = (s: string) => s.replace(/[^a-z0-9-]+/gi, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").toLowerCase();
-    const player = safe(activeSession.player_name ?? "clip");
-    const date = (activeSession.started_at ?? "").slice(0, 10);
-    const filename = `${player}-bay${activeSession.bay_number}-${date}-${fmtOffset(clipStart).replace(/:/g, "-")}_${fmtOffset(clipEnd).replace(/:/g, "-")}.mp4`;
-    const url = new URL(data.download_url);
-    url.searchParams.set("filename", filename);
-    window.open(url.toString(), "_blank", "noopener,noreferrer");
-    setClipLoading(false);
-    toast({ title: "Clip ready", description: `Opened as ${filename}` });
+    // Reset markers so staff can immediately mark the next clip while this one processes.
+    clearClip();
+    toast({
+      title: "Clipped",
+      description: `Queued ${fmtOffset(start)}–${fmtOffset(end)} · check Exports when ready.`,
+    });
   };
+
 
   const downloadSession = async (sess: SessionRow) => {
     if (!sess.storage_path) return;
@@ -442,6 +440,9 @@ export function LeagueHighlights() {
                          {streamBusyIds.has(sess.session_id) ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Play className="h-4 w-4 mr-1" />}Open
                        </Button>
                        <Button size="sm" variant="outline" onClick={() => downloadSession(sess)} disabled={!sess.storage_path}><Download className="h-4 w-4 mr-1" />Download</Button>
+                       <Button asChild size="sm" variant="outline">
+                         <Link to={`/admin/highlights/${sess.session_id}/exports`}><FolderOpen className="h-4 w-4 mr-1" />Exports</Link>
+                       </Button>
                        <Button size="sm" variant="ghost" onClick={() => dismissSession(sess)}><Trash2 className="h-4 w-4" /></Button>
                      </div>
                    </div>
@@ -457,7 +458,10 @@ export function LeagueHighlights() {
           <div className="bg-background rounded-lg max-w-6xl w-full max-h-[95vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="p-4 flex items-center justify-between border-b">
               <div className="flex items-center gap-2"><Video className="h-4 w-4" /><span className="font-semibold">{activeSession.player_name} — {activeSession.tournament_name}</span></div>
-              <Button size="sm" variant="ghost" onClick={closeModal}>Close</Button>
+              <div className="flex items-center gap-2">
+                <Button asChild size="sm" variant="outline"><Link to={`/admin/highlights/${activeSession.session_id}/exports`}><FolderOpen className="h-4 w-4 mr-1" />Exports</Link></Button>
+                <Button size="sm" variant="ghost" onClick={closeModal}>Close</Button>
+              </div>
             </div>
             <div className="flex flex-col md:flex-row min-h-0 flex-1">
               <div className="flex-1 bg-black flex flex-col">
@@ -481,9 +485,9 @@ export function LeagueHighlights() {
                         <Button size="sm" variant="ghost" onClick={clearClip}><X className="h-4 w-4 mr-1" /> Clear</Button>
                       )}
                       {clipStart != null && clipEnd != null && clipEnd > clipStart && (
-                        <Button size="sm" onClick={downloadClip} disabled={clipLoading}>
-                          {clipLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Download className="h-4 w-4 mr-1" />}
-                          Download clip ({fmtOffset(clipEnd - clipStart)})
+                        <Button size="sm" onClick={queueClip} disabled={clipLoading}>
+                          {clipLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Scissors className="h-4 w-4 mr-1" />}
+                          Clip ({fmtOffset(clipEnd - clipStart)})
                         </Button>
                       )}
                     </div>
