@@ -401,14 +401,7 @@ export function LeagueHighlights() {
               <Label htmlFor="rec-enabled">Enable League highlight recording</Label>
             </div>
             <div className="flex items-center gap-2">
-              <Label>Pilot Bay:</Label>
-              <Select value={pilotBay?.toString() ?? "none"} onValueChange={(v) => { const n = v === "none" ? null : parseInt(v); setPilotBay(n); void saveConfig(enabled, n); }}>
-                <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">— None —</SelectItem>
-                  {bays.map((b) => <SelectItem key={b.id} value={b.bay_number.toString()}>Bay {b.bay_number}{b.name ? ` (${b.name})` : ""}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <Label className="text-sm text-muted-foreground">Active on all bays with OBS installed</Label>
             </div>
             <div className="flex items-center gap-2">
               <Label>Auto-delete after:</Label>
