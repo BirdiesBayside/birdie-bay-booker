@@ -1342,6 +1342,88 @@ export default function BayController() {
             return;
           }
 
+          // OBS start recording (format: "obs_start_recording:session_id=<uuid>")
+          if (typeof command.command === 'string' && command.command.startsWith('obs_start_recording:')) {
+            const sessionId = command.command.split('session_id=')[1];
+            try {
+              const { data: bayData } = await supabase.from('bays').select('id').eq('bay_number', selectedBay).maybeSingle();
+              const { data: dev } = await supabase
+                .from('bay_devices')
+                .select('obs_ws_url, obs_ws_password')
+                .eq('bay_id', bayData?.id ?? '')
+                .maybeSingle() as { data: { obs_ws_url?: string | null; obs_ws_password?: string | null } | null };
+              const obsUrl = dev?.obs_ws_url || 'ws://127.0.0.1:4455';
+              const obsPass = dev?.obs_ws_password || '';
+              const electronApi: any = (window as any).electronAPI;
+              addLog(`[Highlights] Starting OBS recording for session ${sessionId}`, 'info');
+              const startRes = await electronApi?.obsStartRecording?.(obsUrl, obsPass);
+              if (!startRes?.success) {
+                addLog(`[Highlights] OBS start FAILED: ${startRes?.error ?? 'unknown'}`, 'error');
+                await supabase.from('recording_sessions').update({ status: 'error', error_message: startRes?.error ?? 'obs start failed' }).eq('id', sessionId);
+              } else {
+                // Persist session id + start time on window for later stop handler
+                (window as any).__activeRecording = { sessionId, startedAtMs: startRes.startedAtMs };
+                addLog(`[Highlights] Recording session ${sessionId} started`, 'success');
+              }
+            } catch (e) {
+              addLog(`[Highlights] Start handler error: ${(e as Error).message}`, 'error');
+            }
+            await supabase.from('bay_commands').update({ status: 'executed', executed_at: new Date().toISOString() }).eq('id', command.id);
+            return;
+          }
+
+          // OBS stop recording (format: "obs_stop_recording:session_id=<uuid>")
+          if (typeof command.command === 'string' && command.command.startsWith('obs_stop_recording:')) {
+            const sessionId = command.command.split('session_id=')[1];
+            try {
+              const electronApi: any = (window as any).electronAPI;
+              addLog(`[Highlights] Stopping OBS recording for session ${sessionId}`, 'info');
+              const stopRes = await electronApi?.obsStopRecording?.();
+              if (!stopRes?.success || !stopRes.filePath) {
+                addLog(`[Highlights] OBS stop failed: ${stopRes?.error ?? 'no file'}`, 'error');
+                await supabase.functions.invoke('bay-controller-api', {
+                  headers: { 'x-bay-number': selectedBay.toString(), 'x-action': 'recording_stop' },
+                  body: { recording_session_id: sessionId, status: 'error', error_message: stopRes?.error ?? 'no file' },
+                });
+              } else {
+                const filename = `session-${sessionId}.mkv`;
+                const { data: urlData } = await supabase.functions.invoke('bay-controller-api', {
+                  headers: { 'x-bay-number': selectedBay.toString(), 'x-action': 'recording_upload_url' },
+                  body: { recording_session_id: sessionId, hole_number: 0, filename },
+                });
+                if (urlData?.signed_url) {
+                  addLog(`[Highlights] Uploading ${stopRes.filePath} (${Math.round((stopRes.sizeBytes ?? 0) / 1024 / 1024)} MB)`, 'info');
+                  const upRes = await electronApi?.obsUploadFile?.(stopRes.filePath, urlData.signed_url, 'video/x-matroska');
+                  if (upRes?.success) {
+                    const rec = (window as any).__activeRecording;
+                    const durationSec = rec?.startedAtMs ? (Date.now() - rec.startedAtMs) / 1000 : null;
+                    await supabase.functions.invoke('bay-controller-api', {
+                      headers: { 'x-bay-number': selectedBay.toString(), 'x-action': 'recording_hole' },
+                      body: { recording_session_id: sessionId, hole_number: 0, storage_path: urlData.path, clip_start_seconds: 0, clip_end_seconds: durationSec },
+                    });
+                    await supabase.functions.invoke('bay-controller-api', {
+                      headers: { 'x-bay-number': selectedBay.toString(), 'x-action': 'recording_stop' },
+                      body: { recording_session_id: sessionId, file_size_bytes: upRes.sizeBytes ?? stopRes.sizeBytes ?? null, status: 'uploaded', mkv_path: urlData.path },
+                    });
+                    await electronApi?.obsDeleteFile?.(stopRes.filePath).catch(() => undefined);
+                    addLog(`[Highlights] Session ${sessionId} uploaded`, 'success');
+                  } else {
+                    addLog(`[Highlights] Upload failed: ${upRes?.error}`, 'error');
+                    await supabase.functions.invoke('bay-controller-api', {
+                      headers: { 'x-bay-number': selectedBay.toString(), 'x-action': 'recording_stop' },
+                      body: { recording_session_id: sessionId, status: 'error', error_message: upRes?.error },
+                    });
+                  }
+                }
+                (window as any).__activeRecording = null;
+              }
+            } catch (e) {
+              addLog(`[Highlights] Stop handler error: ${(e as Error).message}`, 'error');
+            }
+            await supabase.from('bay_commands').update({ status: 'executed', executed_at: new Date().toISOString() }).eq('id', command.id);
+            return;
+          }
+
           // For on/off commands, also switch to manual mode and update DB
           setManualOverride(true);
           updateControlModeInDb(true);
