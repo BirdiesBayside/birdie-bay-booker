@@ -458,7 +458,10 @@ export function LeagueHighlights() {
           <div className="bg-background rounded-lg max-w-6xl w-full max-h-[95vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="p-4 flex items-center justify-between border-b">
               <div className="flex items-center gap-2"><Video className="h-4 w-4" /><span className="font-semibold">{activeSession.player_name} — {activeSession.tournament_name}</span></div>
-              <Button size="sm" variant="ghost" onClick={closeModal}>Close</Button>
+              <div className="flex items-center gap-2">
+                <Button asChild size="sm" variant="outline"><Link to={`/admin/highlights/${activeSession.session_id}/exports`}><FolderOpen className="h-4 w-4 mr-1" />Exports</Link></Button>
+                <Button size="sm" variant="ghost" onClick={closeModal}>Close</Button>
+              </div>
             </div>
             <div className="flex flex-col md:flex-row min-h-0 flex-1">
               <div className="flex-1 bg-black flex flex-col">
