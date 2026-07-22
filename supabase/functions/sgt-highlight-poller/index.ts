@@ -130,7 +130,7 @@ Deno.serve(async (req) => {
       embedCache.set(tournId, players);
     }
 
-    const sgtName = nameByUserId.get(sess.sgt_user_id as number);
+    const sgtName = nameByUserId.get(sess.sgt_user_id_num);
     if (!sgtName) {
       results.push({ session: sess.id, skipped: "no sgt username mapping" });
       continue;
