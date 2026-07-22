@@ -220,6 +220,8 @@ const App = () => (
             <Route path="/league/leaderboard" element={<LeagueLeaderboard />} />
             <Route path="/league/profile" element={<LeagueProfile />} />
             <Route path="/league/register" element={<LeagueRegister />} />
+            <Route path="/league/highlights" element={<LeagueHighlights />} />
+            <Route path="/league/highlights/:sessionId" element={<LeagueHighlightExports />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             
             <Route path="/embed/leaderboard" element={<EmbedLeaderboard />} />
