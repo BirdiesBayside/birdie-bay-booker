@@ -22,6 +22,8 @@ const LeagueRounds = lazy(() => import("./pages/LeagueRounds"));
 const LeagueLeaderboard = lazy(() => import("./pages/LeagueLeaderboard"));
 const LeagueProfile = lazy(() => import("./pages/LeagueProfile"));
 const LeagueRegister = lazy(() => import("./pages/LeagueRegister"));
+const LeagueHighlights = lazy(() => import("./pages/LeagueHighlights"));
+const LeagueHighlightExports = lazy(() => import("./pages/LeagueHighlightExports"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 
