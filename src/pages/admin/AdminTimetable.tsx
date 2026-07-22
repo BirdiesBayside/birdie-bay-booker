@@ -1169,7 +1169,7 @@ export default function AdminTimetable() {
                       Send to POS
                     </Button>
                   )}
-                  {selectedBookingComp && (
+                  {isCompEligible && (
                     <Button
                       variant="outline"
                       className="w-full"
@@ -1180,8 +1180,9 @@ export default function AdminTimetable() {
                         C
                       </span>
                       {selectedBooking.notes?.includes("[COMP]")
-                        ? `Remove from ${selectedBookingComp.name}`
-                        : `Add to ${selectedBookingComp.name}`}
+                        ? `Remove from Wednesday Ambrose`
+                        : `Add to Wednesday Ambrose`}
+
                     </Button>
                   )}
                   <Button 
