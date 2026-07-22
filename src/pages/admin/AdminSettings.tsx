@@ -520,7 +520,6 @@ export default function AdminSettings() {
       .from("system_settings")
       .update({
         highlight_recording_enabled: highlightRecordingEnabled,
-        highlight_recording_pilot_bay: highlightPilotBay,
       })
       .eq("id", "global");
 
@@ -903,41 +902,9 @@ export default function AdminSettings() {
                     </div>
 
                     {highlightRecordingEnabled && (
-                      <div className="grid gap-4 sm:grid-cols-2">
-                        <div className="space-y-2">
-                          <Label htmlFor="pilot-bay">Pilot Bay</Label>
-                          <Select
-                            value={highlightPilotBay?.toString() || ""}
-                            onValueChange={(value) => {
-                              setHighlightPilotBay(value ? parseInt(value, 10) : null);
-                            }}
-                          >
-                            <SelectTrigger id="pilot-bay">
-                              <SelectValue placeholder="Select pilot bay" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {bays.map((bay) => (
-                                <SelectItem key={bay.id} value={bay.bay_number.toString()}>
-                                  {bay.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <p className="text-xs text-muted-foreground">
-                            Only this bay will auto-start OBS recording for League sessions.
-                          </p>
-                        </div>
-                        <div className="flex items-end">
-                          <Button
-                            onClick={saveHighlightSettings}
-                            disabled={isSavingHighlights}
-                            className="w-full sm:w-auto"
-                          >
-                            {isSavingHighlights ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                            Save Pilot Bay
-                          </Button>
-                        </div>
-                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Recording is active on <strong>all bays</strong> where OBS Studio is installed and configured. Bays without OBS silently skip recording.
+                      </p>
                     )}
                   </div>
 
@@ -954,7 +921,7 @@ export default function AdminSettings() {
                         const hasBookings = upcomingBookings.length > 0;
                         const isToggling = togglingBay === bay.id;
                         const device = bayDevices[bay.id];
-                        const isPilotBay = highlightPilotBay === bay.bay_number;
+                        const isPilotBay = false;
                         const isExpanded = expandedBayDevice === bay.id;
                         const form = bayDeviceForm[bay.id] || { obs_ws_url: "ws://127.0.0.1:4455", obs_ws_password: "" };
 

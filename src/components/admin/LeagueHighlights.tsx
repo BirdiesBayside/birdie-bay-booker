@@ -225,11 +225,10 @@ export function LeagueHighlights() {
   const saveConfig = async (nextEnabled: boolean, nextBay: number | null, nextRetention: number = retentionDays) => {
     const { error } = await supabase.from("system_settings").update({
       highlight_recording_enabled: nextEnabled,
-      highlight_recording_pilot_bay: nextBay,
       highlight_retention_days: nextRetention,
     }).eq("id", "global");
     if (error) { toast({ title: "Save failed", description: error.message, variant: "destructive" }); return; }
-    toast({ title: "Saved", description: `Recording ${nextEnabled ? "enabled" : "disabled"}${nextBay ? ` on Bay ${nextBay}` : ""} · keep ${nextRetention}d.` });
+    toast({ title: "Saved", description: `Recording ${nextEnabled ? "enabled on all bays" : "disabled"} · keep ${nextRetention}d.` });
   };
 
   const applyRetentionToExisting = async () => {
@@ -402,14 +401,7 @@ export function LeagueHighlights() {
               <Label htmlFor="rec-enabled">Enable League highlight recording</Label>
             </div>
             <div className="flex items-center gap-2">
-              <Label>Pilot Bay:</Label>
-              <Select value={pilotBay?.toString() ?? "none"} onValueChange={(v) => { const n = v === "none" ? null : parseInt(v); setPilotBay(n); void saveConfig(enabled, n); }}>
-                <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">— None —</SelectItem>
-                  {bays.map((b) => <SelectItem key={b.id} value={b.bay_number.toString()}>Bay {b.bay_number}{b.name ? ` (${b.name})` : ""}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <Label className="text-sm text-muted-foreground">Active on all bays with OBS installed</Label>
             </div>
             <div className="flex items-center gap-2">
               <Label>Auto-delete after:</Label>

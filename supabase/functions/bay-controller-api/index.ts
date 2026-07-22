@@ -402,12 +402,12 @@ serve(async (req) => {
 
         const { data: cfg } = await supabase
           .from("system_settings")
-          .select("highlight_recording_enabled, highlight_recording_pilot_bay")
+          .select("highlight_recording_enabled")
           .eq("id", "global")
           .single();
 
-        if (!cfg?.highlight_recording_enabled || cfg?.highlight_recording_pilot_bay !== bayNumber) {
-          return jsonResponse({ should_record: false, reason: "bay not pilot or disabled" });
+        if (!cfg?.highlight_recording_enabled) {
+          return jsonResponse({ should_record: false, reason: "recording disabled" });
         }
 
         const { data: booking, error: bookingErr } = await supabase
