@@ -92,10 +92,15 @@ Deno.serve(async (req) => {
     });
   }
 
-  const activeSessions = (sessions ?? []).filter((s) => s.sgt_user_id && s.sgt_tournament_id);
+  // sgt_user_id is stored as TEXT on recording_sessions but INTEGER on sgt_members.
+  // Coerce to number consistently to avoid Map key type mismatches.
+  const activeSessions = (sessions ?? [])
+    .filter((s) => s.sgt_user_id && s.sgt_tournament_id)
+    .map((s) => ({ ...s, sgt_user_id_num: Number(s.sgt_user_id) }))
+    .filter((s) => Number.isFinite(s.sgt_user_id_num));
 
   // Map sgt_user_id -> SGT username for all active players.
-  const userIds = Array.from(new Set(activeSessions.map((s) => s.sgt_user_id as number)));
+  const userIds = Array.from(new Set(activeSessions.map((s) => s.sgt_user_id_num)));
   const nameByUserId = new Map<number, string>();
   if (userIds.length > 0) {
     const { data: members } = await supabase
@@ -103,7 +108,7 @@ Deno.serve(async (req) => {
       .select("user_id, user_name")
       .in("user_id", userIds);
     for (const m of members ?? []) {
-      if (m.user_name) nameByUserId.set(m.user_id as number, String(m.user_name).trim().toLowerCase());
+      if (m.user_name) nameByUserId.set(Number(m.user_id), String(m.user_name).trim().toLowerCase());
     }
   }
 
@@ -125,7 +130,7 @@ Deno.serve(async (req) => {
       embedCache.set(tournId, players);
     }
 
-    const sgtName = nameByUserId.get(sess.sgt_user_id as number);
+    const sgtName = nameByUserId.get(sess.sgt_user_id_num);
     if (!sgtName) {
       results.push({ session: sess.id, skipped: "no sgt username mapping" });
       continue;
