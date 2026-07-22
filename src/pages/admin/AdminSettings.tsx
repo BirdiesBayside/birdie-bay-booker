@@ -921,7 +921,7 @@ export default function AdminSettings() {
                         const hasBookings = upcomingBookings.length > 0;
                         const isToggling = togglingBay === bay.id;
                         const device = bayDevices[bay.id];
-                        const isPilotBay = highlightPilotBay === bay.bay_number;
+                        const isPilotBay = false;
                         const isExpanded = expandedBayDevice === bay.id;
                         const form = bayDeviceForm[bay.id] || { obs_ws_url: "ws://127.0.0.1:4455", obs_ws_password: "" };
 
