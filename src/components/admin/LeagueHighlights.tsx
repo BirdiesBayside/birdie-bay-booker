@@ -87,7 +87,6 @@ export function LeagueHighlights() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [bays, setBays] = useState<Bay[]>([]);
-  const [pilotBay, setPilotBay] = useState<number | null>(null);
   const [enabled, setEnabled] = useState(false);
   const [retentionDays, setRetentionDays] = useState<number>(14);
   const [sessions, setSessions] = useState<SessionRow[]>([]);
@@ -132,10 +131,9 @@ export function LeagueHighlights() {
     if (!silent) setLoading(true);
     const [{ data: bayRows }, { data: cfg }] = await Promise.all([
       supabase.from("bays").select("id, bay_number, name").order("bay_number"),
-      supabase.from("system_settings").select("highlight_recording_pilot_bay, highlight_recording_enabled, highlight_retention_days").eq("id", "global").maybeSingle(),
+      supabase.from("system_settings").select("highlight_recording_enabled, highlight_retention_days").eq("id", "global").maybeSingle(),
     ]);
     setBays(bayRows ?? []);
-    setPilotBay(cfg?.highlight_recording_pilot_bay ?? null);
     setEnabled(!!cfg?.highlight_recording_enabled);
     setRetentionDays(cfg?.highlight_retention_days ?? 14);
 
@@ -222,7 +220,7 @@ export function LeagueHighlights() {
     }
   }, [sessions]);
 
-  const saveConfig = async (nextEnabled: boolean, nextBay: number | null, nextRetention: number = retentionDays) => {
+  const saveConfig = async (nextEnabled: boolean, nextRetention: number = retentionDays) => {
     const { error } = await supabase.from("system_settings").update({
       highlight_recording_enabled: nextEnabled,
       highlight_retention_days: nextRetention,
@@ -397,7 +395,7 @@ export function LeagueHighlights() {
         <CardContent className="space-y-4">
           <div className="flex items-center gap-4 flex-wrap">
             <div className="flex items-center gap-2">
-              <Switch id="rec-enabled" checked={enabled} onCheckedChange={(v) => { setEnabled(v); void saveConfig(v, pilotBay); }} />
+              <Switch id="rec-enabled" checked={enabled} onCheckedChange={(v) => { setEnabled(v); void saveConfig(v); }} />
               <Label htmlFor="rec-enabled">Enable League highlight recording</Label>
             </div>
             <div className="flex items-center gap-2">
@@ -405,7 +403,7 @@ export function LeagueHighlights() {
             </div>
             <div className="flex items-center gap-2">
               <Label>Auto-delete after:</Label>
-              <Select value={retentionDays.toString()} onValueChange={(v) => { const n = parseInt(v); setRetentionDays(n); void saveConfig(enabled, pilotBay, n); }}>
+              <Select value={retentionDays.toString()} onValueChange={(v) => { const n = parseInt(v); setRetentionDays(n); void saveConfig(enabled, n); }}>
                 <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="7">7 days</SelectItem>
