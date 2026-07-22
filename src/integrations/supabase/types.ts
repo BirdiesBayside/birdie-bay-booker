@@ -2061,9 +2061,13 @@ export type Database = {
           created_by: string | null
           download_url: string | null
           end_seconds: number
+          error: string | null
           id: string
+          label: string | null
+          playback_url: string | null
           recording_session_id: string
           start_seconds: number
+          status: string
           stream_clip_uid: string | null
           updated_at: string | null
         }
@@ -2072,9 +2076,13 @@ export type Database = {
           created_by?: string | null
           download_url?: string | null
           end_seconds: number
+          error?: string | null
           id?: string
+          label?: string | null
+          playback_url?: string | null
           recording_session_id: string
           start_seconds: number
+          status?: string
           stream_clip_uid?: string | null
           updated_at?: string | null
         }
@@ -2083,9 +2091,13 @@ export type Database = {
           created_by?: string | null
           download_url?: string | null
           end_seconds?: number
+          error?: string | null
           id?: string
+          label?: string | null
+          playback_url?: string | null
           recording_session_id?: string
           start_seconds?: number
+          status?: string
           stream_clip_uid?: string | null
           updated_at?: string | null
         }
