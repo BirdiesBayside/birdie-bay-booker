@@ -562,8 +562,19 @@ serve(async (req) => {
       case "recording_stop": {
         const b = body as { recording_session_id?: string; ended_at?: string; file_size_bytes?: number; status?: string; error_message?: string; mkv_path?: string } | null;
         if (!b?.recording_session_id) return jsonResponse({ error: "recording_session_id required" }, 400);
+
+        // Run one final embed poll BEFORE flipping status away from 'recording'
+        // so the poller catches the final "(18)" → "F" transition and stamps hole 18.
+        // The poller only processes sessions with status='recording', so order matters.
+        try {
+          await supabase.functions.invoke("sgt-highlight-poller", { body: {} });
+        } catch (e) {
+          console.error("[recording_stop] final poller invoke failed:", (e as Error).message);
+        }
+
+        const endedAt = b.ended_at ?? new Date().toISOString();
         const update: Record<string, unknown> = {
-          ended_at: b.ended_at ?? new Date().toISOString(),
+          ended_at: endedAt,
           file_size_bytes: b.file_size_bytes ?? null,
           status: b.status ?? "pending_split",
           error_message: b.error_message ?? null,
@@ -572,8 +583,38 @@ serve(async (req) => {
         if (b.mkv_path) update.mkv_path = b.mkv_path;
         const { error } = await supabase.from("recording_sessions").update(update).eq("id", b.recording_session_id);
         if (error) return jsonResponse({ error: error.message }, 500);
+
+        // Fallback: if the poller couldn't confirm hole 18 (embed lag, player still
+        // "on 18" at stop), stamp any un-stamped consecutive holes up to the highest
+        // hole we've seen + 1 (i.e. the one they were actively playing when we stopped).
+        const { data: holes } = await supabase
+          .from("recording_holes")
+          .select("hole_number, hole_completed_at, pre_existing")
+          .eq("recording_session_id", b.recording_session_id)
+          .order("hole_number", { ascending: true });
+        if (holes && holes.length > 0) {
+          const maxHole = Math.max(...holes.map((h) => h.hole_number));
+          const nextHole = Math.min(maxHole + 1, 18);
+          const hasNext = holes.some((h) => h.hole_number === nextHole);
+          // Only stamp the "in-progress" hole if the previous one is completed
+          // (i.e. they definitely started nextHole) and it isn't already recorded.
+          const prevCompleted = holes.some((h) => h.hole_number === maxHole && (h.hole_completed_at || h.pre_existing));
+          if (!hasNext && prevCompleted && nextHole > maxHole) {
+            await supabase.from("recording_holes").upsert({
+              recording_session_id: b.recording_session_id,
+              hole_number: nextHole,
+              hole_completed_at: endedAt,
+              pre_existing: false,
+              status: "pending",
+              updated_at: new Date().toISOString(),
+            }, { onConflict: "recording_session_id,hole_number" });
+            console.log(`[recording_stop] stamped fallback hole ${nextHole} for session ${b.recording_session_id}`);
+          }
+        }
+
         return jsonResponse({ ok: true });
       }
+
 
       case "recording_upload_url": {
         const b = body as { recording_session_id?: string; hole_number?: number; filename?: string } | null;
