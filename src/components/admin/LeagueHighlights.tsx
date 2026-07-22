@@ -316,10 +316,18 @@ export function LeagueHighlights() {
       toast({ title: "Clip failed", description: description || "no download url", variant: "destructive" });
       return;
     }
-    // Open the Cloudflare MP4 in a new tab/browser — works on PC, web app, and Android.
-    window.open(data.download_url, "_blank", "noopener,noreferrer");
+    // Build a descriptive filename and pass it via Cloudflare's ?filename= param
+    // so the browser saves it as e.g. daniel-dowling-bay2-2026-07-20-00-01-30_00-02-15.mp4
+    // instead of the generic default.mp4 (which collides on repeat downloads).
+    const safe = (s: string) => s.replace(/[^a-z0-9-]+/gi, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").toLowerCase();
+    const player = safe(activeSession.player_name ?? "clip");
+    const date = (activeSession.started_at ?? "").slice(0, 10);
+    const filename = `${player}-bay${activeSession.bay_number}-${date}-${fmtOffset(clipStart).replace(/:/g, "-")}_${fmtOffset(clipEnd).replace(/:/g, "-")}.mp4`;
+    const url = new URL(data.download_url);
+    url.searchParams.set("filename", filename);
+    window.open(url.toString(), "_blank", "noopener,noreferrer");
     setClipLoading(false);
-    toast({ title: "Clip ready", description: "Opened in your browser — use your browser's download/save option." });
+    toast({ title: "Clip ready", description: `Opened as ${filename}` });
   };
 
   const downloadSession = async (sess: SessionRow) => {
