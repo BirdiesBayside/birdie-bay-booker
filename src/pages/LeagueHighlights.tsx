@@ -34,9 +34,11 @@ export default function LeagueHighlights() {
     (async () => {
       setLoading(true);
       // RLS scopes recording_sessions to sessions whose booking belongs to auth.uid()
+      // Explicitly scope to the current user's bookings (admins would otherwise see all via RLS)
       const { data: rows } = await supabase
         .from("recording_sessions")
-        .select("id, bay_number, player_name, tournament_name, started_at, ended_at, status")
+        .select("id, bay_number, player_name, tournament_name, started_at, ended_at, status, bookings!inner(user_id)")
+        .eq("bookings.user_id", user.id)
         .not("started_at", "is", null)
         .order("started_at", { ascending: false })
         .limit(100);

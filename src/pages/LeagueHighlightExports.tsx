@@ -59,8 +59,9 @@ export default function LeagueHighlightExports() {
     const [{ data: sess }, { data: clipRows }] = await Promise.all([
       supabase
         .from("recording_sessions")
-        .select("id, player_name, tournament_name, bay_number, started_at, stream_uid, stream_status")
+        .select("id, player_name, tournament_name, bay_number, started_at, stream_uid, stream_status, bookings!inner(user_id)")
         .eq("id", sessionId)
+        .eq("bookings.user_id", user!.id)
         .maybeSingle(),
       supabase
         .from("recording_clips")
