@@ -537,6 +537,7 @@ export default function BayController() {
               recording_session_id: rec.sessionId,
               file_size_bytes: upRes.sizeBytes ?? stopRes.sizeBytes ?? null,
               status: 'uploaded',
+              mkv_path: urlData.path,
             },
           });
 
