@@ -275,6 +275,7 @@ const App = () => (
             <Route path="/admin/customer-import" element={<AdminCustomerImport />} />
             <Route path="/admin/sgt" element={<AdminSGTManager />} />
             <Route path="/admin/local-comps" element={<AdminLocalComps />} />
+            <Route path="/admin/highlights/:sessionId/exports" element={<AdminHighlightExports />} />
             <Route path="/embed/tv-local-comp" element={<EmbedTVLocalComp />} />
             <Route path="/embed/compete" element={<EmbedCompete />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
