@@ -22,6 +22,8 @@ const LeagueRounds = lazy(() => import("./pages/LeagueRounds"));
 const LeagueLeaderboard = lazy(() => import("./pages/LeagueLeaderboard"));
 const LeagueProfile = lazy(() => import("./pages/LeagueProfile"));
 const LeagueRegister = lazy(() => import("./pages/LeagueRegister"));
+const LeagueHighlights = lazy(() => import("./pages/LeagueHighlights"));
+const LeagueHighlightExports = lazy(() => import("./pages/LeagueHighlightExports"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 
@@ -218,6 +220,8 @@ const App = () => (
             <Route path="/league/leaderboard" element={<LeagueLeaderboard />} />
             <Route path="/league/profile" element={<LeagueProfile />} />
             <Route path="/league/register" element={<LeagueRegister />} />
+            <Route path="/league/highlights" element={<LeagueHighlights />} />
+            <Route path="/league/highlights/:sessionId" element={<LeagueHighlightExports />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             
             <Route path="/embed/leaderboard" element={<EmbedLeaderboard />} />

@@ -11,6 +11,7 @@ import {
   Menu,
   X,
   ArrowLeft,
+  Film,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -22,6 +23,7 @@ const navItems = [
   { path: "/league", label: "Dashboard", icon: LayoutDashboard },
   { path: "/league/rounds", label: "Rounds", icon: History },
   { path: "/league/leaderboard", label: "Leaderboard", icon: Trophy },
+  { path: "/league/highlights", label: "Highlights", icon: Film },
   { path: "/league/profile", label: "Profile & Stats", icon: User },
 ];
 
