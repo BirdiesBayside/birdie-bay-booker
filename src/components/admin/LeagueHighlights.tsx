@@ -440,6 +440,9 @@ export function LeagueHighlights() {
                          {streamBusyIds.has(sess.session_id) ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Play className="h-4 w-4 mr-1" />}Open
                        </Button>
                        <Button size="sm" variant="outline" onClick={() => downloadSession(sess)} disabled={!sess.storage_path}><Download className="h-4 w-4 mr-1" />Download</Button>
+                       <Button asChild size="sm" variant="outline">
+                         <Link to={`/admin/highlights/${sess.session_id}/exports`}><FolderOpen className="h-4 w-4 mr-1" />Exports</Link>
+                       </Button>
                        <Button size="sm" variant="ghost" onClick={() => dismissSession(sess)}><Trash2 className="h-4 w-4" /></Button>
                      </div>
                    </div>
