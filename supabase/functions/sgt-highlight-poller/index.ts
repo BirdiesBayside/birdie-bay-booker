@@ -1,17 +1,31 @@
-// Live SGT hole tracker for League Highlights (embed-scrape version).
+// Round-only Highlight Orchestrator.
 //
-// Instead of hammering the club-admin scorecards API per player, we fetch
-// ONE public embed page per active tournament and parse the "(N)" indicator
-// next to each player's round score to know which hole they're currently on.
-// Format observed at https://simulatorgolftour.com/embed/tournament/<id>/standings/gross:
-//   <td class='... round ...'>+2 <span ...>F</span></td>       ← round complete
-//   <td class='... round ...'>+6 <span ...>(4)</span></td>     ← currently on hole 4 (thru 3)
-//   <td class='... round ...'>  <span ...></span></td>         ← not started
+// Polls every ~60s (via cron). For each ACTIVE booking, decides whether to
+// start / stop OBS recording based on the player's live scoring state:
 //
-// When a player's "current hole" advances (e.g. 4 → 5), we stamp
-// hole_completed_at = now() on the hole they just finished (N-1) for the
-// matching recording_sessions row. Score/par data still comes from the
-// morning sgt-sync, which the tagger consumes afterward.
+//   SGT booking:
+//     - Poll the tournament embed page for the player's current hole.
+//     - When they appear on hole >= 1 (and round is not already finished),
+//       insert a recording_sessions row (status='recording') and issue an
+//       `obs_start_recording:session_id=<uuid>` command. Bay Controller
+//       receives the command via realtime, tells OBS to start.
+//     - When they show "F" (finished) OR the booking ends OR 20+ min of no
+//       progress, mark session status='stopping' and issue
+//       `obs_stop_recording:session_id=<uuid>`. Bay Controller stops OBS,
+//       uploads the file, and calls recording_stop (which flips to
+//       'pending_split' or 'uploaded').
+//     - Keeps polling for additional rounds within the same booking
+//       (round_number auto-increments).
+//
+//   Local Comp booking (booking notes contain "[COMP]" + comp exists today):
+//     - Start recording on first poll after booking becomes active.
+//     - Stop when the team's `net_score` flips from NULL to a value (scores
+//       have been posted) or the booking ends.
+//
+// No booking? No polling, no recording, no disk usage.
+//
+// Hole timeline stamping (for SGT) is preserved so the highlights tagger can
+// still cut per-hole clips.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 
@@ -20,10 +34,13 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const ABANDONED_MINUTES = 20;
+
+// ---------- SGT embed helpers ----------
 async function fetchEmbedHtml(tournamentId: string): Promise<string | null> {
   const url = `https://simulatorgolftour.com/embed/tournament/${encodeURIComponent(tournamentId)}/standings/gross`;
   try {
-    const res = await fetch(url, { headers: { "User-Agent": "BirdiesHub-HighlightPoller/1.0" } });
+    const res = await fetch(url, { headers: { "User-Agent": "BirdiesHub-HighlightPoller/2.0" } });
     if (!res.ok) {
       console.error(`[poller] embed ${res.status} for tournament ${tournamentId}`);
       return null;
@@ -35,39 +52,23 @@ async function fetchEmbedHtml(tournamentId: string): Promise<string | null> {
   }
 }
 
-/**
- * Parse the embed HTML into a map of { playerName (lowercased) -> currentHole | "F" | null }.
- * currentHole is the hole number they are CURRENTLY on (i.e. they have completed hole N-1).
- * "F" means the round is complete (all 18 done).
- * null means not started / no round cell filled.
- *
- * The embed can render multiple round columns (RD 1, RD 2). We take the LAST
- * non-empty round cell per player as the "active" round.
- */
 function parseEmbed(html: string): Map<string, { hole: number | null; finished: boolean }> {
   const out = new Map<string, { hole: number | null; finished: boolean }>();
-  // Split into player rows.
   const rowRegex = /<tr\s+data-player-name='([^']+)'>([\s\S]*?)<\/tr>/g;
   let m: RegExpExecArray | null;
   while ((m = rowRegex.exec(html)) !== null) {
     const playerName = m[1].trim().toLowerCase();
     const rowHtml = m[2];
-    // Collect all round cells (class contains "round").
     const cellRegex = /<td[^>]*class='[^']*\bround\b[^']*'[^>]*>([\s\S]*?)<\/td>/g;
     let c: RegExpExecArray | null;
     let latest: { hole: number | null; finished: boolean } | null = null;
     while ((c = cellRegex.exec(rowHtml)) !== null) {
       const cellText = c[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
       if (!cellText) continue;
-      if (/\bF\b/.test(cellText)) {
-        latest = { hole: null, finished: true };
-      } else {
+      if (/\bF\b/.test(cellText)) latest = { hole: null, finished: true };
+      else {
         const paren = cellText.match(/\((\d+)\)/);
-        if (paren) {
-          latest = { hole: Number(paren[1]), finished: false };
-        } else {
-          // score-only cell (e.g. mid-round before SGT adds the "(N)" indicator) — ignore.
-        }
+        if (paren) latest = { hole: Number(paren[1]), finished: false };
       }
     }
     if (latest) out.set(playerName, latest);
@@ -75,130 +76,357 @@ function parseEmbed(html: string): Map<string, { hole: number | null; finished: 
   return out;
 }
 
+// Brisbane today (AEST/UTC+10, no DST)
+function brisbaneToday(): string {
+  const now = new Date();
+  const bris = new Date(now.getTime() + 10 * 3600_000);
+  return bris.toISOString().slice(0, 10);
+}
+function brisbaneNowTime(): string {
+  const now = new Date();
+  const bris = new Date(now.getTime() + 10 * 3600_000);
+  return bris.toISOString().slice(11, 19);
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+  const nowIso = new Date().toISOString();
+  const today = brisbaneToday();
+  const nowTime = brisbaneNowTime();
 
-  const { data: sessions, error: sessErr } = await supabase
-    .from("recording_sessions")
-    .select("id, bay_number, sgt_user_id, sgt_tournament_id, started_at")
-    .eq("status", "recording");
-
-  if (sessErr) {
-    return new Response(JSON.stringify({ error: sessErr.message }), {
-      status: 500,
+  // 1. Load orchestration config (global toggle)
+  const { data: cfg } = await supabase
+    .from("system_settings")
+    .select("highlight_recording_enabled")
+    .eq("id", "global")
+    .maybeSingle();
+  if (!cfg?.highlight_recording_enabled) {
+    return new Response(JSON.stringify({ ok: true, skipped: "recording disabled" }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
-  // sgt_user_id is stored as TEXT on recording_sessions but INTEGER on sgt_members.
-  // Coerce to number consistently to avoid Map key type mismatches.
-  const activeSessions = (sessions ?? [])
-    .filter((s) => s.sgt_user_id && s.sgt_tournament_id)
-    .map((s) => ({ ...s, sgt_user_id_num: Number(s.sgt_user_id) }))
-    .filter((s) => Number.isFinite(s.sgt_user_id_num));
+  // 2. Active bookings (Brisbane today, currently in window, confirmed)
+  const { data: bookings } = await supabase
+    .from("bookings")
+    .select("id, user_id, bay_id, booking_date, start_time, end_time, notes, status")
+    .eq("booking_date", today)
+    .eq("status", "confirmed")
+    .lte("start_time", nowTime)
+    .gte("end_time", nowTime);
 
-  // Map sgt_user_id -> SGT username for all active players.
-  const userIds = Array.from(new Set(activeSessions.map((s) => s.sgt_user_id_num)));
+  const activeBookings = bookings ?? [];
+  if (activeBookings.length === 0) {
+    return new Response(JSON.stringify({ ok: true, active_bookings: 0 }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  // 3. Resolve bay numbers
+  const bayIds = Array.from(new Set(activeBookings.map((b) => b.bay_id).filter(Boolean)));
+  const { data: bays } = await supabase.from("bays").select("id, bay_number").in("id", bayIds);
+  const bayNumberById = new Map((bays ?? []).map((b) => [b.id, b.bay_number]));
+
+  // 4. Profiles for each booking
+  const userIds = Array.from(new Set(activeBookings.map((b) => b.user_id)));
+  const { data: profiles } = await supabase
+    .from("profiles")
+    .select("user_id, first_name, last_name, sgt_user_id")
+    .in("user_id", userIds);
+  const profileByUserId = new Map((profiles ?? []).map((p) => [p.user_id, p]));
+
+  // 5. Any recording_sessions currently active for these bookings
+  const bookingIds = activeBookings.map((b) => b.id);
+  const { data: activeSessions } = await supabase
+    .from("recording_sessions")
+    .select("id, booking_id, bay_number, sgt_user_id, sgt_tournament_id, started_at, status, round_number, trigger_source, last_progress_at")
+    .in("booking_id", bookingIds)
+    .in("status", ["recording", "stopping"]);
+  const sessionByBookingId = new Map((activeSessions ?? []).map((s) => [s.booking_id, s]));
+
+  // 6. Existing session counts (to compute next round_number)
+  const { data: allSessionsForBookings } = await supabase
+    .from("recording_sessions")
+    .select("booking_id")
+    .in("booking_id", bookingIds);
+  const sessionCountByBooking = new Map<string, number>();
+  for (const s of allSessionsForBookings ?? []) {
+    sessionCountByBooking.set(s.booking_id, (sessionCountByBooking.get(s.booking_id) ?? 0) + 1);
+  }
+
+  // 7. Load today's active tournament (single) + SGT member name lookup
+  const { data: tournaments } = await supabase
+    .from("sgt_tournaments")
+    .select("tournament_id, name, start_date, end_date")
+    .lte("start_date", today)
+    .gte("end_date", today)
+    .order("start_date", { ascending: false })
+    .limit(1);
+  const activeTourney = tournaments?.[0] ?? null;
+
+  const sgtUserIds = Array.from(
+    new Set(
+      activeBookings
+        .map((b) => Number(profileByUserId.get(b.user_id)?.sgt_user_id ?? NaN))
+        .filter((n) => Number.isFinite(n)),
+    ),
+  );
   const nameByUserId = new Map<number, string>();
-  if (userIds.length > 0) {
+  if (sgtUserIds.length > 0) {
     const { data: members } = await supabase
       .from("sgt_members")
       .select("user_id, user_name")
-      .in("user_id", userIds);
+      .in("user_id", sgtUserIds);
     for (const m of members ?? []) {
       if (m.user_name) nameByUserId.set(Number(m.user_id), String(m.user_name).trim().toLowerCase());
     }
   }
 
-  // Cache embed HTML per tournament so multiple bays on same tournament = 1 fetch.
+  // 8. Load today's local competition (single) if any [COMP] booking present
+  const hasCompBooking = activeBookings.some((b) => (b.notes ?? "").includes("[COMP]"));
+  const { data: compRows } = hasCompBooking
+    ? await supabase
+        .from("local_competitions")
+        .select("id, name, date, status")
+        .eq("date", today)
+        .in("status", ["upcoming", "active"])
+        .limit(1)
+    : { data: [] as any[] };
+  const activeComp = compRows?.[0] ?? null;
+
+  const { data: compTeams } = activeComp
+    ? await supabase
+        .from("local_comp_teams")
+        .select("id, player1_name, player2_name, net_score, position")
+        .eq("competition_id", activeComp.id)
+    : { data: [] as any[] };
+
+  // Global SGT settings toggle for League Highlights already gated above.
+  const { data: compSettingsRow } = hasCompBooking
+    ? await supabase.from("local_comp_settings").select("hub_highlights_enabled").limit(1).maybeSingle()
+    : { data: null };
+  const compEnabled = !!compSettingsRow?.hub_highlights_enabled;
+
+  // Cache tournament embeds so multiple bays on same tourney = 1 fetch.
   const embedCache = new Map<string, Map<string, { hole: number | null; finished: boolean }>>();
+
   const results: Array<Record<string, unknown>> = [];
-  const nowIso = new Date().toISOString();
 
-  for (const sess of activeSessions) {
-    const tournId = String(sess.sgt_tournament_id);
-    let players = embedCache.get(tournId);
-    if (!players) {
-      const html = await fetchEmbedHtml(tournId);
-      if (!html) {
-        results.push({ session: sess.id, skipped: "embed fetch failed" });
-        continue;
-      }
-      players = parseEmbed(html);
-      embedCache.set(tournId, players);
+  // ---------- HELPERS ----------
+  async function issueStart(session: {
+    booking_id: string;
+    bay_number: number;
+    trigger_source: string;
+    sgt_user_id?: string | null;
+    sgt_tournament_id?: string | null;
+    player_name?: string | null;
+    tournament_name?: string | null;
+    round_number: number;
+  }) {
+    const { data: settingsRow } = await supabase
+      .from("system_settings")
+      .select("highlight_retention_days")
+      .eq("id", "global")
+      .maybeSingle();
+    const retentionDays = settingsRow?.highlight_retention_days ?? 14;
+    const retentionUntil = new Date(Date.now() + retentionDays * 86400_000).toISOString();
+
+    const { data: inserted, error: insErr } = await supabase
+      .from("recording_sessions")
+      .insert({
+        booking_id: session.booking_id,
+        bay_number: session.bay_number,
+        sgt_user_id: session.sgt_user_id ?? null,
+        sgt_tournament_id: session.sgt_tournament_id ?? null,
+        player_name: session.player_name ?? null,
+        tournament_name: session.tournament_name ?? null,
+        started_at: nowIso,
+        status: "recording",
+        round_number: session.round_number,
+        trigger_source: session.trigger_source,
+        last_progress_at: nowIso,
+        retention_until: retentionUntil,
+      })
+      .select("id")
+      .single();
+
+    if (insErr || !inserted) {
+      console.error("[poller] start insert failed:", insErr?.message);
+      return null;
     }
 
-    const sgtName = nameByUserId.get(sess.sgt_user_id_num);
-    if (!sgtName) {
-      results.push({ session: sess.id, skipped: "no sgt username mapping" });
-      continue;
-    }
-    const state = players.get(sgtName);
-    if (!state) {
-      results.push({ session: sess.id, skipped: "player not on embed", sgt_name: sgtName });
-      continue;
-    }
-
-    // Existing holes for this session.
-    const { data: known } = await supabase
-      .from("recording_holes")
-      .select("hole_number, hole_completed_at, pre_existing")
-      .eq("recording_session_id", sess.id);
-    const knownMap = new Map((known ?? []).map((k) => [k.hole_number, k]));
-    const isFirstPoll = (known ?? []).length === 0;
-
-    // Determine which holes are considered COMPLETED right now.
-    // If finished=F: all 18 done. If hole=N: holes 1..(N-1) done.
-    let completedThrough = 0;
-    if (state.finished) completedThrough = 18;
-    else if (state.hole && state.hole > 1) completedThrough = state.hole - 1;
-
-    // First poll: any already-completed holes are pre-existing (played before we hit record).
-    // Subsequent polls: newly-completed holes get hole_completed_at = now().
-    let newlyCompleted = 0;
-    let markedPreExisting = 0;
-
-    for (let n = 1; n <= completedThrough; n++) {
-      const existing = knownMap.get(n);
-      if (existing?.hole_completed_at || existing?.pre_existing) continue;
-
-      const preExisting = isFirstPoll;
-      const { error: upErr } = await supabase.from("recording_holes").upsert(
-        {
-          recording_session_id: sess.id,
-          hole_number: n,
-          par: null,
-          score: null,
-          hole_completed_at: preExisting ? null : nowIso,
-          pre_existing: preExisting,
-          status: "pending",
-          updated_at: nowIso,
-        },
-        { onConflict: "recording_session_id,hole_number" },
-      );
-      if (upErr) {
-        console.error(`[poller] upsert hole ${n} for ${sess.id} failed:`, upErr.message);
-        continue;
-      }
-      if (preExisting) markedPreExisting++;
-      else newlyCompleted++;
-    }
-
-    results.push({
-      session: sess.id,
-      bay: sess.bay_number,
-      sgt_name: sgtName,
-      current_hole: state.hole,
-      finished: state.finished,
-      first_poll: isFirstPoll,
-      newly_completed: newlyCompleted,
-      marked_pre_existing: markedPreExisting,
+    const { error: cmdErr } = await supabase.from("bay_commands").insert({
+      bay_number: session.bay_number,
+      command: `obs_start_recording:session_id=${inserted.id}`,
+      status: "pending",
     });
+    if (cmdErr) console.error("[poller] start command insert failed:", cmdErr.message);
+    return inserted.id;
   }
 
-  // Tagger fills in par/score from the DB (populated by morning sgt-sync).
+  async function issueStop(sessionId: string, bayNumber: number, partial: boolean, reason: string) {
+    await supabase
+      .from("recording_sessions")
+      .update({ status: "stopping", partial, updated_at: nowIso })
+      .eq("id", sessionId);
+    const { error: cmdErr } = await supabase.from("bay_commands").insert({
+      bay_number: bayNumber,
+      command: `obs_stop_recording:session_id=${sessionId}`,
+      status: "pending",
+    });
+    if (cmdErr) console.error("[poller] stop command insert failed:", cmdErr.message);
+    console.log(`[poller] STOP session=${sessionId} bay=${bayNumber} partial=${partial} reason=${reason}`);
+  }
+
+  // ---------- MAIN LOOP ----------
+  for (const booking of activeBookings) {
+    const bayNumber = bayNumberById.get(booking.bay_id);
+    if (!bayNumber) continue;
+
+    const prof = profileByUserId.get(booking.user_id);
+    const playerName = [prof?.first_name, prof?.last_name].filter(Boolean).join(" ").trim() || "Player";
+    const session = sessionByBookingId.get(booking.id);
+
+    // ----- BOOKING END GUARD -----
+    // If booking end passed and a session is still active, stop it.
+    const bookingEndMs = new Date(`${booking.booking_date}T${booking.end_time}`).getTime();
+    if (session && Date.now() >= bookingEndMs - 5000) {
+      await issueStop(session.id, bayNumber, true, "booking_end");
+      results.push({ booking: booking.id, action: "stop_booking_end" });
+      continue;
+    }
+
+    // ----- SGT branch -----
+    const sgtUserIdRaw = prof?.sgt_user_id;
+    const sgtUserIdNum = sgtUserIdRaw ? Number(sgtUserIdRaw) : NaN;
+    if (activeTourney && Number.isFinite(sgtUserIdNum)) {
+      const tournId = String(activeTourney.tournament_id);
+      let players = embedCache.get(tournId);
+      if (!players) {
+        const html = await fetchEmbedHtml(tournId);
+        if (html) {
+          players = parseEmbed(html);
+          embedCache.set(tournId, players);
+        }
+      }
+      const sgtName = nameByUserId.get(sgtUserIdNum);
+      const state = sgtName && players ? players.get(sgtName) : undefined;
+
+      if (session) {
+        // Session running — check for finish / abandonment / hole progress
+        if (state?.finished) {
+          await issueStop(session.id, bayNumber, false, "round_finished");
+          results.push({ booking: booking.id, action: "stop_finished" });
+        } else if (state?.hole && state.hole >= 1) {
+          // Progress: stamp completed holes and refresh last_progress_at
+          await stampHoles(supabase, session.id, state.hole, state.finished, nowIso);
+          if (session.last_progress_at) {
+            // Determine if hole advanced — compare max known hole to state.hole-1
+            const { data: known } = await supabase
+              .from("recording_holes")
+              .select("hole_number")
+              .eq("recording_session_id", session.id);
+            const maxKnown = known?.length ? Math.max(...known.map((k) => k.hole_number)) : 0;
+            if (maxKnown >= (state.hole - 1)) {
+              await supabase
+                .from("recording_sessions")
+                .update({ last_progress_at: nowIso })
+                .eq("id", session.id);
+            }
+          }
+          // Abandoned check
+          const lastProgress = session.last_progress_at ? new Date(session.last_progress_at).getTime() : Date.now();
+          if (Date.now() - lastProgress > ABANDONED_MINUTES * 60_000) {
+            await issueStop(session.id, bayNumber, true, "abandoned");
+            results.push({ booking: booking.id, action: "stop_abandoned" });
+          } else {
+            results.push({ booking: booking.id, action: "progress", hole: state.hole });
+          }
+        } else {
+          // No state visible mid-session — leave alone unless past abandoned window
+          const lastProgress = session.last_progress_at ? new Date(session.last_progress_at).getTime() : Date.now();
+          if (Date.now() - lastProgress > ABANDONED_MINUTES * 60_000) {
+            await issueStop(session.id, bayNumber, true, "no_progress");
+            results.push({ booking: booking.id, action: "stop_no_progress" });
+          } else {
+            results.push({ booking: booking.id, action: "waiting" });
+          }
+        }
+      } else {
+        // No session — should we start?
+        if (state && !state.finished && state.hole && state.hole >= 1) {
+          const roundNumber = (sessionCountByBooking.get(booking.id) ?? 0) + 1;
+          const newId = await issueStart({
+            booking_id: booking.id,
+            bay_number: bayNumber,
+            trigger_source: "sgt",
+            sgt_user_id: String(sgtUserIdNum),
+            sgt_tournament_id: tournId,
+            player_name: playerName,
+            tournament_name: activeTourney.name,
+            round_number: roundNumber,
+          });
+          if (newId) {
+            sessionCountByBooking.set(booking.id, roundNumber);
+            // Pre-seed holes already scored on this scorecard so we don't
+            // re-clip them (player likely started before we hit record).
+            await stampHoles(supabase, newId, state.hole, false, nowIso, true);
+            results.push({ booking: booking.id, action: "start_round", round: roundNumber, hole: state.hole });
+          }
+        } else {
+          results.push({ booking: booking.id, action: "sgt_idle", state });
+        }
+      }
+      continue;
+    }
+
+    // ----- Local Comp branch -----
+    if ((booking.notes ?? "").includes("[COMP]") && activeComp && compEnabled) {
+      // Match booking user to a team by name
+      const first = (prof?.first_name ?? "").toLowerCase().trim();
+      const last = (prof?.last_name ?? "").toLowerCase().trim();
+      const full = `${first} ${last}`.trim();
+      const team = (compTeams ?? []).find((t) => {
+        const p1 = (t.player1_name ?? "").toLowerCase().trim();
+        const p2 = (t.player2_name ?? "").toLowerCase().trim();
+        return p1 === full || p2 === full || p1.includes(first) || p2.includes(first);
+      });
+
+      if (session) {
+        if (team && team.net_score != null) {
+          await issueStop(session.id, bayNumber, false, "score_posted");
+          results.push({ booking: booking.id, action: "stop_score_posted" });
+        } else {
+          results.push({ booking: booking.id, action: "comp_recording" });
+        }
+      } else if (team && team.net_score == null) {
+        const roundNumber = (sessionCountByBooking.get(booking.id) ?? 0) + 1;
+        const newId = await issueStart({
+          booking_id: booking.id,
+          bay_number: bayNumber,
+          trigger_source: "local_comp",
+          sgt_user_id: null,
+          sgt_tournament_id: null,
+          player_name: playerName,
+          tournament_name: `Local Comp — ${activeComp.name}`,
+          round_number: roundNumber,
+        });
+        if (newId) {
+          sessionCountByBooking.set(booking.id, roundNumber);
+          results.push({ booking: booking.id, action: "start_comp", round: roundNumber });
+        }
+      } else {
+        results.push({ booking: booking.id, action: "comp_no_team_or_scored" });
+      }
+      continue;
+    }
+
+    results.push({ booking: booking.id, action: "not_eligible" });
+  }
+
+  // Fire the tagger (idempotent) so newly-stamped holes get processed.
   try {
     await supabase.functions.invoke("sgt-highlight-tagger", { body: {} });
   } catch (e) {
@@ -206,7 +434,46 @@ Deno.serve(async (req) => {
   }
 
   return new Response(
-    JSON.stringify({ ok: true, sessions_polled: activeSessions.length, results }),
+    JSON.stringify({ ok: true, active_bookings: activeBookings.length, results }),
     { headers: { ...corsHeaders, "Content-Type": "application/json" } },
   );
 });
+
+// Stamp holes 1..completedThrough as completed for a recording_session.
+// If markPreExisting=true, they were played before we hit record.
+async function stampHoles(
+  supabase: ReturnType<typeof createClient>,
+  sessionId: string,
+  currentHole: number | null,
+  finished: boolean,
+  nowIso: string,
+  markPreExisting = false,
+) {
+  const completedThrough = finished ? 18 : (currentHole && currentHole > 1 ? currentHole - 1 : 0);
+  if (completedThrough <= 0) return;
+
+  const { data: known } = await supabase
+    .from("recording_holes")
+    .select("hole_number, hole_completed_at, pre_existing")
+    .eq("recording_session_id", sessionId);
+  const knownMap = new Map((known ?? []).map((k) => [k.hole_number, k]));
+
+  for (let n = 1; n <= completedThrough; n++) {
+    const existing = knownMap.get(n);
+    if (existing?.hole_completed_at || existing?.pre_existing) continue;
+    const preExisting = markPreExisting;
+    await supabase.from("recording_holes").upsert(
+      {
+        recording_session_id: sessionId,
+        hole_number: n,
+        par: null,
+        score: null,
+        hole_completed_at: preExisting ? null : nowIso,
+        pre_existing: preExisting,
+        status: "pending",
+        updated_at: nowIso,
+      },
+      { onConflict: "recording_session_id,hole_number" },
+    );
+  }
+}

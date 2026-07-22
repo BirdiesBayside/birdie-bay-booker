@@ -14,12 +14,12 @@ RTX 5070).
   - Output Mode: `Advanced`
   - Recording Format: `mkv`
   - Encoder: `NVIDIA NVENC HEVC` (or H.264 if HEVC unavailable)
-  - Rate Control: `CQP`, CQ Level 22
+  - Rate Control: `CQP`, CQ Level 28
   - Preset: `P4 - Balanced`
   - Recording Path: `C:\BirdiesRecordings`
 - **Settings → Video**:
   - Base + Output Resolution: `1920x1080`
-  - FPS: `60`
+  - FPS: `30`
 - **Sources**: add a **Display Capture** for the GSPro monitor only.
 - **Tools → WebSocket Server Settings**:
   - Enable WebSocket server
@@ -33,14 +33,21 @@ RTX 5070).
 
 ## 4. Turn on the pilot in Admin
 Admin > SGT Manager > **Highlights** tab → **Pilot Bay** dropdown → select the
-bay number → **Enable**. All new League bookings on that bay will trigger:
-- OBS starts recording when the customer's booking becomes active
-- Per-shot CSV is watched to build the hole timeline
-- OBS stops on session end; ffmpeg splits into per-hole clips
-- Clips upload to the private `league-highlights` bucket
-- `sgt-highlight-tagger` scans holes hourly for highlights (birdies, eagles,
-  hole-outs, darts, 300m+ drives). Review queue is in the Highlights tab.
+bay number → **Enable**.
+
+Round-only recording (as of v2 of `sgt-highlight-poller`):
+- The poller runs every ~60s and only starts OBS when the SGT embed shows
+  the player has moved onto hole ≥ 1 of the active tournament.
+- OBS stops the moment the embed shows `F` (round finished), the booking
+  ends, or 20 minutes pass with no hole progress (abandoned).
+- Back-to-back rounds within one booking each become a separate
+  `recording_sessions` row (`round_number` auto-increments).
+- Local Comp bookings (`[COMP]` tag in notes) start recording as soon as
+  the booking is active and stop when the team's `net_score` is posted.
+- Bookings that don't match either trigger produce zero recording and
+  zero disk usage.
 
 ## 5. Retention
 Raw recordings auto-purge 14 days after the tournament ends (via
 `purge-old-recordings` daily cron). Approved clips in the review queue are kept.
+

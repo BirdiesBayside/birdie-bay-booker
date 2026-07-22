@@ -2185,9 +2185,12 @@ export type Database = {
           error_message: string | null
           file_size_bytes: number | null
           id: string
+          last_progress_at: string | null
           mkv_path: string | null
+          partial: boolean
           player_name: string | null
           retention_until: string | null
+          round_number: number
           sgt_tournament_id: string | null
           sgt_user_id: string | null
           started_at: string | null
@@ -2197,6 +2200,7 @@ export type Database = {
           stream_status: string | null
           stream_uid: string | null
           tournament_name: string | null
+          trigger_source: string
           updated_at: string
         }
         Insert: {
@@ -2207,9 +2211,12 @@ export type Database = {
           error_message?: string | null
           file_size_bytes?: number | null
           id?: string
+          last_progress_at?: string | null
           mkv_path?: string | null
+          partial?: boolean
           player_name?: string | null
           retention_until?: string | null
+          round_number?: number
           sgt_tournament_id?: string | null
           sgt_user_id?: string | null
           started_at?: string | null
@@ -2219,6 +2226,7 @@ export type Database = {
           stream_status?: string | null
           stream_uid?: string | null
           tournament_name?: string | null
+          trigger_source?: string
           updated_at?: string
         }
         Update: {
@@ -2229,9 +2237,12 @@ export type Database = {
           error_message?: string | null
           file_size_bytes?: number | null
           id?: string
+          last_progress_at?: string | null
           mkv_path?: string | null
+          partial?: boolean
           player_name?: string | null
           retention_until?: string | null
+          round_number?: number
           sgt_tournament_id?: string | null
           sgt_user_id?: string | null
           started_at?: string | null
@@ -2241,6 +2252,7 @@ export type Database = {
           stream_status?: string | null
           stream_uid?: string | null
           tournament_name?: string | null
+          trigger_source?: string
           updated_at?: string
         }
         Relationships: [
