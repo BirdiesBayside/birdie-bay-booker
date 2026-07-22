@@ -164,31 +164,25 @@ export default function AdminTimetable() {
   const timetableRef = useRef<HTMLDivElement>(null);
   const currentTimeIndicatorRef = useRef<HTMLDivElement>(null);
 
-  // Local comp on selected booking's date (for "Add to Comp" button)
-  const [selectedBookingComp, setSelectedBookingComp] = useState<{ id: string; name: string } | null>(null);
+  // Wednesday Ambrose comp eligibility (4-8pm Wed Brisbane) — matches customer prompt logic
   const [togglingComp, setTogglingComp] = useState(false);
 
-  useEffect(() => {
-    setSelectedBookingComp(null);
-    if (!selectedBooking) return;
-    let cancelled = false;
-    (async () => {
-      const { data } = await supabase
-        .from("local_competitions")
-        .select("id, name")
-        .eq("date", selectedBooking.booking_date)
-        .in("status", ["upcoming", "active"])
-        .maybeSingle();
-      if (!cancelled) setSelectedBookingComp(data ?? null);
-    })();
-    return () => { cancelled = true; };
-  }, [selectedBooking?.id, selectedBooking?.booking_date]);
+  const isCompEligible = (() => {
+    if (!selectedBooking) return false;
+    // booking_date is YYYY-MM-DD Brisbane local
+    const [y, m, d] = selectedBooking.booking_date.split("-").map(Number);
+    const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay(); // 3 = Wed
+    if (dow !== 3) return false;
+    const [sh, sm] = selectedBooking.start_time.split(":").map(Number);
+    const startMin = sh * 60 + sm;
+    // Any booking that starts between 4pm-8pm
+    return startMin >= 16 * 60 && startMin < 20 * 60;
+  })();
 
   const toggleCompTag = async () => {
     if (!selectedBooking) return;
     setTogglingComp(true);
-    const compName = selectedBookingComp?.name ?? "Local Comp";
-    const tag = `[COMP] ${compName}`;
+    const tag = `[COMP] Wednesday Ambrose`;
     const current = selectedBooking.notes ?? "";
     const hasTag = current.includes("[COMP]");
     let next: string | null;
@@ -214,6 +208,7 @@ export default function AdminTimetable() {
       description: hasTag ? "Booking will no longer be recorded." : "Session will auto-record if Hub Highlights is on.",
     });
   };
+
 
 
   useEffect(() => {
@@ -1174,7 +1169,7 @@ export default function AdminTimetable() {
                       Send to POS
                     </Button>
                   )}
-                  {selectedBookingComp && (
+                  {isCompEligible && (
                     <Button
                       variant="outline"
                       className="w-full"
@@ -1185,8 +1180,9 @@ export default function AdminTimetable() {
                         C
                       </span>
                       {selectedBooking.notes?.includes("[COMP]")
-                        ? `Remove from ${selectedBookingComp.name}`
-                        : `Add to ${selectedBookingComp.name}`}
+                        ? `Remove from Wednesday Ambrose`
+                        : `Add to Wednesday Ambrose`}
+
                     </Button>
                   )}
                   <Button 
