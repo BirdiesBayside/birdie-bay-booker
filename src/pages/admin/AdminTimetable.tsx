@@ -1174,6 +1174,21 @@ export default function AdminTimetable() {
                       Send to POS
                     </Button>
                   )}
+                  {selectedBookingComp && (
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={toggleCompTag}
+                      disabled={togglingComp}
+                    >
+                      <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-accent text-accent-foreground text-[9px] font-bold mr-2">
+                        C
+                      </span>
+                      {selectedBooking.notes?.includes("[COMP]")
+                        ? `Remove from ${selectedBookingComp.name}`
+                        : `Add to ${selectedBookingComp.name}`}
+                    </Button>
+                  )}
                   <Button 
                     variant="destructive" 
                     className="w-full"
