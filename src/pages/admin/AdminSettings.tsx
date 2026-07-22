@@ -520,7 +520,6 @@ export default function AdminSettings() {
       .from("system_settings")
       .update({
         highlight_recording_enabled: highlightRecordingEnabled,
-        highlight_recording_pilot_bay: highlightPilotBay,
       })
       .eq("id", "global");
 
