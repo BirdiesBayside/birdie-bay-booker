@@ -20,6 +20,7 @@ import { Plus, Calendar, DollarSign, Trophy, Trash2, MapPin, ChevronDown, Chevro
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 import { CourseSelector } from "@/components/admin/sgt/CourseSelector";
+import { HubHighlightsToggle } from "./HubHighlightsToggle";
 
 const TEES_OPTIONS = ["Black", "Blue", "White", "Yellow", "Green", "Red", "Junior", "Par3"] as const;
 const PINS_OPTIONS = ["Thursday", "Friday", "Saturday", "Sunday"] as const;
@@ -185,6 +186,7 @@ export function CompetitionList() {
 
   return (
     <div className="space-y-6">
+      <HubHighlightsToggle />
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">Competitions</h2>
         <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) resetForm(); }}>

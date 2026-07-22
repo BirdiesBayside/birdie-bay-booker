@@ -164,6 +164,58 @@ export default function AdminTimetable() {
   const timetableRef = useRef<HTMLDivElement>(null);
   const currentTimeIndicatorRef = useRef<HTMLDivElement>(null);
 
+  // Local comp on selected booking's date (for "Add to Comp" button)
+  const [selectedBookingComp, setSelectedBookingComp] = useState<{ id: string; name: string } | null>(null);
+  const [togglingComp, setTogglingComp] = useState(false);
+
+  useEffect(() => {
+    setSelectedBookingComp(null);
+    if (!selectedBooking) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("local_competitions")
+        .select("id, name")
+        .eq("date", selectedBooking.booking_date)
+        .in("status", ["upcoming", "active"])
+        .maybeSingle();
+      if (!cancelled) setSelectedBookingComp(data ?? null);
+    })();
+    return () => { cancelled = true; };
+  }, [selectedBooking?.id, selectedBooking?.booking_date]);
+
+  const toggleCompTag = async () => {
+    if (!selectedBooking) return;
+    setTogglingComp(true);
+    const compName = selectedBookingComp?.name ?? "Local Comp";
+    const tag = `[COMP] ${compName}`;
+    const current = selectedBooking.notes ?? "";
+    const hasTag = current.includes("[COMP]");
+    let next: string | null;
+    if (hasTag) {
+      next = current.replace(/\[COMP\][^\n]*/g, "").replace(/\n{2,}/g, "\n").trim();
+      if (!next) next = null;
+    } else {
+      next = current ? `${tag}\n${current}` : tag;
+    }
+    const { error } = await supabase
+      .from("bookings")
+      .update({ notes: next })
+      .eq("id", selectedBooking.id);
+    setTogglingComp(false);
+    if (error) {
+      toast({ title: "Failed", description: error.message, variant: "destructive" });
+      return;
+    }
+    setSelectedBooking({ ...selectedBooking, notes: next });
+    setBookings(prev => prev.map(b => b.id === selectedBooking.id ? { ...b, notes: next } : b));
+    toast({
+      title: hasTag ? "Removed from Comp" : "Added to Comp",
+      description: hasTag ? "Booking will no longer be recorded." : "Session will auto-record if Hub Highlights is on.",
+    });
+  };
+
+
   useEffect(() => {
     if (isAdmin) {
       // Fetch bays and initial bookings in parallel
@@ -1120,6 +1172,21 @@ export default function AdminTimetable() {
                     >
                       <ShoppingCart className="h-4 w-4 mr-2" />
                       Send to POS
+                    </Button>
+                  )}
+                  {selectedBookingComp && (
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={toggleCompTag}
+                      disabled={togglingComp}
+                    >
+                      <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-accent text-accent-foreground text-[9px] font-bold mr-2">
+                        C
+                      </span>
+                      {selectedBooking.notes?.includes("[COMP]")
+                        ? `Remove from ${selectedBookingComp.name}`
+                        : `Add to ${selectedBookingComp.name}`}
                     </Button>
                   )}
                   <Button 

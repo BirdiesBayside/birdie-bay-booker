@@ -1202,6 +1202,7 @@ export type Database = {
           created_at: string
           default_entry_fee: number
           default_format: string
+          hub_highlights_enabled: boolean
           id: string
           updated_at: string
         }
@@ -1209,6 +1210,7 @@ export type Database = {
           created_at?: string
           default_entry_fee?: number
           default_format?: string
+          hub_highlights_enabled?: boolean
           id?: string
           updated_at?: string
         }
@@ -1216,6 +1218,7 @@ export type Database = {
           created_at?: string
           default_entry_fee?: number
           default_format?: string
+          hub_highlights_enabled?: boolean
           id?: string
           updated_at?: string
         }

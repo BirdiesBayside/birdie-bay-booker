@@ -412,7 +412,7 @@ serve(async (req) => {
 
         const { data: booking, error: bookingErr } = await supabase
           .from("bookings")
-          .select("id, user_id, booking_date, start_time, end_time")
+          .select("id, user_id, booking_date, start_time, end_time, notes")
           .eq("id", bookingId)
           .single();
         if (bookingErr) console.error("[should_record] booking lookup error:", bookingErr.message);
@@ -424,30 +424,63 @@ serve(async (req) => {
           .eq("user_id", booking.user_id)
           .maybeSingle();
         if (profErr) console.error("[should_record] profile lookup error:", profErr.message);
-        if (!prof?.sgt_user_id) return jsonResponse({ should_record: false, reason: "not an SGT member" });
 
-        // Any active/current SGT tournament that this user is registered in?
-        const nowIso = new Date().toISOString();
-        const { data: tourney } = await supabase
-          .from("sgt_tournaments")
-          .select("tournament_id, name, start_date, end_date")
-          .lte("start_date", nowIso.slice(0, 10))
-          .gte("end_date", nowIso.slice(0, 10))
-          .order("start_date", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        if (!tourney) return jsonResponse({ should_record: false, reason: "no active tournament" });
+        const playerName = [prof?.first_name, prof?.last_name].filter(Boolean).join(" ").trim() || "Player";
+        const todayIso = new Date().toISOString().slice(0, 10);
 
-        const playerName = [prof.first_name, prof.last_name].filter(Boolean).join(" ").trim() || "Player";
-        return jsonResponse({
-          should_record: true,
-          booking_id: bookingId,
-          sgt_user_id: prof.sgt_user_id,
-          sgt_tournament_id: tourney.tournament_id,
-          player_name: playerName,
-          tournament_name: tourney.name,
-          booking_end_time: `${booking.booking_date}T${booking.end_time}`,
-        });
+        // 1) SGT tournament round takes priority (existing behaviour, hole-tagged).
+        if (prof?.sgt_user_id) {
+          const { data: tourney } = await supabase
+            .from("sgt_tournaments")
+            .select("tournament_id, name, start_date, end_date")
+            .lte("start_date", todayIso)
+            .gte("end_date", todayIso)
+            .order("start_date", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (tourney) {
+            return jsonResponse({
+              should_record: true,
+              booking_id: bookingId,
+              sgt_user_id: prof.sgt_user_id,
+              sgt_tournament_id: tourney.tournament_id,
+              player_name: playerName,
+              tournament_name: tourney.name,
+              booking_end_time: `${booking.booking_date}T${booking.end_time}`,
+            });
+          }
+        }
+
+        // 2) Local Comp round — only if the toggle is on, the booking is tagged
+        //    [COMP], and a local competition exists on the booking's date.
+        if (booking.notes?.includes("[COMP]")) {
+          const { data: compSettings } = await supabase
+            .from("local_comp_settings")
+            .select("hub_highlights_enabled")
+            .limit(1)
+            .maybeSingle();
+          if (compSettings?.hub_highlights_enabled) {
+            const { data: comp } = await supabase
+              .from("local_competitions")
+              .select("id, name, date, status")
+              .eq("date", booking.booking_date)
+              .in("status", ["upcoming", "active"])
+              .maybeSingle();
+            if (comp) {
+              return jsonResponse({
+                should_record: true,
+                booking_id: bookingId,
+                sgt_user_id: null,
+                sgt_tournament_id: null,
+                player_name: playerName,
+                tournament_name: `Local Comp — ${comp.name}`,
+                booking_end_time: `${booking.booking_date}T${booking.end_time}`,
+              });
+            }
+          }
+        }
+
+        return jsonResponse({ should_record: false, reason: "no eligible tournament or comp" });
       }
 
       case "recording_start": {
