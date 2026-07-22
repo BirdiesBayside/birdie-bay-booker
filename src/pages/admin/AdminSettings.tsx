@@ -202,7 +202,6 @@ export default function AdminSettings() {
 
   // League Highlights settings
   const [highlightRecordingEnabled, setHighlightRecordingEnabled] = useState(false);
-  const [highlightPilotBay, setHighlightPilotBay] = useState<number | null>(null);
   const [isSavingHighlights, setIsSavingHighlights] = useState(false);
 
   // Bay device settings (OBS WebSocket per bay)
@@ -229,7 +228,7 @@ export default function AdminSettings() {
     const loadSettings = async () => {
       const { data } = await supabase
         .from("system_settings")
-        .select("timezone, highlight_recording_enabled, highlight_recording_pilot_bay")
+        .select("timezone, highlight_recording_enabled")
         .eq("id", "global")
         .single();
       
@@ -238,9 +237,6 @@ export default function AdminSettings() {
       }
       if (data?.highlight_recording_enabled !== undefined) {
         setHighlightRecordingEnabled(data.highlight_recording_enabled);
-      }
-      if (data?.highlight_recording_pilot_bay !== undefined && data.highlight_recording_pilot_bay !== null) {
-        setHighlightPilotBay(data.highlight_recording_pilot_bay);
       }
       setIsLoadingTimezone(false);
     };
@@ -878,7 +874,7 @@ export default function AdminSettings() {
             <ActivityLog />
 
             {/* Bay Management */}
-            <CollapsibleSection title="Bay Management" description="Control bay availability, League Highlights pilot bay, and per-bay OBS device settings.">
+            <CollapsibleSection title="Bay Management" description="Control bay availability, League Highlights recording, and per-bay OBS device settings.">
               <Card>
                 <CardContent className="space-y-6 pt-6">
                   {/* League Highlights global settings */}
@@ -921,7 +917,6 @@ export default function AdminSettings() {
                         const hasBookings = upcomingBookings.length > 0;
                         const isToggling = togglingBay === bay.id;
                         const device = bayDevices[bay.id];
-                        const isPilotBay = false;
                         const isExpanded = expandedBayDevice === bay.id;
                         const form = bayDeviceForm[bay.id] || { obs_ws_url: "ws://127.0.0.1:4455", obs_ws_password: "" };
 
@@ -938,9 +933,6 @@ export default function AdminSettings() {
                                   <Badge variant={bay.is_active ? "default" : "secondary"}>
                                     {bay.is_active ? "Online" : "Offline"}
                                   </Badge>
-                                  {isPilotBay && highlightRecordingEnabled && (
-                                    <Badge className="bg-orange-500 hover:bg-orange-600 text-white">Pilot</Badge>
-                                  )}
                                   {device?.is_online && (
                                     <Badge variant="outline" className="text-xs">Controller Online</Badge>
                                   )}
