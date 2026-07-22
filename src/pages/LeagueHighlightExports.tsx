@@ -24,6 +24,8 @@ interface Session {
   tournament_name: string | null;
   bay_number: number;
   started_at: string | null;
+  stream_uid: string | null;
+  stream_status: string | null;
 }
 
 function fmtOffset(secs: number): string {
@@ -57,7 +59,7 @@ export default function LeagueHighlightExports() {
     const [{ data: sess }, { data: clipRows }] = await Promise.all([
       supabase
         .from("recording_sessions")
-        .select("id, player_name, tournament_name, bay_number, started_at")
+        .select("id, player_name, tournament_name, bay_number, started_at, stream_uid, stream_status")
         .eq("id", sessionId)
         .maybeSingle(),
       supabase
@@ -120,6 +122,35 @@ export default function LeagueHighlightExports() {
     );
   };
 
+  const downloadFullSession = async () => {
+    if (!sessionId) return;
+    toast({ title: "Preparing full session…", description: "Cloudflare may take a moment on first request." });
+    const { data, error } = await supabase.functions.invoke("session-download-url", {
+      body: { recording_session_id: sessionId },
+    });
+    if (error || !data?.download_url) {
+      toast({
+        title: "Not ready",
+        description: (data as any)?.error || (data as any)?.message || error?.message || "Full session is still processing. Try again shortly.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const filename = `${safe(session?.player_name ?? "session")}-bay${session?.bay_number ?? ""}-${(session?.started_at ?? "").slice(0, 10)}-full.mp4`;
+    const url = new URL(data.download_url);
+    url.searchParams.set("filename", filename);
+    const a = document.createElement("a");
+    a.href = url.toString();
+    a.download = filename;
+    a.rel = "noopener";
+    a.target = "_blank";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  };
+
+  const fullReady = session?.stream_status === "ready" && !!session?.stream_uid;
+
   return (
     <LeagueLayout>
       <div className="flex items-center gap-2 mb-4">
@@ -132,6 +163,17 @@ export default function LeagueHighlightExports() {
         <Button size="sm" variant="ghost" onClick={() => void load()}>
           <RefreshCw className="h-4 w-4 mr-1" />
           Refresh
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          className="ml-auto"
+          onClick={() => void downloadFullSession()}
+          disabled={!fullReady}
+          title={fullReady ? "Download the entire session as MP4" : "Full session is still processing"}
+        >
+          <Film className="h-4 w-4 mr-1" />
+          Download full session
         </Button>
       </div>
       <Card>
