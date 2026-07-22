@@ -305,31 +305,28 @@ export function LeagueHighlights() {
 
   const clearClip = () => { setClipStartState(null); setClipEndState(null); };
 
-  const downloadClip = async () => {
+  const queueClip = async () => {
     if (!activeSession || clipStart == null || clipEnd == null || clipStart >= clipEnd) return;
     setClipLoading(true);
+    const start = clipStart;
+    const end = clipEnd;
     const { data, error } = await supabase.functions.invoke("stream-clip", {
-      body: { recording_session_id: activeSession.session_id, start_seconds: clipStart, end_seconds: clipEnd },
+      body: { recording_session_id: activeSession.session_id, start_seconds: start, end_seconds: end },
     });
-    if (error || !data?.download_url) {
-      setClipLoading(false);
+    setClipLoading(false);
+    if (error || !data?.clip_id) {
       const description = await getFunctionErrorMessage(error, data);
-      toast({ title: "Clip failed", description: description || "no download url", variant: "destructive" });
+      toast({ title: "Clip failed", description: description || "unknown error", variant: "destructive" });
       return;
     }
-    // Build a descriptive filename and pass it via Cloudflare's ?filename= param
-    // so the browser saves it as e.g. daniel-dowling-bay2-2026-07-20-00-01-30_00-02-15.mp4
-    // instead of the generic default.mp4 (which collides on repeat downloads).
-    const safe = (s: string) => s.replace(/[^a-z0-9-]+/gi, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").toLowerCase();
-    const player = safe(activeSession.player_name ?? "clip");
-    const date = (activeSession.started_at ?? "").slice(0, 10);
-    const filename = `${player}-bay${activeSession.bay_number}-${date}-${fmtOffset(clipStart).replace(/:/g, "-")}_${fmtOffset(clipEnd).replace(/:/g, "-")}.mp4`;
-    const url = new URL(data.download_url);
-    url.searchParams.set("filename", filename);
-    window.open(url.toString(), "_blank", "noopener,noreferrer");
-    setClipLoading(false);
-    toast({ title: "Clip ready", description: `Opened as ${filename}` });
+    // Reset markers so staff can immediately mark the next clip while this one processes.
+    clearClip();
+    toast({
+      title: "Clipped",
+      description: `Queued ${fmtOffset(start)}–${fmtOffset(end)} · check Exports when ready.`,
+    });
   };
+
 
   const downloadSession = async (sess: SessionRow) => {
     if (!sess.storage_path) return;
