@@ -479,9 +479,9 @@ export function LeagueHighlights() {
                         <Button size="sm" variant="ghost" onClick={clearClip}><X className="h-4 w-4 mr-1" /> Clear</Button>
                       )}
                       {clipStart != null && clipEnd != null && clipEnd > clipStart && (
-                        <Button size="sm" onClick={downloadClip} disabled={clipLoading}>
-                          {clipLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Download className="h-4 w-4 mr-1" />}
-                          Download clip ({fmtOffset(clipEnd - clipStart)})
+                        <Button size="sm" onClick={queueClip} disabled={clipLoading}>
+                          {clipLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Scissors className="h-4 w-4 mr-1" />}
+                          Clip ({fmtOffset(clipEnd - clipStart)})
                         </Button>
                       )}
                     </div>
