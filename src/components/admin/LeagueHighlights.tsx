@@ -225,11 +225,10 @@ export function LeagueHighlights() {
   const saveConfig = async (nextEnabled: boolean, nextBay: number | null, nextRetention: number = retentionDays) => {
     const { error } = await supabase.from("system_settings").update({
       highlight_recording_enabled: nextEnabled,
-      highlight_recording_pilot_bay: nextBay,
       highlight_retention_days: nextRetention,
     }).eq("id", "global");
     if (error) { toast({ title: "Save failed", description: error.message, variant: "destructive" }); return; }
-    toast({ title: "Saved", description: `Recording ${nextEnabled ? "enabled" : "disabled"}${nextBay ? ` on Bay ${nextBay}` : ""} · keep ${nextRetention}d.` });
+    toast({ title: "Saved", description: `Recording ${nextEnabled ? "enabled on all bays" : "disabled"} · keep ${nextRetention}d.` });
   };
 
   const applyRetentionToExisting = async () => {
