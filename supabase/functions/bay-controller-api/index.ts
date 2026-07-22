@@ -560,15 +560,17 @@ serve(async (req) => {
       }
 
       case "recording_stop": {
-        const b = body as { recording_session_id?: string; ended_at?: string; file_size_bytes?: number; status?: string; error_message?: string } | null;
+        const b = body as { recording_session_id?: string; ended_at?: string; file_size_bytes?: number; status?: string; error_message?: string; mkv_path?: string } | null;
         if (!b?.recording_session_id) return jsonResponse({ error: "recording_session_id required" }, 400);
-        const { error } = await supabase.from("recording_sessions").update({
+        const update: Record<string, unknown> = {
           ended_at: b.ended_at ?? new Date().toISOString(),
           file_size_bytes: b.file_size_bytes ?? null,
           status: b.status ?? "pending_split",
           error_message: b.error_message ?? null,
           updated_at: new Date().toISOString(),
-        }).eq("id", b.recording_session_id);
+        };
+        if (b.mkv_path) update.mkv_path = b.mkv_path;
+        const { error } = await supabase.from("recording_sessions").update(update).eq("id", b.recording_session_id);
         if (error) return jsonResponse({ error: error.message }, 500);
         return jsonResponse({ ok: true });
       }
