@@ -185,6 +185,7 @@ export function CompetitionList() {
 
   return (
     <div className="space-y-6">
+      <HubHighlightsToggle />
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold">Competitions</h2>
         <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) resetForm(); }}>
