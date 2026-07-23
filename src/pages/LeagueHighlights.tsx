@@ -16,6 +16,8 @@ interface SessionRow {
   started_at: string | null;
   ended_at: string | null;
   status: string;
+  round_number: number | null;
+  trigger_source: string | null;
   clip_count: number;
 }
 
