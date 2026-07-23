@@ -121,8 +121,8 @@ export default function AdminHighlightReview() {
     <AdminLayout>
       <div className="p-4 md:p-6 space-y-4">
         <div className="flex items-center justify-between gap-2 flex-wrap">
-          <Button size="sm" variant="ghost" onClick={() => navigate(-1)}>
-            <ArrowLeft className="h-4 w-4 mr-1" /> Back
+          <Button size="sm" variant="ghost" onClick={() => navigate("/admin/sgt-manager?tab=highlights")}>
+            <ArrowLeft className="h-4 w-4 mr-1" /> Back to SGT Manager
           </Button>
           {sessionId && (
             <Button asChild size="sm" variant="outline">
