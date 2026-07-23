@@ -266,34 +266,6 @@ export function LeagueHighlights() {
     }
   };
 
-  const openSession = async (sess: SessionRow) => {
-    const url = await ensureStream(sess);
-    if (!url) return;
-    setActiveSession(sess);
-    setVideoUrl(url);
-  };
-
-  const setClipStart = () => { if (videoRef.current) setClipStartState(videoRef.current.currentTime); };
-  const setClipEnd = () => { if (videoRef.current) setClipEndState(videoRef.current.currentTime); };
-  const clearClip = () => { setClipStartState(null); setClipEndState(null); };
-
-  const queueClip = async () => {
-    if (!activeSession || clipStart == null || clipEnd == null || clipStart >= clipEnd) return;
-    setClipLoading(true);
-    const start = clipStart;
-    const end = clipEnd;
-    const { data, error } = await supabase.functions.invoke("stream-clip", {
-      body: { recording_session_id: activeSession.session_id, start_seconds: start, end_seconds: end },
-    });
-    setClipLoading(false);
-    if (error || !data?.clip_id) {
-      const description = await getFunctionErrorMessage(error, data);
-      toast({ title: "Clip failed", description: description || "unknown error", variant: "destructive" });
-      return;
-    }
-    clearClip();
-    toast({ title: "Clipped", description: `Queued ${fmtOffset(start)}–${fmtOffset(end)} · check Exports when ready.` });
-  };
 
   const downloadSession = async (sess: SessionRow) => {
     if (!sess.storage_path) return;
