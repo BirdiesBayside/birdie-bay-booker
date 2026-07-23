@@ -1847,27 +1847,11 @@ export default function BayController() {
               console.log(`[Changeover] Step 2: Apps not running, skipping close`);
             }
 
-            // Step 2b: Pin-and-sync OUTGOING customer's CSVs/settings BEFORE we touch the bay for the next customer.
-            // This makes the changeover itself the trigger — no dependency on process-close race timing.
-            if (activeBooking?.user_id) {
-              const outgoingStartMs = activeBooking.booking_date && activeBooking.start_time
-                ? new Date(`${activeBooking.booking_date}T${activeBooking.start_time}`).getTime()
-                : null;
-              try {
-                bayLogger.sendLog('automation_decision', '[Changeover Step 2b] Running outgoing-customer sync', { bookingId: activeBooking.id });
-                await runSwingLabCloseSync('changeover step 2b (outgoing customer)', {
-                  userId: activeBooking.user_id,
-                  bookingId: activeBooking.id,
-                  bookingStartMs: outgoingStartMs,
-                });
-              } catch (e) {
-                console.error('[Changeover Step 2b] Outgoing sync failed:', e);
-                bayLogger.logError('[Changeover Step 2b] Outgoing sync failed', e, activeBooking.id);
-              }
-            }
+            // NOTE: Outgoing customer's snapshot was already captured at their
+            // T-3min-before-end timer. No sync needed at changeover time.
 
-            
-            // Step 3: Wait a moment for baseline restore to complete, then relaunch apps
+
+            // Step 3: Wait a moment for close to settle, then relaunch apps
             setTimeout(async () => {
               console.log(`[Changeover] Step 3: Relaunching apps behind welcome screen`);
               bayLogger.sendLog('automation_decision', '[Changeover Step 3] Relaunching apps', { bookingId: activeBooking.id });
@@ -1879,28 +1863,59 @@ export default function BayController() {
                 try {
                   console.log(`[Changeover] Launching apps with display labels: GSPro="${appLaunchConfig.gsproDisplayLabel}", Protee="${appLaunchConfig.proteeDisplayLabel}"`);
 
-                  // Restore next customer's saved GSPro settings (SGT login, prefs) if they have any.
-                  if (nextBooking.user_id) {
-                    try {
-                      bayLogger.sendLog('automation_decision', `[Changeover Settings] Restoring snapshot for user ${nextBooking.user_id}`, { bookingId: nextBooking.id });
-                      const restored = await restoreUserGsproSettings(nextBooking.user_id, {
-                        bayNumber: selectedBay,
-                        bookingId: nextBooking.id,
-                        appVersion,
-                      });
-                      if (restored.restored.length) {
-                        const msg = `[Changeover Settings] Restored ${firstName}'s GSPro snapshot: ${restored.restored.join(', ')}`;
-                        addLog(msg, 'info');
-                        bayLogger.sendLog('automation_decision', msg, { bookingId: nextBooking.id });
-                      } else {
-                        const msg = `[Changeover Settings] No snapshot restored${restored.error ? ` (error: ${restored.error})` : ''}${restored.missing.length ? ` — missing: ${restored.missing.join(', ')}` : ''}`;
-                        addLog(msg, 'info');
-                        bayLogger.sendLog('automation_decision', msg, { bookingId: nextBooking.id, level: restored.error ? 'warning' : 'info' });
+                  // App Restore chain for INCOMING customer (gated by master toggle).
+                  // Snapshot first; fall back to baseline if none exists.
+                  try {
+                    const cfg = await window.electronAPI.getBaselineConfig();
+                    if (!cfg?.enabled) {
+                      addLog('[Changeover Settings] App Restore disabled — skipping', 'info');
+                      bayLogger.sendLog('automation_decision', '[Changeover Settings] App Restore disabled — skipping', { bookingId: nextBooking.id });
+                    } else {
+                      let restoredCount = 0;
+                      if (nextBooking.user_id) {
+                        try {
+                          bayLogger.sendLog('automation_decision', `[Changeover Settings] Restoring snapshot for user ${nextBooking.user_id}`, { bookingId: nextBooking.id });
+                          const restored = await restoreUserGsproSettings(nextBooking.user_id, {
+                            bayNumber: selectedBay,
+                            bookingId: nextBooking.id,
+                            appVersion,
+                          });
+                          restoredCount = restored.restored.length;
+                          if (restoredCount) {
+                            const msg = `[Changeover Settings] Restored ${firstName}'s GSPro snapshot: ${restored.restored.join(', ')}`;
+                            addLog(msg, 'info');
+                            bayLogger.sendLog('automation_decision', msg, { bookingId: nextBooking.id });
+                          } else {
+                            const msg = `[Changeover Settings] No snapshot for ${firstName}${restored.error ? ` (error: ${restored.error})` : ''} — falling back to baseline`;
+                            addLog(msg, 'info');
+                            bayLogger.sendLog('automation_decision', msg, { bookingId: nextBooking.id, level: restored.error ? 'warning' : 'info' });
+                          }
+                        } catch (e) {
+                          console.error('[Changeover] restoreUserGsproSettings failed:', e);
+                          bayLogger.logError('[Changeover Settings] Restore exception — will fall back to baseline', e, nextBooking.id);
+                        }
                       }
-                    } catch (e) {
-                      console.error('[Changeover] restoreUserGsproSettings failed:', e);
-                      bayLogger.logError('[Changeover Settings] Restore exception', e, nextBooking.id);
+
+                      if (restoredCount === 0) {
+                        try {
+                          const baseline = await window.electronAPI.restoreBaselineNow();
+                          if (baseline?.success) {
+                            const ok = (baseline.results || []).filter((r: any) => r.success).map((r: any) => r.file);
+                            const msg = ok.length
+                              ? `[Changeover Settings] Applied baseline fallback: ${ok.join(', ')}`
+                              : `[Changeover Settings] Baseline fallback returned no files`;
+                            addLog(msg, 'info');
+                            bayLogger.sendLog('automation_decision', msg, { bookingId: nextBooking.id });
+                          }
+                        } catch (e) {
+                          console.error('[Changeover] baseline fallback failed:', e);
+                          bayLogger.logError('[Changeover Settings] Baseline fallback exception', e, nextBooking.id);
+                        }
+                      }
                     }
+                  } catch (e) {
+                    console.error('[Changeover] App Restore chain failed:', e);
+                    bayLogger.logError('[Changeover Settings] App Restore chain exception', e, nextBooking.id);
                   }
 
 
