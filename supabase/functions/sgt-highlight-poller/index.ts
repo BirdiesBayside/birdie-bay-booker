@@ -466,17 +466,8 @@ Deno.serve(async (req) => {
         }
       } else {
         if (state && !state.finished && state.hole && state.hole >= 1) {
-          // Ask SGT how many rounds this player has already finished so we
-          // record the correct round number (previous days count toward it).
-          let roundNumber = (sessionCountByBooking.get(booking.id) ?? 0) + 1;
-          const apiKey = await getSgtApiKey(supabase);
-          if (apiKey) {
-            try {
-              roundNumber = await determineCurrentRound(apiKey, tournId, sgtUserIdNum);
-            } catch (e) {
-              console.warn("[poller] round detection failed, falling back to session count:", (e as Error).message);
-            }
-          }
+          // Round number comes straight from the embed column (RD 1 / RD 2 / ...).
+          const roundNumber = state.round;
           const newId = await issueStart({
             booking_id: booking.id,
             bay_number: bayNumber,
