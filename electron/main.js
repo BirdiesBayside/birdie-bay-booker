@@ -3756,51 +3756,21 @@ ipcMain.handle('capture-user-settings-snapshot', async (_e, { userId } = {}) => 
 ipcMain.handle('read-gspro-user-settings', async () => {
   try {
     if (!baselineConfig.gsproFolderPath) return { success: false, error: 'GSPro folder not configured' };
-    const crypto = require('crypto');
-    const baselinePath = getBaselineStoragePath();
     const sessionSnap = sessionSettingsSnapshots.get(baselineConfig.gsproFolderPath) || null;
     const files = {};
-    const skipped = [];
+    // Always return every file that exists on disk. No hash-comparison, no skip
+    // logic — the caller wants the customer's LATEST bytes every time so that
+    // even a "no-change" session refreshes their stored snapshot.
     for (const name of USER_SETTINGS_FILES) {
       const p = path.join(baselineConfig.gsproFolderPath, name);
       if (!fs.existsSync(p)) continue;
       const buf = fs.readFileSync(p);
-      const curHash = crypto.createHash('sha256').update(buf).digest('hex');
-
-      // Preferred path: compare against the session-start snapshot for the
-      // user we restored files for. Identical hash = user saved nothing.
-      if (sessionSnap && sessionSnap.hashes[name]) {
-        if (sessionSnap.hashes[name] === curHash) {
-          skipped.push(name);
-          console.log(`[Settings] Skip ${name} — identical to session-start snapshot for user ${sessionSnap.userId}`);
-          continue;
-        }
-        files[name] = buf.toString('base64');
-        continue;
-      }
-
-      // Fallback: no session snapshot (e.g. controller restart mid-session).
-      // Compare to baseline; skip if identical (user never saved).
-      const baselineFile = path.join(baselinePath, name);
-      if (fs.existsSync(baselineFile)) {
-        try {
-          const baselineBuf = fs.readFileSync(baselineFile);
-          const baseHash = crypto.createHash('sha256').update(baselineBuf).digest('hex');
-          if (curHash === baseHash) {
-            skipped.push(name);
-            console.log(`[Settings] Skip ${name} — identical to baseline (fallback path)`);
-            continue;
-          }
-        } catch (e) {
-          console.warn(`[Settings] Baseline hash compare failed for ${name}:`, e.message);
-        }
-      }
       files[name] = buf.toString('base64');
     }
     return {
       success: true,
       files,
-      skipped,
+      skipped: [],
       restoredForUserId: sessionSnap?.userId ?? null,
       snapshotCapturedAt: sessionSnap?.capturedAt ?? null,
     };
