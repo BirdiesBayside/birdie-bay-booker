@@ -145,23 +145,6 @@ async function fetchScorecardForPlayer(
   return all.find((sc) => Number(sc.round ?? 1) === Number(roundNumber)) ?? null;
 }
 
-// Determine which round the player is currently on by counting finished rounds
-// already recorded in SGT. A round is "finished" when activeHole >= 19 or
-// total_gross > 0 with all 18 hole scores present. Next round = finished + 1.
-async function determineCurrentRound(
-  apiKey: string,
-  tournamentId: string,
-  playerId: number,
-): Promise<number> {
-  const all = await fetchAllScorecardsForPlayer(apiKey, tournamentId, playerId);
-  let finished = 0;
-  for (const sc of all) {
-    const activeHole = Number(sc.activeHole ?? 0);
-    const totalGross = Number(sc.total_gross ?? 0);
-    if (activeHole >= 19 || totalGross > 0) finished += 1;
-  }
-  return finished + 1;
-}
 
 function shapeScorecard(sc: Record<string, unknown>) {
   const holeData: Record<string, unknown> = {};
