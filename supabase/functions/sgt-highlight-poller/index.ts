@@ -54,8 +54,11 @@ async function fetchEmbedHtml(tournamentId: string): Promise<string | null> {
   }
 }
 
-function parseEmbed(html: string): Map<string, { hole: number | null; finished: boolean }> {
-  const out = new Map<string, { hole: number | null; finished: boolean }>();
+// Parse each player row's RD 1 / RD 2 / ... cells (in order). The player's
+// current round = 1-based index of the LAST non-empty round cell. `finished`
+// is true when that cell shows F. `hole` is the current hole if in progress.
+function parseEmbed(html: string): Map<string, { hole: number | null; finished: boolean; round: number }> {
+  const out = new Map<string, { hole: number | null; finished: boolean; round: number }>();
   const rowRegex = /<tr\s+data-player-name='([^']+)'>([\s\S]*?)<\/tr>/g;
   let m: RegExpExecArray | null;
   while ((m = rowRegex.exec(html)) !== null) {
@@ -63,14 +66,16 @@ function parseEmbed(html: string): Map<string, { hole: number | null; finished: 
     const rowHtml = m[2];
     const cellRegex = /<td[^>]*class='[^']*\bround\b[^']*'[^>]*>([\s\S]*?)<\/td>/g;
     let c: RegExpExecArray | null;
-    let latest: { hole: number | null; finished: boolean } | null = null;
+    let idx = 0;
+    let latest: { hole: number | null; finished: boolean; round: number } | null = null;
     while ((c = cellRegex.exec(rowHtml)) !== null) {
+      idx += 1;
       const cellText = c[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
       if (!cellText) continue;
-      if (/\bF\b/.test(cellText)) latest = { hole: null, finished: true };
+      if (/\bF\b/.test(cellText)) latest = { hole: null, finished: true, round: idx };
       else {
         const paren = cellText.match(/\((\d+)\)/);
-        if (paren) latest = { hole: Number(paren[1]), finished: false };
+        if (paren) latest = { hole: Number(paren[1]), finished: false, round: idx };
       }
     }
     if (latest) out.set(playerName, latest);
@@ -140,23 +145,6 @@ async function fetchScorecardForPlayer(
   return all.find((sc) => Number(sc.round ?? 1) === Number(roundNumber)) ?? null;
 }
 
-// Determine which round the player is currently on by counting finished rounds
-// already recorded in SGT. A round is "finished" when activeHole >= 19 or
-// total_gross > 0 with all 18 hole scores present. Next round = finished + 1.
-async function determineCurrentRound(
-  apiKey: string,
-  tournamentId: string,
-  playerId: number,
-): Promise<number> {
-  const all = await fetchAllScorecardsForPlayer(apiKey, tournamentId, playerId);
-  let finished = 0;
-  for (const sc of all) {
-    const activeHole = Number(sc.activeHole ?? 0);
-    const totalGross = Number(sc.total_gross ?? 0);
-    if (activeHole >= 19 || totalGross > 0) finished += 1;
-  }
-  return finished + 1;
-}
 
 function shapeScorecard(sc: Record<string, unknown>) {
   const holeData: Record<string, unknown> = {};
@@ -461,17 +449,8 @@ Deno.serve(async (req) => {
         }
       } else {
         if (state && !state.finished && state.hole && state.hole >= 1) {
-          // Ask SGT how many rounds this player has already finished so we
-          // record the correct round number (previous days count toward it).
-          let roundNumber = (sessionCountByBooking.get(booking.id) ?? 0) + 1;
-          const apiKey = await getSgtApiKey(supabase);
-          if (apiKey) {
-            try {
-              roundNumber = await determineCurrentRound(apiKey, tournId, sgtUserIdNum);
-            } catch (e) {
-              console.warn("[poller] round detection failed, falling back to session count:", (e as Error).message);
-            }
-          }
+          // Round number comes straight from the embed column (RD 1 / RD 2 / ...).
+          const roundNumber = state.round;
           const newId = await issueStart({
             booking_id: booking.id,
             bay_number: bayNumber,
