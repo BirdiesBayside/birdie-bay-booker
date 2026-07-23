@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import Hls from "hls.js";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,11 +9,11 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { Download, FolderOpen, Loader2, Play, Scissors, Trash2, Video, X } from "lucide-react";
+import { Download, FolderOpen, Loader2, Play, Trash2 } from "lucide-react";
 
 interface Bay { id: string; bay_number: number; name: string | null }
 
-interface Scorecard {
+export interface Scorecard {
   player_name?: string | null;
   hcp_index?: number | null;
   round?: number | null;
@@ -44,7 +43,7 @@ interface SessionRow {
   scorecard: Scorecard | null;
 }
 
-function fmtOffset(secs: number | null): string {
+export function fmtOffset(secs: number | null): string {
   if (secs == null || !Number.isFinite(secs) || secs < 0) return "--:--";
   const s = Math.floor(secs);
   const h = Math.floor(s / 3600);
@@ -71,7 +70,7 @@ function fmtToPar(n: number | null | undefined): string {
   return n > 0 ? `+${n}` : String(n);
 }
 
-async function getFunctionErrorMessage(error: any, data?: any): Promise<string> {
+export async function getFunctionErrorMessage(error: any, data?: any): Promise<string> {
   if (data?.error) return String(data.error);
   const fallback = error?.message ?? "unknown";
   const response = error?.context;
@@ -93,7 +92,7 @@ async function getFunctionErrorMessage(error: any, data?: any): Promise<string> 
   return fallback;
 }
 
-function ScorecardGrid({ scorecard }: { scorecard: Scorecard }) {
+export function ScorecardGrid({ scorecard }: { scorecard: Scorecard }) {
   const holes = Array.from({ length: 18 }, (_, i) => i + 1);
   const hd = scorecard.hole_data ?? {};
   const getPar = (h: number) => (hd[`h${h}_Par`] as number) ?? null;
@@ -156,30 +155,9 @@ export function LeagueHighlights() {
   const [enabled, setEnabled] = useState(false);
   const [retentionDays, setRetentionDays] = useState<number>(14);
   const [sessions, setSessions] = useState<SessionRow[]>([]);
-  const [videoUrl, setVideoUrl] = useState<string | null>(null);
-  const [activeSession, setActiveSession] = useState<SessionRow | null>(null);
   const [streamBusyIds, setStreamBusyIds] = useState<Set<string>>(new Set());
   const autoKickedRef = useRef<Set<string>>(new Set());
-  const [clipStart, setClipStartState] = useState<number | null>(null);
-  const [clipEnd, setClipEndState] = useState<number | null>(null);
-  const [clipLoading, setClipLoading] = useState(false);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const hlsRef = useRef<Hls | null>(null);
 
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !videoUrl) return;
-    if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
-    if (video.canPlayType("application/vnd.apple.mpegurl")) {
-      video.src = videoUrl;
-    } else if (Hls.isSupported()) {
-      const hls = new Hls({ maxBufferLength: 60, maxMaxBufferLength: 120 });
-      hls.loadSource(videoUrl);
-      hls.attachMedia(video);
-      hlsRef.current = hls;
-    }
-    return () => { hlsRef.current?.destroy(); hlsRef.current = null; };
-  }, [videoUrl]);
 
   const load = async (silent = false) => {
     if (!silent) setLoading(true);
@@ -227,12 +205,6 @@ export function LeagueHighlights() {
     return () => clearInterval(interval);
   }, []);
 
-  // Keep activeSession in sync with fresh scorecard/stream data after each reload.
-  useEffect(() => {
-    if (!activeSession) return;
-    const fresh = sessions.find((s) => s.session_id === activeSession.session_id);
-    if (fresh && fresh !== activeSession) setActiveSession(fresh);
-  }, [sessions, activeSession]);
 
   useEffect(() => {
     for (const sess of sessions) {
@@ -294,34 +266,6 @@ export function LeagueHighlights() {
     }
   };
 
-  const openSession = async (sess: SessionRow) => {
-    const url = await ensureStream(sess);
-    if (!url) return;
-    setActiveSession(sess);
-    setVideoUrl(url);
-  };
-
-  const setClipStart = () => { if (videoRef.current) setClipStartState(videoRef.current.currentTime); };
-  const setClipEnd = () => { if (videoRef.current) setClipEndState(videoRef.current.currentTime); };
-  const clearClip = () => { setClipStartState(null); setClipEndState(null); };
-
-  const queueClip = async () => {
-    if (!activeSession || clipStart == null || clipEnd == null || clipStart >= clipEnd) return;
-    setClipLoading(true);
-    const start = clipStart;
-    const end = clipEnd;
-    const { data, error } = await supabase.functions.invoke("stream-clip", {
-      body: { recording_session_id: activeSession.session_id, start_seconds: start, end_seconds: end },
-    });
-    setClipLoading(false);
-    if (error || !data?.clip_id) {
-      const description = await getFunctionErrorMessage(error, data);
-      toast({ title: "Clip failed", description: description || "unknown error", variant: "destructive" });
-      return;
-    }
-    clearClip();
-    toast({ title: "Clipped", description: `Queued ${fmtOffset(start)}–${fmtOffset(end)} · check Exports when ready.` });
-  };
 
   const downloadSession = async (sess: SessionRow) => {
     if (!sess.storage_path) return;
@@ -347,7 +291,7 @@ export function LeagueHighlights() {
     else { toast({ title: "Dismissed" }); void load(); }
   };
 
-  const closeModal = () => { setVideoUrl(null); setActiveSession(null); clearClip(); };
+  
 
   const countHighlights = (sc: Scorecard | null): number => {
     if (!sc?.hole_data) return 0;
@@ -433,9 +377,9 @@ export function LeagueHighlights() {
                        {sess.stream_error && <p className="text-xs text-destructive mt-2 break-words">{sess.stream_error}</p>}
                      </div>
                      <div className="flex gap-2 flex-wrap md:flex-nowrap md:shrink-0">
-                       <Button size="sm" variant="outline" onClick={() => openSession(sess)} disabled={streamBusyIds.has(sess.session_id)}>
-                         {streamBusyIds.has(sess.session_id) ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Play className="h-4 w-4 mr-1" />}Open
-                       </Button>
+                        <Button asChild size="sm" variant="outline">
+                          <Link to={`/admin/highlights/${sess.session_id}/review`}><Play className="h-4 w-4 mr-1" />Open</Link>
+                        </Button>
                        <Button size="sm" variant="outline" onClick={() => downloadSession(sess)} disabled={!sess.storage_path}><Download className="h-4 w-4 mr-1" />Download</Button>
                        <Button asChild size="sm" variant="outline">
                          <Link to={`/admin/highlights/${sess.session_id}/exports`}><FolderOpen className="h-4 w-4 mr-1" />Exports</Link>
@@ -450,71 +394,6 @@ export function LeagueHighlights() {
         </CardContent>
       </Card>
 
-      {activeSession && (
-        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={closeModal}>
-          <div className="bg-background rounded-lg max-w-6xl w-full max-h-[95vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
-            <div className="p-4 flex items-center justify-between border-b">
-              <div className="flex items-center gap-2">
-                <Video className="h-4 w-4" />
-                <span className="font-semibold">
-                  {activeSession.player_name} — {activeSession.tournament_name}{activeSession.round_number ? ` — Round ${activeSession.round_number}` : ""}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button asChild size="sm" variant="outline"><Link to={`/admin/highlights/${activeSession.session_id}/exports`}><FolderOpen className="h-4 w-4 mr-1" />Exports</Link></Button>
-                <Button size="sm" variant="ghost" onClick={closeModal}>Close</Button>
-              </div>
-            </div>
-            <div className="flex flex-col md:flex-row min-h-0 flex-1">
-              <div className="flex-1 bg-black flex flex-col">
-                <div className="flex-1 flex items-center justify-center">
-                  {videoUrl ? (
-                    <video ref={videoRef} controls autoPlay playsInline className="max-w-full max-h-[60vh] md:max-h-[70vh]" />
-                  ) : (
-                    <div className="text-white p-8"><Loader2 className="animate-spin inline mr-2" /> Preparing stream…</div>
-                  )}
-                </div>
-                {videoUrl && (
-                  <div className="p-3 border-t bg-background space-y-3">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <Button size="sm" variant={clipStart != null ? "default" : "outline"} onClick={setClipStart}>
-                        <Scissors className="h-4 w-4 mr-1" /> Start clip {clipStart != null && <span className="ml-1 font-mono">({fmtOffset(clipStart)})</span>}
-                      </Button>
-                      <Button size="sm" variant={clipEnd != null ? "default" : "outline"} onClick={setClipEnd}>
-                        Stop clip {clipEnd != null && <span className="ml-1 font-mono">({fmtOffset(clipEnd)})</span>}
-                      </Button>
-                      {(clipStart != null || clipEnd != null) && (
-                        <Button size="sm" variant="ghost" onClick={clearClip}><X className="h-4 w-4 mr-1" /> Clear</Button>
-                      )}
-                      {clipStart != null && clipEnd != null && clipEnd > clipStart && (
-                        <Button size="sm" onClick={queueClip} disabled={clipLoading}>
-                          {clipLoading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Scissors className="h-4 w-4 mr-1" />}
-                          Clip ({fmtOffset(clipEnd - clipStart)})
-                        </Button>
-                      )}
-                    </div>
-                    {clipStart != null && clipEnd != null && (
-                      <div className="text-sm text-muted-foreground">
-                        Clip: <span className="font-mono">{fmtOffset(clipStart)}</span> → <span className="font-mono">{fmtOffset(clipEnd)}</span> · Duration <span className="font-mono">{fmtOffset(Math.max(0, clipEnd - clipStart))}</span>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-              <div className="w-full md:w-[420px] border-l overflow-y-auto p-4">
-                <div className="text-xs font-semibold text-muted-foreground uppercase mb-3">Scorecard</div>
-                {activeSession.scorecard ? (
-                  <ScorecardGrid scorecard={activeSession.scorecard} />
-                ) : (
-                  <div className="text-sm text-muted-foreground">
-                    Scorecard will appear here once the round is finished and pulled from SGT.
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
