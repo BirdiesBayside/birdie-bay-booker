@@ -187,14 +187,15 @@ export function AppRestoreSettings({ isElectron }: AppRestoreSettingsProps) {
         </Badge>
       </div>
 
-      {/* Enable/Disable */}
+      {/* Master enable toggle */}
       <div className="flex items-center justify-between">
         <div>
-          <Label>Auto-Restore Baseline on GSPro Close</Label>
+          <Label>Enable App Restore</Label>
           <p className="text-xs text-muted-foreground">
-            Safety-net: re-apply the shared baseline whenever GSPro exits.
-            (The baseline is also applied automatically before every launch —
-            this toggle only controls the extra close-time sweep.)
+            Restores each customer's own GSPro settings before launch (or the
+            baseline files below as a fallback), and re-captures their latest
+            settings 3 minutes before their session ends. Nothing runs when
+            this is off.
           </p>
         </div>
         <Switch
@@ -206,7 +207,7 @@ export function AppRestoreSettings({ isElectron }: AppRestoreSettingsProps) {
       {config?.isWatching && (
         <div className="flex items-center gap-2 text-sm text-green-600 bg-green-500/10 p-2 rounded">
           <Check className="h-4 w-4" />
-          Process watcher active - monitoring GSPro
+          GSPro process watcher active
         </div>
       )}
 
