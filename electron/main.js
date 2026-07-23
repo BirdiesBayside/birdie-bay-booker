@@ -3937,14 +3937,38 @@ ipcMain.handle('obs-stop-recording', async () => {
       return { success: false, error: 'OBS not connected' };
     }
     const res = await obsController.stopRecording();
-    // v5 protocol returns outputPath in responseData
-    const filePath = res?.outputPath || null;
+    // v5 protocol returns outputPath in responseData (the .mkv OBS wrote)
+    const mkvPath = res?.outputPath || null;
+
+    // Prefer the auto-remuxed .mp4 sibling if OBS produced one
+    // (Settings → Advanced → "Automatically remux recordings to MP4").
+    // Poll for up to 20s while the remux finishes writing.
+    let filePath = mkvPath;
+    if (mkvPath && mkvPath.toLowerCase().endsWith('.mkv')) {
+      const mp4Candidate = mkvPath.slice(0, -4) + '.mp4';
+      const deadline = Date.now() + 20000;
+      while (Date.now() < deadline) {
+        if (fs.existsSync(mp4Candidate)) {
+          try {
+            const s1 = fs.statSync(mp4Candidate).size;
+            await new Promise((r) => setTimeout(r, 750));
+            const s2 = fs.statSync(mp4Candidate).size;
+            if (s1 > 0 && s1 === s2) { filePath = mp4Candidate; break; }
+          } catch {}
+        }
+        await new Promise((r) => setTimeout(r, 500));
+      }
+      if (filePath !== mp4Candidate) {
+        console.warn('[OBS] MP4 remux not detected in 20s, uploading MKV fallback');
+      }
+    }
+
     let sizeBytes = null;
     if (filePath && fs.existsSync(filePath)) {
       try { sizeBytes = fs.statSync(filePath).size; } catch {}
     }
     console.log(`[OBS] Recording stopped: ${filePath} (${sizeBytes} bytes)`);
-    return { success: true, filePath, sizeBytes };
+    return { success: true, filePath, sizeBytes, mkvPath };
   } catch (e) {
     console.error('[OBS] stop failed:', e.message);
     return { success: false, error: e.message };
@@ -3985,10 +4009,12 @@ ipcMain.handle('obs-upload-file', async (_e, { filePath, signedUrl, contentType 
     if (!signedUrl) return { success: false, error: 'Missing signedUrl' };
     const stat = fs.statSync(filePath);
     const buf = fs.readFileSync(filePath);
+    const isMp4 = filePath.toLowerCase().endsWith('.mp4');
+    const resolvedType = contentType || (isMp4 ? 'video/mp4' : 'video/x-matroska');
     const resp = await fetch(signedUrl, {
       method: 'PUT',
       headers: {
-        'Content-Type': contentType || 'video/x-matroska',
+        'Content-Type': resolvedType,
         'Content-Length': String(stat.size),
       },
       body: buf,

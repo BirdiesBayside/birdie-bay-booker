@@ -12,11 +12,17 @@ RTX 5070).
 ## 2. Configure OBS
 - **Settings → Output**:
   - Output Mode: `Advanced`
-  - Recording Format: `mkv`
+  - Recording Format: `mkv` (crash-safe; auto-remuxed to MP4 on stop)
   - Encoder: `NVIDIA NVENC HEVC` (or H.264 if HEVC unavailable)
   - Rate Control: `CQP`, CQ Level 28
   - Preset: `P4 - Balanced`
   - Recording Path: `C:\BirdiesRecordings`
+- **Settings → Advanced → Recording**:
+  - Enable **"Automatically remux recordings to MP4"** — the Bay
+    Controller uploads the resulting `.mp4` directly to Cloudflare Stream
+    so clips can be trimmed in the Hub without a server-side remux step.
+    If the remux hasn't finished within 20s of stopping, the controller
+    falls back to uploading the `.mkv`.
 - **Settings → Video**:
   - Base + Output Resolution: `1920x1080`
   - FPS: `30`

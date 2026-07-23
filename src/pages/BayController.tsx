@@ -1386,14 +1386,18 @@ export default function BayController() {
                   body: { recording_session_id: sessionId, status: 'error', error_message: stopRes?.error ?? 'no file' },
                 });
               } else {
-                const filename = `session-${sessionId}.mkv`;
+                // Prefer .mp4 (OBS auto-remuxed) so Cloudflare Stream can ingest directly.
+                const isMp4 = typeof stopRes.filePath === 'string' && stopRes.filePath.toLowerCase().endsWith('.mp4');
+                const ext = isMp4 ? 'mp4' : 'mkv';
+                const contentType = isMp4 ? 'video/mp4' : 'video/x-matroska';
+                const filename = `session-${sessionId}.${ext}`;
                 const { data: urlData } = await supabase.functions.invoke('bay-controller-api', {
                   headers: { 'x-bay-number': selectedBay.toString(), 'x-action': 'recording_upload_url' },
                   body: { recording_session_id: sessionId, hole_number: 0, filename },
                 });
                 if (urlData?.signed_url) {
-                  addLog(`[Highlights] Uploading ${stopRes.filePath} (${Math.round((stopRes.sizeBytes ?? 0) / 1024 / 1024)} MB)`, 'info');
-                  const upRes = await electronApi?.obsUploadFile?.(stopRes.filePath, urlData.signed_url, 'video/x-matroska');
+                  addLog(`[Highlights] Uploading ${stopRes.filePath} (${Math.round((stopRes.sizeBytes ?? 0) / 1024 / 1024)} MB, ${ext.toUpperCase()})`, 'info');
+                  const upRes = await electronApi?.obsUploadFile?.(stopRes.filePath, urlData.signed_url, contentType);
                   if (upRes?.success) {
                     const rec = (window as any).__activeRecording;
                     const durationSec = rec?.startedAtMs ? (Date.now() - rec.startedAtMs) / 1000 : null;
@@ -1405,7 +1409,11 @@ export default function BayController() {
                       headers: { 'x-bay-number': selectedBay.toString(), 'x-action': 'recording_stop' },
                       body: { recording_session_id: sessionId, file_size_bytes: upRes.sizeBytes ?? stopRes.sizeBytes ?? null, status: 'uploaded', mkv_path: urlData.path },
                     });
+                    // Clean up both the uploaded file and (if remuxed) the original .mkv sibling.
                     await electronApi?.obsDeleteFile?.(stopRes.filePath).catch(() => undefined);
+                    if (isMp4 && stopRes.mkvPath && stopRes.mkvPath !== stopRes.filePath) {
+                      await electronApi?.obsDeleteFile?.(stopRes.mkvPath).catch(() => undefined);
+                    }
                     addLog(`[Highlights] Session ${sessionId} uploaded`, 'success');
                   } else {
                     addLog(`[Highlights] Upload failed: ${upRes?.error}`, 'error');
