@@ -78,6 +78,7 @@ const AdminAnnouncements = lazy(() => import("./pages/admin/AdminAnnouncements")
 const AdminSGTManager = lazy(() => import("./pages/admin/AdminSGTManager"));
 const AdminLocalComps = lazy(() => import("./pages/admin/AdminLocalComps"));
 const AdminHighlightExports = lazy(() => import("./pages/admin/AdminHighlightExports"));
+const AdminHighlightReview = lazy(() => import("./pages/admin/AdminHighlightReview"));
 const EmbedTVLocalComp = lazy(() => import("./pages/EmbedTVLocalComp"));
 const EmbedCompete = lazy(() => import("./pages/EmbedCompete"));
 
