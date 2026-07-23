@@ -1,44 +1,56 @@
-# Round-Only Recording
+# Rework App Restore Flow
 
-Recordings only run while a player is actively in a scored round. No more full-booking captures.
+## New behaviour
 
-## Trigger rules
+**Pre-launch (before GSPro opens):**
+1. If the customer has a saved snapshot in storage → copy their `dpsV2x3.gss` + `Settings.vgs` into the configured GSPro folder.
+2. If no snapshot exists (or booking has no `user_id`) → copy the shared baseline files instead.
+3. Launch GSPro.
 
-**League (SGT) bookings**
-- Booking becomes active AND `sgt_user_id` is set → start polling every 60s (no OBS yet).
-- Poller sees the player on hole ≥1 (or "F") for the first time in the active tournament → send `start_recording` to Bay Controller, create a `recording_sessions` row labelled "Round 1".
-- Poller sees "F" for that round → send `stop_recording`, mark row `pending_split`, upload begins.
-- Polling continues for the rest of the booking. If the player starts a new tournament round, repeat → "Round 2", etc.
-- Abandoned round: 20 min with no hole progress and no "F" → auto-stop, upload whatever we have.
-- Booking ends mid-round → auto-stop, upload partial, label "Round N (partial)".
+**T-3 minutes before session end:**
+- Read the current `dpsV2x3.gss` + `Settings.vgs` from the GSPro folder and upload them as the customer's snapshot. **Always upload — no hash comparison.** Latest file wins.
 
-**Local comp bookings**
-- Booking active AND a local comp is scheduled today AND at least one player on the booking is on a `local_comp_teams` row for that comp → start polling.
-- Poller watches `local_comp_teams.net_score` for that team. When it flips from NULL → set → send `stop_recording`, upload as "Local Comp Round".
-- Recording starts on first poll after booking becomes active (we have no per-hole signal for local comp, so we accept the full round window here — still bounded by booking length).
+**On GSPro close:**
+- Range CSV upload still runs (unchanged).
+- No baseline restore.
+- No snapshot capture.
 
-**Everything else**: no polling, no recording. Zero disk usage.
+**Back-to-back changeover (T-60s):**
+- Close apps → restore incoming customer's snapshot (or baseline fallback) → relaunch. No baseline sweep between customers.
 
-## Removals
-- Delete the current "record entire booking" flow in `BayController.tsx` (OBS start on booking-active, stop on booking-end).
-- Remove the safety-net that stamps hole 18 on stop — no longer relevant.
-- Keep hole timeline poller (`sgt-highlight-poller`) but repurpose it to also drive start/stop commands.
+## App Restore toggle behaviour
 
-## Data model
-- `recording_sessions`: add `round_number int`, `trigger_source text` ('sgt' | 'local_comp'), `partial boolean default false`.
-- New `bay_commands.command_type` values: `obs_start_recording`, `obs_stop_recording` (Bay Controller already listens to `bay_commands`).
+The single "Enable App Restore" toggle in the Bay Controller UI is the master switch for the entire feature.
 
-## Files touched
-- `supabase/functions/sgt-highlight-poller/index.ts` — extend to emit start/stop, track per-booking round state, add local-comp branch.
-- `supabase/functions/bay-controller-api/index.ts` — remove auto-start on booking-active; keep `recording_stop` endpoint for the poller-driven stop.
-- `electron/main.js` — handle new `bay_commands` for OBS start/stop; drop the time-based OBS triggers.
-- `src/pages/BayController.tsx` — remove OBS start/stop hooks tied to booking lifecycle.
-- Migration for the new columns.
-- `docs/LEAGUE_HIGHLIGHTS_SETUP.md` — update to reflect round-only capture; recommend 30fps CQP 26.
+- **ON**: All logic above runs — pre-launch snapshot/baseline restore, T-3min capture, changeover snapshot swap.
+- **OFF**: Nothing is copied, nothing is captured. GSPro launches against whatever is currently on disk. Range CSV upload still runs on close (that's separate).
 
-## Not changing
-- Cloudflare upload/split pipeline.
-- Highlights tagger.
-- Existing bay_devices / OBS websocket setup.
+Baseline file upload UI and GSPro folder path config remain exactly as they are today — those are needed to seed the fallback and tell the app where to write files.
 
-Est. one migration + ~5 file edits. Ready to build on approval.
+## Changes
+
+**`electron/main.js`**
+- Remove the 2s `restoreBaselineFiles()` call inside the `gspro-closed` branch of the process watcher. Keep the `gspro-closed` IPC (renderer needs it for range CSV upload).
+- Keep `restoreBaselineNow`, baseline upload, and folder path IPC handlers as-is.
+
+**`src/lib/range-sync.ts` (`saveUserGsproSettings`)**
+- Remove hash-comparison / skip-if-unchanged logic. Always read the files and upload — overwrite the customer's stored snapshot every time.
+
+**`src/pages/BayController.tsx`**
+- Gate the whole restore/capture chain behind the App Restore toggle (`baselineConfig.enabled`). When OFF, skip pre-launch restore, T-3min capture, and changeover snapshot swap.
+- Pre-launch (Step A/B): try customer snapshot first; only fall back to `restoreBaselineNow()` if no snapshot exists or booking has no `user_id`. (Today it always applies baseline then overlays snapshot — the baseline pass becomes fallback-only.)
+- Changeover: same snapshot-first / baseline-fallback logic. Drop the "close apps to trigger baseline reset" intent — closing is only to reset GSPro cleanly.
+- Remove the snapshot-upload call from `runSwingLabCloseSync`. Keep the range CSV upload half.
+- Add a **T-3min capture timer** when a booking becomes active: schedules `saveUserGsproSettings(userId)` to fire 3 minutes before `end_time`. Guarded against duplicates, rescheduled if the booking's `end_time` changes (extensions), cleared on unmount / booking change / early end.
+
+**App Restore UI card (`BayController.tsx` settings section)**
+- Rename toggle to **"Enable App Restore"** with helper text describing the new flow: *"Restores each customer's own GSPro settings before launch (or baseline files as fallback), and captures their latest settings 3 minutes before their session ends."*
+- Remove the old "Auto-Restore Baseline on GSPro Close" label. Baseline upload + GSPro folder path controls stay.
+
+## Edge cases
+
+- **Session shorter than 3 minutes remaining when it starts** (e.g. late launch): T-3min already passed → skip capture, log it.
+- **Booking extended**: `end_time` changes → reschedule the T-3min timer to the new value.
+- **Customer closes GSPro before T-3min**: no capture this session; they keep their previous snapshot.
+- **Walk-in / no `user_id`**: skip capture, use baseline for launch.
+- **App Restore toggle OFF**: no restore, no capture, no baseline touches — pure passthrough.
