@@ -2450,7 +2450,7 @@ export default function BayController() {
           addLog(`[Sync] Mid-session upload OK: ${saved.saved.join(', ')}`, 'info');
         }
       } catch (err: any) {
-        addLog(`[Sync] Mid-session upload error: ${err?.message ?? String(err)}`, 'warning');
+        addLog(`[Sync] Mid-session upload error: ${err?.message ?? String(err)}`, 'error');
       } finally {
         inFlight = false;
       }
