@@ -3383,26 +3383,17 @@ function startGsproWatcher() {
     
     // Detect when GSPro stops running
     if (gsproWasRunning && !isRunning) {
-      console.log('GSPro process closed - notifying renderer for sync');
-      
-      // Notify renderer that GSPro closed
+      console.log('GSPro process closed - notifying renderer (CSV sync only, no baseline restore)');
+
+      // Notify renderer that GSPro closed (renderer uses this for range CSV upload).
+      // NOTE: We deliberately DO NOT restore baseline on close any more. Per-customer
+      // settings are captured at T-3min before session end; pre-launch is the only
+      // place baseline/snapshot files are written.
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('gspro-closed');
       }
-      
-      if (baselineConfig.enabled) {
-        // Wait a moment for files to be released
-        setTimeout(async () => {
-          const results = await restoreBaselineFiles();
-          if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.webContents.send('baseline-restored', results);
-          }
-        }, 2000);
-      } else {
-        console.log('Baseline restore disabled - close watcher still fired for Swing Lab sync');
-      }
     }
-    
+
     gsproWasRunning = isRunning;
   }, 3000); // Check every 3 seconds
 }
