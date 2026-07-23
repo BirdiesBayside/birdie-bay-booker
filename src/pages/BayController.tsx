@@ -3028,52 +3028,67 @@ export default function BayController() {
       addLog(`Protee Display: ${appLaunchConfig.proteeDisplayLabel || 'default'}`, 'info');
       addLog(`Customer: ${launchConfig.firstName}`, 'info');
 
-      // Step A: Apply shared baseline first so every session starts from a
-      // clean slate (wipes previous customer's SGT login / settings tweaks).
-      // This runs regardless of whether the close-time watcher fired.
+      // App Restore chain (gated by the master toggle in Bay Controller settings):
+      //   1. If the customer has a saved snapshot → restore it.
+      //   2. Otherwise (or no user_id) → apply the shared baseline files.
+      // Baseline is now a FALLBACK only — it never overwrites a good snapshot.
       try {
-        const baseline = await window.electronAPI.restoreBaselineNow();
-        if (baseline?.success) {
-          const ok = (baseline.results || []).filter((r: any) => r.success).map((r: any) => r.file);
-          const msg = ok.length
-            ? `[Settings] Applied shared baseline before launch: ${ok.join(', ')}`
-            : `[Settings] Baseline apply returned no files`;
-          addLog(msg, 'info');
-          bayLogger.sendLog('automation_decision', msg, { bookingId: activeBooking?.id });
-        } else if (baseline?.error) {
-          addLog(`[Settings] Baseline apply skipped: ${baseline.error}`, 'info');
-          bayLogger.sendLog('automation_decision', `[Settings] Baseline apply skipped: ${baseline.error}`, { bookingId: activeBooking?.id, level: 'warning' });
+        const cfg = await window.electronAPI.getBaselineConfig();
+        if (!cfg?.enabled) {
+          addLog('[Settings] App Restore disabled — launching against current disk state', 'info');
+          bayLogger.sendLog('automation_decision', '[Settings] App Restore disabled — skipping snapshot + baseline', { bookingId: activeBooking?.id });
+        } else {
+          let restoredCount = 0;
+          if (activeBooking?.user_id) {
+            try {
+              bayLogger.sendLog('automation_decision', `[Settings] Restoring snapshot for user ${activeBooking.user_id} (booking ${activeBooking.id})`, { bookingId: activeBooking.id });
+              const restored = await restoreUserGsproSettings(activeBooking.user_id, {
+                bayNumber: selectedBay,
+                bookingId: activeBooking.id,
+                appVersion,
+              });
+              restoredCount = restored.restored.length;
+              if (restoredCount) {
+                const msg = `[Settings] Restored customer GSPro snapshot: ${restored.restored.join(', ')}`;
+                addLog(msg, 'info');
+                bayLogger.sendLog('automation_decision', msg, { bookingId: activeBooking.id });
+              } else {
+                const msg = `[Settings] No customer snapshot found${restored.error ? ` (error: ${restored.error})` : ''} — falling back to baseline`;
+                addLog(msg, 'info');
+                bayLogger.sendLog('automation_decision', msg, { bookingId: activeBooking.id, level: restored.error ? 'warning' : 'info' });
+              }
+            } catch (e) {
+              console.error('[BayController] restoreUserGsproSettings failed:', e);
+              bayLogger.logError('[Settings] Restore snapshot exception — will fall back to baseline', e, activeBooking.id);
+            }
+          } else {
+            addLog('[Settings] No user_id on active booking — using baseline', 'info');
+            bayLogger.sendLog('automation_decision', '[Settings] No user_id on active booking — using baseline', { bookingId: activeBooking?.id, level: 'warning' });
+          }
+
+          if (restoredCount === 0) {
+            try {
+              const baseline = await window.electronAPI.restoreBaselineNow();
+              if (baseline?.success) {
+                const ok = (baseline.results || []).filter((r: any) => r.success).map((r: any) => r.file);
+                const msg = ok.length
+                  ? `[Settings] Applied baseline fallback: ${ok.join(', ')}`
+                  : `[Settings] Baseline fallback returned no files`;
+                addLog(msg, 'info');
+                bayLogger.sendLog('automation_decision', msg, { bookingId: activeBooking?.id });
+              } else if (baseline?.error) {
+                addLog(`[Settings] Baseline fallback skipped: ${baseline.error}`, 'info');
+                bayLogger.sendLog('automation_decision', `[Settings] Baseline fallback skipped: ${baseline.error}`, { bookingId: activeBooking?.id, level: 'warning' });
+              }
+            } catch (e) {
+              console.error('[BayController] restoreBaselineNow (fallback) failed:', e);
+              bayLogger.logError('[Settings] Baseline fallback exception', e, activeBooking?.id);
+            }
+          }
         }
       } catch (e) {
-        console.error('[BayController] restoreBaselineNow (pre-launch) failed:', e);
-        bayLogger.logError('[Settings] Baseline apply exception (pre-launch)', e, activeBooking?.id);
-      }
-
-      // Step B: Overlay this customer's saved GSPro snapshot (SGT login, prefs) on top of baseline.
-      if (activeBooking?.user_id) {
-        try {
-          bayLogger.sendLog('automation_decision', `[Settings] Restoring snapshot for user ${activeBooking.user_id} (booking ${activeBooking.id})`, { bookingId: activeBooking.id });
-          const restored = await restoreUserGsproSettings(activeBooking.user_id, {
-            bayNumber: selectedBay,
-            bookingId: activeBooking.id,
-            appVersion,
-          });
-          if (restored.restored.length) {
-            const msg = `[Settings] Overlaid customer GSPro snapshot: ${restored.restored.join(', ')}`;
-            addLog(msg, 'info');
-            bayLogger.sendLog('automation_decision', msg, { bookingId: activeBooking.id });
-          } else {
-            const msg = `[Settings] No customer snapshot restored${restored.error ? ` (error: ${restored.error})` : ''}${restored.missing.length ? ` — missing: ${restored.missing.join(', ')}` : ''}`;
-            addLog(msg, 'info');
-            bayLogger.sendLog('automation_decision', msg, { bookingId: activeBooking.id, level: restored.error ? 'warning' : 'info' });
-          }
-        } catch (e) {
-          console.error('[BayController] restoreUserGsproSettings failed:', e);
-          bayLogger.logError('[Settings] Restore snapshot exception', e, activeBooking.id);
-        }
-      } else {
-        addLog('[Settings] No user_id on active booking — using shared baseline only', 'info');
-        bayLogger.sendLog('automation_decision', '[Settings] No user_id on active booking — using shared baseline only', { bookingId: activeBooking?.id, level: 'warning' });
+        console.error('[BayController] App Restore pre-launch chain failed:', e);
+        bayLogger.logError('[Settings] App Restore pre-launch chain exception', e, activeBooking?.id);
       }
 
 
