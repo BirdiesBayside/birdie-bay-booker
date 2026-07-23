@@ -71,7 +71,7 @@ function fmtToPar(n: number | null | undefined): string {
   return n > 0 ? `+${n}` : String(n);
 }
 
-async function getFunctionErrorMessage(error: any, data?: any): Promise<string> {
+export async function getFunctionErrorMessage(error: any, data?: any): Promise<string> {
   if (data?.error) return String(data.error);
   const fallback = error?.message ?? "unknown";
   const response = error?.context;
