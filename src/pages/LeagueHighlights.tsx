@@ -16,6 +16,8 @@ interface SessionRow {
   started_at: string | null;
   ended_at: string | null;
   status: string;
+  round_number: number | null;
+  trigger_source: string | null;
   clip_count: number;
 }
 
@@ -37,7 +39,7 @@ export default function LeagueHighlights() {
       // Explicitly scope to the current user's bookings (admins would otherwise see all via RLS)
       const { data: rows } = await supabase
         .from("recording_sessions")
-        .select("id, bay_number, player_name, tournament_name, started_at, ended_at, status, bookings!inner(user_id)")
+        .select("id, bay_number, player_name, tournament_name, started_at, ended_at, status, round_number, trigger_source, bookings!inner(user_id)")
         .eq("bookings.user_id", user.id)
         .not("started_at", "is", null)
         .order("started_at", { ascending: false })
@@ -99,9 +101,13 @@ export default function LeagueHighlights() {
                   <div className="flex-1 min-w-0">
                     <h3 className="font-inter font-semibold text-primary text-base leading-tight mb-2 truncate">
                       {s.tournament_name || "Practice Session"}
+                      {s.round_number ? ` — Round ${s.round_number}` : ""}
                     </h3>
                     <div className="flex items-center gap-2 flex-wrap mb-2">
                       <Badge variant="outline">Bay {s.bay_number}</Badge>
+                      {s.trigger_source === "local_comp" && (
+                        <Badge variant="outline" className="border-birdies-orange/40 text-birdies-orange">Local Comp</Badge>
+                      )}
                       <Badge className="bg-birdies-orange/10 text-birdies-orange border-birdies-orange/30">
                         {s.clip_count} clip{s.clip_count === 1 ? "" : "s"}
                       </Badge>
