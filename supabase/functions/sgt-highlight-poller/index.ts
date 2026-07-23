@@ -54,8 +54,11 @@ async function fetchEmbedHtml(tournamentId: string): Promise<string | null> {
   }
 }
 
-function parseEmbed(html: string): Map<string, { hole: number | null; finished: boolean }> {
-  const out = new Map<string, { hole: number | null; finished: boolean }>();
+// Parse each player row's RD 1 / RD 2 / ... cells (in order). The player's
+// current round = 1-based index of the LAST non-empty round cell. `finished`
+// is true when that cell shows F. `hole` is the current hole if in progress.
+function parseEmbed(html: string): Map<string, { hole: number | null; finished: boolean; round: number }> {
+  const out = new Map<string, { hole: number | null; finished: boolean; round: number }>();
   const rowRegex = /<tr\s+data-player-name='([^']+)'>([\s\S]*?)<\/tr>/g;
   let m: RegExpExecArray | null;
   while ((m = rowRegex.exec(html)) !== null) {
@@ -63,14 +66,16 @@ function parseEmbed(html: string): Map<string, { hole: number | null; finished: 
     const rowHtml = m[2];
     const cellRegex = /<td[^>]*class='[^']*\bround\b[^']*'[^>]*>([\s\S]*?)<\/td>/g;
     let c: RegExpExecArray | null;
-    let latest: { hole: number | null; finished: boolean } | null = null;
+    let idx = 0;
+    let latest: { hole: number | null; finished: boolean; round: number } | null = null;
     while ((c = cellRegex.exec(rowHtml)) !== null) {
+      idx += 1;
       const cellText = c[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
       if (!cellText) continue;
-      if (/\bF\b/.test(cellText)) latest = { hole: null, finished: true };
+      if (/\bF\b/.test(cellText)) latest = { hole: null, finished: true, round: idx };
       else {
         const paren = cellText.match(/\((\d+)\)/);
-        if (paren) latest = { hole: Number(paren[1]), finished: false };
+        if (paren) latest = { hole: Number(paren[1]), finished: false, round: idx };
       }
     }
     if (latest) out.set(playerName, latest);
