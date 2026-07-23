@@ -187,14 +187,15 @@ export function AppRestoreSettings({ isElectron }: AppRestoreSettingsProps) {
         </Badge>
       </div>
 
-      {/* Enable/Disable */}
+      {/* Master enable toggle */}
       <div className="flex items-center justify-between">
         <div>
-          <Label>Auto-Restore Baseline on GSPro Close</Label>
+          <Label>Enable App Restore</Label>
           <p className="text-xs text-muted-foreground">
-            Safety-net: re-apply the shared baseline whenever GSPro exits.
-            (The baseline is also applied automatically before every launch —
-            this toggle only controls the extra close-time sweep.)
+            Restores each customer's own GSPro settings before launch (or the
+            baseline files below as a fallback), and re-captures their latest
+            settings 3 minutes before their session ends. Nothing runs when
+            this is off.
           </p>
         </div>
         <Switch
@@ -206,7 +207,7 @@ export function AppRestoreSettings({ isElectron }: AppRestoreSettingsProps) {
       {config?.isWatching && (
         <div className="flex items-center gap-2 text-sm text-green-600 bg-green-500/10 p-2 rounded">
           <Check className="h-4 w-4" />
-          Process watcher active - monitoring GSPro
+          GSPro process watcher active
         </div>
       )}
 
@@ -319,13 +320,13 @@ export function AppRestoreSettings({ isElectron }: AppRestoreSettingsProps) {
 
       {/* Info */}
       <div className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-lg space-y-1">
-        <p><strong>How it works (two layers):</strong></p>
+        <p><strong>How it works:</strong></p>
         <ol className="list-decimal list-inside space-y-1">
-          <li><strong>Baseline</strong> — the shared clean-slate config. Uploaded here once. Applied automatically <em>before every launch</em> so no customer inherits the previous player's SGT login or settings.</li>
-          <li><strong>Customer snapshot</strong> — each signed-in customer's GSPro settings are uploaded to the cloud when GSPro closes, then restored on their next session (overlaid on top of the baseline).</li>
+          <li><strong>Before GSPro launches</strong> — if the customer has their own saved settings, we restore those. If not (or it's a walk-in), we apply the baseline files uploaded here.</li>
+          <li><strong>3 minutes before session end</strong> — we capture the customer's current <code>dpsV2x3.gss</code> and <code>Settings.vgs</code> and upload them, overwriting whatever they had before. This runs every session, whether they changed anything or not.</li>
+          <li><strong>On GSPro close</strong> — nothing. No baseline sweep, no capture. Range CSV upload still runs (separate system).</li>
         </ol>
-        <p className="pt-2"><strong>Setup:</strong> Configure GSPro with your default settings + Guest players, upload the two config files here. New/anonymous customers get this baseline; returning customers get their own snapshot.</p>
-        <p className="pt-1"><strong>Close-time toggle above</strong> is an optional safety-net that re-applies the baseline again when GSPro exits — normally not required since baseline runs before every launch.</p>
+        <p className="pt-2"><strong>Setup:</strong> Configure GSPro with your default settings + Guest players, then upload <code>dpsV2x3.gss</code> and <code>Settings.vgs</code> below. New/anonymous customers get this baseline; returning customers get their own snapshot.</p>
       </div>
     </div>
   );
