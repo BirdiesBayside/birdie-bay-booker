@@ -390,74 +390,87 @@ export default function BayController() {
 
 
 
+  // GSPro-close hook. Settings capture now happens at T-3min before session
+  // end (see effect further down) — NOT on close — so this callback is now
+  // just a logging shell. Desktop CSV uploads are handled by the always-on
+  // watcher (electron/main.js -> desktop-csv-detected -> uploadRangeCsv).
   const runSwingLabCloseSync = useCallback(async (
     trigger: string,
-    override?: { userId: string; bookingId?: string | null; bookingStartMs?: number | null }
+    _override?: { userId: string; bookingId?: string | null; bookingStartMs?: number | null }
   ) => {
-    const now = Date.now();
-    if (swingLabSyncInProgressRef.current) {
-      addLog(`[Sync] ${trigger}: sync already running, skipping duplicate trigger`, 'info');
-      return;
-    }
-    if (now - lastSwingLabSyncAtRef.current < 5000) {
-      addLog(`[Sync] ${trigger}: recent sync already ran, skipping duplicate trigger`, 'info');
-      return;
-    }
+    addLog(`[Sync] GSPro close event (${trigger}) — settings capture happens at T-3min, not on close`, 'info');
+    bayLogger.sendLog('automation_decision', `[Sync] GSPro close event (${trigger}) — settings capture happens at T-3min, not on close`, {
+      bookingId: activeBooking?.id,
+    });
+  }, [activeBooking?.id, bayLogger, addLog]);
 
-    swingLabSyncInProgressRef.current = true;
-    lastSwingLabSyncAtRef.current = now;
+  // T-3min settings capture: 3 minutes before the active booking ends, upload
+  // the customer's current GSPro settings so their next session picks up
+  // whatever they had at the end of THIS one. Always uploads (no hash-compare).
+  // Reschedules automatically when the booking changes (e.g. extension).
+  useEffect(() => {
+    if (!isElectron) return;
+    if (!activeBooking?.user_id || !activeBooking.booking_date || !activeBooking.end_time) return;
 
-    const userId = override?.userId ?? activeBooking?.user_id;
-    const bookingId = override?.bookingId ?? activeBooking?.id;
-    const bookingStartMs = override?.bookingStartMs
-      ?? (activeBooking?.booking_date && activeBooking?.start_time
-        ? new Date(`${activeBooking.booking_date}T${activeBooking.start_time}`).getTime()
-        : null);
-    const syncLog = (msg: string, level?: 'info' | 'success' | 'error' | 'warning') => {
-      const mapped: 'info' | 'success' | 'error' = level === 'warning' ? 'info' : (level ?? 'info');
-      addLog(msg, mapped);
-      bayLogger.sendLog('automation_decision', msg, {
-        level: level === 'error' ? 'error' : level === 'warning' ? 'warning' : 'info',
-        bookingId,
-        immediate: level === 'error' || msg.startsWith('[Sync]') || msg.includes('result'),
-      });
-    };
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
 
-    try {
-      addLog(`[Sync] GSPro close sync triggered by ${trigger}. booking=${bookingId ?? 'none'}, userId=${userId ?? 'none'}`, 'info');
-      bayLogger.sendLog('automation_decision', `[Sync] GSPro close sync triggered by ${trigger}. booking=${bookingId ?? 'none'}, userId=${userId ?? 'none'}`, {
-        bookingId,
-        immediate: true,
-      });
+    const schedule = async () => {
+      try {
+        const cfg = await window.electronAPI?.getBaselineConfig();
+        if (!cfg?.enabled) {
+          addLog('[Settings T-3min] App Restore disabled — skipping capture schedule', 'info');
+          return;
+        }
+      } catch { /* non-fatal */ }
 
-      if (!userId) {
-        addLog('[Sync] No user context — skipping CSV/settings sync', 'info');
-        bayLogger.sendLog('automation_decision', '[Sync] No user context — skipping CSV/settings sync', {
-          bookingId,
-          immediate: true,
-        });
+      const endMs = new Date(`${activeBooking.booking_date}T${activeBooking.end_time}`).getTime();
+      const fireAt = endMs - 3 * 60 * 1000;
+      const delay = fireAt - Date.now();
+
+      if (delay <= 0) {
+        addLog(`[Settings T-3min] Booking ends in <3min — skipping capture for this session`, 'info');
+        bayLogger.sendLog('automation_decision', `[Settings T-3min] Booking ends in <3min — skipping capture`, { bookingId: activeBooking.id });
         return;
       }
 
-      addLog('[Sync] Starting settings snapshot upload…', 'info');
-      const saved = await saveUserGsproSettings(userId, {
-        bayNumber: selectedBay,
-        bookingId: bookingId ?? null,
-        appVersion,
-        log: syncLog,
-      });
-      addLog(`[Sync] Settings result: saved=[${saved.saved.join(', ') || 'none'}] failed=[${saved.failed.join(', ') || 'none'}]`, saved.failed.length ? 'error' : 'info');
+      addLog(`[Settings T-3min] Scheduled capture in ${Math.round(delay / 1000)}s (${new Date(fireAt).toISOString()})`, 'info');
+      bayLogger.sendLog('automation_decision', `[Settings T-3min] Scheduled capture in ${Math.round(delay / 1000)}s`, { bookingId: activeBooking.id });
 
-      // NOTE: Desktop CSV uploads are handled by the always-on watcher
-      // (electron/main.js -> desktop-csv-detected -> uploadRangeCsv). No sweep here.
+      timer = setTimeout(async () => {
+        if (cancelled) return;
+        try {
+          addLog(`[Settings T-3min] Capturing settings for user ${activeBooking.user_id}`, 'info');
+          bayLogger.sendLog('automation_decision', `[Settings T-3min] Capturing settings for user ${activeBooking.user_id}`, { bookingId: activeBooking.id });
+          const saved = await saveUserGsproSettings(activeBooking.user_id!, {
+            bayNumber: selectedBay,
+            bookingId: activeBooking.id,
+            appVersion,
+            log: (msg, level) => {
+              const mapped: 'info' | 'success' | 'error' = level === 'warning' ? 'info' : (level ?? 'info');
+              addLog(msg, mapped);
+              bayLogger.sendLog('automation_decision', msg, {
+                level: level === 'error' ? 'error' : level === 'warning' ? 'warning' : 'info',
+                bookingId: activeBooking.id,
+              });
+            },
+          });
+          addLog(`[Settings T-3min] Result: saved=[${saved.saved.join(', ') || 'none'}] failed=[${saved.failed.join(', ') || 'none'}]`, saved.failed.length ? 'error' : 'success');
+        } catch (e: any) {
+          addLog(`[Settings T-3min] Capture threw: ${e?.message ?? String(e)}`, 'error');
+          bayLogger.logError('[Settings T-3min] Capture exception', e, activeBooking.id);
+        }
+      }, delay);
+    };
 
-    } catch (err: any) {
-      addLog(`[Sync] Sync threw exception: ${err?.message ?? String(err)}`, 'error');
-      console.error('[BayController] Range/settings sync on close failed:', err);
-    } finally {
-      swingLabSyncInProgressRef.current = false;
-    }
-  }, [activeBooking, selectedBay, appVersion, bayLogger, addLog]);
+    schedule();
+
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [isElectron, activeBooking?.id, activeBooking?.user_id, activeBooking?.booking_date, activeBooking?.end_time, selectedBay, appVersion, bayLogger, addLog]);
+
 
   // Listen for F10 global hotkey results from main process
   useEffect(() => {
