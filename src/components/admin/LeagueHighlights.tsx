@@ -155,30 +155,9 @@ export function LeagueHighlights() {
   const [enabled, setEnabled] = useState(false);
   const [retentionDays, setRetentionDays] = useState<number>(14);
   const [sessions, setSessions] = useState<SessionRow[]>([]);
-  const [videoUrl, setVideoUrl] = useState<string | null>(null);
-  const [activeSession, setActiveSession] = useState<SessionRow | null>(null);
   const [streamBusyIds, setStreamBusyIds] = useState<Set<string>>(new Set());
   const autoKickedRef = useRef<Set<string>>(new Set());
-  const [clipStart, setClipStartState] = useState<number | null>(null);
-  const [clipEnd, setClipEndState] = useState<number | null>(null);
-  const [clipLoading, setClipLoading] = useState(false);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const hlsRef = useRef<Hls | null>(null);
 
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !videoUrl) return;
-    if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
-    if (video.canPlayType("application/vnd.apple.mpegurl")) {
-      video.src = videoUrl;
-    } else if (Hls.isSupported()) {
-      const hls = new Hls({ maxBufferLength: 60, maxMaxBufferLength: 120 });
-      hls.loadSource(videoUrl);
-      hls.attachMedia(video);
-      hlsRef.current = hls;
-    }
-    return () => { hlsRef.current?.destroy(); hlsRef.current = null; };
-  }, [videoUrl]);
 
   const load = async (silent = false) => {
     if (!silent) setLoading(true);
