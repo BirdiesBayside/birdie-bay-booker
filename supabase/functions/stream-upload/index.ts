@@ -67,20 +67,29 @@ function getCloudflareCredentials() {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
-  const jwt = req.headers.get("Authorization")?.replace("Bearer ", "") ?? "";
-  const authClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
-    global: { headers: { Authorization: `Bearer ${jwt}` } },
-  });
-  const { data: userRes } = await authClient.auth.getUser();
-  if (!userRes?.user) {
-    return jsonResponse({ error: "unauthorized" }, 401);
+  const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+
+  // Internal callers (e.g. bay-controller-api recording_stop) may bypass user
+  // auth by presenting the shared SYNC_SECRET. Everything else must be an admin.
+  const internalSecret = (Deno.env.get("SYNC_SECRET") ?? "").trim();
+  const providedSecret = (req.headers.get("x-internal-secret") ?? "").trim();
+  const isInternal = internalSecret.length > 0 && providedSecret === internalSecret;
+
+  if (!isInternal) {
+    const jwt = req.headers.get("Authorization")?.replace("Bearer ", "") ?? "";
+    const authClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
+      global: { headers: { Authorization: `Bearer ${jwt}` } },
+    });
+    const { data: userRes } = await authClient.auth.getUser();
+    if (!userRes?.user) {
+      return jsonResponse({ error: "unauthorized" }, 401);
+    }
+    const { data: isAdmin } = await admin.rpc("has_role", { _user_id: userRes.user.id, _role: "admin" });
+    if (!isAdmin) {
+      return jsonResponse({ error: "forbidden" }, 403);
+    }
   }
 
-  const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-  const { data: isAdmin } = await admin.rpc("has_role", { _user_id: userRes.user.id, _role: "admin" });
-  if (!isAdmin) {
-    return jsonResponse({ error: "forbidden" }, 403);
-  }
 
   const { recording_session_id } = await req.json();
   if (!recording_session_id) {

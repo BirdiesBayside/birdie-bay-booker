@@ -612,6 +612,20 @@ serve(async (req) => {
           }
         }
 
+        // Auto-kick Cloudflare Stream upload so highlights are ready without
+        // anyone opening the Hub. stream-upload is idempotent — safe to invoke.
+        if (b.mkv_path || b.status === "pending_split") {
+          try {
+            const secret = (Deno.env.get("SYNC_SECRET") ?? "").trim();
+            void supabase.functions.invoke("stream-upload", {
+              body: { recording_session_id: b.recording_session_id },
+              headers: secret ? { "x-internal-secret": secret } : undefined,
+            }).catch((e) => console.error("[recording_stop] stream-upload invoke failed:", (e as Error).message));
+          } catch (e) {
+            console.error("[recording_stop] stream-upload dispatch failed:", (e as Error).message);
+          }
+        }
+
         return jsonResponse({ ok: true });
       }
 
