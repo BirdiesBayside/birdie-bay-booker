@@ -7,13 +7,12 @@
 //     - Poll the tournament embed page for the player's current hole.
 //     - When they appear on hole >= 1 (and round is not already finished),
 //       insert a recording_sessions row (status='recording') and issue an
-//       `obs_start_recording:session_id=<uuid>` command. Bay Controller
-//       receives the command via realtime, tells OBS to start.
+//       `obs_start_recording:session_id=<uuid>` command.
 //     - When they show "F" (finished) OR the booking ends OR 20+ min of no
-//       progress, mark session status='stopping' and issue
-//       `obs_stop_recording:session_id=<uuid>`. Bay Controller stops OBS,
-//       uploads the file, and calls recording_stop (which flips to
-//       'pending_split' or 'uploaded').
+//       activity, mark session status='stopping', issue
+//       `obs_stop_recording:session_id=<uuid>`, and — on a natural finish —
+//       fetch the full scorecard from the SGT API once and cache it on the
+//       recording_sessions row for hole-by-hole display in the Hub.
 //     - Keeps polling for additional rounds within the same booking
 //       (round_number auto-increments).
 //
@@ -24,8 +23,9 @@
 //
 // No booking? No polling, no recording, no disk usage.
 //
-// Hole timeline stamping (for SGT) is preserved so the highlights tagger can
-// still cut per-hole clips.
+// NOTE: We no longer stamp per-hole timeline rows or invoke the highlights
+// tagger. The final scorecard is fetched once at F and rendered as a mini
+// scorecard in the highlights UI — staff scrub the video manually.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 
@@ -35,6 +35,8 @@ const corsHeaders = {
 };
 
 const ABANDONED_MINUTES = 20;
+const SGT_BASE_URL = "https://simulatorgolftour.com/sgt-api/club-admin";
+const SGT_CLUB = "birdiesbayside";
 
 // ---------- SGT embed helpers ----------
 async function fetchEmbedHtml(tournamentId: string): Promise<string | null> {
@@ -86,6 +88,73 @@ function brisbaneNowTime(): string {
   const now = new Date();
   const bris = new Date(now.getTime() + 10 * 3600_000);
   return bris.toISOString().slice(11, 19);
+}
+
+// ---------- SGT API helpers (single-use, only fires on natural F) ----------
+async function getSgtApiKey(supabase: ReturnType<typeof createClient>): Promise<string | null> {
+  const { data } = await supabase
+    .from("sgt_api_config")
+    .select("api_key, expires_at")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const cfg = data as { api_key: string; expires_at: string } | null;
+  if (!cfg?.api_key) return null;
+  if (new Date(cfg.expires_at).getTime() <= Date.now()) return null;
+  return cfg.api_key;
+}
+
+async function fetchScorecardForPlayer(
+  apiKey: string,
+  tournamentId: string,
+  playerId: number,
+  roundNumber: number,
+): Promise<Record<string, unknown> | null> {
+  const url = new URL(`${SGT_BASE_URL}/${SGT_CLUB}/tournaments/scorecards`);
+  url.searchParams.append("api-key", apiKey);
+  url.searchParams.append("tournamentId", tournamentId);
+  try {
+    const res = await fetch(url.toString());
+    if (!res.ok) {
+      console.error(`[poller] scorecards fetch ${res.status}`);
+      return null;
+    }
+    const payload = await res.json();
+    if (payload === "INVALID API KEY") return null;
+    const list: Record<string, unknown>[] = Array.isArray(payload)
+      ? payload
+      : (payload?.scorecards ?? payload?.results ?? []);
+    return list.find(
+      (sc) => Number(sc.playerId) === Number(playerId) && Number(sc.round ?? 1) === Number(roundNumber),
+    ) ?? null;
+  } catch (e) {
+    console.error("[poller] scorecard fetch failed:", (e as Error).message);
+    return null;
+  }
+}
+
+function shapeScorecard(sc: Record<string, unknown>) {
+  const holeData: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(sc)) {
+    if (/^h\d+/.test(k) || /^hole\d+/.test(k)) holeData[k] = v;
+  }
+  return {
+    player_name: sc.player_name ?? null,
+    hcp_index: sc.hcp_index ?? null,
+    round: sc.round ?? null,
+    course_name: sc.courseName ?? null,
+    teetype: sc.teetype ?? null,
+    total_gross: sc.total_gross ?? null,
+    total_net: sc.total_net ?? null,
+    to_par_gross: sc.toPar_gross ?? null,
+    to_par_net: sc.toPar_net ?? null,
+    in_gross: sc.in_gross ?? null,
+    out_gross: sc.out_gross ?? null,
+    in_net: sc.in_net ?? null,
+    out_net: sc.out_net ?? null,
+    hole_data: holeData,
+    fetched_at: new Date().toISOString(),
+  };
 }
 
 Deno.serve(async (req) => {
@@ -203,7 +272,6 @@ Deno.serve(async (req) => {
         .eq("competition_id", activeComp.id)
     : { data: [] as any[] };
 
-  // Global SGT settings toggle for League Highlights already gated above.
   const { data: compSettingsRow } = hasCompBooking
     ? await supabase.from("local_comp_settings").select("hub_highlights_enabled").limit(1).maybeSingle()
     : { data: null };
@@ -280,6 +348,33 @@ Deno.serve(async (req) => {
     console.log(`[poller] STOP session=${sessionId} bay=${bayNumber} partial=${partial} reason=${reason}`);
   }
 
+  // Fetch and cache the final scorecard once a round finishes naturally.
+  async function captureScorecard(session: {
+    id: string;
+    sgt_tournament_id: string | null;
+    sgt_user_id: string | null;
+    round_number: number;
+  }) {
+    if (!session.sgt_tournament_id || !session.sgt_user_id) return;
+    const playerId = Number(session.sgt_user_id);
+    if (!Number.isFinite(playerId)) return;
+    const apiKey = await getSgtApiKey(supabase);
+    if (!apiKey) {
+      console.warn(`[poller] scorecard capture skipped for session ${session.id}: no valid SGT API key`);
+      return;
+    }
+    const raw = await fetchScorecardForPlayer(apiKey, session.sgt_tournament_id, playerId, session.round_number);
+    if (!raw) {
+      console.warn(`[poller] scorecard capture: no matching row for session ${session.id} (player=${playerId} round=${session.round_number})`);
+      return;
+    }
+    await supabase
+      .from("recording_sessions")
+      .update({ scorecard: shapeScorecard(raw), updated_at: nowIso })
+      .eq("id", session.id);
+    console.log(`[poller] scorecard cached for session ${session.id}`);
+  }
+
   // ---------- MAIN LOOP ----------
   for (const booking of activeBookings) {
     const bayNumber = bayNumberById.get(booking.bay_id);
@@ -290,7 +385,6 @@ Deno.serve(async (req) => {
     const session = sessionByBookingId.get(booking.id);
 
     // ----- BOOKING END GUARD -----
-    // If booking end passed and a session is still active, stop it.
     const bookingEndMs = new Date(`${booking.booking_date}T${booking.end_time}`).getTime();
     if (session && Date.now() >= bookingEndMs - 5000) {
       await issueStop(session.id, bayNumber, true, "booking_end");
@@ -315,37 +409,23 @@ Deno.serve(async (req) => {
       const state = sgtName && players ? players.get(sgtName) : undefined;
 
       if (session) {
-        // Session running — check for finish / abandonment / hole progress
         if (state?.finished) {
           await issueStop(session.id, bayNumber, false, "round_finished");
+          await captureScorecard({
+            id: session.id,
+            sgt_tournament_id: session.sgt_tournament_id ?? tournId,
+            sgt_user_id: session.sgt_user_id ?? String(sgtUserIdNum),
+            round_number: session.round_number ?? 1,
+          });
           results.push({ booking: booking.id, action: "stop_finished" });
         } else if (state?.hole && state.hole >= 1) {
-          // Progress: stamp completed holes and refresh last_progress_at
-          await stampHoles(supabase, session.id, state.hole, state.finished, nowIso);
-          if (session.last_progress_at) {
-            // Determine if hole advanced — compare max known hole to state.hole-1
-            const { data: known } = await supabase
-              .from("recording_holes")
-              .select("hole_number")
-              .eq("recording_session_id", session.id);
-            const maxKnown = known?.length ? Math.max(...known.map((k) => k.hole_number)) : 0;
-            if (maxKnown >= (state.hole - 1)) {
-              await supabase
-                .from("recording_sessions")
-                .update({ last_progress_at: nowIso })
-                .eq("id", session.id);
-            }
-          }
-          // Abandoned check
-          const lastProgress = session.last_progress_at ? new Date(session.last_progress_at).getTime() : Date.now();
-          if (Date.now() - lastProgress > ABANDONED_MINUTES * 60_000) {
-            await issueStop(session.id, bayNumber, true, "abandoned");
-            results.push({ booking: booking.id, action: "stop_abandoned" });
-          } else {
-            results.push({ booking: booking.id, action: "progress", hole: state.hole });
-          }
+          // Round in progress — just refresh the progress heartbeat.
+          await supabase
+            .from("recording_sessions")
+            .update({ last_progress_at: nowIso })
+            .eq("id", session.id);
+          results.push({ booking: booking.id, action: "progress", hole: state.hole });
         } else {
-          // No state visible mid-session — leave alone unless past abandoned window
           const lastProgress = session.last_progress_at ? new Date(session.last_progress_at).getTime() : Date.now();
           if (Date.now() - lastProgress > ABANDONED_MINUTES * 60_000) {
             await issueStop(session.id, bayNumber, true, "no_progress");
@@ -355,7 +435,6 @@ Deno.serve(async (req) => {
           }
         }
       } else {
-        // No session — should we start?
         if (state && !state.finished && state.hole && state.hole >= 1) {
           const roundNumber = (sessionCountByBooking.get(booking.id) ?? 0) + 1;
           const newId = await issueStart({
@@ -370,9 +449,6 @@ Deno.serve(async (req) => {
           });
           if (newId) {
             sessionCountByBooking.set(booking.id, roundNumber);
-            // Pre-seed holes already scored on this scorecard so we don't
-            // re-clip them (player likely started before we hit record).
-            await stampHoles(supabase, newId, state.hole, false, nowIso, true);
             results.push({ booking: booking.id, action: "start_round", round: roundNumber, hole: state.hole });
           }
         } else {
@@ -384,7 +460,6 @@ Deno.serve(async (req) => {
 
     // ----- Local Comp branch -----
     if ((booking.notes ?? "").includes("[COMP]") && activeComp && compEnabled) {
-      // Match booking user to a team by name
       const first = (prof?.first_name ?? "").toLowerCase().trim();
       const last = (prof?.last_name ?? "").toLowerCase().trim();
       const full = `${first} ${last}`.trim();
@@ -426,54 +501,8 @@ Deno.serve(async (req) => {
     results.push({ booking: booking.id, action: "not_eligible" });
   }
 
-  // Fire the tagger (idempotent) so newly-stamped holes get processed.
-  try {
-    await supabase.functions.invoke("sgt-highlight-tagger", { body: {} });
-  } catch (e) {
-    console.error("[poller] tagger invoke failed:", (e as Error).message);
-  }
-
   return new Response(
     JSON.stringify({ ok: true, active_bookings: activeBookings.length, results }),
     { headers: { ...corsHeaders, "Content-Type": "application/json" } },
   );
 });
-
-// Stamp holes 1..completedThrough as completed for a recording_session.
-// If markPreExisting=true, they were played before we hit record.
-async function stampHoles(
-  supabase: ReturnType<typeof createClient>,
-  sessionId: string,
-  currentHole: number | null,
-  finished: boolean,
-  nowIso: string,
-  markPreExisting = false,
-) {
-  const completedThrough = finished ? 18 : (currentHole && currentHole > 1 ? currentHole - 1 : 0);
-  if (completedThrough <= 0) return;
-
-  const { data: known } = await supabase
-    .from("recording_holes")
-    .select("hole_number, hole_completed_at, pre_existing")
-    .eq("recording_session_id", sessionId);
-  const knownMap = new Map((known ?? []).map((k) => [k.hole_number, k]));
-
-  for (let n = 1; n <= completedThrough; n++) {
-    const existing = knownMap.get(n);
-    if (existing?.hole_completed_at || existing?.pre_existing) continue;
-    const preExisting = markPreExisting;
-    await supabase.from("recording_holes").upsert(
-      {
-        recording_session_id: sessionId,
-        hole_number: n,
-        par: null,
-        score: null,
-        hole_completed_at: preExisting ? null : nowIso,
-        pre_existing: preExisting,
-        status: "pending",
-        updated_at: nowIso,
-      },
-      { onConflict: "recording_session_id,hole_number" },
-    );
-  }
-}
