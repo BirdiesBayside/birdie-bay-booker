@@ -104,12 +104,11 @@ async function getSgtApiKey(supabase: ReturnType<typeof createClient>): Promise<
   return cfg.api_key;
 }
 
-async function fetchScorecardForPlayer(
+async function fetchAllScorecardsForPlayer(
   apiKey: string,
   tournamentId: string,
   playerId: number,
-  roundNumber: number,
-): Promise<Record<string, unknown> | null> {
+): Promise<Record<string, unknown>[]> {
   const url = new URL(`${SGT_BASE_URL}/${SGT_CLUB}/tournaments/scorecards`);
   url.searchParams.append("api-key", apiKey);
   url.searchParams.append("tournamentId", tournamentId);
@@ -117,20 +116,46 @@ async function fetchScorecardForPlayer(
     const res = await fetch(url.toString());
     if (!res.ok) {
       console.error(`[poller] scorecards fetch ${res.status}`);
-      return null;
+      return [];
     }
     const payload = await res.json();
-    if (payload === "INVALID API KEY") return null;
+    if (payload === "INVALID API KEY") return [];
     const list: Record<string, unknown>[] = Array.isArray(payload)
       ? payload
       : (payload?.scorecards ?? payload?.results ?? []);
-    return list.find(
-      (sc) => Number(sc.playerId) === Number(playerId) && Number(sc.round ?? 1) === Number(roundNumber),
-    ) ?? null;
+    return list.filter((sc) => Number(sc.playerId) === Number(playerId));
   } catch (e) {
     console.error("[poller] scorecard fetch failed:", (e as Error).message);
-    return null;
+    return [];
   }
+}
+
+async function fetchScorecardForPlayer(
+  apiKey: string,
+  tournamentId: string,
+  playerId: number,
+  roundNumber: number,
+): Promise<Record<string, unknown> | null> {
+  const all = await fetchAllScorecardsForPlayer(apiKey, tournamentId, playerId);
+  return all.find((sc) => Number(sc.round ?? 1) === Number(roundNumber)) ?? null;
+}
+
+// Determine which round the player is currently on by counting finished rounds
+// already recorded in SGT. A round is "finished" when activeHole >= 19 or
+// total_gross > 0 with all 18 hole scores present. Next round = finished + 1.
+async function determineCurrentRound(
+  apiKey: string,
+  tournamentId: string,
+  playerId: number,
+): Promise<number> {
+  const all = await fetchAllScorecardsForPlayer(apiKey, tournamentId, playerId);
+  let finished = 0;
+  for (const sc of all) {
+    const activeHole = Number(sc.activeHole ?? 0);
+    const totalGross = Number(sc.total_gross ?? 0);
+    if (activeHole >= 19 || totalGross > 0) finished += 1;
+  }
+  return finished + 1;
 }
 
 function shapeScorecard(sc: Record<string, unknown>) {
