@@ -205,12 +205,6 @@ export function LeagueHighlights() {
     return () => clearInterval(interval);
   }, []);
 
-  // Keep activeSession in sync with fresh scorecard/stream data after each reload.
-  useEffect(() => {
-    if (!activeSession) return;
-    const fresh = sessions.find((s) => s.session_id === activeSession.session_id);
-    if (fresh && fresh !== activeSession) setActiveSession(fresh);
-  }, [sessions, activeSession]);
 
   useEffect(() => {
     for (const sess of sessions) {
