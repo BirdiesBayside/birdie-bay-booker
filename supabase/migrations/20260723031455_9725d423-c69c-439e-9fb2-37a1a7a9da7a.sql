@@ -1,0 +1,1 @@
+ALTER TABLE public.recording_sessions ADD COLUMN IF NOT EXISTS scorecard jsonb;

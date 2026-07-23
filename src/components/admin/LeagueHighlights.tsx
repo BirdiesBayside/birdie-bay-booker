@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import Hls from "hls.js";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,17 +9,26 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Download, FolderOpen, Loader2, Play, RefreshCw, Scissors, Trash2, Video, X } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Download, FolderOpen, Loader2, Play, Scissors, Trash2, Video, X } from "lucide-react";
 
 interface Bay { id: string; bay_number: number; name: string | null }
-interface HoleChapter {
-  hole_id: string;
-  hole_number: number;
-  par: number | null;
-  score: number | null;
-  offset_seconds: number | null;
-  events: Array<{ rule_key: string; tag_label: string; tag_emoji: string }>;
+
+interface Scorecard {
+  player_name?: string | null;
+  hcp_index?: number | null;
+  round?: number | null;
+  course_name?: string | null;
+  total_gross?: number | null;
+  total_net?: number | null;
+  to_par_gross?: number | null;
+  to_par_net?: number | null;
+  in_gross?: number | null;
+  out_gross?: number | null;
+  hole_data?: Record<string, number | string> | null;
+  fetched_at?: string | null;
 }
+
 interface SessionRow {
   session_id: string;
   storage_path: string | null;
@@ -30,8 +39,9 @@ interface SessionRow {
   tournament_name: string | null;
   bay_number: number;
   started_at: string | null;
-  chapters: HoleChapter[];
-  has_highlights: boolean;
+  round_number: number | null;
+  trigger_source: string | null;
+  scorecard: Scorecard | null;
 }
 
 function fmtOffset(secs: number | null): string {
@@ -43,16 +53,22 @@ function fmtOffset(secs: number | null): string {
   return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${String(r).padStart(2, "0")}` : `${m}:${String(r).padStart(2, "0")}`;
 }
 
-function scoreLabel(par: number | null, score: number | null): string {
-  if (par == null || score == null) return "";
+function scoreClass(par: number | null | undefined, score: number | null | undefined): string {
+  if (par == null || score == null || score === 0) return "bg-muted text-muted-foreground";
   const diff = score - par;
-  if (par === 3 && score === 1) return "HIO";
-  if (diff === -3) return "Albatross";
-  if (diff === -2) return "Eagle";
-  if (diff === -1) return "Birdie";
-  if (diff === 0) return "Par";
-  if (diff === 1) return "Bogey";
-  return diff > 0 ? `+${diff}` : String(diff);
+  if (par === 3 && score === 1) return "bg-purple-600 text-white font-bold";
+  if (diff <= -3) return "bg-purple-500 text-white font-bold";
+  if (diff === -2) return "bg-orange-500 text-white font-bold";
+  if (diff === -1) return "bg-red-500 text-white font-semibold";
+  if (diff === 0) return "bg-secondary text-foreground";
+  if (diff === 1) return "bg-blue-100 text-blue-900";
+  return "bg-blue-200 text-blue-950";
+}
+
+function fmtToPar(n: number | null | undefined): string {
+  if (n == null) return "";
+  if (n === 0) return "E";
+  return n > 0 ? `+${n}` : String(n);
 }
 
 async function getFunctionErrorMessage(error: any, data?: any): Promise<string> {
@@ -60,38 +76,86 @@ async function getFunctionErrorMessage(error: any, data?: any): Promise<string> 
   const fallback = error?.message ?? "unknown";
   const response = error?.context;
   if (!response) return fallback;
-
   try {
     const body = typeof response.clone === "function" ? response.clone() : response;
     if (typeof body.json === "function") {
       const json = await body.json();
       return json?.error || json?.message || json?.cf_body || fallback;
     }
-  } catch {
-    // Try text below.
-  }
-
+  } catch { /* fall through */ }
   try {
     const body = typeof response.clone === "function" ? response.clone() : response;
     if (typeof body.text === "function") {
       const text = await body.text();
       return text || fallback;
     }
-  } catch {
-    // Fall through to generic invoke error.
-  }
-
+  } catch { /* fall through */ }
   return fallback;
+}
+
+function ScorecardGrid({ scorecard }: { scorecard: Scorecard }) {
+  const holes = Array.from({ length: 18 }, (_, i) => i + 1);
+  const hd = scorecard.hole_data ?? {};
+  const getPar = (h: number) => (hd[`h${h}_Par`] as number) ?? null;
+  const getScore = (h: number) => (hd[`hole${h}_gross`] as number) ?? null;
+
+  const renderNine = (start: number, end: number, label: string) => {
+    const range = holes.slice(start, end);
+    const parSum = range.reduce((s, h) => s + (getPar(h) ?? 0), 0);
+    const scoreSum = range.reduce((s, h) => s + (getScore(h) ?? 0), 0);
+    return (
+      <div className="mb-3">
+        <div className="grid gap-1 text-[10px] font-medium mb-1" style={{ gridTemplateColumns: `40px repeat(9, 1fr) 40px` }}>
+          <div className="text-muted-foreground">Hole</div>
+          {range.map((h) => <div key={h} className="text-center text-muted-foreground">{h}</div>)}
+          <div className="text-center text-muted-foreground">{label}</div>
+        </div>
+        <div className="grid gap-1 text-[10px] mb-1" style={{ gridTemplateColumns: `40px repeat(9, 1fr) 40px` }}>
+          <div className="text-muted-foreground">Par</div>
+          {range.map((h) => <div key={h} className="text-center text-muted-foreground">{getPar(h) ?? "-"}</div>)}
+          <div className="text-center text-muted-foreground font-medium">{parSum || "-"}</div>
+        </div>
+        <div className="grid gap-1 text-xs" style={{ gridTemplateColumns: `40px repeat(9, 1fr) 40px` }}>
+          <div className="font-medium">Score</div>
+          {range.map((h) => (
+            <div key={h} className={cn("text-center py-1 rounded font-medium", scoreClass(getPar(h), getScore(h)))}>
+              {getScore(h) ?? "-"}
+            </div>
+          ))}
+          <div className="text-center py-1 font-bold">{scoreSum || "-"}</div>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-3 text-xs mb-2 pb-2 border-b">
+        <div><span className="text-muted-foreground">Gross:</span> <span className="font-semibold">{scorecard.total_gross ?? "-"}</span> <span className="text-muted-foreground">({fmtToPar(scorecard.to_par_gross)})</span></div>
+        <div><span className="text-muted-foreground">Net:</span> <span className="font-semibold">{scorecard.total_net ?? "-"}</span> <span className="text-muted-foreground">({fmtToPar(scorecard.to_par_net)})</span></div>
+        {scorecard.hcp_index != null && <div><span className="text-muted-foreground">HCP:</span> <span className="font-semibold">{scorecard.hcp_index}</span></div>}
+        {scorecard.course_name && <div className="text-muted-foreground truncate">{scorecard.course_name}</div>}
+      </div>
+      {renderNine(0, 9, "OUT")}
+      {renderNine(9, 18, "IN")}
+      <div className="flex flex-wrap gap-2 text-[10px] pt-1">
+        <div className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-purple-600" /> HIO/Alb</div>
+        <div className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-orange-500" /> Eagle</div>
+        <div className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-500" /> Birdie</div>
+        <div className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-secondary border" /> Par</div>
+        <div className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-blue-100" /> Bogey+</div>
+      </div>
+    </div>
+  );
 }
 
 export function LeagueHighlights() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
-  const [bays, setBays] = useState<Bay[]>([]);
+  const [_bays, setBays] = useState<Bay[]>([]);
   const [enabled, setEnabled] = useState(false);
   const [retentionDays, setRetentionDays] = useState<number>(14);
   const [sessions, setSessions] = useState<SessionRow[]>([]);
-  const [runningTagger, setRunningTagger] = useState(false);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [activeSession, setActiveSession] = useState<SessionRow | null>(null);
   const [streamBusyIds, setStreamBusyIds] = useState<Set<string>>(new Set());
@@ -105,15 +169,8 @@ export function LeagueHighlights() {
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !videoUrl) return;
-
-    // Clean up previous Hls instance.
-    if (hlsRef.current) {
-      hlsRef.current.destroy();
-      hlsRef.current = null;
-    }
-
+    if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
     if (video.canPlayType("application/vnd.apple.mpegurl")) {
-      // Safari / native HLS support.
       video.src = videoUrl;
     } else if (Hls.isSupported()) {
       const hls = new Hls({ maxBufferLength: 60, maxMaxBufferLength: 120 });
@@ -121,11 +178,7 @@ export function LeagueHighlights() {
       hls.attachMedia(video);
       hlsRef.current = hls;
     }
-
-    return () => {
-      hlsRef.current?.destroy();
-      hlsRef.current = null;
-    };
+    return () => { hlsRef.current?.destroy(); hlsRef.current = null; };
   }, [videoUrl]);
 
   const load = async (silent = false) => {
@@ -142,74 +195,45 @@ export function LeagueHighlights() {
     // Full-session rows (hole_number = 0) hold the storage_path for the raw video.
     const { data: sessRows } = await supabase
       .from("recording_holes")
-       .select(`id, hole_number, storage_path, recording_session_id,
-                recording_sessions!inner(id, player_name, tournament_name, bay_number, started_at, stream_uid, stream_status, stream_error)`)
+      .select(`storage_path, recording_session_id,
+               recording_sessions!inner(id, player_name, tournament_name, bay_number, started_at, stream_uid, stream_status, stream_error, round_number, trigger_source, scorecard)`)
       .eq("status", "uploaded")
       .eq("hole_number", 0)
       .gte("updated_at", since)
       .order("updated_at", { ascending: false })
       .limit(200);
 
-    const sessionIds = (sessRows ?? []).map((r: any) => r.recording_session_id);
-    // Per-hole chapter data (all holes for those sessions)
-    const { data: holeRows } = sessionIds.length
-      ? await supabase
-          .from("recording_holes")
-          .select(`id, hole_number, par, score, hole_completed_at, recording_session_id, pre_existing,
-                   highlight_events(rule_key, tag_label, tag_emoji)`)
-          .in("recording_session_id", sessionIds)
-          .neq("hole_number", 0)
-          .eq("pre_existing", false)
-      : { data: [] as any[] };
-
-    const chaptersBySession = new Map<string, HoleChapter[]>();
-    for (const h of holeRows ?? []) {
-      const startedAt = (sessRows ?? []).find((s: any) => s.recording_session_id === h.recording_session_id)?.recording_sessions?.started_at;
-      const startMs = startedAt ? new Date(startedAt).getTime() : null;
-      const completedMs = h.hole_completed_at ? new Date(h.hole_completed_at).getTime() : null;
-      const offset = startMs && completedMs ? Math.max(0, (completedMs - startMs) / 1000) : null;
-      const chapter: HoleChapter = {
-        hole_id: h.id,
-        hole_number: h.hole_number,
-        par: h.par,
-        score: h.score,
-        offset_seconds: offset,
-        events: (h.highlight_events ?? []) as any,
-      };
-      const list = chaptersBySession.get(h.recording_session_id) ?? [];
-      list.push(chapter);
-      chaptersBySession.set(h.recording_session_id, list);
-    }
-
-    const mapped: SessionRow[] = (sessRows ?? []).map((r: any) => {
-      const chapters = (chaptersBySession.get(r.recording_session_id) ?? []).sort((a, b) => a.hole_number - b.hole_number);
-      return {
-        session_id: r.recording_session_id,
-        storage_path: r.storage_path,
-        stream_uid: r.recording_sessions?.stream_uid ?? null,
-        stream_status: r.recording_sessions?.stream_status ?? null,
-        stream_error: r.recording_sessions?.stream_error ?? null,
-        player_name: r.recording_sessions?.player_name ?? null,
-        tournament_name: r.recording_sessions?.tournament_name ?? null,
-        bay_number: r.recording_sessions?.bay_number,
-        started_at: r.recording_sessions?.started_at ?? null,
-        chapters,
-        has_highlights: chapters.some((c) => c.events.length > 0),
-      };
-    });
+    const mapped: SessionRow[] = (sessRows ?? []).map((r: any) => ({
+      session_id: r.recording_session_id,
+      storage_path: r.storage_path,
+      stream_uid: r.recording_sessions?.stream_uid ?? null,
+      stream_status: r.recording_sessions?.stream_status ?? null,
+      stream_error: r.recording_sessions?.stream_error ?? null,
+      player_name: r.recording_sessions?.player_name ?? null,
+      tournament_name: r.recording_sessions?.tournament_name ?? null,
+      bay_number: r.recording_sessions?.bay_number,
+      started_at: r.recording_sessions?.started_at ?? null,
+      round_number: r.recording_sessions?.round_number ?? null,
+      trigger_source: r.recording_sessions?.trigger_source ?? null,
+      scorecard: (r.recording_sessions?.scorecard as Scorecard | null) ?? null,
+    }));
     setSessions(mapped);
     if (!silent) setLoading(false);
   };
 
   useEffect(() => {
     void load();
-    // Live poll stream status / new sessions every 10s without flashing the UI.
     const interval = setInterval(() => { void load(true); }, 10000);
     return () => clearInterval(interval);
   }, []);
 
-  // Auto-kick Cloudflare Stream ingest for any session that has an uploaded MKV
-  // but no stream yet. Runs silently so highlights are ready to edit on open.
+  // Keep activeSession in sync with fresh scorecard/stream data after each reload.
+  useEffect(() => {
+    if (!activeSession) return;
+    const fresh = sessions.find((s) => s.session_id === activeSession.session_id);
+    if (fresh && fresh !== activeSession) setActiveSession(fresh);
+  }, [sessions, activeSession]);
+
   useEffect(() => {
     for (const sess of sessions) {
       if (sess.stream_uid) continue;
@@ -240,14 +264,6 @@ export function LeagueHighlights() {
     else toast({ title: "Retention updated", description: `${count ?? 0} session${count === 1 ? "" : "s"} now expire in ${retentionDays} days.` });
   };
 
-  const runTagger = async () => {
-    setRunningTagger(true);
-    const { data, error } = await supabase.functions.invoke("sgt-highlight-tagger", { body: {} });
-    setRunningTagger(false);
-    if (error) toast({ title: "Tagger failed", description: error.message, variant: "destructive" });
-    else { toast({ title: "Tagger complete", description: `Processed ${data?.holes_processed} holes, created ${data?.events_created} tags.` }); void load(); }
-  };
-
   const ensureStream = async (sess: SessionRow, opts: { silent?: boolean } = {}): Promise<string | null> => {
     const { silent = false } = opts;
     setStreamBusyIds((prev) => { const next = new Set(prev); next.add(sess.session_id); return next; });
@@ -269,16 +285,14 @@ export function LeagueHighlights() {
         if (!silent) toast({ title: "Stream status check failed", description, variant: "destructive" });
         return null;
       }
-      // Reflect in-progress status immediately so the badge updates.
       setSessions((prev) => prev.map((s) => s.session_id === sess.session_id ? { ...s, stream_uid: data.stream_uid, stream_status: data.status ?? "inprogress", stream_error: null } : s));
-      if (silent) return null; // Background kickoff — poller will pick it up.
-      toast({ title: "Stream still processing", description: "The video is still being prepared. This page will update automatically when it is ready.", variant: "default" });
+      if (silent) return null;
+      toast({ title: "Stream still processing", description: "The video is still being prepared. This page will update automatically when it is ready." });
       return null;
     } finally {
       setStreamBusyIds((prev) => { const next = new Set(prev); next.delete(sess.session_id); return next; });
     }
   };
-
 
   const openSession = async (sess: SessionRow) => {
     const url = await ensureStream(sess);
@@ -287,22 +301,8 @@ export function LeagueHighlights() {
     setVideoUrl(url);
   };
 
-  const seekTo = (secs: number) => {
-    if (!videoRef.current) return;
-    videoRef.current.currentTime = secs;
-    void videoRef.current.play().catch(() => {});
-  };
-
-  const setClipStart = () => {
-    if (!videoRef.current) return;
-    setClipStartState(videoRef.current.currentTime);
-  };
-
-  const setClipEnd = () => {
-    if (!videoRef.current) return;
-    setClipEndState(videoRef.current.currentTime);
-  };
-
+  const setClipStart = () => { if (videoRef.current) setClipStartState(videoRef.current.currentTime); };
+  const setClipEnd = () => { if (videoRef.current) setClipEndState(videoRef.current.currentTime); };
   const clearClip = () => { setClipStartState(null); setClipEndState(null); };
 
   const queueClip = async () => {
@@ -319,14 +319,9 @@ export function LeagueHighlights() {
       toast({ title: "Clip failed", description: description || "unknown error", variant: "destructive" });
       return;
     }
-    // Reset markers so staff can immediately mark the next clip while this one processes.
     clearClip();
-    toast({
-      title: "Clipped",
-      description: `Queued ${fmtOffset(start)}–${fmtOffset(end)} · check Exports when ready.`,
-    });
+    toast({ title: "Clipped", description: `Queued ${fmtOffset(start)}–${fmtOffset(end)} · check Exports when ready.` });
   };
-
 
   const downloadSession = async (sess: SessionRow) => {
     if (!sess.storage_path) return;
@@ -352,10 +347,17 @@ export function LeagueHighlights() {
     else { toast({ title: "Dismissed" }); void load(); }
   };
 
-  const closeModal = () => {
-    setVideoUrl(null);
-    setActiveSession(null);
-    clearClip();
+  const closeModal = () => { setVideoUrl(null); setActiveSession(null); clearClip(); };
+
+  const countHighlights = (sc: Scorecard | null): number => {
+    if (!sc?.hole_data) return 0;
+    let n = 0;
+    for (let h = 1; h <= 18; h++) {
+      const par = sc.hole_data[`h${h}_Par`] as number;
+      const score = sc.hole_data[`hole${h}_gross`] as number;
+      if (par && score && score - par <= -1) n++;
+    }
+    return n;
   };
 
   return (
@@ -387,7 +389,7 @@ export function LeagueHighlights() {
             </div>
           </div>
           <p className="text-sm text-muted-foreground">
-            Raw MKVs are kept intact. Per-hole timestamps come from the SGT scorecard poller (every 1 min) and are shown as chapter markers you can jump to. Highlights auto-tag birdies, eagles, albatrosses, and holes-in-one. When retention expires, the storage MKV <strong>and</strong> the Cloudflare Stream copy are both deleted by the daily purge job.
+            Raw MKVs are kept intact. When a round finishes, the full scorecard is pulled once from SGT and shown alongside the video so you can scrub to any hole and clip birdies, eagles or holes-in-one. When retention expires the storage MKV <strong>and</strong> the Cloudflare Stream copy are both deleted by the daily purge job.
           </p>
         </CardContent>
       </Card>
@@ -395,45 +397,40 @@ export function LeagueHighlights() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Review Queue ({sessions.length})</CardTitle>
-          <Button size="sm" variant="outline" onClick={runTagger} disabled={runningTagger}>
-            {runningTagger ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-            Re-scan holes
-          </Button>
         </CardHeader>
         <CardContent>
           {loading ? <div className="flex justify-center py-8"><Loader2 className="animate-spin" /></div> :
            sessions.length === 0 ? <p className="text-muted-foreground text-sm py-8 text-center">No recorded sessions yet.</p> :
            <div className="space-y-3">
              {sessions.map((sess) => {
-               const highlights = sess.chapters.filter((c) => c.events.length > 0);
                const streamReady = sess.stream_status === "ready";
-                const streamFailed = ["failed", "status_failed", "error"].includes(sess.stream_status ?? "");
+               const streamFailed = ["failed", "status_failed", "error"].includes(sess.stream_status ?? "");
+               const highlightCount = countHighlights(sess.scorecard);
+               const roundLabel = sess.round_number ? ` — Round ${sess.round_number}` : "";
                return (
                  <div key={sess.session_id} className="border rounded-lg p-4">
                    <div className="flex flex-col md:flex-row md:items-start gap-3 md:gap-4">
                      <div className="flex-1 min-w-0">
                        <div className="flex items-center gap-2 flex-wrap">
                          <span className="font-semibold">{sess.player_name ?? "Unknown"}</span>
-                         <span className="text-muted-foreground text-sm">· Bay {sess.bay_number} · {sess.tournament_name}</span>
+                         <span className="text-muted-foreground text-sm">· Bay {sess.bay_number} · {sess.tournament_name}{roundLabel}</span>
                          {sess.started_at && <span className="text-muted-foreground text-xs">· {new Date(sess.started_at).toLocaleString()}</span>}
                        </div>
                        <div className="flex gap-2 mt-2 flex-wrap">
-                         {sess.chapters.length === 0 && (
-                           <Badge variant="outline">Raw recording — no SGT scorecard yet</Badge>
-                         )}
-                         {highlights.length > 0 && (
-                           <Badge variant="secondary">
-                             {highlights.map((h) => `${h.events[0].tag_emoji} H${h.hole_number}`).join(" · ")}
+                         {sess.trigger_source === "local_comp" && <Badge variant="secondary">Local Comp</Badge>}
+                         {sess.scorecard ? (
+                           <Badge variant="outline">
+                             {sess.scorecard.total_gross ?? "-"} gross ({fmtToPar(sess.scorecard.to_par_gross)})
+                             {highlightCount > 0 && ` · ${highlightCount} birdie${highlightCount === 1 ? "" : "s"}+`}
                            </Badge>
+                         ) : (
+                           <Badge variant="outline">Awaiting scorecard</Badge>
                          )}
-                         {sess.chapters.length > 0 && highlights.length === 0 && (
-                           <Badge variant="outline">{sess.chapters.length} holes tracked · no highlights</Badge>
-                         )}
-                          {streamReady && <Badge variant="outline" className="text-green-600">Stream ready</Badge>}
-                          {streamFailed && <Badge variant="destructive">Stream check failed</Badge>}
-                          {sess.stream_status && !streamReady && !streamFailed && <Badge variant="outline">Stream: {sess.stream_status}</Badge>}
+                         {streamReady && <Badge variant="outline" className="text-green-600">Stream ready</Badge>}
+                         {streamFailed && <Badge variant="destructive">Stream check failed</Badge>}
+                         {sess.stream_status && !streamReady && !streamFailed && <Badge variant="outline">Stream: {sess.stream_status}</Badge>}
                        </div>
-                        {sess.stream_error && <p className="text-xs text-destructive mt-2 break-words">{sess.stream_error}</p>}
+                       {sess.stream_error && <p className="text-xs text-destructive mt-2 break-words">{sess.stream_error}</p>}
                      </div>
                      <div className="flex gap-2 flex-wrap md:flex-nowrap md:shrink-0">
                        <Button size="sm" variant="outline" onClick={() => openSession(sess)} disabled={streamBusyIds.has(sess.session_id)}>
@@ -457,7 +454,12 @@ export function LeagueHighlights() {
         <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={closeModal}>
           <div className="bg-background rounded-lg max-w-6xl w-full max-h-[95vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="p-4 flex items-center justify-between border-b">
-              <div className="flex items-center gap-2"><Video className="h-4 w-4" /><span className="font-semibold">{activeSession.player_name} — {activeSession.tournament_name}</span></div>
+              <div className="flex items-center gap-2">
+                <Video className="h-4 w-4" />
+                <span className="font-semibold">
+                  {activeSession.player_name} — {activeSession.tournament_name}{activeSession.round_number ? ` — Round ${activeSession.round_number}` : ""}
+                </span>
+              </div>
               <div className="flex items-center gap-2">
                 <Button asChild size="sm" variant="outline"><Link to={`/admin/highlights/${activeSession.session_id}/exports`}><FolderOpen className="h-4 w-4 mr-1" />Exports</Link></Button>
                 <Button size="sm" variant="ghost" onClick={closeModal}>Close</Button>
@@ -499,26 +501,15 @@ export function LeagueHighlights() {
                   </div>
                 )}
               </div>
-              <div className="w-full md:w-80 border-l overflow-y-auto p-3 space-y-1">
-                <div className="text-xs font-semibold text-muted-foreground uppercase mb-2">Chapters</div>
-                {activeSession.chapters.length === 0 && <div className="text-sm text-muted-foreground">No hole timestamps yet.</div>}
-                {activeSession.chapters.map((c) => {
-                  const label = scoreLabel(c.par, c.score);
-                  const highlight = c.events[0];
-                  return (
-                    <button
-                      key={c.hole_id}
-                      onClick={() => c.offset_seconds != null && seekTo(c.offset_seconds)}
-                      disabled={c.offset_seconds == null}
-                      className="w-full text-left p-2 rounded hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                    >
-                      <span className="font-mono text-xs w-16 text-muted-foreground">{fmtOffset(c.offset_seconds)}</span>
-                      <span className="font-semibold w-14">Hole {c.hole_number}</span>
-                      <span className="text-xs text-muted-foreground w-24">Par {c.par ?? "?"} · {c.score ?? "?"} ({label})</span>
-                      {highlight && <Badge variant="secondary" className="ml-auto">{highlight.tag_emoji} {highlight.tag_label}</Badge>}
-                    </button>
-                  );
-                })}
+              <div className="w-full md:w-[420px] border-l overflow-y-auto p-4">
+                <div className="text-xs font-semibold text-muted-foreground uppercase mb-3">Scorecard</div>
+                {activeSession.scorecard ? (
+                  <ScorecardGrid scorecard={activeSession.scorecard} />
+                ) : (
+                  <div className="text-sm text-muted-foreground">
+                    Scorecard will appear here once the round is finished and pulled from SGT.
+                  </div>
+                )}
               </div>
             </div>
           </div>
