@@ -2413,6 +2413,60 @@ export default function BayController() {
     };
   }, [isElectron, activeBooking?.id, addLog, bayLogger, runSwingLabCloseSync]);
 
+  // Mid-session GSPro settings snapshot uploader.
+  // Rationale: uploading only on GSPro close is unreliable — the app can rewrite
+  // the roster file back to defaults on exit, and users sometimes exit before
+  // saving. We upload every 3 minutes while GSPro is running so we always have
+  // a fresh snapshot reflecting the user's SGT login + prefs. Upload is a no-op
+  // if nothing changed since the last capture (hash compare inside main.js).
+  useEffect(() => {
+    if (!isElectron || !window.electronAPI?.isGsproRunning) return;
+    if (!appsRunning) return;
+    const userId = activeBooking?.user_id;
+    const bookingId = activeBooking?.id;
+    if (!userId) return;
+
+    let cancelled = false;
+    let inFlight = false;
+
+    const runMidSessionSync = async () => {
+      if (cancelled || inFlight) return;
+      try {
+        const running = await window.electronAPI!.isGsproRunning();
+        if (cancelled || !running?.isRunning) return;
+        inFlight = true;
+        addLog('[Sync] Mid-session settings snapshot upload…', 'info');
+        bayLogger.sendLog('automation_decision', '[Sync] Mid-session settings snapshot upload', {
+          bookingId,
+          immediate: false,
+        });
+        const saved = await saveUserGsproSettings(userId, {
+          bayNumber: selectedBay,
+          bookingId: bookingId ?? null,
+          appVersion,
+          log: (msg, level) => addLog(msg, (level as any) ?? 'info'),
+        });
+        if (saved.saved.length) {
+          addLog(`[Sync] Mid-session upload OK: ${saved.saved.join(', ')}`, 'info');
+        }
+      } catch (err: any) {
+        addLog(`[Sync] Mid-session upload error: ${err?.message ?? String(err)}`, 'error');
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    // First run 90s after apps launch (give user time to enter SGT info),
+    // then every 3 minutes.
+    const initialTimer = setTimeout(runMidSessionSync, 90 * 1000);
+    const interval = setInterval(runMidSessionSync, 3 * 60 * 1000);
+    return () => {
+      cancelled = true;
+      clearTimeout(initialTimer);
+      clearInterval(interval);
+    };
+  }, [isElectron, appsRunning, activeBooking?.user_id, activeBooking?.id, selectedBay, appVersion, addLog, bayLogger]);
+
   // Keep a ref to the latest activeBooking so the Desktop CSV watcher listener
   // (subscribed once below) always sees current context.
   useEffect(() => {
