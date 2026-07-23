@@ -93,7 +93,7 @@ export async function getFunctionErrorMessage(error: any, data?: any): Promise<s
   return fallback;
 }
 
-function ScorecardGrid({ scorecard }: { scorecard: Scorecard }) {
+export function ScorecardGrid({ scorecard }: { scorecard: Scorecard }) {
   const holes = Array.from({ length: 18 }, (_, i) => i + 1);
   const hd = scorecard.hole_data ?? {};
   const getPar = (h: number) => (hd[`h${h}_Par`] as number) ?? null;
