@@ -291,7 +291,7 @@ export function LeagueHighlights() {
     else { toast({ title: "Dismissed" }); void load(); }
   };
 
-  const closeModal = () => { setVideoUrl(null); setActiveSession(null); clearClip(); };
+  
 
   const countHighlights = (sc: Scorecard | null): number => {
     if (!sc?.hole_data) return 0;
