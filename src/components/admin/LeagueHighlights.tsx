@@ -44,7 +44,7 @@ interface SessionRow {
   scorecard: Scorecard | null;
 }
 
-function fmtOffset(secs: number | null): string {
+export function fmtOffset(secs: number | null): string {
   if (secs == null || !Number.isFinite(secs) || secs < 0) return "--:--";
   const s = Math.floor(secs);
   const h = Math.floor(s / 3600);
