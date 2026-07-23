@@ -309,18 +309,16 @@ export function LeagueHighlights() {
       <Card>
         <CardHeader><CardTitle>Recording Configuration</CardTitle></CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center gap-4 flex-wrap">
+          <div className="flex flex-col gap-4">
             <div className="flex items-center gap-2">
               <Switch id="rec-enabled" checked={enabled} onCheckedChange={(v) => { setEnabled(v); void saveConfig(v); }} />
               <Label htmlFor="rec-enabled">Enable League highlight recording</Label>
             </div>
-            <div className="flex items-center gap-2">
-              <Label className="text-sm text-muted-foreground">Active on all bays with OBS installed</Label>
-            </div>
-            <div className="flex items-center gap-2">
-              <Label>Auto-delete after:</Label>
+            <p className="text-sm text-muted-foreground">Active on all bays with OBS installed</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <Label className="w-full sm:w-auto">Auto-delete after:</Label>
               <Select value={retentionDays.toString()} onValueChange={(v) => { const n = parseInt(v); setRetentionDays(n); void saveConfig(enabled, n); }}>
-                <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="w-32 min-w-0"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="7">7 days</SelectItem>
                   <SelectItem value="14">14 days</SelectItem>
@@ -332,6 +330,7 @@ export function LeagueHighlights() {
               <Button size="sm" variant="outline" onClick={applyRetentionToExisting}>Apply to existing</Button>
             </div>
           </div>
+
           <p className="text-sm text-muted-foreground">
             Raw MKVs are kept intact. When a round finishes, the full scorecard is pulled once from SGT and shown alongside the video so you can scrub to any hole and clip birdies, eagles or holes-in-one. When retention expires the storage MKV <strong>and</strong> the Cloudflare Stream copy are both deleted by the daily purge job.
           </p>
