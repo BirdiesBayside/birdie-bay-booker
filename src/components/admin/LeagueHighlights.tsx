@@ -14,7 +14,7 @@ import { Download, FolderOpen, Loader2, Play, Scissors, Trash2, Video, X } from 
 
 interface Bay { id: string; bay_number: number; name: string | null }
 
-interface Scorecard {
+export interface Scorecard {
   player_name?: string | null;
   hcp_index?: number | null;
   round?: number | null;
