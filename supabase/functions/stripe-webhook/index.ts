@@ -181,13 +181,35 @@ serve(async (req) => {
       });
     }
 
-    logStep("Event verified", { type: event.type });
+    logStep("Event verified", { type: event.type, id: event.id });
 
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
       { auth: { persistSession: false } }
     );
+
+    // ─── IDEMPOTENCY GUARD ───
+    // Stripe may redeliver the same event (webhook timeout, non-2xx, etc.).
+    // Insert event.id into stripe_processed_events; on conflict, short-circuit
+    // so no downstream side effect (emails, refunds, tier changes) runs twice.
+    {
+      const { error: dedupError } = await supabaseAdmin
+        .from("stripe_processed_events")
+        .insert({ event_id: event.id, event_type: event.type });
+
+      if (dedupError) {
+        // Unique violation = already processed; anything else = log & continue
+        // (fail-open to avoid dropping legitimate events on transient DB errors).
+        if ((dedupError as any).code === "23505") {
+          logStep("Duplicate Stripe event, skipping", { id: event.id, type: event.type });
+          return new Response(JSON.stringify({ received: true, duplicate: true }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        logStep("Idempotency insert failed (continuing)", { error: dedupError.message });
+      }
+    }
 
     // Load dynamic price to tier map
     const PRICE_TO_TIER = await getPriceToTierMap(supabaseAdmin);
