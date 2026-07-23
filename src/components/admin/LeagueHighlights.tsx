@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import Hls from "hls.js";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { Download, FolderOpen, Loader2, Play, Scissors, Trash2, Video, X } from "lucide-react";
+import { Download, FolderOpen, Loader2, Play, Trash2 } from "lucide-react";
 
 interface Bay { id: string; bay_number: number; name: string | null }
 
