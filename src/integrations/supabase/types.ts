@@ -2191,6 +2191,7 @@ export type Database = {
           player_name: string | null
           retention_until: string | null
           round_number: number
+          scorecard: Json | null
           sgt_tournament_id: string | null
           sgt_user_id: string | null
           started_at: string | null
@@ -2217,6 +2218,7 @@ export type Database = {
           player_name?: string | null
           retention_until?: string | null
           round_number?: number
+          scorecard?: Json | null
           sgt_tournament_id?: string | null
           sgt_user_id?: string | null
           started_at?: string | null
@@ -2243,6 +2245,7 @@ export type Database = {
           player_name?: string | null
           retention_until?: string | null
           round_number?: number
+          scorecard?: Json | null
           sgt_tournament_id?: string | null
           sgt_user_id?: string | null
           started_at?: string | null
