@@ -4009,10 +4009,12 @@ ipcMain.handle('obs-upload-file', async (_e, { filePath, signedUrl, contentType 
     if (!signedUrl) return { success: false, error: 'Missing signedUrl' };
     const stat = fs.statSync(filePath);
     const buf = fs.readFileSync(filePath);
+    const isMp4 = filePath.toLowerCase().endsWith('.mp4');
+    const resolvedType = contentType || (isMp4 ? 'video/mp4' : 'video/x-matroska');
     const resp = await fetch(signedUrl, {
       method: 'PUT',
       headers: {
-        'Content-Type': contentType || 'video/x-matroska',
+        'Content-Type': resolvedType,
         'Content-Length': String(stat.size),
       },
       body: buf,
