@@ -273,18 +273,23 @@ serve(async (req) => {
         // cancelled or ended before we uploaded).
         let access = bookingId ? await hasBookingAccess(userId, bookingId) : false;
         if (!access) {
-          const sinceIso = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
+          // Look back 36h using booking_date (covers overnight sessions and
+          // next-morning uploads if a previous booking's snapshot lingered
+          // on disk). Falls back to updated_at as a safety net.
+          const sinceDate = new Date(Date.now() - 36 * 60 * 60 * 1000);
+          const sinceDateStr = sinceDate.toISOString().slice(0, 10);
+          const sinceIso = sinceDate.toISOString();
           const { data: recent } = await supabase
             .from("bookings")
             .select("id")
             .eq("user_id", userId)
             .eq("bay_id", bay.id)
-            .gte("updated_at", sinceIso)
+            .or(`booking_date.gte.${sinceDateStr},updated_at.gte.${sinceIso}`)
             .limit(1)
             .maybeSingle();
           access = !!recent;
         }
-        if (!access) return jsonResponse({ error: "forbidden" }, 403);
+        if (!access) return jsonResponse({ error: "forbidden", detail: "no_recent_booking_for_user_on_bay" }, 403);
 
         let bytes: Uint8Array;
         try { bytes = decodeBase64(base64); }
