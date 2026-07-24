@@ -3104,6 +3104,20 @@ export default function BayController() {
                   : `[Settings] Baseline fallback returned no files`;
                 addLog(msg, 'info');
                 bayLogger.sendLog('automation_decision', msg, { bookingId: activeBooking?.id });
+
+                // CRITICAL: also refresh the attribution marker so the T-3m
+                // capture uploads under THIS booking's user, not whoever was
+                // restored last time the controller ran. Without this, a
+                // stale in-memory marker from a previous session (e.g.
+                // yesterday's customer) causes 403s from bay-controller-api.
+                if (ok.length && activeBooking?.user_id && window.electronAPI.captureUserSettingsSnapshot) {
+                  try {
+                    await window.electronAPI.captureUserSettingsSnapshot(activeBooking.user_id);
+                    bayLogger.sendLog('automation_decision', `[Settings] Attribution marker set to ${activeBooking.user_id} (baseline path)`, { bookingId: activeBooking.id });
+                  } catch (e) {
+                    console.error('[BayController] captureUserSettingsSnapshot (baseline) failed:', e);
+                  }
+                }
               } else if (baseline?.error) {
                 addLog(`[Settings] Baseline fallback skipped: ${baseline.error}`, 'info');
                 bayLogger.sendLog('automation_decision', `[Settings] Baseline fallback skipped: ${baseline.error}`, { bookingId: activeBooking?.id, level: 'warning' });
