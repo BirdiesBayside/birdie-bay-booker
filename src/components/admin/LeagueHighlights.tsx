@@ -285,10 +285,16 @@ export function LeagueHighlights() {
   };
 
   const dismissSession = async (sess: SessionRow) => {
-    if (!confirm(`Dismiss recording for ${sess.player_name ?? "player"}? This removes it from the queue.`)) return;
-    const { error } = await supabase.from("recording_sessions").delete().eq("id", sess.session_id);
-    if (error) toast({ title: "Dismiss failed", description: error.message, variant: "destructive" });
-    else { toast({ title: "Dismissed" }); void load(); }
+    if (!confirm(`Delete recording for ${sess.player_name ?? "player"}? This removes it from Cloudflare Stream, storage and the queue.`)) return;
+    const { data, error } = await supabase.functions.invoke("delete-recording-session", { body: { session_id: sess.session_id } });
+    if (error || !data?.ok) {
+      const description = await getFunctionErrorMessage(error, data);
+      toast({ title: "Delete failed", description: description || "Unknown error", variant: "destructive" });
+    } else {
+      const extra = data.stream_errors?.length ? ` (${data.stream_errors.length} CF warnings)` : "";
+      toast({ title: "Deleted", description: `Removed from Cloudflare + storage${extra}` });
+      void load();
+    }
   };
 
   
