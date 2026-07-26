@@ -586,6 +586,13 @@ serve(async (req) => {
           updated_at: new Date().toISOString(),
         };
         if (b.mkv_path) update.mkv_path = b.mkv_path;
+        // Direct-to-Cloudflare path: the bay already pushed the MP4 straight to
+        // Stream via tus, so record the uid and let Cloudflare finish encoding.
+        if (b.stream_uid) {
+          update.stream_uid = b.stream_uid;
+          update.stream_status = "processing";
+          update.stream_created_at = new Date().toISOString();
+        }
         const { error } = await supabase.from("recording_sessions").update(update).eq("id", b.recording_session_id);
         if (error) return jsonResponse({ error: error.message }, 500);
 
