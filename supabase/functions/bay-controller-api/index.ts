@@ -565,7 +565,7 @@ serve(async (req) => {
       }
 
       case "recording_stop": {
-        const b = body as { recording_session_id?: string; ended_at?: string; file_size_bytes?: number; status?: string; error_message?: string; mkv_path?: string } | null;
+        const b = body as { recording_session_id?: string; ended_at?: string; file_size_bytes?: number; status?: string; error_message?: string; mkv_path?: string; stream_uid?: string } | null;
         if (!b?.recording_session_id) return jsonResponse({ error: "recording_session_id required" }, 400);
 
         // Run one final embed poll BEFORE flipping status away from 'recording'
