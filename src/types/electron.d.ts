@@ -116,6 +116,7 @@ declare global {
       obsStopRecording: () => Promise<{ success: boolean; filePath?: string | null; mkvPath?: string | null; sizeBytes?: number | null; error?: string }>;
       obsGetStatus: () => Promise<{ success: boolean; connected?: boolean; recording?: boolean; timecode?: string; error?: string }>;
       obsUploadFile: (filePath: string, signedUrl: string, contentType?: string) => Promise<{ success: boolean; sizeBytes?: number; error?: string }>;
+      obsTusUpload: (filePath: string, uploadUrl: string) => Promise<{ success: boolean; sizeBytes?: number; error?: string }>;
       obsDeleteFile: (filePath: string) => Promise<{ success: boolean; alreadyGone?: boolean; error?: string }>;
       obsAddChapter: (name: string) => Promise<{ success: boolean; error?: string }>;
     };
