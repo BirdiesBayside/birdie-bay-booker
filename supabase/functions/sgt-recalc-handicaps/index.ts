@@ -16,6 +16,26 @@ const BEST_ROUNDS = 3;
 const HCP_MIN = -36;
 const HCP_MAX = 36;
 
+/**
+ * Only FULL 18-hole rounds count towards the Birdies custom handicap.
+ * Partial / abandoned rounds score artificially low against par and would
+ * unfairly drag a handicap down.
+ */
+function isFullEighteen(sc: any): boolean {
+  const holes = sc?.hole_data;
+  if (holes && typeof holes === "object") {
+    let scored = 0;
+    for (let h = 1; h <= 18; h++) {
+      const v = Number(holes[`hole${h}_gross`]);
+      if (Number.isFinite(v) && v > 0) scored++;
+    }
+    return scored === 18;
+  }
+  // Fallback when hole data is missing: both nines must have a gross total
+  return Number(sc?.in_gross) > 0 && Number(sc?.out_gross) > 0;
+}
+
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
