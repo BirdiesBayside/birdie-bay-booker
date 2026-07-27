@@ -310,7 +310,9 @@ async function registerAllMembersForTournament(
 
   // Get all tour members from SGT API
   const tourMembersResponse = await sgtGetRequest("/tours/members", { tourId: tourId.toString() });
-  const allTourMembers = extractArray(tourMembersResponse, ['members', 'results']) as { user_id: number; user_name: string }[];
+  const allTourMembers = extractArray(tourMembersResponse, ['members', 'results']) as {
+    user_id: number; user_name: string; hcp_index?: number | null; custom_hcp?: number | null;
+  }[];
 
   console.log(`[SGT-TOURN-REG] Tour has ${allTourMembers.length} total members`);
 
@@ -325,8 +327,26 @@ async function registerAllMembersForTournament(
   (localTourMembers || []).forEach((m: { user_id: number; custom_hcp: number | null }) => {
     customHcpMap.set(m.user_id, m.custom_hcp);
   });
+
+  // SELF-HEAL: if a tour member has no local row (e.g. wiped by a past cleanup) but SGT
+  // still holds their Birdies custom HCP, restore it instead of silently falling back to Combo HCP.
+  for (const m of allTourMembers) {
+    if (!customHcpMap.has(m.user_id) && m.custom_hcp !== null && m.custom_hcp !== undefined) {
+      customHcpMap.set(m.user_id, m.custom_hcp);
+      await supabaseClient.from("sgt_tour_members").upsert({
+        tour_id: tourId,
+        user_id: m.user_id,
+        user_name: m.user_name,
+        hcp_index: m.hcp_index ?? null,
+        custom_hcp: m.custom_hcp,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'tour_id,user_id' });
+      console.log(`[SGT-TOURN-REG] Restored missing local tour row for ${m.user_name} (custom_hcp ${m.custom_hcp})`);
+    }
+  }
   
   console.log(`[SGT-TOURN-REG] Found ${customHcpMap.size} members with local handicap data`);
+
 
   // CRITICAL: Filter to only eligible members
   // Eligible = linked profile with non-visitor tier, OR custom_segment='staff', OR exempt_from_cleanup

@@ -243,7 +243,32 @@ serve(async (req) => {
             }
           } else if (!inTour) {
             result.action = result.action ? result.action + "_and_tour" : "would_add_to_tour";
+          } else if (inTour && !dryRun) {
+            // SELF-HEAL: they're already in the SGT tour but our local row may have been
+            // deleted by a past cleanup (loses custom_hcp -> registration falls back to Combo HCP).
+            const { data: localRow } = await supabase
+              .from("sgt_tour_members")
+              .select("user_id, custom_hcp")
+              .eq("tour_id", activeTour.tourId)
+              .eq("user_id", member.sgt_user_id)
+              .maybeSingle();
+
+            if (!localRow) {
+              const sgtRow = tourMembers.find(m => m.user_id === member.sgt_user_id) as
+                (SGTMember & { custom_hcp?: number | null; hcp_index?: number | null }) | undefined;
+              await supabase.from("sgt_tour_members").upsert({
+                tour_id: activeTour.tourId,
+                user_id: member.sgt_user_id,
+                user_name: name,
+                hcp_index: sgtRow?.hcp_index ?? null,
+                custom_hcp: sgtRow?.custom_hcp ?? null,
+                updated_at: new Date().toISOString(),
+              }, { onConflict: 'tour_id,user_id' });
+              result.action = "restored_local_tour_row";
+              console.log(`[SGT-SYNC-ELIGIBLE] Restored missing local tour row for ${name} (custom_hcp: ${sgtRow?.custom_hcp ?? 'null'})`);
+            }
           }
+
 
           if (!result.action) {
             result.action = result.club_added || result.tour_added ? "re_added" : "already_complete";
