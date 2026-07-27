@@ -3990,7 +3990,10 @@ ipcMain.handle('obs-add-chapter', async (_e, { name } = {}) => {
 // Streams the file in 200 MiB chunks so multi-GB rounds never hit Supabase
 // Storage's 2 GiB object cap and never load fully into memory.
 ipcMain.handle('obs-tus-upload', async (event, { filePath, uploadUrl } = {}) => {
-  const CHUNK = 200 * 1024 * 1024; // must be a multiple of 256 KiB for tus
+  // 100 MiB chunks: multiple of 256 KiB and well under Cloudflare's 200 MB
+  // per-PATCH ceiling, which we were hitting exactly and occasionally 400ing on.
+  const CHUNK = 100 * 1024 * 1024;
+
   try {
     if (!filePath || !fs.existsSync(filePath)) return { success: false, error: 'File not found' };
     if (!uploadUrl) return { success: false, error: 'Missing uploadUrl' };
