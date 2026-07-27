@@ -2518,6 +2518,49 @@ export default function BayController() {
     activeBookingRef.current = activeBooking ?? null;
   }, [activeBooking]);
 
+  // ── HARD STOP WATCHDOG ─────────────────────────────────────────────────────
+  // A recording must NEVER outlive the booking that started it. Independent of
+  // any SGT scorecard signal, this checks every 10s and force-stops + uploads if:
+  //   1. we're within 30s of (or past) the owning booking's end time, or
+  //   2. the bay has changed hands (back-to-back with a different customer), or
+  //   3. the owning booking has vanished (cancelled / rescheduled / deleted).
+  useEffect(() => {
+    if (!isElectron || !selectedBay) return;
+
+    const interval = setInterval(() => {
+      const rec = (window as any).__activeRecording;
+      if (!rec?.sessionId) return;
+
+      const now = Date.now();
+      const current = activeBookingRef.current;
+      let reason: string | null = null;
+
+      if (rec.bookingEndMs && now >= rec.bookingEndMs - 30_000) {
+        reason = 'booking end reached';
+      } else if (rec.bookingId && current && current.id !== rec.bookingId) {
+        reason = current.user_id !== rec.userId
+          ? 'bay changed hands (different customer)'
+          : 'booking changed';
+      } else if (rec.bookingId && !current) {
+        reason = 'owning booking no longer active';
+      } else if (rec.bookingId && !bookingsRef.current.some(b => b.id === rec.bookingId)) {
+        reason = 'owning booking removed';
+      }
+
+      if (reason) {
+        addLog(`[Highlights] Hard stop triggered: ${reason}`, 'info');
+        bayLogger.sendLog('automation_decision', `[Highlights] Hard stop recording ${rec.sessionId}: ${reason}`, {
+          bookingId: rec.bookingId ?? undefined,
+        });
+        void finalizeRecording(rec.sessionId, `hard stop — ${reason}`);
+      }
+    }, 10_000);
+
+    return () => clearInterval(interval);
+  }, [isElectron, selectedBay, addLog, bayLogger, finalizeRecording]);
+
+
+
   // Desktop CSV watcher: main process pushes each newly-written GSPro export.
   // We attribute it to whichever booking is active RIGHT NOW (at write time)
   // and upload immediately. Deletion happens inside uploadRangeCsv on success.
