@@ -6,11 +6,19 @@ const corsHeaders = {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
-  const { uids } = await req.json().catch(() => ({ uids: [] }));
+  const { uids, action } = await req.json().catch(() => ({ uids: [] }));
   const accountId = (Deno.env.get("CLOUDFLARE_ACCOUNT_ID") ?? "").trim();
   const token = (Deno.env.get("CLOUDFLARE_STREAM_API_TOKEN") ?? "").trim();
   const out: unknown[] = [];
   for (const uid of uids ?? []) {
+    if (action === "delete") {
+      const del = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/stream/${uid}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      out.push({ uid, deleted: del.status });
+      continue;
+    }
     const res = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/stream/${uid}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
