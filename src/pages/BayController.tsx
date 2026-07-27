@@ -1460,10 +1460,21 @@ export default function BayController() {
                 addLog(`[Highlights] OBS start FAILED: ${startRes?.error ?? 'unknown'}`, 'error');
                 await supabase.from('recording_sessions').update({ status: 'error', error_message: startRes?.error ?? 'obs start failed' }).eq('id', sessionId);
               } else {
-                // Persist session id + start time on window for later stop handler
-                (window as any).__activeRecording = { sessionId, startedAtMs: startRes.startedAtMs };
+                // Persist session id, start time AND the booking that owns it so the
+                // hard-stop watchdog can kill it when that booking ends / changes hands.
+                const owner = activeBookingRef.current;
+                (window as any).__activeRecording = {
+                  sessionId,
+                  startedAtMs: startRes.startedAtMs,
+                  bookingId: owner?.id ?? null,
+                  userId: owner?.user_id ?? null,
+                  bookingEndMs: owner?.booking_date && owner?.end_time
+                    ? new Date(`${owner.booking_date}T${owner.end_time}`).getTime()
+                    : null,
+                };
                 addLog(`[Highlights] Recording session ${sessionId} started`, 'success');
               }
+
             } catch (e) {
               addLog(`[Highlights] Start handler error: ${(e as Error).message}`, 'error');
             }
