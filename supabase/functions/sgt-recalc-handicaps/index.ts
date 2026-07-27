@@ -16,6 +16,26 @@ const BEST_ROUNDS = 3;
 const HCP_MIN = -36;
 const HCP_MAX = 36;
 
+/**
+ * Only FULL 18-hole rounds count towards the Birdies custom handicap.
+ * Partial / abandoned rounds score artificially low against par and would
+ * unfairly drag a handicap down.
+ */
+function isFullEighteen(sc: any): boolean {
+  const holes = sc?.hole_data;
+  if (holes && typeof holes === "object") {
+    let scored = 0;
+    for (let h = 1; h <= 18; h++) {
+      const v = Number(holes[`hole${h}_gross`]);
+      if (Number.isFinite(v) && v > 0) scored++;
+    }
+    return scored === 18;
+  }
+  // Fallback when hole data is missing: both nines must have a gross total
+  return Number(sc?.in_gross) > 0 && Number(sc?.out_gross) > 0;
+}
+
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -69,17 +89,23 @@ Deno.serve(async (req) => {
     const summary: Array<{ user_id: number; user_name: string | null; old_hcp: number | null; new_hcp: number | null; rounds: number; status: string }> = [];
 
     for (const member of uniqueMembers.values()) {
-      // Get most recent completed scorecards for this player
-      const { data: scorecards } = await supabase
+      // Pull a wide window of scorecards, then keep only FULL 18-hole rounds.
+      // Partial / abandoned rounds must never influence the handicap.
+      const { data: rawCards } = await supabase
         .from("sgt_scorecards")
-        .select("to_par_gross, total_gross, created_at")
+        .select("to_par_gross, total_gross, in_gross, out_gross, hole_data, created_at")
         .eq("player_id", member.user_id)
         .not("total_gross", "is", null)
         .not("to_par_gross", "is", null)
         .order("created_at", { ascending: false })
-        .limit(roundsRequired);
+        .limit(60);
 
-      const roundsPlayed = scorecards?.length ?? 0;
+      const scorecards = (rawCards ?? [])
+        .filter((sc: any) => isFullEighteen(sc))
+        .slice(0, roundsRequired);
+
+      const roundsPlayed = scorecards.length;
+
 
       // LOCKED: not enough rounds yet — keep onboarding_hcp
       if (roundsPlayed < roundsRequired) {
@@ -101,7 +127,7 @@ Deno.serve(async (req) => {
       }
 
       // UNLOCKED: best 3 of last 6 to-par-gross average
-      const toPars = scorecards!.map((s) => Number(s.to_par_gross)).sort((a, b) => a - b);
+      const toPars = scorecards.map((s: any) => Number(s.to_par_gross)).sort((a, b) => a - b);
       const best = toPars.slice(0, bestRounds);
       const avgToPar = best.reduce((a, b) => a + b, 0) / best.length;
 
