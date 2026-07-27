@@ -138,6 +138,3 @@ verify_jwt = false
 
 [functions.sgt-tournament-commentary]
 verify_jwt = false
-
-[functions.cf-probe]
-verify_jwt = false
