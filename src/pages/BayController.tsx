@@ -1463,7 +1463,17 @@ export default function BayController() {
             return;
           }
 
-          // For on/off commands, also switch to manual mode and update DB
+          // For on/off commands, also switch to manual mode and update DB.
+          // Guard: any unrecognised command must NOT flip the bay into manual mode.
+          if (command.command !== 'on' && command.command !== 'off') {
+            console.warn(`Unrecognised bay command ignored: ${command.command}`);
+            await supabase
+              .from('bay_commands')
+              .update({ status: 'executed', executed_at: new Date().toISOString() })
+              .eq('id', command.id);
+            return;
+          }
+
           setManualOverride(true);
           updateControlModeInDb(true);
           
@@ -1561,7 +1571,14 @@ export default function BayController() {
               continue;
             }
 
-            // For on/off commands
+            // ONLY plug on/off commands may force MANUAL mode.
+            // OBS / recording / any other command types are handled exclusively by the
+            // realtime handler above — polling must never fall through to manual here.
+            if (command.command !== 'on' && command.command !== 'off') {
+              console.log(`Polling: ignoring non-plug command "${command.command}" (realtime handles it)`);
+              continue;
+            }
+
             setManualOverride(true);
             updateControlModeInDb(true);
             await executePlugControl(command.command as 'on' | 'off', command.id);
