@@ -1399,45 +1399,63 @@ export default function BayController() {
                   body: { recording_session_id: sessionId, status: 'error', error_message: stopRes?.error ?? 'no file' },
                 });
               } else {
-                // Prefer .mp4 (OBS auto-remuxed) so Cloudflare Stream can ingest directly.
+                // Direct-to-Cloudflare Stream: push the recording straight from the bay
+                // via tus. No Supabase Storage hop, so no 2 GiB object cap.
+                const sizeBytes = stopRes.sizeBytes ?? 0;
                 const isMp4 = typeof stopRes.filePath === 'string' && stopRes.filePath.toLowerCase().endsWith('.mp4');
-                const ext = isMp4 ? 'mp4' : 'mkv';
-                const contentType = isMp4 ? 'video/mp4' : 'video/x-matroska';
-                const filename = `session-${sessionId}.${ext}`;
-                const { data: urlData } = await supabase.functions.invoke('bay-controller-api', {
-                  headers: { 'x-bay-number': selectedBay.toString(), 'x-action': 'recording_upload_url' },
-                  body: { recording_session_id: sessionId, hole_number: 0, filename },
-                });
-                if (urlData?.signed_url) {
-                  addLog(`[Highlights] Uploading ${stopRes.filePath} (${Math.round((stopRes.sizeBytes ?? 0) / 1024 / 1024)} MB, ${ext.toUpperCase()})`, 'info');
-                  const upRes = await electronApi?.obsUploadFile?.(stopRes.filePath, urlData.signed_url, contentType);
-                  if (upRes?.success) {
-                    const rec = (window as any).__activeRecording;
-                    const durationSec = rec?.startedAtMs ? (Date.now() - rec.startedAtMs) / 1000 : null;
-                    await supabase.functions.invoke('bay-controller-api', {
-                      headers: { 'x-bay-number': selectedBay.toString(), 'x-action': 'recording_hole' },
-                      body: { recording_session_id: sessionId, hole_number: 0, storage_path: urlData.path, clip_start_seconds: 0, clip_end_seconds: durationSec },
-                    });
-                    await supabase.functions.invoke('bay-controller-api', {
-                      headers: { 'x-bay-number': selectedBay.toString(), 'x-action': 'recording_stop' },
-                      body: { recording_session_id: sessionId, file_size_bytes: upRes.sizeBytes ?? stopRes.sizeBytes ?? null, status: 'uploaded', mkv_path: urlData.path },
-                    });
-                    // Clean up both the uploaded file and (if remuxed) the original .mkv sibling.
-                    await electronApi?.obsDeleteFile?.(stopRes.filePath).catch(() => undefined);
-                    if (isMp4 && stopRes.mkvPath && stopRes.mkvPath !== stopRes.filePath) {
-                      await electronApi?.obsDeleteFile?.(stopRes.mkvPath).catch(() => undefined);
-                    }
-                    addLog(`[Highlights] Session ${sessionId} uploaded`, 'success');
+                const rec = (window as any).__activeRecording;
+                const durationSec = rec?.startedAtMs ? (Date.now() - rec.startedAtMs) / 1000 : null;
+
+                const failStop = async (msg: string) => {
+                  addLog(`[Highlights] ${msg}`, 'error');
+                  await supabase.functions.invoke('bay-controller-api', {
+                    headers: { 'x-bay-number': selectedBay.toString(), 'x-action': 'recording_stop' },
+                    body: { recording_session_id: sessionId, status: 'error', error_message: msg },
+                  });
+                };
+
+                if (!sizeBytes) {
+                  await failStop('Recording file is empty — nothing to upload');
+                } else {
+                  const { data: tusData } = await supabase.functions.invoke('bay-controller-api', {
+                    headers: { 'x-bay-number': selectedBay.toString(), 'x-action': 'recording_stream_upload_url' },
+                    body: { recording_session_id: sessionId, size_bytes: sizeBytes },
+                  });
+
+                  if (!tusData?.upload_url) {
+                    await failStop(`Could not create Cloudflare upload: ${tusData?.error ?? 'no upload URL'}`);
                   } else {
-                    addLog(`[Highlights] Upload failed: ${upRes?.error}`, 'error');
-                    await supabase.functions.invoke('bay-controller-api', {
-                      headers: { 'x-bay-number': selectedBay.toString(), 'x-action': 'recording_stop' },
-                      body: { recording_session_id: sessionId, status: 'error', error_message: upRes?.error },
-                    });
+                    addLog(`[Highlights] Uploading to Cloudflare Stream: ${Math.round(sizeBytes / 1024 / 1024)} MB (${isMp4 ? 'MP4' : 'MKV'})`, 'info');
+                    const upRes = await electronApi?.obsTusUpload?.(stopRes.filePath, tusData.upload_url);
+                    if (upRes?.success) {
+                      await supabase.functions.invoke('bay-controller-api', {
+                        headers: { 'x-bay-number': selectedBay.toString(), 'x-action': 'recording_hole' },
+                        body: { recording_session_id: sessionId, hole_number: 0, clip_start_seconds: 0, clip_end_seconds: durationSec },
+                      });
+                      await supabase.functions.invoke('bay-controller-api', {
+                        headers: { 'x-bay-number': selectedBay.toString(), 'x-action': 'recording_stop' },
+                        body: {
+                          recording_session_id: sessionId,
+                          file_size_bytes: upRes.sizeBytes ?? sizeBytes,
+                          status: 'uploaded',
+                          stream_uid: tusData.stream_uid,
+                        },
+                      });
+                      // Clean up the uploaded file and (if remuxed) the original .mkv sibling.
+                      await electronApi?.obsDeleteFile?.(stopRes.filePath).catch(() => undefined);
+                      if (isMp4 && stopRes.mkvPath && stopRes.mkvPath !== stopRes.filePath) {
+                        await electronApi?.obsDeleteFile?.(stopRes.mkvPath).catch(() => undefined);
+                      }
+                      addLog(`[Highlights] Session ${sessionId} uploaded to Cloudflare (${tusData.stream_uid})`, 'success');
+                    } else {
+                      // Leave the local file in place so it can be retried manually.
+                      await failStop(`Cloudflare upload failed: ${upRes?.error ?? 'unknown'}`);
+                    }
                   }
                 }
                 (window as any).__activeRecording = null;
               }
+
             } catch (e) {
               addLog(`[Highlights] Stop handler error: ${(e as Error).message}`, 'error');
             }
