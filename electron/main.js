@@ -4022,8 +4022,11 @@ ipcMain.handle('obs-tus-upload', async (event, { filePath, uploadUrl } = {}) => 
           body: buf,
         });
         if (resp.status !== 204 && resp.status !== 200) {
-          throw new Error(`tus PATCH HTTP ${resp.status}`);
+          let detail = '';
+          try { detail = (await resp.text()).slice(0, 300); } catch { /* ignore */ }
+          throw new Error(`tus PATCH HTTP ${resp.status}${detail ? ` - ${detail}` : ''}`);
         }
+
         const newOffset = Number(resp.headers.get('upload-offset'));
         offset = Number.isFinite(newOffset) && newOffset > offset ? newOffset : end;
         consecutiveFailures = 0;
