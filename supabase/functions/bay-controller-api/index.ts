@@ -626,7 +626,8 @@ serve(async (req) => {
 
         // Auto-kick Cloudflare Stream upload so highlights are ready without
         // anyone opening the Hub. stream-upload is idempotent — safe to invoke.
-        if (b.mkv_path || b.status === "pending_split") {
+        // Skipped when the bay uploaded direct-to-Stream (stream_uid present).
+        if (!b.stream_uid && (b.mkv_path || b.status === "pending_split")) {
           try {
             const secret = (Deno.env.get("SYNC_SECRET") ?? "").trim();
             void supabase.functions.invoke("stream-upload", {
@@ -651,6 +652,66 @@ serve(async (req) => {
         if (error) return jsonResponse({ error: error.message }, 500);
         return jsonResponse({ ok: true, signed_url: data.signedUrl, path: objectPath, token: data.token });
       }
+
+      // Mints a one-time Cloudflare Stream tus upload URL so the bay can push
+      // the MP4 straight to Cloudflare — no 2 GiB storage cap, no re-upload hop.
+      case "recording_stream_upload_url": {
+        const b = body as { recording_session_id?: string; size_bytes?: number; name?: string } | null;
+        if (!b?.recording_session_id || !b.size_bytes) return jsonResponse({ error: "recording_session_id + size_bytes required" }, 400);
+
+        const accountId = (Deno.env.get("CLOUDFLARE_ACCOUNT_ID") ?? "").trim();
+        const token = (Deno.env.get("CLOUDFLARE_STREAM_API_TOKEN") ?? "").trim();
+        if (!accountId || !token) return jsonResponse({ error: "Cloudflare Stream is not configured" }, 500);
+
+        const { data: sess } = await supabase
+          .from("recording_sessions")
+          .select("player_name, tournament_name, bay_number, started_at, round_number")
+          .eq("id", b.recording_session_id)
+          .maybeSingle();
+
+        const label = [
+          sess?.player_name ?? "Player",
+          sess?.tournament_name ?? "",
+          sess?.round_number ? `R${sess.round_number}` : "",
+          `Bay ${sess?.bay_number ?? "?"}`,
+          (sess?.started_at ?? new Date().toISOString()).slice(0, 10),
+        ].filter(Boolean).join(" · ");
+
+        const b64 = (s: string) => btoa(String.fromCharCode(...new TextEncoder().encode(s)));
+        const metadata = [
+          `name ${b64(label)}`,
+          `maxdurationseconds ${b64("21600")}`,
+        ].join(",");
+
+        const cfRes = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/stream?direct_user=true`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Tus-Resumable": "1.0.0",
+            "Upload-Length": String(b.size_bytes),
+            "Upload-Metadata": metadata,
+          },
+        });
+
+        if (!cfRes.ok) {
+          const txt = await cfRes.text().catch(() => "");
+          return jsonResponse({ error: `Cloudflare tus create failed (${cfRes.status}): ${txt.slice(0, 300)}` }, 502);
+        }
+
+        const uploadUrl = cfRes.headers.get("Location");
+        const uid = cfRes.headers.get("stream-media-id");
+        if (!uploadUrl || !uid) return jsonResponse({ error: "Cloudflare did not return an upload URL" }, 502);
+
+        await supabase.from("recording_sessions").update({
+          stream_uid: uid,
+          stream_status: "uploading",
+          stream_created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }).eq("id", b.recording_session_id);
+
+        return jsonResponse({ ok: true, upload_url: uploadUrl, stream_uid: uid });
+      }
+
 
       case "recording_hole": {
         const b = body as { recording_session_id?: string; hole_number?: number; par?: number; score?: number; clip_start_seconds?: number; clip_end_seconds?: number; storage_path?: string; shot_timeline?: unknown[] } | null;
