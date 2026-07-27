@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { Download, FolderOpen, Loader2, Play, Trash2 } from "lucide-react";
+import { formatBrisbane } from "@/lib/brisbane-time";
 
 interface Bay { id: string; bay_number: number; name: string | null }
 
