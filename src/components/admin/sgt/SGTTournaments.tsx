@@ -36,11 +36,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Search, Calendar, Plus, MoreHorizontal, Pencil, XCircle, BarChart3 } from "lucide-react";
+import { Search, Calendar, Plus, MoreHorizontal, Pencil, XCircle, BarChart3, Sparkles } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "@/hooks/use-toast";
 import { TournamentFormDialog } from "./TournamentFormDialog";
 import { TournamentStatsDialog } from "./TournamentStatsDialog";
+import { TournamentCommentaryDialog } from "./TournamentCommentaryDialog";
 
 export function SGTTournaments() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -53,6 +54,8 @@ export function SGTTournaments() {
   const [isClosing, setIsClosing] = useState(false);
   const [statsDialogOpen, setStatsDialogOpen] = useState(false);
   const [statsTournament, setStatsTournament] = useState<any>(null);
+  const [commentaryDialogOpen, setCommentaryDialogOpen] = useState(false);
+  const [commentaryTournament, setCommentaryTournament] = useState<any>(null);
   const queryClient = useQueryClient();
 
   // Fetch tournaments
@@ -265,6 +268,15 @@ export function SGTTournaments() {
                             <BarChart3 className="h-4 w-4 mr-2" />
                             View Stats
                           </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setCommentaryTournament(tournament);
+                              setCommentaryDialogOpen(true);
+                            }}
+                          >
+                            <Sparkles className="h-4 w-4 mr-2" />
+                            AI Commentary
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => handleEditTournament(tournament)}>
                             <Pencil className="h-4 w-4 mr-2" />
                             Edit
@@ -313,6 +325,13 @@ export function SGTTournaments() {
         open={statsDialogOpen}
         onOpenChange={setStatsDialogOpen}
         tournament={statsTournament}
+      />
+
+      {/* AI Commentary Dialog */}
+      <TournamentCommentaryDialog
+        open={commentaryDialogOpen}
+        onOpenChange={setCommentaryDialogOpen}
+        tournament={commentaryTournament}
       />
 
 
