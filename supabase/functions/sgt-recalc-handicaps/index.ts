@@ -107,7 +107,7 @@ Deno.serve(async (req) => {
       }
 
       // UNLOCKED: best 3 of last 6 to-par-gross average
-      const toPars = scorecards!.map((s) => Number(s.to_par_gross)).sort((a, b) => a - b);
+      const toPars = scorecards.map((s: any) => Number(s.to_par_gross)).sort((a, b) => a - b);
       const best = toPars.slice(0, bestRounds);
       const avgToPar = best.reduce((a, b) => a + b, 0) / best.length;
 
