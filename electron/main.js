@@ -3964,6 +3964,72 @@ ipcMain.handle('obs-add-chapter', async (_e, { name } = {}) => {
 
 // Upload a local file (e.g. OBS recording) to a Supabase signed upload URL.
 // Streams the file so we don't blow renderer memory on multi-GB captures.
+// Direct-to-Cloudflare Stream upload using the tus resumable protocol.
+// Streams the file in 200 MiB chunks so multi-GB rounds never hit Supabase
+// Storage's 2 GiB object cap and never load fully into memory.
+ipcMain.handle('obs-tus-upload', async (event, { filePath, uploadUrl } = {}) => {
+  const CHUNK = 200 * 1024 * 1024; // must be a multiple of 256 KiB for tus
+  try {
+    if (!filePath || !fs.existsSync(filePath)) return { success: false, error: 'File not found' };
+    if (!uploadUrl) return { success: false, error: 'Missing uploadUrl' };
+
+    const total = fs.statSync(filePath).size;
+    let offset = 0;
+    let consecutiveFailures = 0;
+
+    const readChunk = (start, end) => new Promise((resolve, reject) => {
+      const parts = [];
+      const rs = fs.createReadStream(filePath, { start, end: end - 1 });
+      rs.on('data', (d) => parts.push(d));
+      rs.on('end', () => resolve(Buffer.concat(parts)));
+      rs.on('error', reject);
+    });
+
+    while (offset < total) {
+      const end = Math.min(offset + CHUNK, total);
+      const buf = await readChunk(offset, end);
+      try {
+        const resp = await fetch(uploadUrl, {
+          method: 'PATCH',
+          headers: {
+            'Tus-Resumable': '1.0.0',
+            'Upload-Offset': String(offset),
+            'Content-Type': 'application/offset+octet-stream',
+            'Content-Length': String(buf.length),
+          },
+          body: buf,
+        });
+        if (resp.status !== 204 && resp.status !== 200) {
+          throw new Error(`tus PATCH HTTP ${resp.status}`);
+        }
+        const newOffset = Number(resp.headers.get('upload-offset'));
+        offset = Number.isFinite(newOffset) && newOffset > offset ? newOffset : end;
+        consecutiveFailures = 0;
+        console.log(`[OBS] tus progress ${Math.round((offset / total) * 100)}% (${offset}/${total})`);
+        try { event.sender.send('obs-tus-progress', { filePath, offset, total }); } catch {}
+      } catch (e) {
+        consecutiveFailures += 1;
+        if (consecutiveFailures >= 4) {
+          return { success: false, error: `tus upload failed at ${offset}/${total}: ${e.message}` };
+        }
+        // Re-sync the server offset and retry this chunk.
+        try {
+          const head = await fetch(uploadUrl, { method: 'HEAD', headers: { 'Tus-Resumable': '1.0.0' } });
+          const serverOffset = Number(head.headers.get('upload-offset'));
+          if (Number.isFinite(serverOffset)) offset = serverOffset;
+        } catch { /* keep local offset */ }
+        await new Promise((r) => setTimeout(r, 2000 * consecutiveFailures));
+      }
+    }
+
+    console.log(`[OBS] tus upload complete: ${filePath} (${total} bytes)`);
+    return { success: true, sizeBytes: total };
+  } catch (e) {
+    console.error('[OBS] tus upload failed:', e.message);
+    return { success: false, error: e.message };
+  }
+});
+
 ipcMain.handle('obs-upload-file', async (_e, { filePath, signedUrl, contentType } = {}) => {
   try {
     if (!filePath || !fs.existsSync(filePath)) return { success: false, error: 'File not found' };
