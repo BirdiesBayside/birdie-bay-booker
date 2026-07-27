@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { Download, FolderOpen, Loader2, Play, Trash2 } from "lucide-react";
+import { formatBrisbane } from "@/lib/brisbane-time";
 
 interface Bay { id: string; bay_number: number; name: string | null }
 
@@ -363,7 +364,7 @@ export function LeagueHighlights() {
                        <div className="flex items-center gap-2 flex-wrap">
                          <span className="font-semibold">{sess.player_name ?? "Unknown"}</span>
                          <span className="text-muted-foreground text-sm">· Bay {sess.bay_number} · {sess.tournament_name}{roundLabel}</span>
-                         {sess.started_at && <span className="text-muted-foreground text-xs">· {new Date(sess.started_at).toLocaleString()}</span>}
+                         {sess.started_at && <span className="text-muted-foreground text-xs">· {formatBrisbane(sess.started_at)}</span>}
                        </div>
                        <div className="flex gap-2 mt-2 flex-wrap">
                          {sess.trigger_source === "local_comp" && <Badge variant="secondary">Local Comp</Badge>}

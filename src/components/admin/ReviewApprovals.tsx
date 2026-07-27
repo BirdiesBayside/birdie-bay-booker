@@ -17,6 +17,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Search, Star, CheckCircle, Loader2, Gift } from "lucide-react";
+import { formatBrisbaneDate } from "@/lib/brisbane-time";
 
 interface ReviewReward {
   id: string;
@@ -301,7 +302,7 @@ export function ReviewApprovals() {
                     ${reward.credit_amount} credited
                   </Badge>
                   <span className="text-xs text-muted-foreground">
-                    {new Date(reward.approved_at).toLocaleDateString()}
+                    {formatBrisbaneDate(reward.approved_at)}
                   </span>
                 </div>
               </div>

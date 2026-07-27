@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Download, Loader2, RefreshCw, Trash2 } from "lucide-react";
+import { formatBrisbane } from "@/lib/brisbane-time";
 
 interface Clip {
   id: string;
@@ -127,7 +128,7 @@ export default function AdminHighlightExports() {
                       </div>
                       <div className="mt-1 flex items-center gap-2 flex-wrap">
                         {badgeFor(clip.status)}
-                        <span className="text-xs text-muted-foreground">{new Date(clip.created_at).toLocaleString()}</span>
+                        <span className="text-xs text-muted-foreground">{formatBrisbane(clip.created_at)}</span>
                       </div>
                       {clip.error && <p className="text-xs text-destructive mt-1 break-words">{clip.error}</p>}
                     </div>

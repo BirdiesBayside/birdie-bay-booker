@@ -334,9 +334,18 @@ Deno.serve(async (req) => {
       .single();
 
     if (insErr || !inserted) {
-      console.error("[poller] start insert failed:", insErr?.message);
+      // 23505 = a concurrent poller invocation already opened this round's session.
+      // The unique index recording_sessions_active_unique guarantees only one wins.
+      if ((insErr as any)?.code === "23505") {
+        console.log(
+          `[poller] duplicate start suppressed booking=${session.booking_id} round=${session.round_number} (session already active)`,
+        );
+      } else {
+        console.error("[poller] start insert failed:", insErr?.message);
+      }
       return null;
     }
+
 
     const { error: cmdErr } = await supabase.from("bay_commands").insert({
       bay_number: session.bay_number,

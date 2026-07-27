@@ -12,6 +12,7 @@ import {
   getFunctionErrorMessage,
   type Scorecard,
 } from "@/components/admin/LeagueHighlights";
+import { formatBrisbane } from "@/lib/brisbane-time";
 
 interface ReviewSession {
   id: string;
@@ -147,7 +148,7 @@ export default function AdminHighlightReview() {
                 {session.round_number ? ` — Round ${session.round_number}` : ""}
               </span>
               {session.started_at && (
-                <span className="text-muted-foreground text-xs">· {new Date(session.started_at).toLocaleString()}</span>
+                <span className="text-muted-foreground text-xs">· {formatBrisbane(session.started_at)}</span>
               )}
             </div>
 

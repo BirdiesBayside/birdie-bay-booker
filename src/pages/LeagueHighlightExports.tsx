@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Download, Film, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { formatBrisbane } from "@/lib/brisbane-time";
 
 interface Clip {
   id: string;
@@ -215,7 +216,7 @@ export default function LeagueHighlightExports() {
                     <div className="mt-1 flex items-center gap-2 flex-wrap">
                       {badgeFor(clip.status)}
                       <span className="text-xs text-muted-foreground">
-                        {new Date(clip.created_at).toLocaleString()}
+                        {formatBrisbane(clip.created_at)}
                       </span>
                     </div>
                     {clip.error && (
