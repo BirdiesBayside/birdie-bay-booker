@@ -3879,9 +3879,31 @@ ipcMain.handle('obs-start-recording', async (_e, { url, password } = {}) => {
     if (!ctl.identified) await ctl.connect();
     const status = await ctl.getStatus();
     if (status?.outputActive) {
-      console.log('[OBS] Recording already active, reusing');
-      return { success: true, startedAtMs: Date.now(), alreadyRecording: true };
+      // outputDuration is milliseconds of the in-progress recording.
+      const runningMs = Number(status.outputDuration || 0);
+      const STALE_MS = 5 * 60 * 1000; // >5 min = stray recording left running
+      if (runningMs < STALE_MS) {
+        console.log(`[OBS] Recording already active (${Math.round(runningMs / 1000)}s), reusing`);
+        return { success: true, startedAtMs: Date.now() - runningMs, alreadyRecording: true };
+      }
+      // Stray/orphaned recording (e.g. never stopped after a previous session).
+      // Stop it, bin the file, then start a clean recording for this session.
+      console.warn(`[OBS] Stray recording detected (${Math.round(runningMs / 60000)} min) - discarding`);
+      try {
+        const stale = await ctl.stopRecording();
+        const strayPath = stale?.outputPath || null;
+        if (strayPath) {
+          await new Promise((r) => setTimeout(r, 1500));
+          for (const p of [strayPath, strayPath.replace(/\.mkv$/i, '.mp4')]) {
+            try { if (fs.existsSync(p)) { fs.unlinkSync(p); console.log(`[OBS] Deleted stray file ${p}`); } } catch (err) { console.warn('[OBS] Could not delete stray file:', err.message); }
+          }
+        }
+      } catch (err) {
+        console.error('[OBS] Failed to stop stray recording:', err.message);
+      }
+      await new Promise((r) => setTimeout(r, 1000));
     }
+
     await ctl.startRecording();
     const startedAtMs = Date.now();
     console.log(`[OBS] Recording started at ${new Date(startedAtMs).toISOString()}`);
