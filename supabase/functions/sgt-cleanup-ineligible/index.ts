@@ -324,17 +324,23 @@ serve(async (req) => {
           console.log(`[SGT-CLEANUP] Club removal for ${userName}: ${result.club_removed}`);
         }
 
-        // Clean up local database
-        await supabase
-          .from("sgt_tour_members")
-          .delete()
-          .eq("user_id", userId)
-          .eq("tour_id", activeTour.tourId);
+        // Clean up local database — ONLY mirror what actually succeeded on the SGT side.
+        // (Deleting the local tour row loses custom_hcp, which forces Combo HCP on re-registration.)
+        if (result.tour_removed) {
+          await supabase
+            .from("sgt_tour_members")
+            .delete()
+            .eq("user_id", userId)
+            .eq("tour_id", activeTour.tourId);
+        }
 
-        await supabase
-          .from("sgt_members")
-          .delete()
-          .eq("user_id", userId);
+        if (result.club_removed) {
+          await supabase
+            .from("sgt_members")
+            .delete()
+            .eq("user_id", userId);
+        }
+
 
         console.log(`[SGT-CLEANUP] ✓ Cleaned up ${userName}`);
       } catch (error) {
