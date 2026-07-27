@@ -135,3 +135,6 @@ verify_jwt = false
 
 [functions.retry-membership-payment]
 verify_jwt = false
+
+[functions.sgt-tournament-commentary]
+verify_jwt = false
