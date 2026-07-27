@@ -1479,7 +1479,7 @@ export default function BayController() {
             return;
           }
 
-          }
+
 
           // For on/off commands, also switch to manual mode and update DB.
           // Guard: any unrecognised command must NOT flip the bay into manual mode.
