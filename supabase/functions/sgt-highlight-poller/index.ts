@@ -223,7 +223,7 @@ Deno.serve(async (req) => {
   const bookingIds = activeBookings.map((b) => b.id);
   const { data: activeSessions } = await supabase
     .from("recording_sessions")
-    .select("id, booking_id, bay_number, sgt_user_id, sgt_tournament_id, started_at, status, round_number, trigger_source, last_progress_at")
+    .select("id, booking_id, bay_number, sgt_user_id, sgt_tournament_id, started_at, status, round_number, trigger_source, last_progress_at, updated_at")
     .in("booking_id", bookingIds)
     .in("status", ["recording", "stopping"]);
   const sessionByBookingId = new Map((activeSessions ?? []).map((s) => [s.booking_id, s]));
@@ -405,6 +405,23 @@ Deno.serve(async (req) => {
     const prof = profileByUserId.get(booking.user_id);
     const playerName = [prof?.first_name, prof?.last_name].filter(Boolean).join(" ").trim() || "Player";
     const session = sessionByBookingId.get(booking.id);
+
+    // ----- ALREADY STOPPING GUARD -----
+    // A session in 'stopping' has already had its stop command issued and the bay
+    // is busy finalising/uploading (can take many minutes for a large file).
+    // Re-issuing stop commands here spammed bay_commands, and any command left
+    // pending for >5s was picked up by the controller's polling fallback.
+    // Only re-issue if the stop looks genuinely lost (no update for 15+ minutes).
+    if (session && session.status === "stopping") {
+      const lastUpdate = session.updated_at ? new Date(session.updated_at).getTime() : Date.now();
+      if (Date.now() - lastUpdate > 15 * 60_000) {
+        await issueStop(session.id, bayNumber, true, "stop_retry");
+        results.push({ booking: booking.id, action: "stop_retry" });
+      } else {
+        results.push({ booking: booking.id, action: "awaiting_stop" });
+      }
+      continue;
+    }
 
     // ----- BOOKING END GUARD -----
     const bookingEndMs = new Date(`${booking.booking_date}T${booking.end_time}`).getTime();
