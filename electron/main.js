@@ -3989,7 +3989,25 @@ ipcMain.handle('obs-add-chapter', async (_e, { name } = {}) => {
 // Direct-to-Cloudflare Stream upload using the tus resumable protocol.
 // Streams the file in 200 MiB chunks so multi-GB rounds never hit Supabase
 // Storage's 2 GiB object cap and never load fully into memory.
-ipcMain.handle('obs-tus-upload', async (event, { filePath, uploadUrl } = {}) => {
+// Returns a *stable* file size — polls until the size stops changing so we never
+// declare an Upload-Length while OBS is still remuxing/flushing the file.
+ipcMain.handle('obs-file-size', async (_e, { filePath } = {}) => {
+  try {
+    if (!filePath || !fs.existsSync(filePath)) return { success: false, error: 'File not found' };
+    let last = -1;
+    for (let i = 0; i < 40; i++) { // up to ~60s
+      const size = fs.statSync(filePath).size;
+      if (size > 0 && size === last) return { success: true, sizeBytes: size };
+      last = size;
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+    return { success: true, sizeBytes: last };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+ipcMain.handle('obs-tus-upload', async (event, { filePath, uploadUrl, declaredSize } = {}) => {
   // 100 MiB chunks: multiple of 256 KiB and well under Cloudflare's 200 MB
   // per-PATCH ceiling, which we were hitting exactly and occasionally 400ing on.
   const CHUNK = 100 * 1024 * 1024;
@@ -3998,9 +4016,20 @@ ipcMain.handle('obs-tus-upload', async (event, { filePath, uploadUrl } = {}) => 
     if (!filePath || !fs.existsSync(filePath)) return { success: false, error: 'File not found' };
     if (!uploadUrl) return { success: false, error: 'Missing uploadUrl' };
 
-    const total = fs.statSync(filePath).size;
+    const actual = fs.statSync(filePath).size;
+    // Cloudflare rejects a final PATCH that isn't 256KiB-aligned unless it exactly
+    // completes the declared Upload-Length. If the file grew after the URL was
+    // minted (late remux flush), upload exactly the declared byte count.
+    const total = Number.isFinite(declaredSize) && declaredSize > 0 ? Math.min(declaredSize, actual) : actual;
+    if (Number.isFinite(declaredSize) && declaredSize > 0 && declaredSize !== actual) {
+      console.warn(`[OBS] tus size mismatch: declared ${declaredSize}, on-disk ${actual} — uploading ${total} bytes`);
+    }
+    if (Number.isFinite(declaredSize) && declaredSize > actual) {
+      return { success: false, error: `File smaller than declared upload length (${actual} < ${declaredSize})` };
+    }
     let offset = 0;
     let consecutiveFailures = 0;
+
 
     const readChunk = (start, end) => new Promise((resolve, reject) => {
       const parts = [];
