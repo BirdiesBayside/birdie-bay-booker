@@ -373,7 +373,11 @@ export default function BayController() {
       }
 
       // Direct-to-Cloudflare Stream via tus. No Supabase Storage hop, no 2 GiB cap.
-      const sizeBytes = stopRes.sizeBytes ?? 0;
+      // Re-measure the file until the size is stable: OBS can still be flushing the
+      // remuxed MP4 when it reports the stop, and a declared Upload-Length that
+      // doesn't match the bytes we send makes Cloudflare reject the final chunk.
+      const stableRes = await electronApi?.obsFileSize?.(stopRes.filePath);
+      const sizeBytes = stableRes?.sizeBytes ?? stopRes.sizeBytes ?? 0;
       const isMp4 = typeof stopRes.filePath === 'string' && stopRes.filePath.toLowerCase().endsWith('.mp4');
       const rec = (window as any).__activeRecording;
       const durationSec = rec?.startedAtMs ? (Date.now() - rec.startedAtMs) / 1000 : null;
@@ -398,7 +402,7 @@ export default function BayController() {
           await failStop(`Could not create Cloudflare upload: ${tusData?.error ?? 'no upload URL'}`);
         } else {
           addLog(`[Highlights] Uploading to Cloudflare Stream: ${Math.round(sizeBytes / 1024 / 1024)} MB (${isMp4 ? 'MP4' : 'MKV'})`, 'info');
-          const upRes = await electronApi?.obsTusUpload?.(stopRes.filePath, tusData.upload_url);
+          const upRes = await electronApi?.obsTusUpload?.(stopRes.filePath, tusData.upload_url, sizeBytes);
           if (upRes?.success) {
             await supabase.functions.invoke('bay-controller-api', {
               headers: { 'x-bay-number': String(selectedBay ?? ''), 'x-action': 'recording_hole' },
