@@ -705,9 +705,14 @@ serve(async (req) => {
         await supabase.from("recording_sessions").update({
           stream_uid: uid,
           stream_status: "uploading",
+          // Persist the declared Upload-Length. If a tus upload later fails on the
+          // final chunk, comparing this to the on-disk size proves whether the file
+          // grew after the URL was minted.
+          file_size_bytes: b.size_bytes,
           stream_created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         }).eq("id", b.recording_session_id);
+
 
         return jsonResponse({ ok: true, upload_url: uploadUrl, stream_uid: uid });
       }
