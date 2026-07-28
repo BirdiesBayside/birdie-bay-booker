@@ -3914,49 +3914,49 @@ ipcMain.handle('obs-start-recording', async (_e, { url, password } = {}) => {
   }
 });
 
+// Polls a file until its size stops changing. OBS records direct-to-MP4, and
+// StopRecord returns *before* the moov atom and trailing buffers are flushed to
+// disk, so the size read at stop is routinely smaller than the finished file.
+async function waitForStableSize(filePath, { timeoutMs = 60000, quietMs = 1500 } = {}) {
+  let last = -1;
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    let size = 0;
+    try { size = fs.existsSync(filePath) ? fs.statSync(filePath).size : 0; } catch {}
+    if (size > 0 && size === last) return size;
+    last = size;
+    await new Promise((r) => setTimeout(r, quietMs));
+  }
+  console.warn(`[OBS] File size never settled within ${timeoutMs}ms: ${filePath} (${last} bytes)`);
+  return last > 0 ? last : null;
+}
+
 ipcMain.handle('obs-stop-recording', async () => {
   try {
     if (!obsController || !obsController.identified) {
       return { success: false, error: 'OBS not connected' };
     }
     const res = await obsController.stopRecording();
-    // v5 protocol returns outputPath in responseData (the .mkv OBS wrote)
-    const mkvPath = res?.outputPath || null;
+    // v5 protocol returns outputPath in responseData. OBS is configured to record
+    // direct to MP4, so this is the final file — no remux sibling to wait for.
+    const filePath = res?.outputPath || null;
+    if (!filePath) return { success: false, error: 'OBS returned no output path' };
 
-    // Prefer the auto-remuxed .mp4 sibling if OBS produced one
-    // (Settings → Advanced → "Automatically remux recordings to MP4").
-    // Poll for up to 20s while the remux finishes writing.
-    let filePath = mkvPath;
-    if (mkvPath && mkvPath.toLowerCase().endsWith('.mkv')) {
-      const mp4Candidate = mkvPath.slice(0, -4) + '.mp4';
-      const deadline = Date.now() + 20000;
-      while (Date.now() < deadline) {
-        if (fs.existsSync(mp4Candidate)) {
-          try {
-            const s1 = fs.statSync(mp4Candidate).size;
-            await new Promise((r) => setTimeout(r, 750));
-            const s2 = fs.statSync(mp4Candidate).size;
-            if (s1 > 0 && s1 === s2) { filePath = mp4Candidate; break; }
-          } catch {}
-        }
-        await new Promise((r) => setTimeout(r, 500));
-      }
-      if (filePath !== mp4Candidate) {
-        console.warn('[OBS] MP4 remux not detected in 20s, uploading MKV fallback');
-      }
+    if (!filePath.toLowerCase().endsWith('.mp4')) {
+      console.warn(`[OBS] Expected a direct MP4 recording, got: ${filePath}`);
     }
 
-    let sizeBytes = null;
-    if (filePath && fs.existsSync(filePath)) {
-      try { sizeBytes = fs.statSync(filePath).size; } catch {}
-    }
+    // Wait for the file to finish finalising before reporting a size.
+    const sizeBytes = await waitForStableSize(filePath);
+
     console.log(`[OBS] Recording stopped: ${filePath} (${sizeBytes} bytes)`);
-    return { success: true, filePath, sizeBytes, mkvPath };
+    return { success: true, filePath, sizeBytes, mkvPath: null };
   } catch (e) {
     console.error('[OBS] stop failed:', e.message);
     return { success: false, error: e.message };
   }
 });
+
 
 ipcMain.handle('obs-get-status', async () => {
   try {
