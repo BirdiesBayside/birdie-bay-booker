@@ -3994,18 +3994,14 @@ ipcMain.handle('obs-add-chapter', async (_e, { name } = {}) => {
 ipcMain.handle('obs-file-size', async (_e, { filePath } = {}) => {
   try {
     if (!filePath || !fs.existsSync(filePath)) return { success: false, error: 'File not found' };
-    let last = -1;
-    for (let i = 0; i < 40; i++) { // up to ~60s
-      const size = fs.statSync(filePath).size;
-      if (size > 0 && size === last) return { success: true, sizeBytes: size };
-      last = size;
-      await new Promise((r) => setTimeout(r, 1500));
-    }
-    return { success: true, sizeBytes: last };
+    const sizeBytes = await waitForStableSize(filePath);
+    if (!sizeBytes) return { success: false, error: 'File is empty' };
+    return { success: true, sizeBytes };
   } catch (e) {
     return { success: false, error: e.message };
   }
 });
+
 
 ipcMain.handle('obs-tus-upload', async (event, { filePath, uploadUrl, declaredSize } = {}) => {
   // 100 MiB chunks: multiple of 256 KiB and well under Cloudflare's 200 MB
