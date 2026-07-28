@@ -114,10 +114,17 @@ serve(async (req) => {
       }
 
       if (defaultPaymentMethod) {
-        // Cancel EVERY active subscription across ALL customers so we can
-        // never leave a duplicate tier silently billing. Refund recent
-        // accidental charges (created <10min ago) as duplicates.
-        for (const sub of allActiveSubs) {
+        // ── TIER SWITCH: update the existing subscription in place ──
+        // Tiers are separate Stripe products, but a subscription item can be
+        // swapped to ANY price, so switching tiers never requires a new sub.
+        // Updating in place preserves the original billing anchor (no surprise
+        // "new week" charge 2 days after the last one) and cannot leave two
+        // subscriptions billing at once.
+        const primarySub = allActiveSubs.find((s) => s.customer === customerId) || allActiveSubs[0];
+
+        // Any OTHER active subs are genuine duplicates → cancel + refund recent charges.
+        const duplicateSubs = allActiveSubs.filter((s) => s.id !== primarySub?.id);
+        for (const sub of duplicateSubs) {
           const ageMs = Date.now() - (sub.created * 1000);
           if (ageMs < 10 * 60 * 1000) {
             try {
@@ -127,33 +134,66 @@ serve(async (req) => {
                   const chargeRef = (inv as any).charge;
                   const chargeId = typeof chargeRef === "string" ? chargeRef : chargeRef.id;
                   const refund = await stripe.refunds.create({ charge: chargeId, reason: "duplicate" });
-                  logStep("Refunded accidental sub charge on tier switch", {
-                    subscriptionId: sub.id, chargeId, refundId: refund.id, ageMs,
-                  });
+                  logStep("Refunded duplicate sub charge", { subscriptionId: sub.id, chargeId, refundId: refund.id });
                 }
               }
             } catch (refundErr) {
-              logStep("WARN: refund on tier switch failed", { error: String(refundErr) });
+              logStep("WARN: refund on duplicate cancel failed", { error: String(refundErr) });
             }
           }
           try {
-            // Tag as upgrade so the webhook skips the cancellation email + tier reset
             await stripe.subscriptions.update(sub.id, {
-              metadata: {
-                ...(sub.metadata || {}),
-                cancellation_reason: "upgrade",
-                upgrade_to_tier: tierKey,
-              },
+              metadata: { ...(sub.metadata || {}), cancellation_reason: "upgrade", upgrade_to_tier: tierKey },
             });
             await stripe.subscriptions.cancel(sub.id, { prorate: true });
-            logStep("Cancelled existing subscription (upgrade)", { subscriptionId: sub.id, customer: sub.customer });
+            logStep("Cancelled duplicate subscription", { subscriptionId: sub.id, customer: sub.customer });
           } catch (cancelErr) {
-            logStep("WARN: cancel failed", { subscriptionId: sub.id, error: String(cancelErr) });
+            logStep("WARN: duplicate cancel failed", { subscriptionId: sub.id, error: String(cancelErr) });
           }
         }
 
+        if (primarySub) {
+          const currentItem = primarySub.items.data[0];
+          const currentAmount = currentItem?.price?.unit_amount ?? 0;
+          const newPrice = await stripe.prices.retrieve(priceId);
+          const newAmount = newPrice.unit_amount ?? 0;
+          const isUpgrade = newAmount > currentAmount;
 
-        // Create subscription - charges immediately
+          // Upgrade → invoice the prorated difference now (customer gets more
+          // value immediately). Downgrade → hold the credit and apply it to the
+          // next invoice, so we never charge a fresh full week on a switch.
+          const updated = await stripe.subscriptions.update(primarySub.id, {
+            items: [{ id: currentItem.id, price: priceId }],
+            proration_behavior: isUpgrade ? "always_invoice" : "create_prorations",
+            billing_cycle_anchor: "unchanged",
+            payment_behavior: "error_if_incomplete",
+            default_payment_method: defaultPaymentMethod,
+            metadata: {
+              ...(primarySub.metadata || {}),
+              user_id: user.id,
+              tier_key: tierKey,
+              cancellation_reason: "",
+              upgrade_to_tier: "",
+            },
+          }, { idempotencyKey: `switch_${idempotencyKey}` });
+
+          logStep("Subscription tier switched in place", {
+            subscriptionId: updated.id, from: currentAmount, to: newAmount, isUpgrade,
+          });
+
+          return new Response(JSON.stringify({
+            success: true,
+            subscriptionId: updated.id,
+            tierKey,
+            switched: true,
+            proration: isUpgrade ? "charged_now" : "credited_next_invoice",
+          }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            status: 200,
+          });
+        }
+
+        // No existing subscription → brand new membership, charges immediately.
         const subscription = await stripe.subscriptions.create({
           customer: customerId,
           items: [{ price: priceId }],
@@ -177,6 +217,7 @@ serve(async (req) => {
           status: 200,
         });
       }
+
     }
 
     // No saved payment method - redirect to Stripe Checkout.
