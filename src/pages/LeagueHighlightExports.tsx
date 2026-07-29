@@ -6,7 +6,7 @@ import { LeagueLayout } from "@/components/league/LeagueLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Download, Film, Loader2, RefreshCw } from "lucide-react";
+import { ArrowLeft, Download, Film, ImageDown, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { formatBrisbane } from "@/lib/brisbane-time";
 import { fetchVideoFile, saveFileFallback, shareVideoFile, supportsVideoFileShare } from "@/lib/share-video";
