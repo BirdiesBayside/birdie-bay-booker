@@ -9,8 +9,6 @@ platforms:
                 - CFBundleURLName: com.birdiesbayside.hub
                   CFBundleURLSchemes:
                     - birdiesbayside
-            - NSPhotoLibraryAddUsageDescription: Birdies saves exported highlight videos to your Photos library.
-            - NSPhotoLibraryUsageDescription: Birdies uses photo library access only when you save highlight videos.
   android:
     manifest:
       - file: AndroidManifest.xml
