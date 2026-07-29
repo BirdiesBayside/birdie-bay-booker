@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Download, Film, ImageDown, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { formatBrisbane } from "@/lib/brisbane-time";
-import { fetchVideoFile, saveFileFallback, shareVideoFile, supportsVideoFileShare } from "@/lib/share-video";
+import { fetchClipViaProxy, saveFileFallback, shareVideoFile, supportsVideoFileShare } from "@/lib/share-video";
 
 interface Clip {
   id: string;
@@ -127,7 +127,7 @@ export default function LeagueHighlightExports() {
     setBusyId(clip.id);
     setProgress(null);
     try {
-      const file = await fetchVideoFile(urlFor(clip), name, setProgress);
+      const file = await fetchClipViaProxy({ clip_id: clip.id, filename: name }, setProgress);
       const ok = await shareVideoFile(file, name);
       if (!ok) {
         // Safari drops the user-gesture after a long fetch — cache and let them tap again.
@@ -137,7 +137,7 @@ export default function LeagueHighlightExports() {
     } catch (e) {
       toast({
         title: "Couldn’t prepare video",
-        description: e instanceof Error ? e.message : "Try the Download button instead.",
+        description: e instanceof Error ? e.message : "Please try again in a moment.",
         variant: "destructive",
       });
     } finally {
@@ -285,15 +285,17 @@ export default function LeagueHighlightExports() {
                         )}
                       </Button>
                     )}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => downloadClip(clip)}
-                      disabled={clip.status !== "ready" || !clip.download_url}
-                    >
-                      <Download className="h-4 w-4 mr-1" />
-                      Download
-                    </Button>
+                    {!canSaveToPhotos && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => downloadClip(clip)}
+                        disabled={clip.status !== "ready" || !clip.download_url}
+                      >
+                        <Download className="h-4 w-4 mr-1" />
+                        Download
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))}
