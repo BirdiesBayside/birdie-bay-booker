@@ -3155,6 +3155,7 @@ export type Database = {
       }
     }
     Functions: {
+      accept_terms: { Args: { _version: string }; Returns: boolean }
       claim_booking_notification: {
         Args: { _booking_id: string; _notification_type: string }
         Returns: Json

@@ -179,12 +179,7 @@ export function AuthForm({ defaultToSignUp = false }: AuthFormProps) {
           // Record acceptance of the current terms version (best effort)
           if (signUpData.user) {
             supabase
-              .from("profiles")
-              .update({
-                terms_version_accepted: CURRENT_TERMS_VERSION,
-                terms_accepted_at: new Date().toISOString(),
-              })
-              .or(`user_id.eq.${signUpData.user.id},id.eq.${signUpData.user.id}`)
+              .rpc("accept_terms", { _version: CURRENT_TERMS_VERSION })
               .then(({ error: termsError }) => {
                 if (termsError) console.error("Failed to record terms acceptance:", termsError);
               });

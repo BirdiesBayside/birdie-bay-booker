@@ -60,18 +60,12 @@ export function TermsGate() {
   const handleAccept = async () => {
     if (!user || !checked) return;
     setSaving(true);
-    const { data, error } = await supabase
-      .from("profiles")
-      .update({
-        terms_version_accepted: CURRENT_TERMS_VERSION,
-        terms_accepted_at: new Date().toISOString(),
-      })
-      .or(`user_id.eq.${user.id},id.eq.${user.id}`)
-      .select("id")
-      .maybeSingle();
+    const { data, error } = await supabase.rpc("accept_terms", {
+      _version: CURRENT_TERMS_VERSION,
+    });
     setSaving(false);
 
-    if (error || !data) {
+    if (error || data !== true) {
       toast({
         title: "Could not save",
         description: "Please try again, or contact Birdies if this keeps happening.",
