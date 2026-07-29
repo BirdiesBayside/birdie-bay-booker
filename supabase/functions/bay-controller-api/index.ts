@@ -556,11 +556,10 @@ serve(async (req) => {
           sgt_user_id: sgtUserId,
           sgt_tournament_id: sgtTournamentId,
           player_name: b.player_name ?? null,
-          tournament_name: startIsComp && !b.tournament_name?.startsWith("Local Comp")
-            ? (b.tournament_name ?? null)
-            : (b.tournament_name ?? null),
+          tournament_name: b.tournament_name ?? null,
           trigger_source: triggerSource,
-          round_number: 1,
+          ...(triggerSource === "local_comp" ? { round_number: 1 } : {}),
+
           mkv_path: b.mkv_path ?? null,
           started_at: startedAt,
           status: "recording",
