@@ -172,30 +172,45 @@ export function LeagueHighlights() {
     setRetentionDays(cfg?.highlight_retention_days ?? 14);
 
     const since = new Date(Date.now() - 14 * 86400_000).toISOString();
-    // Full-session rows (hole_number = 0) hold the storage_path for the raw video.
+    // Session-driven: a recording is listable once it either has a Cloudflare
+    // stream_uid (direct tus upload from the bay) or a hole-0 storage file
+    // (legacy storage-then-copy path). Keying off recording_holes alone hid
+    // every tus upload, because those never get a storage_path.
     const { data: sessRows } = await supabase
-      .from("recording_holes")
-      .select(`storage_path, recording_session_id,
-               recording_sessions!inner(id, player_name, tournament_name, bay_number, started_at, stream_uid, stream_status, stream_error, round_number, trigger_source, scorecard)`)
-      .eq("status", "uploaded")
-      .eq("hole_number", 0)
-      .gte("updated_at", since)
-      .order("updated_at", { ascending: false })
+      .from("recording_sessions")
+      .select("id, player_name, tournament_name, bay_number, started_at, stream_uid, stream_status, stream_error, round_number, trigger_source, scorecard")
+      .gte("started_at", since)
+      .or("stream_uid.not.is.null,status.eq.uploaded")
+      .neq("status", "purged")
+      .order("started_at", { ascending: false })
       .limit(200);
 
+    const ids = (sessRows ?? []).map((s: any) => s.id);
+    const pathBySession = new Map<string, string>();
+    if (ids.length) {
+      const { data: holeRows } = await supabase
+        .from("recording_holes")
+        .select("recording_session_id, storage_path")
+        .eq("hole_number", 0)
+        .in("recording_session_id", ids);
+      for (const h of holeRows ?? []) {
+        if (h.storage_path) pathBySession.set(h.recording_session_id, h.storage_path);
+      }
+    }
+
     const mapped: SessionRow[] = (sessRows ?? []).map((r: any) => ({
-      session_id: r.recording_session_id,
-      storage_path: r.storage_path,
-      stream_uid: r.recording_sessions?.stream_uid ?? null,
-      stream_status: r.recording_sessions?.stream_status ?? null,
-      stream_error: r.recording_sessions?.stream_error ?? null,
-      player_name: r.recording_sessions?.player_name ?? null,
-      tournament_name: r.recording_sessions?.tournament_name ?? null,
-      bay_number: r.recording_sessions?.bay_number,
-      started_at: r.recording_sessions?.started_at ?? null,
-      round_number: r.recording_sessions?.round_number ?? null,
-      trigger_source: r.recording_sessions?.trigger_source ?? null,
-      scorecard: (r.recording_sessions?.scorecard as Scorecard | null) ?? null,
+      session_id: r.id,
+      storage_path: pathBySession.get(r.id) ?? null,
+      stream_uid: r.stream_uid ?? null,
+      stream_status: r.stream_status ?? null,
+      stream_error: r.stream_error ?? null,
+      player_name: r.player_name ?? null,
+      tournament_name: r.tournament_name ?? null,
+      bay_number: r.bay_number,
+      started_at: r.started_at ?? null,
+      round_number: r.round_number ?? null,
+      trigger_source: r.trigger_source ?? null,
+      scorecard: (r.scorecard as Scorecard | null) ?? null,
     }));
     setSessions(mapped);
     if (!silent) setLoading(false);
@@ -210,14 +225,16 @@ export function LeagueHighlights() {
 
   useEffect(() => {
     for (const sess of sessions) {
-      if (sess.stream_uid) continue;
-      if (sess.stream_status === "failed") continue;
-      if (!sess.storage_path) continue;
+      if (sess.stream_status === "ready") continue;
+      if (["failed", "status_failed", "error"].includes(sess.stream_status ?? "")) continue;
+      // No uid and no file = nothing to kick.
+      if (!sess.stream_uid && !sess.storage_path) continue;
       if (autoKickedRef.current.has(sess.session_id)) continue;
       autoKickedRef.current.add(sess.session_id);
       void ensureStream(sess, { silent: true });
     }
   }, [sessions]);
+
 
   const saveConfig = async (nextEnabled: boolean, nextRetention: number = retentionDays) => {
     const { error } = await supabase.from("system_settings").update({
@@ -260,9 +277,12 @@ export function LeagueHighlights() {
         return null;
       }
       setSessions((prev) => prev.map((s) => s.session_id === sess.session_id ? { ...s, stream_uid: data.stream_uid, stream_status: data.status ?? "inprogress", stream_error: null } : s));
+      // Still encoding — allow another status refresh shortly.
+      setTimeout(() => autoKickedRef.current.delete(sess.session_id), 30000);
       if (silent) return null;
       toast({ title: "Stream still processing", description: "The video is still being prepared. This page will update automatically when it is ready." });
       return null;
+
     } finally {
       setStreamBusyIds((prev) => { const next = new Set(prev); next.delete(sess.session_id); return next; });
     }

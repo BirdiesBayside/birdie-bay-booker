@@ -596,6 +596,19 @@ serve(async (req) => {
         const { error } = await supabase.from("recording_sessions").update(update).eq("id", b.recording_session_id);
         if (error) return jsonResponse({ error: error.message }, 500);
 
+        // Direct-to-Cloudflare uploads never produce a Storage file, so the hole-0
+        // placeholder row would sit at 'pending' forever. Mark it uploaded so any
+        // consumer keyed off recording_holes sees the session as complete.
+        if (b.stream_uid) {
+          await supabase.from("recording_holes").upsert({
+            recording_session_id: b.recording_session_id,
+            hole_number: 0,
+            status: "uploaded",
+            updated_at: new Date().toISOString(),
+          }, { onConflict: "recording_session_id,hole_number" });
+        }
+
+
         // Fallback: if the poller couldn't confirm hole 18 (embed lag, player still
         // "on 18" at stop), stamp any un-stamped consecutive holes up to the highest
         // hole we've seen + 1 (i.e. the one they were actively playing when we stopped).
