@@ -183,6 +183,7 @@ export default function AdminHighlightExports() {
                           )}
                         </Button>
                       )}
+                      {!canSaveToPhotos && (
                       <Button size="sm" variant="outline" onClick={() => downloadClip(clip)} disabled={clip.status !== "ready" || !clip.download_url}>
                         <Download className="h-4 w-4 mr-1" />Download
                       </Button>
