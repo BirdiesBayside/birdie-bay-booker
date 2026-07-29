@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Download, ImageDown, Loader2, RefreshCw, Trash2 } from "lucide-react";
 import { formatBrisbane } from "@/lib/brisbane-time";
-import { fetchVideoFile, saveFileFallback, shareVideoFile, supportsVideoFileShare } from "@/lib/share-video";
+import { fetchClipViaProxy, saveFileFallback, shareVideoFile, supportsVideoFileShare } from "@/lib/share-video";
 
 interface Clip {
   id: string;
@@ -107,7 +107,7 @@ export default function AdminHighlightExports() {
     setBusyId(clip.id);
     setProgress(null);
     try {
-      const file = await fetchVideoFile(urlFor(clip), name, setProgress);
+      const file = await fetchClipViaProxy({ clip_id: clip.id, filename: name }, setProgress);
       const ok = await shareVideoFile(file, name);
       if (!ok) {
         setReadyFiles((p) => ({ ...p, [clip.id]: file }));
@@ -116,7 +116,7 @@ export default function AdminHighlightExports() {
     } catch (e) {
       toast({
         title: "Couldn’t prepare video",
-        description: e instanceof Error ? e.message : "Try the Download button instead.",
+        description: e instanceof Error ? e.message : "Please try again in a moment.",
         variant: "destructive",
       });
     } finally {
