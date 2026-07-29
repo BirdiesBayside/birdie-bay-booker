@@ -84,8 +84,8 @@ export function TermsGate() {
   return (
     <Dialog open>
       <DialogContent
-        className="max-w-2xl max-h-[90vh]"
-        hideClose
+        className="max-w-2xl max-h-[90vh] [&>button]:hidden"
+
         onPointerDownOutside={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => e.preventDefault()}
         onInteractOutside={(e) => e.preventDefault()}
