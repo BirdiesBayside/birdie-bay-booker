@@ -91,12 +91,16 @@ export default function LeagueHighlightExports() {
     ).replace(/:/g, "-")}.mp4`;
   };
 
+  const urlFor = (clip: Clip) => {
+    const url = new URL(clip.download_url!);
+    url.searchParams.set("filename", filenameFor(clip));
+    return url.toString();
+  };
+
   const downloadClip = (clip: Clip) => {
     if (!clip.download_url) return;
-    const url = new URL(clip.download_url);
-    url.searchParams.set("filename", filenameFor(clip));
     const a = document.createElement("a");
-    a.href = url.toString();
+    a.href = urlFor(clip);
     a.download = filenameFor(clip);
     a.rel = "noopener";
     a.target = "_blank";
@@ -104,6 +108,39 @@ export default function LeagueHighlightExports() {
     a.click();
     a.remove();
   };
+
+  // iOS: hand the share sheet a real MP4 File so "Save Video" (straight to Photos) appears.
+  const saveToPhotos = async (clip: Clip) => {
+    if (!clip.download_url) return;
+    const name = filenameFor(clip);
+    const cached = readyFiles[clip.id];
+    if (cached) {
+      const ok = await shareVideoFile(cached, name);
+      if (!ok) saveFileFallback(cached);
+      return;
+    }
+    setBusyId(clip.id);
+    setProgress(null);
+    try {
+      const file = await fetchVideoFile(urlFor(clip), name, setProgress);
+      const ok = await shareVideoFile(file, name);
+      if (!ok) {
+        // Safari drops the user-gesture after a long fetch — cache and let them tap again.
+        setReadyFiles((p) => ({ ...p, [clip.id]: file }));
+        toast({ title: "Ready", description: "Tap “Save to Photos” again to open the share sheet." });
+      }
+    } catch (e) {
+      toast({
+        title: "Couldn’t prepare video",
+        description: e instanceof Error ? e.message : "Try the Download button instead.",
+        variant: "destructive",
+      });
+    } finally {
+      setBusyId(null);
+      setProgress(null);
+    }
+  };
+
 
   const badgeFor = (status: string) => {
     if (status === "ready")
