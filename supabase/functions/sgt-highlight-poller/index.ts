@@ -145,7 +145,20 @@ async function fetchScorecardForPlayer(
 }
 
 
+// A card is only considered final when all 18 holes have a score.
+function isFullEighteen(sc: Record<string, unknown>): boolean {
+  let played = 0;
+  for (let i = 1; i <= 18; i++) {
+    const v = sc[`h${i}`] ?? sc[`hole${i}`] ?? sc[`h${i}_gross`];
+    if (v !== null && v !== undefined && Number(v) > 0) played++;
+  }
+  if (played > 0) return played >= 18;
+  // Fallback when hole-by-hole data isn't exposed: require both nines.
+  return Number(sc.out_gross) > 0 && Number(sc.in_gross) > 0;
+}
+
 function shapeScorecard(sc: Record<string, unknown>) {
+
   const holeData: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(sc)) {
     if (/^h\d+/.test(k) || /^hole\d+/.test(k)) holeData[k] = v;
@@ -502,11 +515,18 @@ Deno.serve(async (req) => {
       console.warn(`[poller] scorecard capture: no matching row for session ${session.id} (player=${playerId} round=${session.round_number})`);
       return;
     }
+    // Only cache a COMPLETE 18-hole card. Partial cards (e.g. thru 9) get skipped
+    // so a later poll can pick up the finished version.
+    if (!isFullEighteen(raw)) {
+      console.log(`[poller] scorecard capture skipped for session ${session.id}: round not through 18`);
+      return;
+    }
     await supabase
       .from("recording_sessions")
       .update({ scorecard: shapeScorecard(raw), updated_at: nowIso })
       .eq("id", session.id);
     console.log(`[poller] scorecard cached for session ${session.id}`);
+
   }
 
   // ---------- MAIN LOOP ----------
