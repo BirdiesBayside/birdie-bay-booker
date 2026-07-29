@@ -448,9 +448,16 @@ export function LeagueHighlights() {
                const highlightCount = countHighlights(sess.scorecard);
                const roundLabel = sess.round_number ? ` — Round ${sess.round_number}` : "";
                return (
-                 <div key={sess.session_id} className="border rounded-lg p-4">
+                 <div key={sess.session_id} className={cn("border rounded-lg p-4", selectedIds.has(sess.session_id) && "border-primary bg-muted/40")}>
                    <div className="flex flex-col md:flex-row md:items-start gap-3 md:gap-4">
+                     <Checkbox
+                       className="mt-1"
+                       checked={selectedIds.has(sess.session_id)}
+                       onCheckedChange={() => toggleSelected(sess.session_id)}
+                       aria-label={`Select recording for ${sess.player_name ?? "player"}`}
+                     />
                      <div className="flex-1 min-w-0">
+
                        <div className="flex items-center gap-2 flex-wrap">
                          <span className="font-semibold">{sess.player_name ?? "Unknown"}</span>
                          <span className="text-muted-foreground text-sm">· Bay {sess.bay_number} · {sess.tournament_name}{roundLabel}</span>
