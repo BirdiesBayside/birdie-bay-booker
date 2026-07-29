@@ -8,10 +8,11 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { Download, FolderOpen, Loader2, Play, Trash2 } from "lucide-react";
 import { formatBrisbane } from "@/lib/brisbane-time";
-import ManualStreamUpload from "@/components/admin/ManualStreamUpload";
+
 
 interface Bay { id: string; bay_number: number; name: string | null }
 
@@ -158,7 +159,10 @@ export function LeagueHighlights() {
   const [retentionDays, setRetentionDays] = useState<number>(14);
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [streamBusyIds, setStreamBusyIds] = useState<Set<string>>(new Set());
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const autoKickedRef = useRef<Set<string>>(new Set());
+
 
 
   const load = async (silent = false) => {
@@ -319,6 +323,53 @@ export function LeagueHighlights() {
     }
   };
 
+  const toggleSelected = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    setSelectedIds((prev) =>
+      prev.size === sessions.length ? new Set() : new Set(sessions.map((s) => s.session_id))
+    );
+  };
+
+  const deleteSelected = async () => {
+    const ids = sessions.map((s) => s.session_id).filter((id) => selectedIds.has(id));
+    if (!ids.length) return;
+    if (!confirm(`Delete ${ids.length} recording${ids.length === 1 ? "" : "s"}? This removes them from Cloudflare Stream, storage and the queue.`)) return;
+
+    setBulkDeleting(true);
+    let ok = 0;
+    const failures: string[] = [];
+    for (const id of ids) {
+      const { data, error } = await supabase.functions.invoke("delete-recording-session", { body: { session_id: id } });
+      if (error || !data?.ok) {
+        failures.push(await getFunctionErrorMessage(error, data));
+      } else {
+        ok++;
+      }
+    }
+    setBulkDeleting(false);
+    setSelectedIds(new Set());
+
+    if (failures.length) {
+      toast({
+        title: `Deleted ${ok} of ${ids.length}`,
+        description: failures[0],
+        variant: "destructive",
+      });
+    } else {
+      toast({ title: "Deleted", description: `${ok} recording${ok === 1 ? "" : "s"} removed from Cloudflare + storage.` });
+    }
+    void load();
+  };
+
+
+
   
 
   const countHighlights = (sc: Scorecard | null): number => {
@@ -334,7 +385,7 @@ export function LeagueHighlights() {
 
   return (
     <div className="space-y-6">
-      <ManualStreamUpload />
+
       <Card>
         <CardHeader><CardTitle>Recording Configuration</CardTitle></CardHeader>
         <CardContent className="space-y-4">
@@ -367,22 +418,46 @@ export function LeagueHighlights() {
       </Card>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-row items-center justify-between gap-2">
           <CardTitle>Review Queue ({sessions.length})</CardTitle>
+          {selectedIds.size > 0 && (
+            <Button size="sm" variant="destructive" onClick={deleteSelected} disabled={bulkDeleting}>
+              {bulkDeleting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Trash2 className="h-4 w-4 mr-1" />}
+              Delete {selectedIds.size} selected
+            </Button>
+          )}
         </CardHeader>
         <CardContent>
           {loading ? <div className="flex justify-center py-8"><Loader2 className="animate-spin" /></div> :
            sessions.length === 0 ? <p className="text-muted-foreground text-sm py-8 text-center">No recorded sessions yet.</p> :
            <div className="space-y-3">
+             <div className="flex items-center gap-2 pb-1">
+               <Checkbox
+                 id="select-all-recordings"
+                 checked={selectedIds.size > 0 && selectedIds.size === sessions.length}
+                 onCheckedChange={toggleSelectAll}
+               />
+               <Label htmlFor="select-all-recordings" className="text-sm text-muted-foreground">
+                 Select all
+               </Label>
+             </div>
+
              {sessions.map((sess) => {
                const streamReady = sess.stream_status === "ready";
                const streamFailed = ["failed", "status_failed", "error"].includes(sess.stream_status ?? "");
                const highlightCount = countHighlights(sess.scorecard);
                const roundLabel = sess.round_number ? ` — Round ${sess.round_number}` : "";
                return (
-                 <div key={sess.session_id} className="border rounded-lg p-4">
+                 <div key={sess.session_id} className={cn("border rounded-lg p-4", selectedIds.has(sess.session_id) && "border-primary bg-muted/40")}>
                    <div className="flex flex-col md:flex-row md:items-start gap-3 md:gap-4">
+                     <Checkbox
+                       className="mt-1"
+                       checked={selectedIds.has(sess.session_id)}
+                       onCheckedChange={() => toggleSelected(sess.session_id)}
+                       aria-label={`Select recording for ${sess.player_name ?? "player"}`}
+                     />
                      <div className="flex-1 min-w-0">
+
                        <div className="flex items-center gap-2 flex-wrap">
                          <span className="font-semibold">{sess.player_name ?? "Unknown"}</span>
                          <span className="text-muted-foreground text-sm">· Bay {sess.bay_number} · {sess.tournament_name}{roundLabel}</span>
