@@ -34,7 +34,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const ABANDONED_MINUTES = 20;
 const SGT_BASE_URL = "https://simulatorgolftour.com/sgt-api/club-admin";
 const SGT_CLUB = "birdiesbayside";
 
