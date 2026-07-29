@@ -456,7 +456,8 @@ export function LeagueHighlights() {
                const streamReady = sess.stream_status === "ready";
                const streamFailed = ["failed", "status_failed", "error"].includes(sess.stream_status ?? "");
                const highlightCount = countHighlights(sess.scorecard);
-               const roundLabel = sess.round_number ? ` — Round ${sess.round_number}` : "";
+              const isLocalComp = sess.trigger_source === "local_comp";
+              const roundLabel = !isLocalComp && sess.round_number ? ` — Round ${sess.round_number}` : "";
                return (
                  <div key={sess.session_id} className={cn("border rounded-lg p-4", selectMode && selectedIds.has(sess.session_id) && "border-primary bg-muted/40")}>
                    <div className="flex flex-col md:flex-row md:items-start gap-3 md:gap-4">
