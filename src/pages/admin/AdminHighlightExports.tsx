@@ -8,7 +8,14 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Download, ImageDown, Loader2, RefreshCw, Trash2 } from "lucide-react";
 import { formatBrisbane } from "@/lib/brisbane-time";
-import { fetchClipViaProxy, saveFileFallback, shareVideoFile, supportsVideoFileShare } from "@/lib/share-video";
+import {
+  fetchClipViaProxy,
+  saveFileFallback,
+  saveVideoUrlToPhotoLibrary,
+  shareVideoFile,
+  supportsNativePhotoLibrarySave,
+  supportsVideoFileShare,
+} from "@/lib/share-video";
 
 interface Clip {
   id: string;
@@ -48,7 +55,7 @@ export default function AdminHighlightExports() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
   const [readyFiles, setReadyFiles] = useState<Record<string, File>>({});
-  const canSaveToPhotos = supportsVideoFileShare();
+  const canSaveToPhotos = supportsNativePhotoLibrarySave() || supportsVideoFileShare();
 
   const load = async (silent = false) => {
     if (!sessionId) return;
@@ -98,6 +105,23 @@ export default function AdminHighlightExports() {
   const saveToPhotos = async (clip: Clip) => {
     if (!clip.download_url) return;
     const name = filenameFor(clip);
+    if (supportsNativePhotoLibrarySave()) {
+      setBusyId(clip.id);
+      try {
+        await saveVideoUrlToPhotoLibrary(urlFor(clip));
+        toast({ title: "Saved to Photos", description: "The video is now in your Photos library." });
+      } catch (e) {
+        toast({
+          title: "Couldn’t save to Photos",
+          description: e instanceof Error ? e.message : "Please try again in a moment.",
+          variant: "destructive",
+        });
+      } finally {
+        setBusyId(null);
+      }
+      return;
+    }
+
     const cached = readyFiles[clip.id];
     if (cached) {
       const ok = await shareVideoFile(cached, name);

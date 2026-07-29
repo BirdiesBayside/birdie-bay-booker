@@ -1,3 +1,5 @@
+import { Capacitor } from "@capacitor/core";
+
 // iOS "Save Video" support.
 //
 // The share sheet only shows "Save Video" (straight into Photos) when the shared
@@ -14,6 +16,23 @@ export function supportsVideoFileShare(): boolean {
   } catch {
     return false;
   }
+}
+
+export function supportsNativePhotoLibrarySave(): boolean {
+  try {
+    return typeof window !== "undefined" && Capacitor.isNativePlatform();
+  } catch {
+    return false;
+  }
+}
+
+export async function saveVideoUrlToPhotoLibrary(url: string): Promise<void> {
+  if (!supportsNativePhotoLibrarySave()) {
+    throw new Error("Native photo saving is not available on this device.");
+  }
+
+  const { Media } = await import("@capacitor-community/media");
+  await Media.saveVideo({ path: url });
 }
 
 export async function fetchVideoFile(
