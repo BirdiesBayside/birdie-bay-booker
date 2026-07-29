@@ -478,14 +478,14 @@ export function LeagueHighlights() {
                        </div>
                        <div className="flex gap-2 mt-2 flex-wrap">
                          {sess.trigger_source === "local_comp" && <Badge variant="secondary">Local Comp</Badge>}
-                         {sess.scorecard ? (
-                           <Badge variant="outline">
-                             {sess.scorecard.total_gross ?? "-"} gross ({fmtToPar(sess.scorecard.to_par_gross)})
-                             {highlightCount > 0 && ` · ${highlightCount} birdie${highlightCount === 1 ? "" : "s"}+`}
-                           </Badge>
-                         ) : (
-                           <Badge variant="outline">Awaiting scorecard</Badge>
-                         )}
+                          {sess.scorecard ? (
+                            <Badge variant="outline">
+                              {sess.scorecard.total_gross ?? "-"} gross ({fmtToPar(sess.scorecard.to_par_gross)})
+                              {highlightCount > 0 && ` · ${highlightCount} birdie${highlightCount === 1 ? "" : "s"}+`}
+                            </Badge>
+                          ) : (
+                            !isLocalComp && <Badge variant="outline">Awaiting scorecard</Badge>
+                          )}
                          {streamReady && <Badge variant="outline" className="text-green-600">Stream ready</Badge>}
                          {streamFailed && <Badge variant="destructive">Stream check failed</Badge>}
                          {sess.stream_status && !streamReady && !streamFailed && <Badge variant="outline">Stream: {sess.stream_status}</Badge>}
