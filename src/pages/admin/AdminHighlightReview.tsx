@@ -47,7 +47,7 @@ export default function AdminHighlightReview() {
     if (!sessionId) return;
     const { data } = await supabase
       .from("recording_sessions")
-      .select("id, player_name, tournament_name, bay_number, started_at, round_number, stream_uid, stream_status, stream_error, scorecard")
+      .select("id, player_name, tournament_name, bay_number, started_at, round_number, trigger_source, stream_uid, stream_status, stream_error, scorecard")
       .eq("id", sessionId)
       .maybeSingle();
     setSession((data as ReviewSession | null) ?? null);
