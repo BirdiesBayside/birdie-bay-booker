@@ -6,8 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Download, Loader2, RefreshCw, Trash2 } from "lucide-react";
+import { ArrowLeft, Download, ImageDown, Loader2, RefreshCw, Trash2 } from "lucide-react";
 import { formatBrisbane } from "@/lib/brisbane-time";
+import { fetchVideoFile, saveFileFallback, shareVideoFile, supportsVideoFileShare } from "@/lib/share-video";
 
 interface Clip {
   id: string;
@@ -44,6 +45,10 @@ export default function AdminHighlightExports() {
   const [session, setSession] = useState<Session | null>(null);
   const [clips, setClips] = useState<Clip[]>([]);
   const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [progress, setProgress] = useState<number | null>(null);
+  const [readyFiles, setReadyFiles] = useState<Record<string, File>>({});
+  const canSaveToPhotos = supportsVideoFileShare();
 
   const load = async (silent = false) => {
     if (!sessionId) return;
@@ -70,13 +75,17 @@ export default function AdminHighlightExports() {
     return `${player}-${bay}-${date}-${fmtOffset(clip.start_seconds).replace(/:/g, "-")}_${fmtOffset(clip.end_seconds).replace(/:/g, "-")}.mp4`;
   };
 
+  const urlFor = (clip: Clip) => {
+    const url = new URL(clip.download_url!);
+    url.searchParams.set("filename", filenameFor(clip));
+    return url.toString();
+  };
+
   const downloadClip = (clip: Clip) => {
     if (!clip.download_url) return;
-    const url = new URL(clip.download_url);
-    url.searchParams.set("filename", filenameFor(clip));
-    // Trigger a native download that saves to Files / camera roll on mobile.
+    // Trigger a native download (goes to Files on iOS).
     const a = document.createElement("a");
-    a.href = url.toString();
+    a.href = urlFor(clip);
     a.download = filenameFor(clip);
     a.rel = "noopener";
     a.target = "_blank";
@@ -84,6 +93,38 @@ export default function AdminHighlightExports() {
     a.click();
     a.remove();
   };
+
+  // iOS: share a real MP4 File so the sheet offers "Save Video" straight into Photos.
+  const saveToPhotos = async (clip: Clip) => {
+    if (!clip.download_url) return;
+    const name = filenameFor(clip);
+    const cached = readyFiles[clip.id];
+    if (cached) {
+      const ok = await shareVideoFile(cached, name);
+      if (!ok) saveFileFallback(cached);
+      return;
+    }
+    setBusyId(clip.id);
+    setProgress(null);
+    try {
+      const file = await fetchVideoFile(urlFor(clip), name, setProgress);
+      const ok = await shareVideoFile(file, name);
+      if (!ok) {
+        setReadyFiles((p) => ({ ...p, [clip.id]: file }));
+        toast({ title: "Ready", description: "Tap “Save to Photos” again to open the share sheet." });
+      }
+    } catch (e) {
+      toast({
+        title: "Couldn’t prepare video",
+        description: e instanceof Error ? e.message : "Try the Download button instead.",
+        variant: "destructive",
+      });
+    } finally {
+      setBusyId(null);
+      setProgress(null);
+    }
+  };
+
 
   const deleteClip = async (clip: Clip) => {
     if (!confirm("Delete this clip?")) return;
@@ -133,6 +174,15 @@ export default function AdminHighlightExports() {
                       {clip.error && <p className="text-xs text-destructive mt-1 break-words">{clip.error}</p>}
                     </div>
                     <div className="flex gap-2 md:shrink-0">
+                      {canSaveToPhotos && (
+                        <Button size="sm" onClick={() => void saveToPhotos(clip)} disabled={clip.status !== "ready" || !clip.download_url || busyId === clip.id}>
+                          {busyId === clip.id ? (
+                            <><Loader2 className="h-4 w-4 mr-1 animate-spin" />{progress != null ? `${progress}%` : "Preparing…"}</>
+                          ) : (
+                            <><ImageDown className="h-4 w-4 mr-1" />Save to Photos</>
+                          )}
+                        </Button>
+                      )}
                       <Button size="sm" variant="outline" onClick={() => downloadClip(clip)} disabled={clip.status !== "ready" || !clip.download_url}>
                         <Download className="h-4 w-4 mr-1" />Download
                       </Button>

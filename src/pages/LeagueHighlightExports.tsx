@@ -6,9 +6,10 @@ import { LeagueLayout } from "@/components/league/LeagueLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Download, Film, Loader2, RefreshCw } from "lucide-react";
+import { ArrowLeft, Download, Film, ImageDown, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { formatBrisbane } from "@/lib/brisbane-time";
+import { fetchVideoFile, saveFileFallback, shareVideoFile, supportsVideoFileShare } from "@/lib/share-video";
 
 interface Clip {
   id: string;
@@ -49,6 +50,10 @@ export default function LeagueHighlightExports() {
   const [session, setSession] = useState<Session | null>(null);
   const [clips, setClips] = useState<Clip[]>([]);
   const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [progress, setProgress] = useState<number | null>(null);
+  const [readyFiles, setReadyFiles] = useState<Record<string, File>>({});
+  const canSaveToPhotos = supportsVideoFileShare();
 
   useEffect(() => {
     if (!authLoading && !user) navigate("/");
@@ -91,12 +96,16 @@ export default function LeagueHighlightExports() {
     ).replace(/:/g, "-")}.mp4`;
   };
 
+  const urlFor = (clip: Clip) => {
+    const url = new URL(clip.download_url!);
+    url.searchParams.set("filename", filenameFor(clip));
+    return url.toString();
+  };
+
   const downloadClip = (clip: Clip) => {
     if (!clip.download_url) return;
-    const url = new URL(clip.download_url);
-    url.searchParams.set("filename", filenameFor(clip));
     const a = document.createElement("a");
-    a.href = url.toString();
+    a.href = urlFor(clip);
     a.download = filenameFor(clip);
     a.rel = "noopener";
     a.target = "_blank";
@@ -104,6 +113,39 @@ export default function LeagueHighlightExports() {
     a.click();
     a.remove();
   };
+
+  // iOS: hand the share sheet a real MP4 File so "Save Video" (straight to Photos) appears.
+  const saveToPhotos = async (clip: Clip) => {
+    if (!clip.download_url) return;
+    const name = filenameFor(clip);
+    const cached = readyFiles[clip.id];
+    if (cached) {
+      const ok = await shareVideoFile(cached, name);
+      if (!ok) saveFileFallback(cached);
+      return;
+    }
+    setBusyId(clip.id);
+    setProgress(null);
+    try {
+      const file = await fetchVideoFile(urlFor(clip), name, setProgress);
+      const ok = await shareVideoFile(file, name);
+      if (!ok) {
+        // Safari drops the user-gesture after a long fetch — cache and let them tap again.
+        setReadyFiles((p) => ({ ...p, [clip.id]: file }));
+        toast({ title: "Ready", description: "Tap “Save to Photos” again to open the share sheet." });
+      }
+    } catch (e) {
+      toast({
+        title: "Couldn’t prepare video",
+        description: e instanceof Error ? e.message : "Try the Download button instead.",
+        variant: "destructive",
+      });
+    } finally {
+      setBusyId(null);
+      setProgress(null);
+    }
+  };
+
 
   const badgeFor = (status: string) => {
     if (status === "ready")
@@ -224,6 +266,25 @@ export default function LeagueHighlightExports() {
                     )}
                   </div>
                   <div className="flex gap-2 md:shrink-0">
+                    {canSaveToPhotos && (
+                      <Button
+                        size="sm"
+                        onClick={() => void saveToPhotos(clip)}
+                        disabled={clip.status !== "ready" || !clip.download_url || busyId === clip.id}
+                      >
+                        {busyId === clip.id ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                            {progress != null ? `${progress}%` : "Preparing…"}
+                          </>
+                        ) : (
+                          <>
+                            <ImageDown className="h-4 w-4 mr-1" />
+                            Save to Photos
+                          </>
+                        )}
+                      </Button>
+                    )}
                     <Button
                       size="sm"
                       variant="outline"
