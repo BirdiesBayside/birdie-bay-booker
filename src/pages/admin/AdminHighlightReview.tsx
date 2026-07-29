@@ -146,7 +146,7 @@ export default function AdminHighlightReview() {
               <span className="font-semibold">{session.player_name ?? "Unknown"}</span>
               <span className="text-muted-foreground text-sm">
                 · Bay {session.bay_number} · {session.tournament_name}
-                {session.round_number ? ` — Round ${session.round_number}` : ""}
+                {session.trigger_source !== "local_comp" && session.round_number ? ` — Round ${session.round_number}` : ""}
               </span>
               {session.started_at && (
                 <span className="text-muted-foreground text-xs">· {formatBrisbane(session.started_at)}</span>
