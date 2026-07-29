@@ -127,7 +127,7 @@ export default function LeagueHighlightExports() {
     setBusyId(clip.id);
     setProgress(null);
     try {
-      const file = await fetchVideoFile(urlFor(clip), name, setProgress);
+      const file = await fetchClipViaProxy({ clip_id: clip.id, filename: name }, setProgress);
       const ok = await shareVideoFile(file, name);
       if (!ok) {
         // Safari drops the user-gesture after a long fetch — cache and let them tap again.
@@ -137,7 +137,7 @@ export default function LeagueHighlightExports() {
     } catch (e) {
       toast({
         title: "Couldn’t prepare video",
-        description: e instanceof Error ? e.message : "Try the Download button instead.",
+        description: e instanceof Error ? e.message : "Please try again in a moment.",
         variant: "destructive",
       });
     } finally {
