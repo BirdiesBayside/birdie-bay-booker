@@ -51,7 +51,7 @@ export function HcpAdjustments() {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12 text-muted-foreground">
             <History className="h-12 w-12 mb-3 opacity-40" />
-            <p>No adjustments yet. Mark a competition as completed to trigger the Winner's Tax.</p>
+            <p>No adjustments yet. Mark a competition as completed to apply handicap adjustments.</p>
           </CardContent>
         </Card>
       ) : (
