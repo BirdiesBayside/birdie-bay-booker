@@ -253,10 +253,10 @@ Deno.serve(async (req) => {
           }
         }
 
-        const lastBeat = s.last_progress_at ?? s.started_at;
-        if (!reason && lastBeat && nowMs - new Date(lastBeat).getTime() > 20 * 60_000) {
-          reason = "No heartbeat from Bay Controller for 20 minutes";
-        }
+        // NOTE: no "idle/no-heartbeat" reaping. A recording only ends when its
+        // booking ends (or is cancelled), or when the round/comp score lands.
+        // Idle stretches (range time, slow play) must never chop a session.
+
 
         if (reason) {
           console.log(`[reaper] Closing orphaned session ${s.id}: ${reason}`);
