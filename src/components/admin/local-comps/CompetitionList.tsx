@@ -422,6 +422,13 @@ export function CompetitionList() {
           ))}
         </div>
       )}
+
+      <CompCommentaryDialog
+        open={!!recapComp}
+        onOpenChange={(o) => !o && setRecapComp(null)}
+        competition={recapComp}
+      />
     </div>
+
   );
 }
