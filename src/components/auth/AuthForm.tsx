@@ -10,6 +10,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
+import { TermsContent } from "@/components/legal/TermsContent";
+import { CURRENT_TERMS_VERSION } from "@/lib/terms-version";
+
 
 const signUpSchema = z.object({
   firstName: z.string().trim().min(1, "First name is required").max(50, "First name too long"),
