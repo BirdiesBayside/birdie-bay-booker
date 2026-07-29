@@ -17,7 +17,7 @@
 //       (round_number auto-increments).
 //
 //   Local Comp booking (booking notes contain "[COMP]" + comp exists today):
-//     - Start recording on first poll after booking becomes active.
+//     - Start exactly one recording for the booking on first poll after it becomes active.
 //     - Stop when the team's `net_score` flips from NULL to a value (scores
 //       have been posted) or the booking ends.
 //
@@ -290,16 +290,30 @@ Deno.serve(async (req) => {
     .select("id, booking_id, bay_number, sgt_user_id, sgt_tournament_id, started_at, status, round_number, trigger_source, last_progress_at, updated_at")
     .in("booking_id", bookingIds)
     .in("status", ["recording", "stopping"]);
-  const sessionByBookingId = new Map((activeSessions ?? []).map((s) => [s.booking_id, s]));
+  const activeSessionsByBookingId = new Map<string, any[]>();
+  for (const s of activeSessions ?? []) {
+    const rows = activeSessionsByBookingId.get(s.booking_id) ?? [];
+    rows.push(s);
+    activeSessionsByBookingId.set(s.booking_id, rows);
+  }
 
-  // 6. Existing session counts (to compute next round_number)
+  // 6. Existing session history. This is deliberately all statuses: a local comp
+  // booking must never start a second clip after the first one has uploaded/errored.
   const { data: allSessionsForBookings } = await supabase
     .from("recording_sessions")
-    .select("booking_id")
+    .select("booking_id, trigger_source, round_number")
     .in("booking_id", bookingIds);
-  const sessionCountByBooking = new Map<string, number>();
+  const localCompSessionCountByBooking = new Map<string, number>();
+  const sgtRoundsByBooking = new Map<string, Set<number>>();
   for (const s of allSessionsForBookings ?? []) {
-    sessionCountByBooking.set(s.booking_id, (sessionCountByBooking.get(s.booking_id) ?? 0) + 1);
+    if (s.trigger_source === "local_comp") {
+      localCompSessionCountByBooking.set(s.booking_id, (localCompSessionCountByBooking.get(s.booking_id) ?? 0) + 1);
+    }
+    if (s.trigger_source === "sgt" && typeof s.round_number === "number") {
+      const rounds = sgtRoundsByBooking.get(s.booking_id) ?? new Set<number>();
+      rounds.add(s.round_number);
+      sgtRoundsByBooking.set(s.booking_id, rounds);
+    }
   }
 
   // 7. Load today's active tournament (single) + SGT member name lookup
@@ -358,6 +372,29 @@ Deno.serve(async (req) => {
   const embedCache = new Map<string, Map<string, { hole: number | null; finished: boolean }>>();
 
   const results: Array<Record<string, unknown>> = [];
+
+  function normalizePersonName(value: string | null | undefined): string {
+    return (value ?? "")
+      .toLowerCase()
+      .replace(/[’']/g, "")
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+  }
+
+  function teamHasBookingPlayer(team: any, firstName: string, lastName: string): boolean {
+    const first = normalizePersonName(firstName);
+    const last = normalizePersonName(lastName);
+    const full = `${first} ${last}`.trim();
+    const initial = last ? `${first} ${last.slice(0, 1)}`.trim() : first;
+    const candidates = new Set([full, initial].filter(Boolean));
+    const p1 = normalizePersonName(team?.player1_name);
+    const p2 = normalizePersonName(team?.player2_name);
+    return candidates.has(p1) || candidates.has(p2);
+  }
+
+  function bookingEndTimeMs(booking: { booking_date: string; end_time: string }): number {
+    return new Date(`${booking.booking_date}T${booking.end_time}+10:00`).getTime();
+  }
 
   // ---------- HELPERS ----------
   async function issueStart(session: {
@@ -434,6 +471,18 @@ Deno.serve(async (req) => {
     console.log(`[poller] STOP session=${sessionId} bay=${bayNumber} partial=${partial} reason=${reason}`);
   }
 
+  async function handleStoppingSession(session: any, bookingId: string, bayNumber: number): Promise<boolean> {
+    if (!session || session.status !== "stopping") return false;
+    const lastUpdate = session.updated_at ? new Date(session.updated_at).getTime() : Date.now();
+    if (Date.now() - lastUpdate > 15 * 60_000) {
+      await issueStop(session.id, bayNumber, true, "stop_retry");
+      results.push({ booking: bookingId, action: "stop_retry" });
+    } else {
+      results.push({ booking: bookingId, action: "awaiting_stop" });
+    }
+    return true;
+  }
+
   // Fetch and cache the final scorecard once a round finishes naturally.
   async function captureScorecard(session: {
     id: string;
@@ -468,7 +517,82 @@ Deno.serve(async (req) => {
 
     const prof = profileByUserId.get(booking.user_id);
     const playerName = [prof?.first_name, prof?.last_name].filter(Boolean).join(" ").trim() || "Player";
-    const session = sessionByBookingId.get(booking.id);
+    const activeForBooking = activeSessionsByBookingId.get(booking.id) ?? [];
+    const bookingIsLocalComp = (booking.notes ?? "").includes("[COMP]");
+    const bookingEndMs = bookingEndTimeMs(booking);
+
+    // ----- Local Comp branch -----
+    // This must run before SGT. Many comp players also have an SGT profile, but
+    // the comp trigger is the local leaderboard score, not the SGT embed.
+    if (bookingIsLocalComp) {
+      if (!activeComp || !compEnabled) {
+        results.push({ booking: booking.id, action: "comp_not_enabled" });
+        continue;
+      }
+
+      const compSession = activeForBooking.find((s) => s.trigger_source === "local_comp");
+      const wrongTriggerSession = activeForBooking.find((s) => s.trigger_source && s.trigger_source !== "local_comp");
+
+      if (wrongTriggerSession) {
+        if (await handleStoppingSession(wrongTriggerSession, booking.id, bayNumber)) continue;
+        await issueStop(wrongTriggerSession.id, bayNumber, true, "wrong_trigger_for_comp_booking");
+        results.push({ booking: booking.id, action: "stop_wrong_trigger", trigger: wrongTriggerSession.trigger_source });
+        continue;
+      }
+
+      if (await handleStoppingSession(compSession, booking.id, bayNumber)) continue;
+
+      const team = (compTeams ?? []).find((t) => teamHasBookingPlayer(t, prof?.first_name ?? "", prof?.last_name ?? ""));
+
+      if (compSession && Date.now() >= bookingEndMs - 5000) {
+        await issueStop(compSession.id, bayNumber, true, "booking_end");
+        results.push({ booking: booking.id, action: "stop_booking_end" });
+        continue;
+      }
+
+      if (compSession) {
+        if (team && team.net_score != null) {
+          await issueStop(compSession.id, bayNumber, false, "score_posted");
+          results.push({ booking: booking.id, action: "stop_score_posted" });
+        } else {
+          // Local comps don't have hole-by-hole progress, so this heartbeat keeps
+          // the orphan reaper from chopping the round into 20-minute videos.
+          await supabase
+            .from("recording_sessions")
+            .update({ last_progress_at: nowIso, updated_at: nowIso })
+            .eq("id", compSession.id);
+          results.push({ booking: booking.id, action: "comp_recording" });
+        }
+        continue;
+      }
+
+      if (team && team.net_score == null) {
+        const alreadyRecorded = (localCompSessionCountByBooking.get(booking.id) ?? 0) > 0;
+        if (alreadyRecorded) {
+          results.push({ booking: booking.id, action: "comp_already_recorded" });
+          continue;
+        }
+        const newId = await issueStart({
+          booking_id: booking.id,
+          bay_number: bayNumber,
+          trigger_source: "local_comp",
+          sgt_user_id: null,
+          sgt_tournament_id: null,
+          player_name: playerName,
+          tournament_name: `Local Comp — ${activeComp.name}`,
+          round_number: 1,
+        });
+        if (newId) {
+          localCompSessionCountByBooking.set(booking.id, 1);
+          results.push({ booking: booking.id, action: "start_comp" });
+        }
+      } else {
+        results.push({ booking: booking.id, action: "comp_no_team_or_scored" });
+      }
+      continue;
+    }
+
+    const session = activeForBooking.find((s) => s.trigger_source === "sgt") ?? activeForBooking[0];
 
     // ----- ALREADY STOPPING GUARD -----
     // A session in 'stopping' has already had its stop command issued and the bay
@@ -476,19 +600,9 @@ Deno.serve(async (req) => {
     // Re-issuing stop commands here spammed bay_commands, and any command left
     // pending for >5s was picked up by the controller's polling fallback.
     // Only re-issue if the stop looks genuinely lost (no update for 15+ minutes).
-    if (session && session.status === "stopping") {
-      const lastUpdate = session.updated_at ? new Date(session.updated_at).getTime() : Date.now();
-      if (Date.now() - lastUpdate > 15 * 60_000) {
-        await issueStop(session.id, bayNumber, true, "stop_retry");
-        results.push({ booking: booking.id, action: "stop_retry" });
-      } else {
-        results.push({ booking: booking.id, action: "awaiting_stop" });
-      }
-      continue;
-    }
+    if (await handleStoppingSession(session, booking.id, bayNumber)) continue;
 
     // ----- BOOKING END GUARD -----
-    const bookingEndMs = new Date(`${booking.booking_date}T${booking.end_time}`).getTime();
     if (session && Date.now() >= bookingEndMs - 5000) {
       await issueStop(session.id, bayNumber, true, "booking_end");
       results.push({ booking: booking.id, action: "stop_booking_end" });
@@ -541,6 +655,10 @@ Deno.serve(async (req) => {
         if (state && !state.finished && state.hole && state.hole >= 1) {
           // Round number comes straight from the embed column (RD 1 / RD 2 / ...).
           const roundNumber = state.round;
+          if (sgtRoundsByBooking.get(booking.id)?.has(roundNumber)) {
+            results.push({ booking: booking.id, action: "sgt_round_already_recorded", round: roundNumber });
+            continue;
+          }
           const newId = await issueStart({
             booking_id: booking.id,
             bay_number: bayNumber,
@@ -552,59 +670,14 @@ Deno.serve(async (req) => {
             round_number: roundNumber,
           });
           if (newId) {
-            sessionCountByBooking.set(booking.id, roundNumber);
+            const rounds = sgtRoundsByBooking.get(booking.id) ?? new Set<number>();
+            rounds.add(roundNumber);
+            sgtRoundsByBooking.set(booking.id, rounds);
             results.push({ booking: booking.id, action: "start_round", round: roundNumber, hole: state.hole });
           }
         } else {
           results.push({ booking: booking.id, action: "sgt_idle", state });
         }
-      }
-      continue;
-    }
-
-    // ----- Local Comp branch -----
-    if ((booking.notes ?? "").includes("[COMP]") && activeComp && compEnabled) {
-      const first = (prof?.first_name ?? "").toLowerCase().trim();
-      const last = (prof?.last_name ?? "").toLowerCase().trim();
-      const full = `${first} ${last}`.trim();
-      const team = (compTeams ?? []).find((t) => {
-        const p1 = (t.player1_name ?? "").toLowerCase().trim();
-        const p2 = (t.player2_name ?? "").toLowerCase().trim();
-        return p1 === full || p2 === full || p1.includes(first) || p2.includes(first);
-      });
-
-      if (session) {
-        if (team && team.net_score != null) {
-          await issueStop(session.id, bayNumber, false, "score_posted");
-          results.push({ booking: booking.id, action: "stop_score_posted" });
-        } else {
-          results.push({ booking: booking.id, action: "comp_recording" });
-        }
-      } else if (team && team.net_score == null) {
-        // Local comp = exactly ONE round per session/booking. If a recording
-        // already exists for this booking (finished, uploading or uploaded),
-        // never start another one — that produced phantom "Round 2 / Round 3".
-        const alreadyRecorded = (sessionCountByBooking.get(booking.id) ?? 0) > 0;
-        if (alreadyRecorded) {
-          results.push({ booking: booking.id, action: "comp_already_recorded" });
-          continue;
-        }
-        const newId = await issueStart({
-          booking_id: booking.id,
-          bay_number: bayNumber,
-          trigger_source: "local_comp",
-          sgt_user_id: null,
-          sgt_tournament_id: null,
-          player_name: playerName,
-          tournament_name: `Local Comp — ${activeComp.name}`,
-          round_number: 1,
-        });
-        if (newId) {
-          sessionCountByBooking.set(booking.id, 1);
-          results.push({ booking: booking.id, action: "start_comp" });
-        }
-      } else {
-        results.push({ booking: booking.id, action: "comp_no_team_or_scored" });
       }
       continue;
     }
