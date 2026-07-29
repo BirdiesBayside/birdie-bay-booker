@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Download, ImageDown, Loader2, RefreshCw, Trash2, FolderOpen } from "lucide-react";
-import { formatBrisbane } from "@/lib/brisbane-time";
+import { formatBrisbane, formatBrisbaneDate } from "@/lib/brisbane-time";
 import { fetchClipViaProxy, saveFileFallback, shareVideoFile, supportsVideoFileShare } from "@/lib/share-video";
 
 interface SessionInfo {
@@ -158,7 +158,7 @@ export default function AdminAllHighlightExports() {
   // Group chronologically by Brisbane day
   const groups: Array<{ day: string; items: Clip[] }> = [];
   for (const clip of clips) {
-    const day = formatBrisbane(clip.created_at, "EEE d MMM yyyy");
+    const day = formatBrisbaneDate(clip.created_at);
     const last = groups[groups.length - 1];
     if (last && last.day === day) last.items.push(clip);
     else groups.push({ day, items: [clip] });
