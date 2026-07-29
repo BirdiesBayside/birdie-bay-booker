@@ -21,6 +21,7 @@ interface ReviewSession {
   bay_number: number;
   started_at: string | null;
   round_number: number | null;
+  trigger_source: string | null;
   stream_uid: string | null;
   stream_status: string | null;
   stream_error: string | null;
