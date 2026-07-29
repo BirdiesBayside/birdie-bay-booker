@@ -1789,6 +1789,8 @@ export type Database = {
           phone: string | null
           referral_source: string | null
           sgt_user_id: number | null
+          terms_accepted_at: string | null
+          terms_version_accepted: string | null
           total_bookings: number
           updated_at: string
           user_id: string
@@ -1813,6 +1815,8 @@ export type Database = {
           phone?: string | null
           referral_source?: string | null
           sgt_user_id?: number | null
+          terms_accepted_at?: string | null
+          terms_version_accepted?: string | null
           total_bookings?: number
           updated_at?: string
           user_id: string
@@ -1837,6 +1841,8 @@ export type Database = {
           phone?: string | null
           referral_source?: string | null
           sgt_user_id?: number | null
+          terms_accepted_at?: string | null
+          terms_version_accepted?: string | null
           total_bookings?: number
           updated_at?: string
           user_id?: string
