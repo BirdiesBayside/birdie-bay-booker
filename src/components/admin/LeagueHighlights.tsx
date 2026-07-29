@@ -420,27 +420,43 @@ export function LeagueHighlights() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-2">
           <CardTitle>Review Queue ({sessions.length})</CardTitle>
-          {selectedIds.size > 0 && (
-            <Button size="sm" variant="destructive" onClick={deleteSelected} disabled={bulkDeleting}>
-              {bulkDeleting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Trash2 className="h-4 w-4 mr-1" />}
-              Delete {selectedIds.size} selected
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            {selectMode && selectedIds.size > 0 && (
+              <Button size="sm" variant="destructive" onClick={deleteSelected} disabled={bulkDeleting}>
+                {bulkDeleting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Trash2 className="h-4 w-4 mr-1" />}
+                Delete {selectedIds.size} selected
+              </Button>
+            )}
+            {sessions.length > 0 && (
+              <Button
+                size="sm"
+                variant={selectMode ? "secondary" : "outline"}
+                onClick={() => {
+                  setSelectMode((v) => !v);
+                  setSelectedIds(new Set());
+                }}
+              >
+                {selectMode ? "Cancel" : "Select"}
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           {loading ? <div className="flex justify-center py-8"><Loader2 className="animate-spin" /></div> :
            sessions.length === 0 ? <p className="text-muted-foreground text-sm py-8 text-center">No recorded sessions yet.</p> :
            <div className="space-y-3">
-             <div className="flex items-center gap-2 pb-1">
-               <Checkbox
-                 id="select-all-recordings"
-                 checked={selectedIds.size > 0 && selectedIds.size === sessions.length}
-                 onCheckedChange={toggleSelectAll}
-               />
-               <Label htmlFor="select-all-recordings" className="text-sm text-muted-foreground">
-                 Select all
-               </Label>
-             </div>
+             {selectMode && (
+               <div className="flex items-center gap-2 pb-1">
+                 <Checkbox
+                   id="select-all-recordings"
+                   checked={selectedIds.size > 0 && selectedIds.size === sessions.length}
+                   onCheckedChange={toggleSelectAll}
+                 />
+                 <Label htmlFor="select-all-recordings" className="text-sm text-muted-foreground">
+                   Select all
+                 </Label>
+               </div>
+             )}
 
              {sessions.map((sess) => {
                const streamReady = sess.stream_status === "ready";
@@ -448,14 +464,16 @@ export function LeagueHighlights() {
                const highlightCount = countHighlights(sess.scorecard);
                const roundLabel = sess.round_number ? ` — Round ${sess.round_number}` : "";
                return (
-                 <div key={sess.session_id} className={cn("border rounded-lg p-4", selectedIds.has(sess.session_id) && "border-primary bg-muted/40")}>
+                 <div key={sess.session_id} className={cn("border rounded-lg p-4", selectMode && selectedIds.has(sess.session_id) && "border-primary bg-muted/40")}>
                    <div className="flex flex-col md:flex-row md:items-start gap-3 md:gap-4">
-                     <Checkbox
-                       className="mt-1"
-                       checked={selectedIds.has(sess.session_id)}
-                       onCheckedChange={() => toggleSelected(sess.session_id)}
-                       aria-label={`Select recording for ${sess.player_name ?? "player"}`}
-                     />
+                     {selectMode && (
+                       <Checkbox
+                         className="mt-1"
+                         checked={selectedIds.has(sess.session_id)}
+                         onCheckedChange={() => toggleSelected(sess.session_id)}
+                         aria-label={`Select recording for ${sess.player_name ?? "player"}`}
+                       />
+                     )}
                      <div className="flex-1 min-w-0">
 
                        <div className="flex items-center gap-2 flex-wrap">
