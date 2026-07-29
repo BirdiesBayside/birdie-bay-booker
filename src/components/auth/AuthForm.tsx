@@ -176,6 +176,20 @@ export function AuthForm({ defaultToSignUp = false }: AuthFormProps) {
             });
           }
         } else {
+          // Record acceptance of the current terms version (best effort)
+          if (signUpData.user) {
+            supabase
+              .from("profiles")
+              .update({
+                terms_version_accepted: CURRENT_TERMS_VERSION,
+                terms_accepted_at: new Date().toISOString(),
+              })
+              .eq("id", signUpData.user.id)
+              .then(({ error: termsError }) => {
+                if (termsError) console.error("Failed to record terms acceptance:", termsError);
+              });
+          }
+
           // Send welcome email
           if (signUpData.user) {
             supabase.functions.invoke("send-welcome-email", {
@@ -191,6 +205,7 @@ export function AuthForm({ defaultToSignUp = false }: AuthFormProps) {
           }
           
           toast({
+
             title: "Welcome to Birdies!",
             description: "Your account has been created successfully.",
           });
