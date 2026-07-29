@@ -565,7 +565,14 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      if (team && team.net_score == null) {
+      // Start rule: a [COMP] booking records for its whole session. We do NOT
+      // require the player to already be matched to a team row — teams are often
+      // created/renamed mid-evening (and comp players who are also SGT members
+      // used to fall through here and never record at all). The only reason not
+      // to start is that this team's score is already posted (round is over) or
+      // this booking has already produced a comp clip.
+      const scoreAlreadyPosted = !!team && team.net_score != null;
+      if (!scoreAlreadyPosted) {
         const alreadyRecorded = (localCompSessionCountByBooking.get(booking.id) ?? 0) > 0;
         if (alreadyRecorded) {
           results.push({ booking: booking.id, action: "comp_already_recorded" });
@@ -583,12 +590,13 @@ Deno.serve(async (req) => {
         });
         if (newId) {
           localCompSessionCountByBooking.set(booking.id, 1);
-          results.push({ booking: booking.id, action: "start_comp" });
+          results.push({ booking: booking.id, action: "start_comp", matched_team: !!team });
         }
       } else {
-        results.push({ booking: booking.id, action: "comp_no_team_or_scored" });
+        results.push({ booking: booking.id, action: "comp_score_already_posted" });
       }
       continue;
+
     }
 
     const session = activeForBooking.find((s) => s.trigger_source === "sgt") ?? activeForBooking[0];
