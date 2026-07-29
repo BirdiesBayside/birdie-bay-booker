@@ -44,14 +44,28 @@ export async function fetchVideoFile(
     blob = await res.blob();
   }
 
-  return new File([blob], filename, { type: "video/mp4" });
+  return new File([blob], mp4Name(filename), { type: "video/mp4" });
+}
+
+/** Normalise to a single, clean `.mp4` name — iOS keys "Save Video" off the extension + UTI. */
+export function mp4Name(name: string): string {
+  const base = name.replace(/\.mp4$/i, "").replace(/[^a-z0-9 _-]+/gi, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+  return `${base || "clip"}.mp4`;
 }
 
 /** Returns true if the share sheet was opened, false if the user/browser rejected it. */
-export async function shareVideoFile(file: File, title?: string): Promise<boolean> {
-  if (!navigator.canShare?.({ files: [file] })) return false;
+export async function shareVideoFile(file: File, _title?: string): Promise<boolean> {
+  // Re-wrap defensively: the File must have a .mp4 name AND video/mp4 type for iOS
+  // to offer "Save Video" (Photos). Any extra share fields (title/text/url) make iOS
+  // treat it as a generic multi-item share and only "Save to Files" appears.
+  const clean =
+    file.type === "video/mp4" && /\.mp4$/i.test(file.name)
+      ? file
+      : new File([file], mp4Name(file.name), { type: "video/mp4" });
+
+  if (!navigator.canShare?.({ files: [clean] })) return false;
   try {
-    await navigator.share({ files: [file], title });
+    await navigator.share({ files: [clean] });
     return true;
   } catch (err) {
     // AbortError = user dismissed the sheet; treat as handled.
@@ -59,6 +73,7 @@ export async function shareVideoFile(file: File, title?: string): Promise<boolea
     return false;
   }
 }
+
 
 /** Classic fallback: save the already-fetched file via an object URL. */
 export function saveFileFallback(file: File) {
@@ -120,5 +135,5 @@ export async function fetchClipViaProxy(
     onProgress?.(null);
     blob = await res.blob();
   }
-  return new File([blob], body.filename, { type: "video/mp4" });
+  return new File([blob], mp4Name(body.filename), { type: "video/mp4" });
 }
