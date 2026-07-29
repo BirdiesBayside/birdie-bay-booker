@@ -277,9 +277,12 @@ export function LeagueHighlights() {
         return null;
       }
       setSessions((prev) => prev.map((s) => s.session_id === sess.session_id ? { ...s, stream_uid: data.stream_uid, stream_status: data.status ?? "inprogress", stream_error: null } : s));
+      // Still encoding — allow another status refresh shortly.
+      setTimeout(() => autoKickedRef.current.delete(sess.session_id), 30000);
       if (silent) return null;
       toast({ title: "Stream still processing", description: "The video is still being prepared. This page will update automatically when it is ready." });
       return null;
+
     } finally {
       setStreamBusyIds((prev) => { const next = new Set(prev); next.delete(sess.session_id); return next; });
     }
