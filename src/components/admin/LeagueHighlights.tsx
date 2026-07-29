@@ -418,13 +418,30 @@ export function LeagueHighlights() {
       </Card>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-row items-center justify-between gap-2">
           <CardTitle>Review Queue ({sessions.length})</CardTitle>
+          {selectedIds.size > 0 && (
+            <Button size="sm" variant="destructive" onClick={deleteSelected} disabled={bulkDeleting}>
+              {bulkDeleting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Trash2 className="h-4 w-4 mr-1" />}
+              Delete {selectedIds.size} selected
+            </Button>
+          )}
         </CardHeader>
         <CardContent>
           {loading ? <div className="flex justify-center py-8"><Loader2 className="animate-spin" /></div> :
            sessions.length === 0 ? <p className="text-muted-foreground text-sm py-8 text-center">No recorded sessions yet.</p> :
            <div className="space-y-3">
+             <div className="flex items-center gap-2 pb-1">
+               <Checkbox
+                 id="select-all-recordings"
+                 checked={selectedIds.size > 0 && selectedIds.size === sessions.length}
+                 onCheckedChange={toggleSelectAll}
+               />
+               <Label htmlFor="select-all-recordings" className="text-sm text-muted-foreground">
+                 Select all
+               </Label>
+             </div>
+
              {sessions.map((sess) => {
                const streamReady = sess.stream_status === "ready";
                const streamFailed = ["failed", "status_failed", "error"].includes(sess.stream_status ?? "");
