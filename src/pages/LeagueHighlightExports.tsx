@@ -50,6 +50,10 @@ export default function LeagueHighlightExports() {
   const [session, setSession] = useState<Session | null>(null);
   const [clips, setClips] = useState<Clip[]>([]);
   const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [progress, setProgress] = useState<number | null>(null);
+  const [readyFiles, setReadyFiles] = useState<Record<string, File>>({});
+  const canSaveToPhotos = supportsVideoFileShare();
 
   useEffect(() => {
     if (!authLoading && !user) navigate("/");
