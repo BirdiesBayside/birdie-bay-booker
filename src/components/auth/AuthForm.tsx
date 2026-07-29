@@ -184,7 +184,7 @@ export function AuthForm({ defaultToSignUp = false }: AuthFormProps) {
                 terms_version_accepted: CURRENT_TERMS_VERSION,
                 terms_accepted_at: new Date().toISOString(),
               })
-              .eq("id", signUpData.user.id)
+              .or(`user_id.eq.${signUpData.user.id},id.eq.${signUpData.user.id}`)
               .then(({ error: termsError }) => {
                 if (termsError) console.error("Failed to record terms acceptance:", termsError);
               });
