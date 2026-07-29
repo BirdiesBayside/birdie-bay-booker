@@ -51,7 +51,11 @@ export function CompResults() {
       if (a.net_score === null && b.net_score === null) return 0;
       if (a.net_score === null) return 1;
       if (b.net_score === null) return -1;
-      if (a.net_score === b.net_score) return (a.gross_score || 999) - (b.gross_score || 999);
+      if (a.net_score === b.net_score) {
+        const g = (a.gross_score || 999) - (b.gross_score || 999);
+        if (g !== 0) return g;
+        return (a.position || 999) - (b.position || 999);
+      }
       return a.net_score - b.net_score;
     });
   }, [teams]);
