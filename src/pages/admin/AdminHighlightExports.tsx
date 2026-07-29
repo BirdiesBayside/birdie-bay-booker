@@ -70,13 +70,17 @@ export default function AdminHighlightExports() {
     return `${player}-${bay}-${date}-${fmtOffset(clip.start_seconds).replace(/:/g, "-")}_${fmtOffset(clip.end_seconds).replace(/:/g, "-")}.mp4`;
   };
 
+  const urlFor = (clip: Clip) => {
+    const url = new URL(clip.download_url!);
+    url.searchParams.set("filename", filenameFor(clip));
+    return url.toString();
+  };
+
   const downloadClip = (clip: Clip) => {
     if (!clip.download_url) return;
-    const url = new URL(clip.download_url);
-    url.searchParams.set("filename", filenameFor(clip));
-    // Trigger a native download that saves to Files / camera roll on mobile.
+    // Trigger a native download (goes to Files on iOS).
     const a = document.createElement("a");
-    a.href = url.toString();
+    a.href = urlFor(clip);
     a.download = filenameFor(clip);
     a.rel = "noopener";
     a.target = "_blank";
@@ -84,6 +88,38 @@ export default function AdminHighlightExports() {
     a.click();
     a.remove();
   };
+
+  // iOS: share a real MP4 File so the sheet offers "Save Video" straight into Photos.
+  const saveToPhotos = async (clip: Clip) => {
+    if (!clip.download_url) return;
+    const name = filenameFor(clip);
+    const cached = readyFiles[clip.id];
+    if (cached) {
+      const ok = await shareVideoFile(cached, name);
+      if (!ok) saveFileFallback(cached);
+      return;
+    }
+    setBusyId(clip.id);
+    setProgress(null);
+    try {
+      const file = await fetchVideoFile(urlFor(clip), name, setProgress);
+      const ok = await shareVideoFile(file, name);
+      if (!ok) {
+        setReadyFiles((p) => ({ ...p, [clip.id]: file }));
+        toast({ title: "Ready", description: "Tap “Save to Photos” again to open the share sheet." });
+      }
+    } catch (e) {
+      toast({
+        title: "Couldn’t prepare video",
+        description: e instanceof Error ? e.message : "Try the Download button instead.",
+        variant: "destructive",
+      });
+    } finally {
+      setBusyId(null);
+      setProgress(null);
+    }
+  };
+
 
   const deleteClip = async (clip: Clip) => {
     if (!confirm("Delete this clip?")) return;
