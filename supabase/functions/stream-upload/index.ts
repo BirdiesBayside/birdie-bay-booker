@@ -153,7 +153,11 @@ Deno.serve(async (req) => {
     }
   }
 
-  // Mint a signed URL for Cloudflare to pull the MKV.
+  if (!sess.mkv_path) {
+    return jsonResponse({ error: "session has no mkv_path and no Cloudflare video to refresh" }, 400);
+  }
+
+  // Mint a signed URL for Cloudflare to pull the file.
   const { data: signed, error: signedErr } = await admin.storage.from("league-highlights").createSignedUrl(sess.mkv_path, 7200);
   if (signedErr || !signed?.signedUrl) {
     return jsonResponse({ error: signedErr?.message ?? "failed to create signed url" }, 500);
