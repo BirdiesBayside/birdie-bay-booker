@@ -108,9 +108,10 @@ Deno.serve(async (req) => {
 
   const sess = session as SessionRow;
 
-  if (!sess.mkv_path) {
-    return jsonResponse({ error: "session has no mkv_path" }, 400);
-  }
+  // NOTE: mkv_path is only required for the legacy "copy from storage" path.
+  // Sessions uploaded directly from the Bay Controller via tus have a
+  // stream_uid but no storage file, so the status refresh below must run first.
+
 
   const { accountId, token } = getCloudflareCredentials();
   if (!accountId || !token) {
