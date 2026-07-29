@@ -375,11 +375,22 @@ export function CompetitionList() {
                       Mark Completed
                     </Button>
                   )}
+                  {comp.status !== "upcoming" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setRecapComp({ id: comp.id, name: comp.name })}
+                    >
+                      <Sparkles className="h-4 w-4 mr-1.5" />
+                      AI Recap
+                    </Button>
+                  )}
                   {comp.status === "completed" && (
                     <Button size="sm" variant="ghost" onClick={() => updateStatusMutation.mutate({ id: comp.id, status: "active" })}>
                       Reopen
                     </Button>
                   )}
+
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive">
