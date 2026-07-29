@@ -8,10 +8,11 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { Download, FolderOpen, Loader2, Play, Trash2 } from "lucide-react";
 import { formatBrisbane } from "@/lib/brisbane-time";
-import ManualStreamUpload from "@/components/admin/ManualStreamUpload";
+
 
 interface Bay { id: string; bay_number: number; name: string | null }
 
