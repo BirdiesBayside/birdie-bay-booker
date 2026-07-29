@@ -643,14 +643,15 @@ Deno.serve(async (req) => {
             .eq("id", session.id);
           results.push({ booking: booking.id, action: "progress", hole: state.hole });
         } else {
-          const lastProgress = session.last_progress_at ? new Date(session.last_progress_at).getTime() : Date.now();
-          if (Date.now() - lastProgress > ABANDONED_MINUTES * 60_000) {
-            await issueStop(session.id, bayNumber, true, "no_progress");
-            results.push({ booking: booking.id, action: "stop_no_progress" });
-          } else {
-            results.push({ booking: booking.id, action: "waiting" });
-          }
+          // No hole data yet (or player idle). Keep rolling — the booking-end
+          // failsafe is the only thing allowed to stop an unfinished round.
+          await supabase
+            .from("recording_sessions")
+            .update({ last_progress_at: nowIso })
+            .eq("id", session.id);
+          results.push({ booking: booking.id, action: "waiting" });
         }
+
       } else {
         if (state && !state.finished && state.hole && state.hole >= 1) {
           // Round number comes straight from the embed column (RD 1 / RD 2 / ...).
