@@ -497,7 +497,7 @@ serve(async (req) => {
 
 
       case "recording_start": {
-        const b = body as { booking_id?: string; sgt_user_id?: string; sgt_tournament_id?: string; player_name?: string; tournament_name?: string; mkv_path?: string; started_at?: string; retention_days?: number } | null;
+        const b = body as { booking_id?: string; sgt_user_id?: string; sgt_tournament_id?: string; player_name?: string; tournament_name?: string; mkv_path?: string; started_at?: string; retention_days?: number; trigger_source?: string } | null;
         if (!b?.booking_id) return jsonResponse({ error: "booking_id required" }, 400);
         // Prefer the globally-configured retention from system_settings so admins
         // can change it in one place (Admin > SGT > Highlights). Falls back to
@@ -513,19 +513,61 @@ serve(async (req) => {
         }
         const retentionUntil = new Date(Date.now() + retentionDays * 86400_000).toISOString();
         const startedAt = b.started_at ?? new Date().toISOString();
+
+        // Comp bookings must never produce an SGT-tagged session, even if an
+        // older bay build sent SGT identifiers along with the start.
+        const { data: startBooking } = await supabase
+          .from("bookings")
+          .select("notes")
+          .eq("id", b.booking_id)
+          .maybeSingle();
+        const startIsComp = !!startBooking?.notes?.includes("[COMP]");
+        const triggerSource = startIsComp
+          ? "local_comp"
+          : (b.trigger_source === "local_comp" ? "local_comp" : "sgt");
+        const sgtUserId = triggerSource === "local_comp" ? null : (b.sgt_user_id ?? null);
+        const sgtTournamentId = triggerSource === "local_comp" ? null : (b.sgt_tournament_id ?? null);
+
+        // One active session per booking — if the bay re-asks after a stop we
+        // don't want a second stub clip on the same round.
+        const { data: existingActive } = await supabase
+          .from("recording_sessions")
+          .select("id")
+          .eq("booking_id", b.booking_id)
+          .in("status", ["recording", "stopping"])
+          .maybeSingle();
+        if (existingActive) {
+          return jsonResponse({ ok: true, session_id: existingActive.id, reused: true });
+        }
+        if (triggerSource === "local_comp") {
+          const { count: compCount } = await supabase
+            .from("recording_sessions")
+            .select("id", { count: "exact", head: true })
+            .eq("booking_id", b.booking_id)
+            .eq("trigger_source", "local_comp");
+          if ((compCount ?? 0) > 0) {
+            return jsonResponse({ should_record: false, reason: "comp booking already recorded" });
+          }
+        }
+
         const { data, error } = await supabase.from("recording_sessions").insert({
           booking_id: b.booking_id,
           bay_number: bayNumber,
-          sgt_user_id: b.sgt_user_id ?? null,
-          sgt_tournament_id: b.sgt_tournament_id ?? null,
+          sgt_user_id: sgtUserId,
+          sgt_tournament_id: sgtTournamentId,
           player_name: b.player_name ?? null,
-          tournament_name: b.tournament_name ?? null,
+          tournament_name: startIsComp && !b.tournament_name?.startsWith("Local Comp")
+            ? (b.tournament_name ?? null)
+            : (b.tournament_name ?? null),
+          trigger_source: triggerSource,
+          round_number: 1,
           mkv_path: b.mkv_path ?? null,
           started_at: startedAt,
           status: "recording",
           retention_until: retentionUntil,
         }).select("id").single();
         if (error) return jsonResponse({ error: error.message }, 500);
+
 
         // Snapshot already-scored holes so the poller ignores holes played
         // in a PREVIOUS session on the same tournament scorecard. Only holes
