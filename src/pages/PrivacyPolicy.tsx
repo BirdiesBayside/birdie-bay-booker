@@ -31,27 +31,33 @@ export default function PrivacyPolicy() {
                   With your permission, we collect a push notification token from your device to send booking reminders, gate access information, and service updates. You can disable push notifications at any time through your device settings.
                 </p>
 
-                <h3 className="font-semibold text-foreground">4. Data Sharing</h3>
+                <h3 className="font-semibold text-foreground">4. Recording, Filming and Media</h3>
                 <p>
-                  We do not sell your personal information. We may share data with trusted service providers (such as payment processors, email delivery services, and cloud hosting providers) solely for the purpose of operating our business.
+                  Our bays are monitored by security cameras, and gameplay may be video and/or audio recorded — including automatically during league rounds, competitions and events. By using our facility you consent to being recorded, and to Birdies using that footage, imagery and associated gameplay data (such as your name, username, scores and handicap) for promotional, marketing, social media, leaderboard and broadcast purposes. You can opt out of publicly shared content at any time by contacting us.
                 </p>
 
-                <h3 className="font-semibold text-foreground">5. Data Security</h3>
+                <h3 className="font-semibold text-foreground">5. Data Sharing</h3>
+                <p>
+                  We do not sell your personal information. We may share data with trusted service providers (such as payment processors, video hosting, email delivery services, and cloud hosting providers) solely for the purpose of operating our business.
+                </p>
+
+
+                <h3 className="font-semibold text-foreground">6. Data Security</h3>
                 <p>
                   We implement reasonable technical and organisational measures to protect your personal information from unauthorised access, disclosure, or loss.
                 </p>
 
-                <h3 className="font-semibold text-foreground">6. Your Rights</h3>
+                <h3 className="font-semibold text-foreground">7. Your Rights</h3>
                 <p>
                   You have the right to access, correct, or delete your personal information. To make a request, contact us using the details below.
                 </p>
 
-                <h3 className="font-semibold text-foreground">7. Changes to This Policy</h3>
+                <h3 className="font-semibold text-foreground">8. Changes to This Policy</h3>
                 <p>
                   We may update this Privacy Policy from time to time. Changes will be posted on our website and mobile applications. Continued use of our services constitutes acceptance of the updated policy.
                 </p>
 
-                <h3 className="font-semibold text-foreground">8. Contact Us</h3>
+                <h3 className="font-semibold text-foreground">9. Contact Us</h3>
                 <p>
                   If you have any questions about this Privacy Policy or how we handle your data, please contact Birdies Indoor Golf Centre.
                 </p>
