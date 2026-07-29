@@ -266,6 +266,25 @@ export default function LeagueHighlightExports() {
                     )}
                   </div>
                   <div className="flex gap-2 md:shrink-0">
+                    {canSaveToPhotos && (
+                      <Button
+                        size="sm"
+                        onClick={() => void saveToPhotos(clip)}
+                        disabled={clip.status !== "ready" || !clip.download_url || busyId === clip.id}
+                      >
+                        {busyId === clip.id ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                            {progress != null ? `${progress}%` : "Preparing…"}
+                          </>
+                        ) : (
+                          <>
+                            <ImageDown className="h-4 w-4 mr-1" />
+                            Save to Photos
+                          </>
+                        )}
+                      </Button>
+                    )}
                     <Button
                       size="sm"
                       variant="outline"
