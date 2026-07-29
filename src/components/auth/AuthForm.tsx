@@ -466,11 +466,16 @@ export function AuthForm({ defaultToSignUp = false }: AuthFormProps) {
                             </div>
 
                             <div>
-                              <h3 className="font-semibold text-foreground">2. Health and Safety</h3>
+                              <h3 className="font-semibold text-foreground">2. Health, Safety and Assumption of Risk</h3>
                               <p>2.1. Customers are fully responsible for their own health and safety while on the premises.</p>
-                              <p>2.2. The use of real golf clubs and balls indoors is inherently dangerous.</p>
-                              <p>2.3. Birdies takes all reasonable steps to provide a safe playing environment, but it is your responsibility to maintain a safe distance from other players and equipment, particularly when beginners are present.</p>
-                              <p>2.4. All use of the facilities is at your own risk.</p>
+                              <p>2.2. The use of real golf clubs and balls indoors is inherently dangerous and carries a risk of serious injury, including from swinging clubs, ricocheting balls, slips, trips and falls.</p>
+                              <p>2.3. Birdies takes all reasonable steps to provide a safe playing environment, but it is your responsibility to play safely, to swing only within your bay, and to maintain a safe distance from other players and equipment, particularly when beginners or children are present.</p>
+                              <p>2.4. You must warm up appropriately and only participate to the extent of your own physical ability, fitness and health. You confirm you are medically fit to participate and will stop immediately if you feel unwell or experience pain.</p>
+                              <p>2.5. You are responsible for the safety and conduct of every guest in your group, and for ensuring they understand and follow these Terms.</p>
+                              <p>2.6. All use of the facilities, equipment and services is entirely at your own risk. You voluntarily assume all risks of personal injury, illness, death, or loss of or damage to property arising from your use of the facility.</p>
+                              <p>2.7. To the maximum extent permitted by law, Birdies, its owners, staff and contractors are not liable for any personal injury, illness, death, loss or damage suffered by you or your guests, except where caused by our negligence or where liability cannot lawfully be excluded. Nothing in these Terms excludes, restricts or modifies any rights you have under the Australian Consumer Law.</p>
+                              <p>2.8. Personal property is brought onto the premises at your own risk. Birdies is not responsible for lost, stolen or damaged personal items.</p>
+                              <p>2.9. You must report any accident, injury, hazard or equipment fault to Birdies as soon as possible using the contact number displayed in the bay.</p>
                             </div>
 
                             <div>
@@ -478,7 +483,9 @@ export function AuthForm({ defaultToSignUp = false }: AuthFormProps) {
                               <p>3.1. You are liable for any damage you or your guests cause to any equipment, furniture, or fittings within the Birdies premises.</p>
                               <p>3.2. Intentional or reckless damage may result in repair or replacement costs being invoiced to you.</p>
                               <p>3.3. We reserve the right to recover all associated costs and pursue legal action if necessary.</p>
+                              <p>3.4. You indemnify Birdies against any claim, loss, cost or expense arising from your use of the facility, or from the acts or omissions of you or your guests, other than to the extent caused by our negligence.</p>
                             </div>
+
 
                             <div>
                               <h3 className="font-semibold text-foreground">4. Alcohol Policy</h3>
