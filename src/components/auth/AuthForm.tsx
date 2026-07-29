@@ -552,10 +552,21 @@ export function AuthForm({ defaultToSignUp = false }: AuthFormProps) {
                             </div>
 
                             <div>
-                              <h3 className="font-semibold text-foreground">13. Amendments to Terms</h3>
-                              <p>13.1. Birdies reserves the right to amend these Terms at any time.</p>
-                              <p>13.2. Updated terms will be posted on our website and it is the customer's responsibility to review them periodically.</p>
+                              <h3 className="font-semibold text-foreground">13. Recording, Filming and Media Consent</h3>
+                              <p>13.1. Bays may be video and/or audio recorded, and gameplay, shot data and screen content may be captured, including automatically during league rounds, competitions and events.</p>
+                              <p>13.2. By using the facility, you consent to being photographed, filmed and recorded while on the premises, and to Birdies capturing your gameplay and performance data.</p>
+                              <p>13.3. You grant Birdies a non-exclusive, royalty-free, perpetual licence to use, edit and publish this footage, images and data (including your name, username, scores and handicap) for promotional, marketing, social media, leaderboard, broadcast and internal training purposes, without payment or further notice to you.</p>
+                              <p>13.4. You are responsible for making every guest in your group aware of this clause before they play.</p>
+                              <p>13.5. If you do not wish to appear in publicly shared content, you may opt out at any time by contacting Birdies, and we will use reasonable efforts to avoid publishing new content featuring you and to remove existing published content where practicable.</p>
+                              <p>13.6. Customers may film their own sessions for personal use, but must not film or publish footage of other customers without their consent.</p>
                             </div>
+
+                            <div>
+                              <h3 className="font-semibold text-foreground">14. Amendments to Terms</h3>
+                              <p>14.1. Birdies reserves the right to amend these Terms at any time.</p>
+                              <p>14.2. Updated terms will be posted on our website and it is the customer's responsibility to review them periodically.</p>
+                            </div>
+
 
                             <p className="font-semibold text-foreground pt-4">
                               By signing up to Birdies, you acknowledge that you have read, understood, and agreed to abide by these Terms and Conditions. Failure to comply may result in the suspension or termination of your access to the facility.
