@@ -101,7 +101,7 @@ export default function LeagueHighlights() {
                   <div className="flex-1 min-w-0">
                     <h3 className="font-inter font-semibold text-primary text-base leading-tight mb-2 truncate">
                       {s.tournament_name || "Practice Session"}
-                      {s.round_number ? ` — Round ${s.round_number}` : ""}
+                      {s.trigger_source !== "local_comp" && s.round_number ? ` — Round ${s.round_number}` : ""}
                     </h3>
                     <div className="flex items-center gap-2 flex-wrap mb-2">
                       <Badge variant="outline">Bay {s.bay_number}</Badge>

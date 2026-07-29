@@ -21,6 +21,7 @@ interface ReviewSession {
   bay_number: number;
   started_at: string | null;
   round_number: number | null;
+  trigger_source: string | null;
   stream_uid: string | null;
   stream_status: string | null;
   stream_error: string | null;
@@ -46,7 +47,7 @@ export default function AdminHighlightReview() {
     if (!sessionId) return;
     const { data } = await supabase
       .from("recording_sessions")
-      .select("id, player_name, tournament_name, bay_number, started_at, round_number, stream_uid, stream_status, stream_error, scorecard")
+      .select("id, player_name, tournament_name, bay_number, started_at, round_number, trigger_source, stream_uid, stream_status, stream_error, scorecard")
       .eq("id", sessionId)
       .maybeSingle();
     setSession((data as ReviewSession | null) ?? null);
@@ -145,7 +146,7 @@ export default function AdminHighlightReview() {
               <span className="font-semibold">{session.player_name ?? "Unknown"}</span>
               <span className="text-muted-foreground text-sm">
                 · Bay {session.bay_number} · {session.tournament_name}
-                {session.round_number ? ` — Round ${session.round_number}` : ""}
+                {session.trigger_source !== "local_comp" && session.round_number ? ` — Round ${session.round_number}` : ""}
               </span>
               {session.started_at && (
                 <span className="text-muted-foreground text-xs">· {formatBrisbane(session.started_at)}</span>
