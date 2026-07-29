@@ -433,6 +433,9 @@ export function LeagueHighlights() {
                 {selectMode ? "Cancel" : "Select"}
               </Button>
             )}
+            <Button asChild size="sm" variant="outline">
+              <Link to="/admin/highlights/exports"><FolderOpen className="h-4 w-4 mr-1" />Exports</Link>
+            </Button>
           </div>
         </CardHeader>
         <CardContent>
