@@ -314,6 +314,7 @@ export function LeagueHighlights() {
 
   return (
     <div className="space-y-6">
+      <ManualStreamUpload />
       <Card>
         <CardHeader><CardTitle>Recording Configuration</CardTitle></CardHeader>
         <CardContent className="space-y-4">
