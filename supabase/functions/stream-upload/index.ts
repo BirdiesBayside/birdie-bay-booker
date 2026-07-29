@@ -108,9 +108,10 @@ Deno.serve(async (req) => {
 
   const sess = session as SessionRow;
 
-  if (!sess.mkv_path) {
-    return jsonResponse({ error: "session has no mkv_path" }, 400);
-  }
+  // NOTE: mkv_path is only required for the legacy "copy from storage" path.
+  // Sessions uploaded directly from the Bay Controller via tus have a
+  // stream_uid but no storage file, so the status refresh below must run first.
+
 
   const { accountId, token } = getCloudflareCredentials();
   if (!accountId || !token) {
@@ -152,7 +153,11 @@ Deno.serve(async (req) => {
     }
   }
 
-  // Mint a signed URL for Cloudflare to pull the MKV.
+  if (!sess.mkv_path) {
+    return jsonResponse({ error: "session has no mkv_path and no Cloudflare video to refresh" }, 400);
+  }
+
+  // Mint a signed URL for Cloudflare to pull the file.
   const { data: signed, error: signedErr } = await admin.storage.from("league-highlights").createSignedUrl(sess.mkv_path, 7200);
   if (signedErr || !signed?.signedUrl) {
     return jsonResponse({ error: signedErr?.message ?? "failed to create signed url" }, 500);
