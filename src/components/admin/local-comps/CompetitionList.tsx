@@ -16,11 +16,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Calendar, DollarSign, Trophy, Trash2, MapPin, ChevronDown, ChevronUp, Settings2 } from "lucide-react";
+import { Plus, Calendar, DollarSign, Trophy, Trash2, MapPin, ChevronDown, ChevronUp, Settings2, Sparkles } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 import { CourseSelector } from "@/components/admin/sgt/CourseSelector";
 import { HubHighlightsToggle } from "./HubHighlightsToggle";
+import { CompCommentaryDialog } from "./CompCommentaryDialog";
+
 
 const TEES_OPTIONS = ["Black", "Blue", "White", "Yellow", "Green", "Red", "Junior", "Par3"] as const;
 const PINS_OPTIONS = ["Thursday", "Friday", "Saturday", "Sunday"] as const;
@@ -32,7 +34,9 @@ export function CompetitionList() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [recapComp, setRecapComp] = useState<{ id: string; name: string } | null>(null);
   const [name, setName] = useState("");
+
   const [date, setDate] = useState("");
   const [startTime, setStartTime] = useState("");
   const [entryFee, setEntryFee] = useState("10");
@@ -375,11 +379,22 @@ export function CompetitionList() {
                       Mark Completed
                     </Button>
                   )}
+                  {comp.status !== "upcoming" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setRecapComp({ id: comp.id, name: comp.name })}
+                    >
+                      <Sparkles className="h-4 w-4 mr-1.5" />
+                      AI Recap
+                    </Button>
+                  )}
                   {comp.status === "completed" && (
                     <Button size="sm" variant="ghost" onClick={() => updateStatusMutation.mutate({ id: comp.id, status: "active" })}>
                       Reopen
                     </Button>
                   )}
+
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive">
@@ -407,6 +422,13 @@ export function CompetitionList() {
           ))}
         </div>
       )}
+
+      <CompCommentaryDialog
+        open={!!recapComp}
+        onOpenChange={(o) => !o && setRecapComp(null)}
+        competition={recapComp}
+      />
     </div>
+
   );
 }
