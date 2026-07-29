@@ -44,7 +44,7 @@ export async function fetchVideoFile(
     blob = await res.blob();
   }
 
-  return new File([blob], filename, { type: "video/mp4" });
+  return new File([blob], mp4Name(filename), { type: "video/mp4" });
 }
 
 /** Normalise to a single, clean `.mp4` name — iOS keys "Save Video" off the extension + UTI. */
@@ -135,5 +135,5 @@ export async function fetchClipViaProxy(
     onProgress?.(null);
     blob = await res.blob();
   }
-  return new File([blob], body.filename, { type: "video/mp4" });
+  return new File([blob], mp4Name(body.filename), { type: "video/mp4" });
 }
