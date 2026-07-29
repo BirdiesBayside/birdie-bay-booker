@@ -581,7 +581,14 @@ Deno.serve(async (req) => {
           results.push({ booking: booking.id, action: "comp_recording" });
         }
       } else if (team && team.net_score == null) {
-        const roundNumber = (sessionCountByBooking.get(booking.id) ?? 0) + 1;
+        // Local comp = exactly ONE round per session/booking. If a recording
+        // already exists for this booking (finished, uploading or uploaded),
+        // never start another one — that produced phantom "Round 2 / Round 3".
+        const alreadyRecorded = (sessionCountByBooking.get(booking.id) ?? 0) > 0;
+        if (alreadyRecorded) {
+          results.push({ booking: booking.id, action: "comp_already_recorded" });
+          continue;
+        }
         const newId = await issueStart({
           booking_id: booking.id,
           bay_number: bayNumber,
@@ -590,11 +597,11 @@ Deno.serve(async (req) => {
           sgt_tournament_id: null,
           player_name: playerName,
           tournament_name: `Local Comp — ${activeComp.name}`,
-          round_number: roundNumber,
+          round_number: 1,
         });
         if (newId) {
-          sessionCountByBooking.set(booking.id, roundNumber);
-          results.push({ booking: booking.id, action: "start_comp", round: roundNumber });
+          sessionCountByBooking.set(booking.id, 1);
+          results.push({ booking: booking.id, action: "start_comp" });
         }
       } else {
         results.push({ booking: booking.id, action: "comp_no_team_or_scored" });
