@@ -160,6 +160,7 @@ export function LeagueHighlights() {
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [streamBusyIds, setStreamBusyIds] = useState<Set<string>>(new Set());
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectMode, setSelectMode] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const autoKickedRef = useRef<Set<string>>(new Set());
 
