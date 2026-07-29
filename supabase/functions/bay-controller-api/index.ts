@@ -433,32 +433,12 @@ serve(async (req) => {
         const playerName = [prof?.first_name, prof?.last_name].filter(Boolean).join(" ").trim() || "Player";
         const todayIso = new Date().toISOString().slice(0, 10);
 
-        // 1) SGT tournament round takes priority (existing behaviour, hole-tagged).
-        if (prof?.sgt_user_id) {
-          const { data: tourney } = await supabase
-            .from("sgt_tournaments")
-            .select("tournament_id, name, start_date, end_date")
-            .lte("start_date", todayIso)
-            .gte("end_date", todayIso)
-            .order("start_date", { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          if (tourney) {
-            return jsonResponse({
-              should_record: true,
-              booking_id: bookingId,
-              sgt_user_id: prof.sgt_user_id,
-              sgt_tournament_id: tourney.tournament_id,
-              player_name: playerName,
-              tournament_name: tourney.name,
-              booking_end_time: `${booking.booking_date}T${booking.end_time}`,
-            });
-          }
-        }
-
-        // 2) Local Comp round — only if the toggle is on, the booking is tagged
-        //    [COMP], and a local competition exists on the booking's date.
-        if (booking.notes?.includes("[COMP]")) {
+        // 1) Local Comp takes ABSOLUTE priority. Many comp players also have an
+        //    SGT profile; if SGT wins here the bay records an SGT-tagged session
+        //    which the poller immediately stops (wrong_trigger_for_comp_booking),
+        //    and the bay restarts it — producing repeated stub "Round 1" clips.
+        const bookingIsComp = !!booking.notes?.includes("[COMP]");
+        if (bookingIsComp) {
           const { data: compSettings } = await supabase
             .from("local_comp_settings")
             .select("hub_highlights_enabled")
@@ -479,14 +459,42 @@ serve(async (req) => {
                 sgt_tournament_id: null,
                 player_name: playerName,
                 tournament_name: `Local Comp — ${comp.name}`,
+                trigger_source: "local_comp",
                 booking_end_time: `${booking.booking_date}T${booking.end_time}`,
               });
             }
+          }
+          // Tagged as comp but comp not enabled/found — never fall through to SGT.
+          return jsonResponse({ should_record: false, reason: "comp booking but comp not active" });
+        }
+
+        // 2) SGT tournament round (hole-tagged).
+        if (prof?.sgt_user_id) {
+          const { data: tourney } = await supabase
+            .from("sgt_tournaments")
+            .select("tournament_id, name, start_date, end_date")
+            .lte("start_date", todayIso)
+            .gte("end_date", todayIso)
+            .order("start_date", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (tourney) {
+            return jsonResponse({
+              should_record: true,
+              booking_id: bookingId,
+              sgt_user_id: prof.sgt_user_id,
+              sgt_tournament_id: tourney.tournament_id,
+              player_name: playerName,
+              tournament_name: tourney.name,
+              trigger_source: "sgt",
+              booking_end_time: `${booking.booking_date}T${booking.end_time}`,
+            });
           }
         }
 
         return jsonResponse({ should_record: false, reason: "no eligible tournament or comp" });
       }
+
 
       case "recording_start": {
         const b = body as { booking_id?: string; sgt_user_id?: string; sgt_tournament_id?: string; player_name?: string; tournament_name?: string; mkv_path?: string; started_at?: string; retention_days?: number } | null;
