@@ -6,8 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Download, Loader2, RefreshCw, Trash2 } from "lucide-react";
+import { ArrowLeft, Download, ImageDown, Loader2, RefreshCw, Trash2 } from "lucide-react";
 import { formatBrisbane } from "@/lib/brisbane-time";
+import { fetchVideoFile, saveFileFallback, shareVideoFile, supportsVideoFileShare } from "@/lib/share-video";
 
 interface Clip {
   id: string;
@@ -44,6 +45,10 @@ export default function AdminHighlightExports() {
   const [session, setSession] = useState<Session | null>(null);
   const [clips, setClips] = useState<Clip[]>([]);
   const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [progress, setProgress] = useState<number | null>(null);
+  const [readyFiles, setReadyFiles] = useState<Record<string, File>>({});
+  const canSaveToPhotos = supportsVideoFileShare();
 
   const load = async (silent = false) => {
     if (!sessionId) return;
