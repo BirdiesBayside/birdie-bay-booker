@@ -42,22 +42,22 @@ export default function PrivacyPolicy() {
                 </p>
 
 
-                <h3 className="font-semibold text-foreground">5. Data Security</h3>
+                <h3 className="font-semibold text-foreground">6. Data Security</h3>
                 <p>
                   We implement reasonable technical and organisational measures to protect your personal information from unauthorised access, disclosure, or loss.
                 </p>
 
-                <h3 className="font-semibold text-foreground">6. Your Rights</h3>
+                <h3 className="font-semibold text-foreground">7. Your Rights</h3>
                 <p>
                   You have the right to access, correct, or delete your personal information. To make a request, contact us using the details below.
                 </p>
 
-                <h3 className="font-semibold text-foreground">7. Changes to This Policy</h3>
+                <h3 className="font-semibold text-foreground">8. Changes to This Policy</h3>
                 <p>
                   We may update this Privacy Policy from time to time. Changes will be posted on our website and mobile applications. Continued use of our services constitutes acceptance of the updated policy.
                 </p>
 
-                <h3 className="font-semibold text-foreground">8. Contact Us</h3>
+                <h3 className="font-semibold text-foreground">9. Contact Us</h3>
                 <p>
                   If you have any questions about this Privacy Policy or how we handle your data, please contact Birdies Indoor Golf Centre.
                 </p>
