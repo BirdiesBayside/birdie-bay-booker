@@ -16,11 +16,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Calendar, DollarSign, Trophy, Trash2, MapPin, ChevronDown, ChevronUp, Settings2 } from "lucide-react";
+import { Plus, Calendar, DollarSign, Trophy, Trash2, MapPin, ChevronDown, ChevronUp, Settings2, Sparkles } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 import { CourseSelector } from "@/components/admin/sgt/CourseSelector";
 import { HubHighlightsToggle } from "./HubHighlightsToggle";
+import { CompCommentaryDialog } from "./CompCommentaryDialog";
+
 
 const TEES_OPTIONS = ["Black", "Blue", "White", "Yellow", "Green", "Red", "Junior", "Par3"] as const;
 const PINS_OPTIONS = ["Thursday", "Friday", "Saturday", "Sunday"] as const;
