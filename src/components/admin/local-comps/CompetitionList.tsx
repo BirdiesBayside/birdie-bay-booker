@@ -34,7 +34,9 @@ export function CompetitionList() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [recapComp, setRecapComp] = useState<{ id: string; name: string } | null>(null);
   const [name, setName] = useState("");
+
   const [date, setDate] = useState("");
   const [startTime, setStartTime] = useState("");
   const [entryFee, setEntryFee] = useState("10");
