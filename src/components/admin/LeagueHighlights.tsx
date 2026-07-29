@@ -323,6 +323,53 @@ export function LeagueHighlights() {
     }
   };
 
+  const toggleSelected = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    setSelectedIds((prev) =>
+      prev.size === sessions.length ? new Set() : new Set(sessions.map((s) => s.session_id))
+    );
+  };
+
+  const deleteSelected = async () => {
+    const ids = sessions.map((s) => s.session_id).filter((id) => selectedIds.has(id));
+    if (!ids.length) return;
+    if (!confirm(`Delete ${ids.length} recording${ids.length === 1 ? "" : "s"}? This removes them from Cloudflare Stream, storage and the queue.`)) return;
+
+    setBulkDeleting(true);
+    let ok = 0;
+    const failures: string[] = [];
+    for (const id of ids) {
+      const { data, error } = await supabase.functions.invoke("delete-recording-session", { body: { session_id: id } });
+      if (error || !data?.ok) {
+        failures.push(await getFunctionErrorMessage(error, data));
+      } else {
+        ok++;
+      }
+    }
+    setBulkDeleting(false);
+    setSelectedIds(new Set());
+
+    if (failures.length) {
+      toast({
+        title: `Deleted ${ok} of ${ids.length}`,
+        description: failures[0],
+        variant: "destructive",
+      });
+    } else {
+      toast({ title: "Deleted", description: `${ok} recording${ok === 1 ? "" : "s"} removed from Cloudflare + storage.` });
+    }
+    void load();
+  };
+
+
+
   
 
   const countHighlights = (sc: Scorecard | null): number => {
