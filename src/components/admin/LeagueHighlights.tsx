@@ -159,7 +159,10 @@ export function LeagueHighlights() {
   const [retentionDays, setRetentionDays] = useState<number>(14);
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [streamBusyIds, setStreamBusyIds] = useState<Set<string>>(new Set());
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const autoKickedRef = useRef<Set<string>>(new Set());
+
 
 
   const load = async (silent = false) => {
