@@ -8,6 +8,8 @@ import { Capacitor } from "@capacitor/core";
 import { App as CapacitorApp } from "@capacitor/app";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import ScrollToTop from "@/components/ScrollToTop";
+import { TermsGate } from "@/components/legal/TermsGate";
+
 
 // Lazy load all pages for code splitting
 const Index = lazy(() => import("./pages/Index"));
