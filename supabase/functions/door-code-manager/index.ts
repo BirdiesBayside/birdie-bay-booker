@@ -74,7 +74,10 @@ function bookingWindow(booking: any, s: Settings) {
 
 /** Numeric code that doesn't clash with any other live code or the fixed code. */
 async function generateUniqueCode(s: Settings): Promise<string> {
-  const len = Math.min(Math.max(s.code_length, 4), 8);
+  // HARD RULE: this keypad only ever accepts 6-digit codes. Tuya's cloud returns
+  // success for other lengths but the device never takes them (stuck at delivery
+  // phase 11, no slot assigned), so any other length is a silently dead code.
+  const len = 6;
   const max = 10 ** len;
   const fixedDigits = (s.fixed_code || "").replace(/\D/g, "");
 
@@ -127,7 +130,14 @@ async function issueTestCode(opts: {
     return { success: false, error: "End time must be after start time" };
   }
 
-  const code = (opts.code || "").replace(/\D/g, "") || (await generateUniqueCode(s));
+  const requested = (opts.code || "").replace(/\D/g, "");
+  if (requested && requested.length !== 6) {
+    return {
+      success: false,
+      error: `Code must be exactly 6 digits — this keypad silently ignores any other length (got ${requested.length}).`,
+    };
+  }
+  const code = requested || (await generateUniqueCode(s));
   const label = opts.label || "Staff test";
 
   const { data: inserted, error } = await supabase
