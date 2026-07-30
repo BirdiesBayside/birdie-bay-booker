@@ -504,6 +504,12 @@ export function DoorAccessSection() {
                     <Badge variant="outline" className="text-xs">
                       {c.provider}
                     </Badge>
+                    {c.scope === "test" && (
+                      <Badge variant="outline" className="text-xs">
+                        staff test
+                      </Badge>
+                    )}
+
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
                     {formatBrisbane(c.valid_from)} → {formatBrisbane(c.valid_until)}
