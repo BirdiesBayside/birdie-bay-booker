@@ -156,6 +156,17 @@ serve(async (req) => {
 
     console.log("[CANCEL-BOOKING] Booking status updated to cancelled");
 
+    // Revoke any temporary door code for this booking
+    try {
+      await supabaseAdmin.functions.invoke("door-code-manager", {
+        body: { action: "revoke", booking_id, reason: "booking cancelled" },
+      });
+    } catch (e) {
+      console.error("[CANCEL-BOOKING] Door code revoke failed (non-blocking):", e);
+    }
+
+
+
     // Send cancellation notification
     try {
       const notificationResponse = await fetch(
