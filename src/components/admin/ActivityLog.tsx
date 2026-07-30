@@ -106,30 +106,8 @@ export function ActivityLog() {
 
   return (
     <Card>
-      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-        <CardHeader className="pb-3">
-          <CollapsibleTrigger asChild>
-            <div className="flex items-center justify-between cursor-pointer group">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  Activity Log
-                  {filterCounts.errors > 0 && (
-                    <Badge variant="destructive" className="text-xs">
-                      {filterCounts.errors} errors
-                    </Badge>
-                  )}
-                </CardTitle>
-                <CardDescription>Recent authentication events and user activity</CardDescription>
-              </div>
-              <Button variant="ghost" size="sm" className="group-hover:bg-muted">
-                {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              </Button>
-            </div>
-          </CollapsibleTrigger>
-        </CardHeader>
+      <CardContent className="pt-6 space-y-4">
 
-        <CollapsibleContent>
-          <CardContent className="pt-0 space-y-4">
             {/* Filter buttons */}
             <div className="flex flex-wrap items-center gap-2">
               <div className="flex flex-wrap gap-1">
