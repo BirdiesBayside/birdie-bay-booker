@@ -158,6 +158,37 @@ export function DoorAccessSection() {
     toast({ title: "Keypad reachable", description: "Capabilities loaded below.", duration: 4000 });
   };
 
+  const issueTestCode = async () => {
+    setIssuingTest(true);
+    setTestResult(null);
+    const startedAt = Date.now();
+    const { data, error } = await supabase.functions.invoke("door-code-manager", {
+      body: {
+        action: "issue_test",
+        valid_from: bneInputToIso(testStart),
+        valid_until: bneInputToIso(testEnd),
+        code: testCodeInput.replace(/\D/g, "") || undefined,
+        label: "Staff test",
+      },
+    });
+    const roundTrip = Date.now() - startedAt;
+    setIssuingTest(false);
+    if (error || !data?.success) {
+      const msg = error?.message || data?.error || "Unknown error";
+      setTestResult(`❌ ${msg}`);
+      toast({ title: "Test code failed", description: msg, variant: "destructive", duration: 6000 });
+      load();
+      return;
+    }
+    setTestResult(
+      `✅ Code ${data.code} pushed via ${data.via} in ${data.push_ms}ms (round trip ${roundTrip}ms).\n` +
+        `Valid ${formatBrisbane(data.valid_from)} → ${formatBrisbane(data.valid_until)} (Brisbane).`,
+    );
+    toast({ title: `Test code ${data.code} issued`, duration: 5000 });
+    load();
+  };
+
+
   const revoke = async (id: string) => {
     const { error } = await supabase.functions.invoke("door-code-manager", {
       body: { action: "revoke", door_code_id: id },
