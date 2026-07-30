@@ -250,7 +250,7 @@ export function DoorAccessSection() {
             </p>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-3 max-w-2xl">
+          <div className="grid gap-4 sm:grid-cols-2 max-w-2xl">
             <div className="space-y-2">
               <Label>Valid from (min before start)</Label>
               <Input
@@ -271,33 +271,7 @@ export function DoorAccessSection() {
                 onChange={(e) => set("valid_until_minutes_after", parseInt(e.target.value || "0", 10))}
               />
             </div>
-            <div className="space-y-2">
-              <Label>Generated code length</Label>
-              <Select
-                value={String(draft.code_length)}
-                onValueChange={(v) => set("code_length", parseInt(v, 10))}
-                disabled
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="6">6 digits (only length this keypad accepts)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
           </div>
-
-          <div className="rounded-md border border-amber-300 bg-amber-50/60 p-3 text-xs text-amber-900">
-            <strong>Why 6 digits is fixed:</strong> we tested this directly against your keypad. The
-            Tuya cloud <em>accepts</em> 4- and 7-digit codes without an error and reports success,
-            but the device never actually takes them — they sit permanently at delivery phase 11
-            with no lock slot assigned, so they will never open the door. Identical 6-digit codes
-            reach phase 12 with a slot assigned within about a minute. The Smart Life app enforces
-            the same 6-digit rule. Allowing any other length here would silently hand customers
-            codes that don't work.
-          </div>
-
 
           <div className="flex items-center gap-3">
             <Switch
@@ -310,11 +284,19 @@ export function DoorAccessSection() {
             </Label>
           </div>
 
+          <div className="flex items-center gap-3">
+            <Switch id="dc_enabled" checked={draft.enabled} onCheckedChange={(v) => set("enabled", v)} />
+            <Label htmlFor="dc_enabled" className="text-sm">
+              Push codes to the keypad
+            </Label>
+          </div>
+
           <div className="flex justify-end">
             <Button onClick={save} disabled={!dirty || saving}>
               {saving ? "Saving..." : "Save settings"}
             </Button>
           </div>
+
         </CardContent>
       </Card>
 
