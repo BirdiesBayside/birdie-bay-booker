@@ -28,9 +28,22 @@ if (!gotTheLock) {
   });
 }
 
+// =====================================================
+// TIMER RELIABILITY
+// Chromium aggressively throttles/suspends background & occluded renderers.
+// The bay PC stays powered but its displays are on the smart plugs, so when the
+// plugs go off the window becomes "hidden" and every renderer timer (hard-stop
+// recording watchdog, precision scheduler, log flush) stalls until a display
+// comes back. These switches disable that behaviour app-wide.
+app.commandLine.appendSwitch('disable-background-timer-throttling');
+app.commandLine.appendSwitch('disable-renderer-backgrounding');
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
+app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+
 // State for auto-paste functionality
 let autoPasteEnabled = false;
 let autoPasteText = '';
+
 
 let mainWindow;
 let tray;
