@@ -1048,26 +1048,12 @@ export default function AdminSettings() {
               </Card>
             </CollapsibleSection>
 
-            {/* Access & Messaging */}
+            {/* Door Access */}
             <CollapsibleSection
-              title="Access & Messaging"
-              description="Door access codes and SMS templates"
+              title="Door Access"
+              description="Keypad codes: fixed, daily, or unique per booking"
             >
-              <div className="space-y-4">
-                <CollapsibleSection
-                  title="Door Access"
-                  description="Keypad codes: fixed, daily, or unique per booking"
-                >
-                  <DoorAccessSection />
-                </CollapsibleSection>
-
-                <CollapsibleSection
-                  title="SMS Templates"
-                  description="Customize SMS notification templates"
-                >
-                  <SmsTemplatesSection />
-                </CollapsibleSection>
-              </div>
+              <DoorAccessSection />
             </CollapsibleSection>
 
             {/* Timezone Settings */}
@@ -1362,10 +1348,13 @@ export default function AdminSettings() {
               <LoyaltyPromoSettings />
             </CollapsibleSection>
 
-            <p className="text-sm text-muted-foreground">
-              SMS templates and door access now live under{" "}
-              <span className="font-medium">General → Access &amp; Messaging</span>.
-            </p>
+            <CollapsibleSection
+              title="SMS Templates"
+              description="Customize SMS notification templates"
+            >
+              <SmsTemplatesSection />
+            </CollapsibleSection>
+
 
           </TabsContent>
         </Tabs>

@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { KeyRound, ShieldCheck, RefreshCw } from "lucide-react";
+import { KeyRound, RefreshCw } from "lucide-react";
 import { formatBrisbane } from "@/lib/brisbane-time";
 
 interface DoorAccessSettings {
@@ -78,8 +78,6 @@ export function DoorAccessSection() {
   const [codes, setCodes] = useState<DoorCodeRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [testing, setTesting] = useState(false);
-  const [capabilities, setCapabilities] = useState<string | null>(null);
 
   // Staff test-code panel
   const [testStart, setTestStart] = useState(() => bneLocalInput(2));
@@ -131,31 +129,6 @@ export function DoorAccessSection() {
     await supabase.from("system_settings").update({ door_code: draft.fixed_code } as any).eq("id", "global");
     setSettings(draft);
     toast({ title: "Door access settings saved", duration: 3000 });
-  };
-
-  const testConnection = async () => {
-    setTesting(true);
-    setCapabilities(null);
-    const { data, error } = await supabase.functions.invoke("door-code-manager", {
-      body: { action: "test" },
-    });
-    setTesting(false);
-    if (error) {
-      toast({ title: "Test failed", description: error.message, variant: "destructive", duration: 5000 });
-      return;
-    }
-    if (!data?.success) {
-      setCapabilities(data?.error || "Unknown error");
-      toast({
-        title: "Keypad not reachable",
-        description: data?.error || "Check credentials and device ID.",
-        variant: "destructive",
-        duration: 6000,
-      });
-      return;
-    }
-    setCapabilities(JSON.stringify(data.capabilities, null, 2));
-    toast({ title: "Keypad reachable", description: "Capabilities loaded below.", duration: 4000 });
   };
 
   const issueTestCode = async () => {
@@ -250,7 +223,7 @@ export function DoorAccessSection() {
             </p>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-3 max-w-2xl">
+          <div className="grid gap-4 sm:grid-cols-2 max-w-2xl">
             <div className="space-y-2">
               <Label>Valid from (min before start)</Label>
               <Input
@@ -271,33 +244,7 @@ export function DoorAccessSection() {
                 onChange={(e) => set("valid_until_minutes_after", parseInt(e.target.value || "0", 10))}
               />
             </div>
-            <div className="space-y-2">
-              <Label>Generated code length</Label>
-              <Select
-                value={String(draft.code_length)}
-                onValueChange={(v) => set("code_length", parseInt(v, 10))}
-                disabled
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="6">6 digits (only length this keypad accepts)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
           </div>
-
-          <div className="rounded-md border border-amber-300 bg-amber-50/60 p-3 text-xs text-amber-900">
-            <strong>Why 6 digits is fixed:</strong> we tested this directly against your keypad. The
-            Tuya cloud <em>accepts</em> 4- and 7-digit codes without an error and reports success,
-            but the device never actually takes them — they sit permanently at delivery phase 11
-            with no lock slot assigned, so they will never open the door. Identical 6-digit codes
-            reach phase 12 with a slot assigned within about a minute. The Smart Life app enforces
-            the same 6-digit rule. Allowing any other length here would silently hand customers
-            codes that don't work.
-          </div>
-
 
           <div className="flex items-center gap-3">
             <Switch
@@ -310,68 +257,6 @@ export function DoorAccessSection() {
             </Label>
           </div>
 
-          <div className="flex justify-end">
-            <Button onClick={save} disabled={!dirty || saving}>
-              {saving ? "Saving..." : "Save settings"}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ShieldCheck className="h-5 w-5" />
-            Keypad Provider
-          </CardTitle>
-          <CardDescription>
-            How generated codes reach the physical keypad. In <strong>Manual</strong> mode codes are
-            still generated, logged and sent to the customer, but nothing is pushed to the device.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2 max-w-2xl">
-            <div className="space-y-2">
-              <Label>Provider</Label>
-              <Select value={draft.provider} onValueChange={(v) => set("provider", v as "manual" | "tuya")}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="manual">Manual (no device push)</SelectItem>
-                  <SelectItem value="tuya">Tuya Cloud (WiFi keypad)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Tuya region</Label>
-              <Select value={draft.tuya_region} onValueChange={(v) => set("tuya_region", v)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="us">US / Western America (openapi.tuya.com)</SelectItem>
-                  <SelectItem value="eu">Europe (openapi-weaz.tuyaeu.com)</SelectItem>
-                  <SelectItem value="cn">China (openapi.tuyacn.com)</SelectItem>
-                  <SelectItem value="in">India (openapi.tuyain.com)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="max-w-md space-y-2">
-            <Label>Tuya device ID</Label>
-            <Input
-              value={draft.tuya_device_id || ""}
-              onChange={(e) => set("tuya_device_id", e.target.value)}
-              placeholder="e.g. bfa1c2d3e4f5..."
-            />
-            <p className="text-xs text-muted-foreground">
-              Found in the Tuya IoT Platform under Cloud → Devices, after linking the Smart Life app
-              account the keypad is paired to.
-            </p>
-          </div>
-
           <div className="flex items-center gap-3">
             <Switch id="dc_enabled" checked={draft.enabled} onCheckedChange={(v) => set("enabled", v)} />
             <Label htmlFor="dc_enabled" className="text-sm">
@@ -379,23 +264,17 @@ export function DoorAccessSection() {
             </Label>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" onClick={testConnection} disabled={testing}>
-              <RefreshCw className={`h-4 w-4 mr-2 ${testing ? "animate-spin" : ""}`} />
-              Test connection
-            </Button>
+          <div className="flex justify-end">
             <Button onClick={save} disabled={!dirty || saving}>
               {saving ? "Saving..." : "Save settings"}
             </Button>
           </div>
 
-          {capabilities && (
-            <pre className="bg-muted/40 rounded p-3 text-xs overflow-x-auto max-h-64">
-              {capabilities}
-            </pre>
-          )}
         </CardContent>
       </Card>
+
+
+
 
       <Card>
         <CardHeader>
