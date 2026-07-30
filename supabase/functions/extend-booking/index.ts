@@ -287,6 +287,17 @@ serve(async (req) => {
       }
     }
 
+    // Extend the temporary door code window to cover the new end time
+    try {
+      await supabaseAdmin.functions.invoke("door-code-manager", {
+        body: { action: "refresh", booking_id },
+      });
+    } catch (e) {
+      console.error("[EXTEND] Door code refresh failed (non-blocking):", e);
+    }
+
+
+
     return new Response(
       JSON.stringify({
         success: true,

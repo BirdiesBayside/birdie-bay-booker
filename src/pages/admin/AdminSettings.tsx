@@ -35,6 +35,8 @@ import { TableServiceSettings } from "@/components/admin/TableServiceSettings";
 import { DailyHoursEditor } from "@/components/admin/DailyHoursEditor";
 import { PublicHolidaysSection } from "@/components/admin/PublicHolidaysSection";
 import { SmsTemplatesSection } from "@/components/admin/SmsTemplatesSection";
+import { DoorAccessSection } from "@/components/admin/DoorAccessSection";
+
 import { AiCaddy } from "@/components/admin/ai-caddy/AiCaddy";
 import { EmailLayoutEditor } from "@/components/admin/EmailLayoutEditor";
 import { format } from "date-fns";
@@ -1047,7 +1049,30 @@ export default function AdminSettings() {
               </Card>
             </CollapsibleSection>
 
+            {/* Access & Messaging */}
+            <CollapsibleSection
+              title="Access & Messaging"
+              description="Door access codes and SMS templates"
+            >
+              <div className="space-y-4">
+                <CollapsibleSection
+                  title="Door Access"
+                  description="Keypad codes: fixed, daily, or unique per booking"
+                >
+                  <DoorAccessSection />
+                </CollapsibleSection>
+
+                <CollapsibleSection
+                  title="SMS Templates"
+                  description="Customize SMS notification templates"
+                >
+                  <SmsTemplatesSection />
+                </CollapsibleSection>
+              </div>
+            </CollapsibleSection>
+
             {/* Timezone Settings */}
+
             <CollapsibleSection title="General Settings" description="Configure basic platform settings">
               <Card>
                 <CardContent className="space-y-4 pt-6">
@@ -1338,9 +1363,11 @@ export default function AdminSettings() {
               <LoyaltyPromoSettings />
             </CollapsibleSection>
 
-            <CollapsibleSection title="SMS Templates" description="Customize SMS notification templates">
-              <SmsTemplatesSection />
-            </CollapsibleSection>
+            <p className="text-sm text-muted-foreground">
+              SMS templates and door access now live under{" "}
+              <span className="font-medium">General → Access &amp; Messaging</span>.
+            </p>
+
           </TabsContent>
         </Tabs>
 
