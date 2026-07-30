@@ -41,6 +41,8 @@ interface DoorCodeRow {
   provider: string;
   last_error: string | null;
   booking_id: string | null;
+  scope?: string;
+
 }
 
 const MODE_LABELS: Record<DoorAccessSettings["mode"], { label: string; help: string }> = {
