@@ -141,3 +141,6 @@ verify_jwt = false
 
 [functions.local-comp-commentary]
 verify_jwt = false
+
+[functions.door-code-manager]
+verify_jwt = false
