@@ -182,6 +182,52 @@ function shapeScorecard(sc: Record<string, unknown>) {
   };
 }
 
+// ---------- Cloudflare Stream status refresh ----------
+// Uploaded videos sit at stream_status='inprogress' until someone opens the
+// review page. Refresh them here so the Highlights list stops showing
+// "Processing" for videos Cloudflare has already finished encoding.
+async function refreshStreamStatuses(supabase: any) {
+  const accountId = (Deno.env.get("CLOUDFLARE_ACCOUNT_ID") ?? "").trim();
+  const token = (Deno.env.get("CLOUDFLARE_STREAM_API_TOKEN") ?? "").trim();
+  if (!accountId || !token) return 0;
+
+  const { data: rows } = await supabase
+    .from("recording_sessions")
+    .select("id, stream_uid, stream_status")
+    .not("stream_uid", "is", null)
+    .not("stream_status", "in", '("ready","failed")')
+    .order("started_at", { ascending: false })
+    .limit(25);
+
+  let updated = 0;
+  for (const row of rows ?? []) {
+    try {
+      const res = await fetch(
+        `https://api.cloudflare.com/client/v4/accounts/${accountId}/stream/${row.stream_uid}`,
+        { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(15_000) },
+      );
+      if (!res.ok) continue;
+      const json = await res.json();
+      const state = json?.result?.status?.state;
+      if (!state) continue;
+      const failed = state === "error" || state === "failed";
+      const normalized = state === "ready" ? "ready" : failed ? "failed" : state;
+      if (normalized === row.stream_status) continue;
+      await supabase
+        .from("recording_sessions")
+        .update({
+          stream_status: normalized,
+          stream_error: json?.result?.status?.errorReasonText ?? json?.result?.status?.errorReasonCode ?? null,
+        })
+        .eq("id", row.id);
+      updated++;
+    } catch (e) {
+      console.error("[poller] stream status refresh failed", row.stream_uid, (e as Error).message);
+    }
+  }
+  return updated;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -189,6 +235,10 @@ Deno.serve(async (req) => {
   const nowIso = new Date().toISOString();
   const today = brisbaneToday();
   const nowTime = brisbaneNowTime();
+
+  const streamRefreshed = await refreshStreamStatuses(supabase);
+  if (streamRefreshed) console.log(`[poller] refreshed ${streamRefreshed} stream status(es)`);
+
 
   // 1. Load orchestration config (global toggle)
   const { data: cfg } = await supabase
