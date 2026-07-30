@@ -1605,6 +1605,12 @@ function ProductRow({
   );
 }
 
+/**
+ * Nesting depth for settings sections. Provided automatically so nested
+ * sections render as visually subordinate panels without每 call site opting in.
+ */
+const SectionDepthContext = React.createContext(0);
+
 function CollapsibleSection({
   title,
   description,
@@ -1620,28 +1626,100 @@ function CollapsibleSection({
   headerAction?: React.ReactNode;
   children: React.ReactNode;
 }) {
+  const depth = React.useContext(SectionDepthContext);
+  const isNested = depth > 0;
+
   return (
-    <Collapsible defaultOpen={defaultOpen}>
-      <CollapsibleTrigger asChild>
-        <Card className="cursor-pointer hover:bg-muted/30 transition-colors group">
-          <CardHeader className="flex flex-row items-center justify-between gap-3">
-            <div className="flex-1 min-w-0">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                {Icon && <Icon className="h-5 w-5" />}
+    <SectionDepthContext.Provider value={depth + 1}>
+      <Collapsible
+        defaultOpen={defaultOpen}
+        className={cn(
+          "group/section overflow-hidden border transition-colors",
+          isNested
+            ? "rounded-lg border-border/70 bg-muted/20 data-[state=open]:border-primary/30 data-[state=open]:bg-muted/40"
+            : "rounded-xl border-border bg-card shadow-sm data-[state=open]:border-primary/40 data-[state=open]:shadow-md",
+        )}
+      >
+        <CollapsibleTrigger asChild>
+          <button
+            type="button"
+            className={cn(
+              "flex w-full items-center gap-3 text-left transition-colors",
+              "hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+              "group-data-[state=open]/section:bg-muted/40 group-data-[state=open]/section:border-b",
+              isNested ? "px-4 py-3" : "px-5 py-4",
+            )}
+          >
+            {/* Accent rail — fills in when the section is open so the active
+                section is obvious at a glance, not just via the chevron. */}
+            <span
+              aria-hidden
+              className={cn(
+                "shrink-0 self-stretch rounded-full bg-border transition-colors",
+                "group-data-[state=open]/section:bg-primary",
+                isNested ? "w-0.5" : "w-1",
+              )}
+            />
+
+            {Icon && (
+              <Icon
+                className={cn(
+                  "shrink-0 text-muted-foreground transition-colors group-data-[state=open]/section:text-primary",
+                  isNested ? "h-4 w-4" : "h-5 w-5",
+                )}
+              />
+            )}
+
+            <span className="min-w-0 flex-1">
+              <span
+                className={cn(
+                  "block font-semibold leading-tight",
+                  isNested ? "text-base" : "text-lg",
+                )}
+              >
                 {title}
-              </CardTitle>
-              {description && <CardDescription>{description}</CardDescription>}
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
+              </span>
+              {description && (
+                <span className="mt-0.5 block text-sm font-normal text-muted-foreground">
+                  {description}
+                </span>
+              )}
+            </span>
+
+            <span
+              className="flex shrink-0 items-center gap-2"
+              onClick={(e) => e.stopPropagation()}
+            >
               {headerAction}
-              <ChevronDown className="h-5 w-5 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
-            </div>
-          </CardHeader>
-        </Card>
-      </CollapsibleTrigger>
-      <CollapsibleContent>
-        <div className="mt-2">{children}</div>
-      </CollapsibleContent>
-    </Collapsible>
+            </span>
+
+            {/* Explicit Show / Hide label: the arrow alone doesn't communicate
+                that the row expands into a sub-section. */}
+            <span className="flex shrink-0 items-center gap-1.5 rounded-md border border-border/60 bg-background px-2 py-1 text-xs font-medium text-muted-foreground transition-colors group-data-[state=open]/section:border-primary/30 group-data-[state=open]/section:bg-primary/10 group-data-[state=open]/section:text-primary">
+              <span className="hidden sm:inline">
+                <span className="group-data-[state=open]/section:hidden">Show</span>
+                <span className="hidden group-data-[state=open]/section:inline">Hide</span>
+              </span>
+              <ChevronDown className="h-4 w-4 transition-transform duration-200 group-data-[state=open]/section:rotate-180" />
+            </span>
+          </button>
+        </CollapsibleTrigger>
+
+        <CollapsibleContent>
+          <div
+            className={cn(
+              // Children frequently pass their own <Card>; flatten those so the
+              // section container is the only visible frame.
+              "[&>[data-slot=card]]:border-0 [&>[data-slot=card]]:bg-transparent [&>[data-slot=card]]:shadow-none",
+              "[&>[data-slot=card]>*]:px-0",
+              isNested ? "px-4 py-3" : "px-5 py-4",
+            )}
+          >
+            {children}
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+    </SectionDepthContext.Provider>
   );
 }
+
