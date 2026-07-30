@@ -361,7 +361,8 @@ async function syncAll() {
     .in("status", ["pending", "active"])
     .lt("valid_until", now.toISOString());
   for (const row of past || []) {
-    const tuya = await getTuya(s);
+    const tuya = await getTuya(s, row.scope === "test");
+
     if (tuya && row.provider_ref) {
       try { await tuya.deleteTempPassword(row.provider_ref); } catch { /* best effort */ }
     }
