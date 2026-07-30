@@ -74,7 +74,10 @@ function bookingWindow(booking: any, s: Settings) {
 
 /** Numeric code that doesn't clash with any other live code or the fixed code. */
 async function generateUniqueCode(s: Settings): Promise<string> {
-  const len = Math.min(Math.max(s.code_length, 4), 8);
+  // HARD RULE: this keypad only ever accepts 6-digit codes. Tuya's cloud returns
+  // success for other lengths but the device never takes them (stuck at delivery
+  // phase 11, no slot assigned), so any other length is a silently dead code.
+  const len = 6;
   const max = 10 ** len;
   const fixedDigits = (s.fixed_code || "").replace(/\D/g, "");
 
@@ -127,7 +130,14 @@ async function issueTestCode(opts: {
     return { success: false, error: "End time must be after start time" };
   }
 
-  const code = (opts.code || "").replace(/\D/g, "") || (await generateUniqueCode(s));
+  const requested = (opts.code || "").replace(/\D/g, "");
+  if (requested && requested.length !== 6) {
+    return {
+      success: false,
+      error: `Code must be exactly 6 digits — this keypad silently ignores any other length (got ${requested.length}).`,
+    };
+  }
+  const code = requested || (await generateUniqueCode(s));
   const label = opts.label || "Staff test";
 
   const { data: inserted, error } = await supabase
@@ -246,17 +256,26 @@ async function pushToProvider(codeRow: any, s: Settings, bookingLabel: string) {
 async function revokeCode(codeRow: any, s: Settings, reason: string) {
   const tuya = await getTuya(s, codeRow.scope === "test");
 
+  let removalError: string | null = null;
   if (tuya && codeRow.provider === "tuya" && codeRow.provider_ref) {
     try {
       await tuya.deleteTempPassword(codeRow.provider_ref);
     } catch (e) {
-      await logEvent(codeRow.id, codeRow.booking_id, "revoke_failed", {
-        error: (e as Error).message,
-      });
+      removalError = (e as Error).message;
+      await logEvent(codeRow.id, codeRow.booking_id, "revoke_failed", { error: removalError });
     }
   }
-  await supabase.from("door_codes").update({ status: "revoked" }).eq("id", codeRow.id);
-  await logEvent(codeRow.id, codeRow.booking_id, "revoked", { reason });
+  // If the keypad removal failed we still mark it revoked locally, but keep the
+  // error so the sync sweep retries — otherwise a "revoked" code could still
+  // physically open the door.
+  await supabase
+    .from("door_codes")
+    .update({ status: "revoked", last_error: removalError })
+    .eq("id", codeRow.id);
+  await logEvent(codeRow.id, codeRow.booking_id, "revoked", {
+    reason,
+    removed_from_keypad: !removalError,
+  });
 }
 
 async function issueForBooking(bookingId: string, force = false) {
@@ -423,6 +442,27 @@ async function syncAll() {
     }
   }
 
+  // Retry keypad removal for codes revoked locally but still present on the
+  // device, while they are still inside their validity window.
+  let reRevoked = 0;
+  const { data: stuckRevoked } = await supabase
+    .from("door_codes")
+    .select("*")
+    .eq("status", "revoked")
+    .not("provider_ref", "is", null)
+    .not("last_error", "is", null)
+    .gte("valid_until", now.toISOString());
+  for (const row of stuckRevoked || []) {
+    const tuya = await getTuya(s, row.scope === "test");
+    if (!tuya) break;
+    try {
+      await tuya.deleteTempPassword(row.provider_ref);
+      await supabase.from("door_codes").update({ last_error: null }).eq("id", row.id);
+      await logEvent(row.id, row.booking_id, "revoke_retry_succeeded", {});
+      reRevoked++;
+    } catch { /* keep last_error, try again next sweep */ }
+  }
+
   // Backfill: confirmed upcoming bookings that should have a code but don't
   if (s.mode === "per_booking" || s.mode === "unstaffed_only") {
     const todayBne = new Date(Date.now() + 10 * 3600 * 1000).toISOString().slice(0, 10);
@@ -445,7 +485,7 @@ async function syncAll() {
     }
   }
 
-  return { success: true, expired, retried, corrected, revoked };
+  return { success: true, expired, retried, corrected, revoked, reRevoked };
 }
 
 Deno.serve(async (req) => {
@@ -511,6 +551,19 @@ Deno.serve(async (req) => {
           client.getSpecifications().catch((e) => ({ error: (e as Error).message })),
         ]);
         result = { success: true, capabilities: { device, specifications: specs } };
+        break;
+      }
+      case "device_passwords": {
+        const s = await getSettings();
+        const tuya = await getTuya(s, true);
+        if (!tuya) {
+          result = { success: false, error: "Tuya credentials or device ID missing" };
+          break;
+        }
+        const list = await tuya
+          .listTempPasswords()
+          .catch((e) => ({ error: (e as Error).message }));
+        result = { success: true, passwords: list };
         break;
       }
       case "unlock": {

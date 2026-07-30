@@ -233,6 +233,11 @@ export class TuyaClient {
   }
 
 
+  /** Delivery status of every temp password currently known to the cloud. */
+  async listTempPasswords(): Promise<unknown> {
+    return await this.request("GET", `/v1.0/devices/${this.cfg.deviceId}/door-lock/temp-passwords`);
+  }
+
   async deleteTempPassword(ref: string): Promise<void> {
     try {
       await this.request(

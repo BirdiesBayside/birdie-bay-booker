@@ -276,29 +276,28 @@ export function DoorAccessSection() {
               <Select
                 value={String(draft.code_length)}
                 onValueChange={(v) => set("code_length", parseInt(v, 10))}
+                disabled
               >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {[4, 5, 6, 7, 8].map((n) => (
-                    <SelectItem key={n} value={String(n)}>
-                      {n} digits{n === 6 ? " (Tuya recommended)" : ""}
-                    </SelectItem>
-                  ))}
+                  <SelectItem value="6">6 digits (only length this keypad accepts)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
 
           <div className="rounded-md border border-amber-300 bg-amber-50/60 p-3 text-xs text-amber-900">
-            <strong>Code length note:</strong> Tuya's cloud temporary-password APIs validate the
-            password against the device's own length rules and most Tuya access-control firmware
-            only accepts <strong>6 digits</strong> (some builds allow 7). 4-digit codes generally
-            work when entered on the keypad directly but are commonly rejected by the cloud API with
-            an "illegal password" / parameter error. If codes start coming back dead or failing to
-            push, set this back to 6.
+            <strong>Why 6 digits is fixed:</strong> we tested this directly against your keypad. The
+            Tuya cloud <em>accepts</em> 4- and 7-digit codes without an error and reports success,
+            but the device never actually takes them — they sit permanently at delivery phase 11
+            with no lock slot assigned, so they will never open the door. Identical 6-digit codes
+            reach phase 12 with a slot assigned within about a minute. The Smart Life app enforces
+            the same 6-digit rule. Allowing any other length here would silently hand customers
+            codes that don't work.
           </div>
+
 
           <div className="flex items-center gap-3">
             <Switch
