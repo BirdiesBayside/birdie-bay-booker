@@ -2523,9 +2523,10 @@ export default function BayController() {
   }, [activeBooking]);
 
   // ── HARD STOP WATCHDOG ─────────────────────────────────────────────────────
-  // A recording must NEVER outlive the booking that started it. Independent of
-  // any SGT scorecard signal, this checks every 10s and force-stops + uploads if:
-  //   1. we're within 30s of (or past) the owning booking's end time, or
+  // A recording must NEVER outlive the booking that started it, and it must be
+  // fully stopped + uploaded BEFORE the bay powers down at T+0. Checks every 5s
+  // and force-stops + uploads if:
+  //   1. we're within 2 minutes of (or past) the owning booking's end time, or
   //   2. the bay has changed hands (back-to-back with a different customer), or
   //   3. the owning booking has vanished (cancelled / rescheduled / deleted).
   useEffect(() => {
@@ -2539,8 +2540,9 @@ export default function BayController() {
       const current = activeBookingRef.current;
       let reason: string | null = null;
 
-      if (rec.bookingEndMs && now >= rec.bookingEndMs - 30_000) {
-        reason = 'booking end reached';
+      if (rec.bookingEndMs && now >= rec.bookingEndMs - 120_000) {
+        reason = 'booking end approaching (T-2m)';
+
       } else if (rec.bookingId && current && current.id !== rec.bookingId) {
         reason = current.user_id !== rec.userId
           ? 'bay changed hands (different customer)'
