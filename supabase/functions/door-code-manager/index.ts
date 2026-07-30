@@ -477,9 +477,18 @@ Deno.serve(async (req) => {
           result = await revokeForBooking(body.booking_id, body.reason || "manual");
         }
         break;
+      case "issue_test":
+        result = await issueTestCode({
+          valid_from: body.valid_from,
+          valid_until: body.valid_until,
+          code: body.code,
+          label: body.label,
+        });
+        break;
       case "sync":
         result = await syncAll();
         break;
+
       case "test": {
         const s = await getSettings();
         const creds = getTuyaCredentials();
