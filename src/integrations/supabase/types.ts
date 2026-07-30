@@ -797,6 +797,148 @@ export type Database = {
           },
         ]
       }
+      door_access_settings: {
+        Row: {
+          append_hash: boolean
+          code_length: number
+          created_at: string
+          enabled: boolean
+          fixed_code: string
+          id: string
+          mode: string
+          provider: string
+          tuya_device_id: string | null
+          tuya_region: string
+          updated_at: string
+          valid_from_minutes_before: number
+          valid_until_minutes_after: number
+        }
+        Insert: {
+          append_hash?: boolean
+          code_length?: number
+          created_at?: string
+          enabled?: boolean
+          fixed_code?: string
+          id?: string
+          mode?: string
+          provider?: string
+          tuya_device_id?: string | null
+          tuya_region?: string
+          updated_at?: string
+          valid_from_minutes_before?: number
+          valid_until_minutes_after?: number
+        }
+        Update: {
+          append_hash?: boolean
+          code_length?: number
+          created_at?: string
+          enabled?: boolean
+          fixed_code?: string
+          id?: string
+          mode?: string
+          provider?: string
+          tuya_device_id?: string | null
+          tuya_region?: string
+          updated_at?: string
+          valid_from_minutes_before?: number
+          valid_until_minutes_after?: number
+        }
+        Relationships: []
+      }
+      door_code_events: {
+        Row: {
+          booking_id: string | null
+          created_at: string
+          detail: Json | null
+          door_code_id: string | null
+          event_type: string
+          id: string
+        }
+        Insert: {
+          booking_id?: string | null
+          created_at?: string
+          detail?: Json | null
+          door_code_id?: string | null
+          event_type: string
+          id?: string
+        }
+        Update: {
+          booking_id?: string | null
+          created_at?: string
+          detail?: Json | null
+          door_code_id?: string | null
+          event_type?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "door_code_events_door_code_id_fkey"
+            columns: ["door_code_id"]
+            isOneToOne: false
+            referencedRelation: "door_codes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      door_codes: {
+        Row: {
+          booking_id: string | null
+          code: string
+          created_at: string
+          id: string
+          last_error: string | null
+          provider: string
+          provider_ref: string | null
+          scope: string
+          slot_index: number | null
+          status: string
+          updated_at: string
+          user_id: string | null
+          valid_from: string
+          valid_until: string
+        }
+        Insert: {
+          booking_id?: string | null
+          code: string
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          provider?: string
+          provider_ref?: string | null
+          scope?: string
+          slot_index?: number | null
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+          valid_from: string
+          valid_until: string
+        }
+        Update: {
+          booking_id?: string | null
+          code?: string
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          provider?: string
+          provider_ref?: string | null
+          scope?: string
+          slot_index?: number | null
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+          valid_from?: string
+          valid_until?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "door_codes_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_layout: {
         Row: {
           footer_html: string
