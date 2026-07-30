@@ -1,4 +1,3 @@
-import ScratchSectionPreview from "./pages/ScratchSectionPreview";
 import { lazy, Suspense, useEffect, useRef } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -242,7 +241,6 @@ const App = () => (
             <Route path="/bay-controller" element={<BayController />} />
             <Route path="/card-added" element={<CardAdded />} />
             <Route path="/welcome-preview" element={<WelcomePreview />} />
-            <Route path="/scratch-section-preview" element={<ScratchSectionPreview />} />
             <Route path="/birdies-guide" element={<BirdiesGuide />} />
             <Route path="/unsubscribe" element={<Unsubscribe />} />
             <Route path="/privacy" element={<PrivacyPolicy />} />
