@@ -1,11 +1,10 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, ChevronUp, RefreshCw, CheckCircle, XCircle, Key, LogIn, UserPlus, AlertCircle } from "lucide-react";
+import { RefreshCw, CheckCircle, XCircle, Key, LogIn, UserPlus, AlertCircle } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 interface AuthEvent {
@@ -22,7 +21,6 @@ interface AuthEvent {
 type FilterType = "all" | "password_resets" | "logins" | "errors";
 
 export function ActivityLog() {
-  const [isOpen, setIsOpen] = useState(false);
   const [events, setEvents] = useState<AuthEvent[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [filter, setFilter] = useState<FilterType>("all");
@@ -51,10 +49,10 @@ export function ActivityLog() {
   };
 
   useEffect(() => {
-    if (isOpen && events.length === 0) {
-      fetchAuthLogs();
-    }
-  }, [isOpen]);
+    fetchAuthLogs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
 
   const getEventIcon = (event: AuthEvent) => {
     if (event.error || event.status >= 400) {
@@ -106,30 +104,8 @@ export function ActivityLog() {
 
   return (
     <Card>
-      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-        <CardHeader className="pb-3">
-          <CollapsibleTrigger asChild>
-            <div className="flex items-center justify-between cursor-pointer group">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  Activity Log
-                  {filterCounts.errors > 0 && (
-                    <Badge variant="destructive" className="text-xs">
-                      {filterCounts.errors} errors
-                    </Badge>
-                  )}
-                </CardTitle>
-                <CardDescription>Recent authentication events and user activity</CardDescription>
-              </div>
-              <Button variant="ghost" size="sm" className="group-hover:bg-muted">
-                {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              </Button>
-            </div>
-          </CollapsibleTrigger>
-        </CardHeader>
+      <CardContent className="pt-6 space-y-4">
 
-        <CollapsibleContent>
-          <CardContent className="pt-0 space-y-4">
             {/* Filter buttons */}
             <div className="flex flex-wrap items-center gap-2">
               <div className="flex flex-wrap gap-1">
@@ -221,9 +197,8 @@ export function ActivityLog() {
                 })}
               </div>
             )}
-          </CardContent>
-        </CollapsibleContent>
-      </Collapsible>
+      </CardContent>
     </Card>
+
   );
 }

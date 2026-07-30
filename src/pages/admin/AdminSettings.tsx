@@ -39,7 +39,6 @@ import { PublicHolidaysSection } from "@/components/admin/PublicHolidaysSection"
 import { SmsTemplatesSection } from "@/components/admin/SmsTemplatesSection";
 import { DoorAccessSection } from "@/components/admin/DoorAccessSection";
 
-import { AiCaddy } from "@/components/admin/ai-caddy/AiCaddy";
 import { EmailLayoutEditor } from "@/components/admin/EmailLayoutEditor";
 import { format } from "date-fns";
 
@@ -869,13 +868,11 @@ export default function AdminSettings() {
 
           {/* General Settings */}
           <TabsContent value="general" className="space-y-4">
-            {/* AI Caddy launcher */}
-            <CollapsibleSection title="AI Caddy" description="Admin assistant with read-only diagnostics and safe actions">
-              <AiCaddy variant="card" />
+            {/* Activity Log */}
+            <CollapsibleSection title="Activity Log" description="Recent authentication events and user activity">
+              <ActivityLog />
             </CollapsibleSection>
 
-            {/* Activity Log — already renders its own collapsible card */}
-            <ActivityLog />
 
             {/* Bay Management */}
             <CollapsibleSection title="Bay Management" description="Control bay availability, League Highlights recording, and per-bay OBS device settings.">
