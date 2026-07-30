@@ -1,4 +1,6 @@
+import * as React from "react";
 import { useState, useEffect } from "react";
+import { cn } from "@/lib/utils";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { supabase } from "@/integrations/supabase/client";
@@ -1605,6 +1607,12 @@ function ProductRow({
   );
 }
 
+/**
+ * Nesting depth for settings sections. Provided automatically so nested
+ * sections render as visually subordinate panels without each call site opting in.
+ */
+const SectionDepthContext = React.createContext(0);
+
 function CollapsibleSection({
   title,
   description,
@@ -1620,28 +1628,126 @@ function CollapsibleSection({
   headerAction?: React.ReactNode;
   children: React.ReactNode;
 }) {
+  const depth = React.useContext(SectionDepthContext);
+  const isNested = depth > 0;
+  // Controlled rather than Tailwind `group-data-[state=open]`: a `group`
+  // modifier matches ANY ancestor group, so a closed child nested inside an
+  // open parent would wrongly render as open.
+  const [open, setOpen] = React.useState(defaultOpen);
+
   return (
-    <Collapsible defaultOpen={defaultOpen}>
-      <CollapsibleTrigger asChild>
-        <Card className="cursor-pointer hover:bg-muted/30 transition-colors group">
-          <CardHeader className="flex flex-row items-center justify-between gap-3">
-            <div className="flex-1 min-w-0">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                {Icon && <Icon className="h-5 w-5" />}
-                {title}
-              </CardTitle>
-              {description && <CardDescription>{description}</CardDescription>}
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              {headerAction}
-              <ChevronDown className="h-5 w-5 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
-            </div>
-          </CardHeader>
-        </Card>
-      </CollapsibleTrigger>
-      <CollapsibleContent>
-        <div className="mt-2">{children}</div>
-      </CollapsibleContent>
-    </Collapsible>
+    <SectionDepthContext.Provider value={depth + 1}>
+      <Collapsible
+        open={open}
+        onOpenChange={setOpen}
+        className={cn(
+          "overflow-hidden border transition-colors",
+          isNested
+            ? "rounded-lg border-border/70 bg-muted/20"
+            : "rounded-xl border-border bg-card shadow-sm",
+          open &&
+            (isNested
+              ? "border-primary/30 bg-muted/40"
+              : "border-primary/40 shadow-md"),
+        )}
+      >
+        {/* headerAction can contain real buttons, so it must be a sibling of
+            the trigger rather than nested inside it (no button-in-button). */}
+        <div
+          className={cn(
+            "flex items-stretch gap-3 transition-colors hover:bg-muted/50",
+            open && "border-b bg-muted/40",
+            isNested ? "pr-4" : "pr-5",
+          )}
+        >
+          {/* Accent rail — fills in when the section is open so the active
+              section is obvious at a glance, not just via the chevron. */}
+          <span
+            aria-hidden
+            className={cn(
+              "shrink-0 transition-colors",
+              open ? "bg-primary" : "bg-border",
+              isNested ? "w-0.5" : "w-1",
+            )}
+          />
+
+          <CollapsibleTrigger asChild>
+            <button
+              type="button"
+              className={cn(
+                "flex min-w-0 flex-1 items-center gap-3 text-left",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+                isNested ? "py-3 pl-1" : "py-4 pl-2",
+              )}
+            >
+              {Icon && (
+                <Icon
+                  className={cn(
+                    "shrink-0 transition-colors",
+                    open ? "text-primary" : "text-muted-foreground",
+                    isNested ? "h-4 w-4" : "h-5 w-5",
+                  )}
+                />
+              )}
+
+              <span className="min-w-0 flex-1">
+                <span
+                  className={cn(
+                    "block font-semibold leading-tight",
+                    isNested ? "text-base" : "text-lg",
+                  )}
+                >
+                  {title}
+                </span>
+                {description && (
+                  <span className="mt-0.5 block text-sm font-normal text-muted-foreground">
+                    {description}
+                  </span>
+                )}
+              </span>
+
+              {/* Explicit Show / Hide label: the arrow alone doesn't communicate
+                  that the row expands into a sub-section. */}
+              <span
+                className={cn(
+                  "flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium transition-colors",
+                  open
+                    ? "border-primary/30 bg-primary/10 text-primary"
+                    : "border-border/60 bg-background text-muted-foreground",
+                )}
+              >
+                <span className="hidden sm:inline">{open ? "Hide" : "Show"}</span>
+                <ChevronDown
+                  className={cn(
+                    "h-4 w-4 transition-transform duration-200",
+                    open && "rotate-180",
+                  )}
+                />
+              </span>
+            </button>
+          </CollapsibleTrigger>
+
+          {headerAction && (
+            <div className="flex shrink-0 items-center">{headerAction}</div>
+          )}
+        </div>
+
+        <CollapsibleContent>
+          <div
+            className={cn(
+              // Children frequently pass their own <Card>; flatten those so the
+              // section container is the only visible frame.
+              "[&>[data-slot=card]]:border-0 [&>[data-slot=card]]:bg-transparent [&>[data-slot=card]]:shadow-none",
+              "[&>[data-slot=card]>*]:px-0",
+              isNested ? "bg-background/40 px-4 py-3" : "px-5 py-4",
+            )}
+          >
+            {children}
+          </div>
+        </CollapsibleContent>
+
+      </Collapsible>
+    </SectionDepthContext.Provider>
   );
 }
+
