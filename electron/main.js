@@ -28,9 +28,22 @@ if (!gotTheLock) {
   });
 }
 
+// =====================================================
+// TIMER RELIABILITY
+// Chromium aggressively throttles/suspends background & occluded renderers.
+// The bay PC stays powered but its displays are on the smart plugs, so when the
+// plugs go off the window becomes "hidden" and every renderer timer (hard-stop
+// recording watchdog, precision scheduler, log flush) stalls until a display
+// comes back. These switches disable that behaviour app-wide.
+app.commandLine.appendSwitch('disable-background-timer-throttling');
+app.commandLine.appendSwitch('disable-renderer-backgrounding');
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
+app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+
 // State for auto-paste functionality
 let autoPasteEnabled = false;
 let autoPasteText = '';
+
 
 let mainWindow;
 let tray;
@@ -268,8 +281,14 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      // CRITICAL: when the bay's monitor/projector plugs cut power, Windows drops the
+      // displays and Chromium treats the window as hidden/occluded, throttling all
+      // renderer timers (watchdogs, schedulers, log flushes) to a near-stop until a
+      // display returns. Keep timers running at full speed regardless of display state.
+      backgroundThrottling: false,
       preload: path.join(__dirname, 'preload.js')
     },
+
     autoHideMenuBar: true,
     show: false,
     // Prevent closing via keyboard shortcuts
@@ -384,8 +403,17 @@ app.setLoginItemSettings({
 });
 
 app.whenReady().then(() => {
+  // Keep the OS awake so timers/uploads never stall when displays are cut.
+  try {
+    const { powerSaveBlocker } = require('electron');
+    powerSaveBlocker.start('prevent-display-sleep');
+  } catch (e) {
+    console.warn('[Power] powerSaveBlocker failed:', e?.message || e);
+  }
+
   createWindow();
   createTray();
+
 
   // Re-apply kiosk taskbar hide when returning from lock/RDP/suspend.
   // A new Windows session (RDP) or explorer restart repaints Shell_TrayWnd.
