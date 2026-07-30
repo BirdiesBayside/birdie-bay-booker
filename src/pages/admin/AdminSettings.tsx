@@ -1652,9 +1652,9 @@ function CollapsibleSection({
             the trigger rather than nested inside it (no button-in-button). */}
         <div
           className={cn(
-            "flex items-stretch gap-3 transition-colors hover:bg-muted/50",
+            "flex items-stretch gap-2 sm:gap-3 transition-colors hover:bg-muted/50",
             open && "border-b bg-muted/40",
-            isNested ? "pr-4" : "pr-5",
+            isNested ? "pr-2 sm:pr-4" : "pr-3 sm:pr-5",
           )}
         >
           {/* Accent rail — fills in when the section is open so the active
