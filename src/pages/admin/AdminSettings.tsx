@@ -1,4 +1,6 @@
+import * as React from "react";
 import { useState, useEffect } from "react";
+import { cn } from "@/lib/utils";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { supabase } from "@/integrations/supabase/client";
@@ -1607,7 +1609,7 @@ function ProductRow({
 
 /**
  * Nesting depth for settings sections. Provided automatically so nested
- * sections render as visually subordinate panels without每 call site opting in.
+ * sections render as visually subordinate panels without each call site opting in.
  */
 const SectionDepthContext = React.createContext(0);
 
