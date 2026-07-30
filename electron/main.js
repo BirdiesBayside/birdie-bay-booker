@@ -268,8 +268,14 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      // CRITICAL: when the bay's monitor/projector plugs cut power, Windows drops the
+      // displays and Chromium treats the window as hidden/occluded, throttling all
+      // renderer timers (watchdogs, schedulers, log flushes) to a near-stop until a
+      // display returns. Keep timers running at full speed regardless of display state.
+      backgroundThrottling: false,
       preload: path.join(__dirname, 'preload.js')
     },
+
     autoHideMenuBar: true,
     show: false,
     // Prevent closing via keyboard shortcuts
