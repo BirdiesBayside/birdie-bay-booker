@@ -21,7 +21,6 @@ interface AuthEvent {
 type FilterType = "all" | "password_resets" | "logins" | "errors";
 
 export function ActivityLog() {
-  const [isOpen, setIsOpen] = useState(false);
   const [events, setEvents] = useState<AuthEvent[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [filter, setFilter] = useState<FilterType>("all");
