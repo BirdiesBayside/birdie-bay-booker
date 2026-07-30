@@ -1630,25 +1630,33 @@ export function CollapsibleSection({
 }) {
   const depth = React.useContext(SectionDepthContext);
   const isNested = depth > 0;
+  // Controlled rather than Tailwind `group-data-[state=open]`: a `group`
+  // modifier matches ANY ancestor group, so a closed child nested inside an
+  // open parent would wrongly render as open.
+  const [open, setOpen] = React.useState(defaultOpen);
 
   return (
     <SectionDepthContext.Provider value={depth + 1}>
       <Collapsible
-        defaultOpen={defaultOpen}
+        open={open}
+        onOpenChange={setOpen}
         className={cn(
-          "group/section overflow-hidden border transition-colors",
+          "overflow-hidden border transition-colors",
           isNested
-            ? "rounded-lg border-border/70 bg-muted/20 data-[state=open]:border-primary/30 data-[state=open]:bg-muted/40"
-            : "rounded-xl border-border bg-card shadow-sm data-[state=open]:border-primary/40 data-[state=open]:shadow-md",
+            ? "rounded-lg border-border/70 bg-muted/20"
+            : "rounded-xl border-border bg-card shadow-sm",
+          open &&
+            (isNested
+              ? "border-primary/30 bg-muted/40"
+              : "border-primary/40 shadow-md"),
         )}
       >
         {/* headerAction can contain real buttons, so it must be a sibling of
             the trigger rather than nested inside it (no button-in-button). */}
         <div
           className={cn(
-            "flex items-stretch gap-3 transition-colors",
-            "group-data-[state=open]/section:bg-muted/40 group-data-[state=open]/section:border-b",
-            "hover:bg-muted/50",
+            "flex items-stretch gap-3 transition-colors hover:bg-muted/50",
+            open && "border-b bg-muted/40",
             isNested ? "pr-4" : "pr-5",
           )}
         >
@@ -1657,8 +1665,8 @@ export function CollapsibleSection({
           <span
             aria-hidden
             className={cn(
-              "shrink-0 bg-border transition-colors",
-              "group-data-[state=open]/section:bg-primary",
+              "shrink-0 transition-colors",
+              open ? "bg-primary" : "bg-border",
               isNested ? "w-0.5" : "w-1",
             )}
           />
@@ -1675,7 +1683,8 @@ export function CollapsibleSection({
               {Icon && (
                 <Icon
                   className={cn(
-                    "shrink-0 text-muted-foreground transition-colors group-data-[state=open]/section:text-primary",
+                    "shrink-0 transition-colors",
+                    open ? "text-primary" : "text-muted-foreground",
                     isNested ? "h-4 w-4" : "h-5 w-5",
                   )}
                 />
@@ -1699,12 +1708,21 @@ export function CollapsibleSection({
 
               {/* Explicit Show / Hide label: the arrow alone doesn't communicate
                   that the row expands into a sub-section. */}
-              <span className="flex shrink-0 items-center gap-1.5 rounded-md border border-border/60 bg-background px-2 py-1 text-xs font-medium text-muted-foreground transition-colors group-data-[state=open]/section:border-primary/30 group-data-[state=open]/section:bg-primary/10 group-data-[state=open]/section:text-primary">
-                <span className="hidden sm:inline">
-                  <span className="group-data-[state=open]/section:hidden">Show</span>
-                  <span className="hidden group-data-[state=open]/section:inline">Hide</span>
-                </span>
-                <ChevronDown className="h-4 w-4 transition-transform duration-200 group-data-[state=open]/section:rotate-180" />
+              <span
+                className={cn(
+                  "flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium transition-colors",
+                  open
+                    ? "border-primary/30 bg-primary/10 text-primary"
+                    : "border-border/60 bg-background text-muted-foreground",
+                )}
+              >
+                <span className="hidden sm:inline">{open ? "Hide" : "Show"}</span>
+                <ChevronDown
+                  className={cn(
+                    "h-4 w-4 transition-transform duration-200",
+                    open && "rotate-180",
+                  )}
+                />
               </span>
             </button>
           </CollapsibleTrigger>
@@ -1714,7 +1732,6 @@ export function CollapsibleSection({
           )}
         </div>
 
-
         <CollapsibleContent>
           <div
             className={cn(
@@ -1722,12 +1739,13 @@ export function CollapsibleSection({
               // section container is the only visible frame.
               "[&>[data-slot=card]]:border-0 [&>[data-slot=card]]:bg-transparent [&>[data-slot=card]]:shadow-none",
               "[&>[data-slot=card]>*]:px-0",
-              isNested ? "px-4 py-3" : "px-5 py-4",
+              isNested ? "bg-background/40 px-4 py-3" : "px-5 py-4",
             )}
           >
             {children}
           </div>
         </CollapsibleContent>
+
       </Collapsible>
     </SectionDepthContext.Provider>
   );
