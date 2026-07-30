@@ -114,9 +114,43 @@ export class TuyaClient {
   }
 
   /**
+   * Smart-lock temp passwords must be encrypted with a one-time "ticket".
+   * Flow: request a ticket -> decrypt ticket_key with the Access Secret
+   * (AES-ECB) -> encrypt the plain code with that key -> send as hex.
+   */
+  private async getPasswordTicket(): Promise<{ ticket_id: string; ticket_key: string }> {
+    return await this.request<{ ticket_id: string; ticket_key: string }>(
+      "POST",
+      `/v1.0/devices/${this.cfg.deviceId}/door-lock/password-ticket`,
+      {},
+    );
+  }
+
+  private encryptPasswordWithTicket(plain: string, ticketKey: string): string {
+    const raw = decodeMaybeHexOrBase64(ticketKey);
+    // ticket_key is encrypted with the Access Secret (AES-ECB, no IV).
+    const secret = new TextEncoder().encode(this.cfg.accessSecret);
+    const decipher = nodeCrypto.createDecipheriv(
+      secret.length === 32 ? "aes-256-ecb" : "aes-128-ecb",
+      secret,
+      null,
+    );
+    decipher.setAutoPadding(false);
+    const keyBuf = Buffer.concat([decipher.update(Buffer.from(raw)), decipher.final()]);
+    // Strip PKCS#7 padding manually (padding is optional on some regions).
+    const key = stripPkcs7(keyBuf);
+
+    const alg =
+      key.length === 32 ? "aes-256-ecb" : key.length === 24 ? "aes-192-ecb" : "aes-128-ecb";
+    const cipher = nodeCrypto.createCipheriv(alg, key.subarray(0, key.length), null);
+    const enc = Buffer.concat([cipher.update(Buffer.from(plain, "utf8")), cipher.final()]);
+    return enc.toString("hex").toUpperCase();
+  }
+
+  /**
    * Issue a temporary password valid for a window.
-   * Tries the smart-lock temp-password endpoint first, then falls back to the
-   * generic DP command used by access-control keypads.
+   * Uses the ticket-encrypted smart-lock endpoint (required by Tuya access
+   * control keypads), then falls back to the generic DP command.
    */
   async issueTempPassword(opts: {
     code: string;
@@ -127,45 +161,52 @@ export class TuyaClient {
     const effective = Math.floor(opts.effectiveTime.getTime() / 1000);
     const invalid = Math.floor(opts.invalidTime.getTime() / 1000);
 
-    // 1) Smart-lock style temp password (requires ticket + encrypted password on
-    //    true smart locks; many keypads accept the plain variant).
+    // 1) Ticket-encrypted smart-lock temp password.
+    let lockErr: Error | null = null;
     try {
+      const ticket = await this.getPasswordTicket();
+      const encrypted = this.encryptPasswordWithTicket(opts.code, ticket.ticket_key);
       const result = await this.request<{ id?: number | string }>(
         "POST",
         `/v1.0/devices/${this.cfg.deviceId}/door-lock/temp-password`,
         {
           name: opts.name,
-          password: opts.code,
+          password: encrypted,
+          password_type: "ticket",
+          ticket_id: ticket.ticket_id,
           effective_time: effective,
           invalid_time: invalid,
           type: 0,
         },
       );
       return { ref: String(result?.id ?? opts.code), via: "door-lock/temp-password" };
-    } catch (lockErr) {
-      // 2) Generic data-point command fallback.
-      try {
-        await this.request("POST", `/v1.0/devices/${this.cfg.deviceId}/commands`, {
-          commands: [
-            {
-              code: "unlock_temporary",
-              value: JSON.stringify({
-                password: opts.code,
-                effective_time: effective,
-                invalid_time: invalid,
-                name: opts.name,
-              }),
-            },
-          ],
-        });
-        return { ref: opts.code, via: "dp:unlock_temporary" };
-      } catch (dpErr) {
-        throw new Error(
-          `Temp password not supported by this device. lock-api: ${(lockErr as Error).message} | dp: ${(dpErr as Error).message}`,
-        );
-      }
+    } catch (e) {
+      lockErr = e as Error;
+    }
+
+    // 2) Generic data-point command fallback.
+    try {
+      await this.request("POST", `/v1.0/devices/${this.cfg.deviceId}/commands`, {
+        commands: [
+          {
+            code: "unlock_temporary",
+            value: JSON.stringify({
+              password: opts.code,
+              effective_time: effective,
+              invalid_time: invalid,
+              name: opts.name,
+            }),
+          },
+        ],
+      });
+      return { ref: opts.code, via: "dp:unlock_temporary" };
+    } catch (dpErr) {
+      throw new Error(
+        `Temp password not supported by this device. lock-api: ${lockErr?.message} | dp: ${(dpErr as Error).message}`,
+      );
     }
   }
+
 
   async deleteTempPassword(ref: string): Promise<void> {
     try {
