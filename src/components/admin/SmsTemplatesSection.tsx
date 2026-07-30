@@ -271,33 +271,8 @@ export function SmsTemplatesSection() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Door Code</CardTitle>
-          <CardDescription>
-            Used by any SMS template containing <code className="text-xs">{"{door_code}"}</code>.
-            Change it once here and every template updates automatically.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-end gap-2 max-w-sm">
-            <div className="flex-1 space-y-2">
-              <Label>Current door code</Label>
-              <Input
-                value={doorCodeInput}
-                onChange={(e) => setDoorCodeInput(e.target.value)}
-                placeholder="e.g. 7675#"
-              />
-            </div>
-            <Button
-              onClick={saveDoorCode}
-              disabled={savingDoorCode || doorCodeInput === doorCode}
-            >
-              Save
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Door code is now managed in Settings → General → Access & Messaging → Door Access */}
+
 
       {/* Editor dialog */}
       <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
