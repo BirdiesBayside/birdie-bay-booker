@@ -318,84 +318,8 @@ export function DoorAccessSection() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ShieldCheck className="h-5 w-5" />
-            Keypad Provider
-          </CardTitle>
-          <CardDescription>
-            How generated codes reach the physical keypad. In <strong>Manual</strong> mode codes are
-            still generated, logged and sent to the customer, but nothing is pushed to the device.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2 max-w-2xl">
-            <div className="space-y-2">
-              <Label>Provider</Label>
-              <Select value={draft.provider} onValueChange={(v) => set("provider", v as "manual" | "tuya")}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="manual">Manual (no device push)</SelectItem>
-                  <SelectItem value="tuya">Tuya Cloud (WiFi keypad)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Tuya region</Label>
-              <Select value={draft.tuya_region} onValueChange={(v) => set("tuya_region", v)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="us">US / Western America (openapi.tuya.com)</SelectItem>
-                  <SelectItem value="eu">Europe (openapi-weaz.tuyaeu.com)</SelectItem>
-                  <SelectItem value="cn">China (openapi.tuyacn.com)</SelectItem>
-                  <SelectItem value="in">India (openapi.tuyain.com)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
 
-          <div className="max-w-md space-y-2">
-            <Label>Tuya device ID</Label>
-            <Input
-              value={draft.tuya_device_id || ""}
-              onChange={(e) => set("tuya_device_id", e.target.value)}
-              placeholder="e.g. bfa1c2d3e4f5..."
-            />
-            <p className="text-xs text-muted-foreground">
-              Found in the Tuya IoT Platform under Cloud → Devices, after linking the Smart Life app
-              account the keypad is paired to.
-            </p>
-          </div>
 
-          <div className="flex items-center gap-3">
-            <Switch id="dc_enabled" checked={draft.enabled} onCheckedChange={(v) => set("enabled", v)} />
-            <Label htmlFor="dc_enabled" className="text-sm">
-              Push codes to the keypad
-            </Label>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" onClick={testConnection} disabled={testing}>
-              <RefreshCw className={`h-4 w-4 mr-2 ${testing ? "animate-spin" : ""}`} />
-              Test connection
-            </Button>
-            <Button onClick={save} disabled={!dirty || saving}>
-              {saving ? "Saving..." : "Save settings"}
-            </Button>
-          </div>
-
-          {capabilities && (
-            <pre className="bg-muted/40 rounded p-3 text-xs overflow-x-auto max-h-64">
-              {capabilities}
-            </pre>
-          )}
-        </CardContent>
-      </Card>
 
       <Card>
         <CardHeader>
