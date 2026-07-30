@@ -1338,9 +1338,11 @@ export default function AdminSettings() {
               <LoyaltyPromoSettings />
             </CollapsibleSection>
 
-            <CollapsibleSection title="SMS Templates" description="Customize SMS notification templates">
-              <SmsTemplatesSection />
-            </CollapsibleSection>
+            <p className="text-sm text-muted-foreground">
+              SMS templates and door access now live under{" "}
+              <span className="font-medium">General → Access &amp; Messaging</span>.
+            </p>
+
           </TabsContent>
         </Tabs>
 
