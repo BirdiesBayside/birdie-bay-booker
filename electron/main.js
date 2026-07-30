@@ -403,8 +403,17 @@ app.setLoginItemSettings({
 });
 
 app.whenReady().then(() => {
+  // Keep the OS awake so timers/uploads never stall when displays are cut.
+  try {
+    const { powerSaveBlocker } = require('electron');
+    powerSaveBlocker.start('prevent-display-sleep');
+  } catch (e) {
+    console.warn('[Power] powerSaveBlocker failed:', e?.message || e);
+  }
+
   createWindow();
   createTray();
+
 
   // Re-apply kiosk taskbar hide when returning from lock/RDP/suspend.
   // A new Windows session (RDP) or explorer restart repaints Shell_TrayWnd.
