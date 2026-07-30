@@ -1047,7 +1047,30 @@ export default function AdminSettings() {
               </Card>
             </CollapsibleSection>
 
+            {/* Access & Messaging */}
+            <CollapsibleSection
+              title="Access & Messaging"
+              description="Door access codes and SMS templates"
+            >
+              <div className="space-y-4">
+                <CollapsibleSection
+                  title="Door Access"
+                  description="Keypad codes: fixed, daily, or unique per booking"
+                >
+                  <DoorAccessSection />
+                </CollapsibleSection>
+
+                <CollapsibleSection
+                  title="SMS Templates"
+                  description="Customize SMS notification templates"
+                >
+                  <SmsTemplatesSection />
+                </CollapsibleSection>
+              </div>
+            </CollapsibleSection>
+
             {/* Timezone Settings */}
+
             <CollapsibleSection title="General Settings" description="Configure basic platform settings">
               <Card>
                 <CardContent className="space-y-4 pt-6">
