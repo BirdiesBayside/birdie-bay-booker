@@ -50,10 +50,10 @@ export function ActivityLog() {
   };
 
   useEffect(() => {
-    if (isOpen && events.length === 0) {
-      fetchAuthLogs();
-    }
-  }, [isOpen]);
+    fetchAuthLogs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
 
   const getEventIcon = (event: AuthEvent) => {
     if (event.error || event.status >= 400) {
