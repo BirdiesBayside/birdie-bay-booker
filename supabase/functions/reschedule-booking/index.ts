@@ -398,7 +398,17 @@ serve(async (req) => {
 
     console.log("[RESCHEDULE] Success:", updatedBooking);
 
+    // Re-window the temporary door code for the new time
+    try {
+      await supabaseAdmin.functions.invoke("door-code-manager", {
+        body: { action: "refresh", booking_id },
+      });
+    } catch (e) {
+      console.error("[RESCHEDULE] Door code refresh failed (non-blocking):", e);
+    }
+
     // Optionally send notification
+
     try {
       await supabaseAdmin.functions.invoke("send-booking-notification", {
         body: {
