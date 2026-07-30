@@ -62,6 +62,13 @@ const MODE_LABELS: Record<DoorAccessSettings["mode"], { label: string; help: str
   },
 };
 
+/** datetime-local string for "now + n minutes" in Brisbane time. */
+const bneLocalInput = (plusMinutes = 0) =>
+  new Date(Date.now() + plusMinutes * 60_000 + 10 * 3600 * 1000).toISOString().slice(0, 16);
+
+/** datetime-local value entered as Brisbane time → absolute ISO instant. */
+const bneInputToIso = (v: string) => new Date(`${v}:00+10:00`).toISOString();
+
 export function DoorAccessSection() {
   const { toast } = useToast();
   const [settings, setSettings] = useState<DoorAccessSettings | null>(null);
@@ -72,13 +79,20 @@ export function DoorAccessSection() {
   const [testing, setTesting] = useState(false);
   const [capabilities, setCapabilities] = useState<string | null>(null);
 
+  // Staff test-code panel
+  const [testStart, setTestStart] = useState(() => bneLocalInput(2));
+  const [testEnd, setTestEnd] = useState(() => bneLocalInput(32));
+  const [testCodeInput, setTestCodeInput] = useState("");
+  const [issuingTest, setIssuingTest] = useState(false);
+  const [testResult, setTestResult] = useState<string | null>(null);
+
   const load = async () => {
     setIsLoading(true);
     const [{ data: s }, { data: c }] = await Promise.all([
       supabase.from("door_access_settings").select("*").eq("id", "global").maybeSingle(),
       supabase
         .from("door_codes")
-        .select("id, code, status, valid_from, valid_until, provider, last_error, booking_id")
+        .select("id, code, status, valid_from, valid_until, provider, last_error, booking_id, scope")
         .in("status", ["pending", "active"])
         .order("valid_from", { ascending: true })
         .limit(50),
@@ -90,6 +104,7 @@ export function DoorAccessSection() {
     setCodes((c as DoorCodeRow[]) || []);
     setIsLoading(false);
   };
+
 
   useEffect(() => {
     load();
