@@ -244,7 +244,8 @@ async function pushToProvider(codeRow: any, s: Settings, bookingLabel: string) {
 }
 
 async function revokeCode(codeRow: any, s: Settings, reason: string) {
-  const tuya = await getTuya(s);
+  const tuya = await getTuya(s, codeRow.scope === "test");
+
   if (tuya && codeRow.provider === "tuya" && codeRow.provider_ref) {
     try {
       await tuya.deleteTempPassword(codeRow.provider_ref);
