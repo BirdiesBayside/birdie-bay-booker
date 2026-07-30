@@ -39,7 +39,6 @@ import { PublicHolidaysSection } from "@/components/admin/PublicHolidaysSection"
 import { SmsTemplatesSection } from "@/components/admin/SmsTemplatesSection";
 import { DoorAccessSection } from "@/components/admin/DoorAccessSection";
 
-import { AiCaddy } from "@/components/admin/ai-caddy/AiCaddy";
 import { EmailLayoutEditor } from "@/components/admin/EmailLayoutEditor";
 import { format } from "date-fns";
 

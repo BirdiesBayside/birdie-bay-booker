@@ -1,11 +1,10 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, ChevronUp, RefreshCw, CheckCircle, XCircle, Key, LogIn, UserPlus, AlertCircle } from "lucide-react";
+import { RefreshCw, CheckCircle, XCircle, Key, LogIn, UserPlus, AlertCircle } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 interface AuthEvent {
