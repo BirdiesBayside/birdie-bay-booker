@@ -329,13 +329,52 @@ serve(async (req) => {
     const startHour = parseInt(booking.start_time.split(':')[0], 10);
     const needsBoomGate = (startHour >= 5 && startHour < 7) || startHour >= 17;
 
-    // Load door code from system settings (falls back to 7675#)
-    const { data: sysSettings } = await supabaseClient
-      .from("system_settings")
-      .select("door_code")
+    // Resolve the door code for this booking.
+    // Per-booking mode issues a unique temporary code; everything else falls
+    // back to the shared fixed code.
+    let doorCode = "7675#";
+    const { data: doorSettings } = await supabaseClient
+      .from("door_access_settings")
+      .select("mode, fixed_code, append_hash")
       .eq("id", "global")
       .maybeSingle();
-    const doorCode = (sysSettings as any)?.door_code || "7675#";
+
+    if (doorSettings) {
+      doorCode = (doorSettings as any).fixed_code || doorCode;
+    } else {
+      const { data: sysSettings } = await supabaseClient
+        .from("system_settings")
+        .select("door_code")
+        .eq("id", "global")
+        .maybeSingle();
+      doorCode = (sysSettings as any)?.door_code || doorCode;
+    }
+
+    const perBookingMode =
+      (doorSettings as any)?.mode === "per_booking" ||
+      (doorSettings as any)?.mode === "unstaffed_only";
+
+    if (perBookingMode && notification_type !== "cancellation") {
+      try {
+        await supabaseClient.functions.invoke("door-code-manager", {
+          body: { action: "issue", booking_id: booking.id },
+        });
+        const { data: issued } = await supabaseClient
+          .from("door_codes")
+          .select("code")
+          .eq("booking_id", booking.id)
+          .in("status", ["pending", "active"])
+          .maybeSingle();
+        if ((issued as any)?.code) {
+          doorCode = (doorSettings as any)?.append_hash
+            ? `${(issued as any).code}#`
+            : (issued as any).code;
+        }
+      } catch (e) {
+        console.error("[NOTIFY] Door code issue failed, using fallback:", e);
+      }
+    }
+
 
     // SMS-specific short date / 24h times (used by cancellation template)
     const formattedSmsDate = new Date(booking.booking_date).toLocaleDateString("en-AU", {
