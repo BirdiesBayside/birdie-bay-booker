@@ -256,17 +256,26 @@ async function pushToProvider(codeRow: any, s: Settings, bookingLabel: string) {
 async function revokeCode(codeRow: any, s: Settings, reason: string) {
   const tuya = await getTuya(s, codeRow.scope === "test");
 
+  let removalError: string | null = null;
   if (tuya && codeRow.provider === "tuya" && codeRow.provider_ref) {
     try {
       await tuya.deleteTempPassword(codeRow.provider_ref);
     } catch (e) {
-      await logEvent(codeRow.id, codeRow.booking_id, "revoke_failed", {
-        error: (e as Error).message,
-      });
+      removalError = (e as Error).message;
+      await logEvent(codeRow.id, codeRow.booking_id, "revoke_failed", { error: removalError });
     }
   }
-  await supabase.from("door_codes").update({ status: "revoked" }).eq("id", codeRow.id);
-  await logEvent(codeRow.id, codeRow.booking_id, "revoked", { reason });
+  // If the keypad removal failed we still mark it revoked locally, but keep the
+  // error so the sync sweep retries — otherwise a "revoked" code could still
+  // physically open the door.
+  await supabase
+    .from("door_codes")
+    .update({ status: "revoked", last_error: removalError })
+    .eq("id", codeRow.id);
+  await logEvent(codeRow.id, codeRow.booking_id, "revoked", {
+    reason,
+    removed_from_keypad: !removalError,
+  });
 }
 
 async function issueForBooking(bookingId: string, force = false) {
@@ -433,6 +442,27 @@ async function syncAll() {
     }
   }
 
+  // Retry keypad removal for codes revoked locally but still present on the
+  // device, while they are still inside their validity window.
+  let reRevoked = 0;
+  const { data: stuckRevoked } = await supabase
+    .from("door_codes")
+    .select("*")
+    .eq("status", "revoked")
+    .not("provider_ref", "is", null)
+    .not("last_error", "is", null)
+    .gte("valid_until", now.toISOString());
+  for (const row of stuckRevoked || []) {
+    const tuya = await getTuya(s, row.scope === "test");
+    if (!tuya) break;
+    try {
+      await tuya.deleteTempPassword(row.provider_ref);
+      await supabase.from("door_codes").update({ last_error: null }).eq("id", row.id);
+      await logEvent(row.id, row.booking_id, "revoke_retry_succeeded", {});
+      reRevoked++;
+    } catch { /* keep last_error, try again next sweep */ }
+  }
+
   // Backfill: confirmed upcoming bookings that should have a code but don't
   if (s.mode === "per_booking" || s.mode === "unstaffed_only") {
     const todayBne = new Date(Date.now() + 10 * 3600 * 1000).toISOString().slice(0, 10);
@@ -455,7 +485,7 @@ async function syncAll() {
     }
   }
 
-  return { success: true, expired, retried, corrected, revoked };
+  return { success: true, expired, retried, corrected, revoked, reRevoked };
 }
 
 Deno.serve(async (req) => {
