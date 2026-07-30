@@ -154,11 +154,11 @@ export class TuyaClient {
   private encryptPasswordWithTicket(plain: string, ticketKey: string): string {
     const raw = decodeMaybeHexOrBase64(ticketKey);
     // ticket_key is encrypted with the Access Secret (AES-ECB, no IV).
-    const secret = new TextEncoder().encode(this.cfg.accessSecret);
+    const secret = Buffer.from(this.cfg.accessSecret, "utf8");
     const decipher = nodeCrypto.createDecipheriv(
       secret.length === 32 ? "aes-256-ecb" : "aes-128-ecb",
       secret,
-      null,
+      Buffer.alloc(0),
     );
     decipher.setAutoPadding(false);
     const keyBuf = Buffer.concat([decipher.update(Buffer.from(raw)), decipher.final()]);
@@ -167,7 +167,7 @@ export class TuyaClient {
 
     const alg =
       key.length === 32 ? "aes-256-ecb" : key.length === 24 ? "aes-192-ecb" : "aes-128-ecb";
-    const cipher = nodeCrypto.createCipheriv(alg, key.subarray(0, key.length), null);
+    const cipher = nodeCrypto.createCipheriv(alg, Buffer.from(key), Buffer.alloc(0));
     const enc = Buffer.concat([cipher.update(Buffer.from(plain, "utf8")), cipher.final()]);
     return enc.toString("hex").toUpperCase();
   }
