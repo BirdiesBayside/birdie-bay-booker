@@ -1613,7 +1613,7 @@ function ProductRow({
  */
 const SectionDepthContext = React.createContext(0);
 
-function CollapsibleSection({
+export function CollapsibleSection({
   title,
   description,
   icon: Icon,
