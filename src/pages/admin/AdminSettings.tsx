@@ -1734,9 +1734,9 @@ function CollapsibleSection({
             className={cn(
               // Children frequently pass their own <Card>; flatten those so the
               // section container is the only visible frame.
-              "[&>[data-slot=card]]:border-0 [&>[data-slot=card]]:bg-transparent [&>[data-slot=card]]:shadow-none",
+              "min-w-0 [&>[data-slot=card]]:border-0 [&>[data-slot=card]]:bg-transparent [&>[data-slot=card]]:shadow-none",
               "[&>[data-slot=card]>*]:px-0",
-              isNested ? "bg-background/40 px-4 py-3" : "px-5 py-4",
+              isNested ? "bg-background/40 px-3 py-3 sm:px-4" : "px-3 py-4 sm:px-5",
             )}
           >
             {children}
