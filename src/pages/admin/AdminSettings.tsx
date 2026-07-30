@@ -1652,9 +1652,9 @@ function CollapsibleSection({
             the trigger rather than nested inside it (no button-in-button). */}
         <div
           className={cn(
-            "flex items-stretch gap-3 transition-colors hover:bg-muted/50",
+            "flex items-stretch gap-2 sm:gap-3 transition-colors hover:bg-muted/50",
             open && "border-b bg-muted/40",
-            isNested ? "pr-4" : "pr-5",
+            isNested ? "pr-2 sm:pr-4" : "pr-3 sm:pr-5",
           )}
         >
           {/* Accent rail — fills in when the section is open so the active
@@ -1672,7 +1672,7 @@ function CollapsibleSection({
             <button
               type="button"
               className={cn(
-                "flex min-w-0 flex-1 items-center gap-3 text-left",
+                "flex min-w-0 flex-1 items-center gap-2 sm:gap-3 text-left",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
                 isNested ? "py-3 pl-1" : "py-4 pl-2",
               )}
@@ -1690,14 +1690,14 @@ function CollapsibleSection({
               <span className="min-w-0 flex-1">
                 <span
                   className={cn(
-                    "block font-semibold leading-tight",
-                    isNested ? "text-base" : "text-lg",
+                    "block font-semibold leading-tight break-words",
+                    isNested ? "text-base" : "text-base sm:text-lg",
                   )}
                 >
                   {title}
                 </span>
                 {description && (
-                  <span className="mt-0.5 block text-sm font-normal text-muted-foreground">
+                  <span className="mt-0.5 block text-xs sm:text-sm font-normal text-muted-foreground break-words">
                     {description}
                   </span>
                 )}
@@ -1734,9 +1734,9 @@ function CollapsibleSection({
             className={cn(
               // Children frequently pass their own <Card>; flatten those so the
               // section container is the only visible frame.
-              "[&>[data-slot=card]]:border-0 [&>[data-slot=card]]:bg-transparent [&>[data-slot=card]]:shadow-none",
+              "min-w-0 [&>[data-slot=card]]:border-0 [&>[data-slot=card]]:bg-transparent [&>[data-slot=card]]:shadow-none",
               "[&>[data-slot=card]>*]:px-0",
-              isNested ? "bg-background/40 px-4 py-3" : "px-5 py-4",
+              isNested ? "bg-background/40 px-3 py-3 sm:px-4" : "px-3 py-4 sm:px-5",
             )}
           >
             {children}

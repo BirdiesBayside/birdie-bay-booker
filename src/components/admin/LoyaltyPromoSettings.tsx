@@ -101,17 +101,17 @@ export function LoyaltyPromoSettings() {
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="min-w-0">
             <CardTitle className="flex items-center gap-2">
-              <Gift className="h-5 w-5" />
+              <Gift className="h-5 w-5 shrink-0" />
               Visitor Loyalty Promo
             </CardTitle>
             <CardDescription>
               Reward visitors with credit after reaching a booking milestone
             </CardDescription>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             {creditsIssued > 0 && (
               <Badge variant="secondary">{creditsIssued} issued</Badge>
             )}

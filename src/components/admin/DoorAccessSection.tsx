@@ -379,7 +379,7 @@ export function DoorAccessSection() {
             </Label>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" onClick={testConnection} disabled={testing}>
               <RefreshCw className={`h-4 w-4 mr-2 ${testing ? "animate-spin" : ""}`} />
               Test connection
@@ -492,9 +492,9 @@ export function DoorAccessSection() {
             codes.map((c) => (
               <div
                 key={c.id}
-                className="flex items-center justify-between gap-3 border rounded-lg p-3 text-sm"
+                className="flex flex-wrap items-center justify-between gap-3 border rounded-lg p-3 text-sm"
               >
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-mono font-semibold">{c.code}</span>
                     <Badge variant={c.status === "active" ? "default" : "secondary"} className="text-xs">
@@ -510,11 +510,11 @@ export function DoorAccessSection() {
                     )}
 
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">
+                  <p className="text-xs text-muted-foreground mt-1 break-words">
                     {formatBrisbane(c.valid_from)} → {formatBrisbane(c.valid_until)}
                   </p>
                   {c.last_error && (
-                    <p className="text-xs text-destructive mt-1">{c.last_error}</p>
+                    <p className="text-xs text-destructive mt-1 break-words">{c.last_error}</p>
                   )}
                 </div>
                 <Button variant="outline" size="sm" onClick={() => revoke(c.id)}>
