@@ -94,8 +94,8 @@ async function generateUniqueCode(s: Settings): Promise<string> {
   throw new Error("Could not generate a unique door code");
 }
 
-async function getTuya(s: Settings): Promise<TuyaClient | null> {
-  if (s.provider !== "tuya" || !s.enabled) return null;
+async function getTuya(s: Settings, force = false): Promise<TuyaClient | null> {
+  if (!force && (s.provider !== "tuya" || !s.enabled)) return null;
   const creds = getTuyaCredentials();
   if (!creds || !s.tuya_device_id) return null;
   return new TuyaClient({
@@ -105,6 +105,90 @@ async function getTuya(s: Settings): Promise<TuyaClient | null> {
     deviceId: s.tuya_device_id,
   });
 }
+
+/**
+ * Staff test code — a real per-booking-style code pushed to the keypad with an
+ * explicit window, without touching live customer settings. Works even while
+ * "Push codes to the keypad" is off, so testing can't affect real bookings.
+ */
+async function issueTestCode(opts: {
+  valid_from: string;
+  valid_until: string;
+  code?: string;
+  label?: string;
+}) {
+  const s = await getSettings();
+  const validFrom = new Date(opts.valid_from);
+  const validUntil = new Date(opts.valid_until);
+  if (isNaN(validFrom.getTime()) || isNaN(validUntil.getTime())) {
+    return { success: false, error: "Invalid valid_from / valid_until" };
+  }
+  if (validUntil <= validFrom) {
+    return { success: false, error: "End time must be after start time" };
+  }
+
+  const code = (opts.code || "").replace(/\D/g, "") || (await generateUniqueCode(s));
+  const label = opts.label || "Staff test";
+
+  const { data: inserted, error } = await supabase
+    .from("door_codes")
+    .insert({
+      booking_id: null,
+      user_id: null,
+      code,
+      scope: "test",
+      valid_from: validFrom.toISOString(),
+      valid_until: validUntil.toISOString(),
+      status: "pending",
+      provider: "tuya",
+    })
+    .select()
+    .single();
+  if (error) return { success: false, error: error.message };
+
+  const tuya = await getTuya(s, true);
+  if (!tuya) {
+    await supabase
+      .from("door_codes")
+      .update({ status: "failed", last_error: "Tuya credentials or device ID missing" })
+      .eq("id", inserted.id);
+    return { success: false, error: "Tuya credentials or device ID missing", code };
+  }
+
+  const startedAt = Date.now();
+  try {
+    const { ref, via } = await tuya.issueTempPassword({
+      code,
+      name: label.slice(0, 30),
+      effectiveTime: validFrom,
+      invalidTime: validUntil,
+    });
+    const ms = Date.now() - startedAt;
+    await supabase
+      .from("door_codes")
+      .update({ status: "active", provider_ref: ref, last_error: null })
+      .eq("id", inserted.id);
+    await logEvent(inserted.id, null, "test_issued", { ref, via, ms, label });
+    return {
+      success: true,
+      code,
+      door_code_id: inserted.id,
+      via,
+      push_ms: ms,
+      valid_from: validFrom.toISOString(),
+      valid_until: validUntil.toISOString(),
+    };
+  } catch (e) {
+    const msg = (e as Error).message;
+    await supabase
+      .from("door_codes")
+      .update({ status: "failed", last_error: msg })
+      .eq("id", inserted.id);
+    await logEvent(inserted.id, null, "test_push_failed", { error: msg });
+    return { success: false, error: msg, code, door_code_id: inserted.id };
+  }
+}
+
 
 /** Whether this booking should get its own code, given the mode. */
 async function shouldIssueForBooking(booking: any, s: Settings): Promise<boolean> {
@@ -160,7 +244,8 @@ async function pushToProvider(codeRow: any, s: Settings, bookingLabel: string) {
 }
 
 async function revokeCode(codeRow: any, s: Settings, reason: string) {
-  const tuya = await getTuya(s);
+  const tuya = await getTuya(s, codeRow.scope === "test");
+
   if (tuya && codeRow.provider === "tuya" && codeRow.provider_ref) {
     try {
       await tuya.deleteTempPassword(codeRow.provider_ref);
@@ -276,7 +361,8 @@ async function syncAll() {
     .in("status", ["pending", "active"])
     .lt("valid_until", now.toISOString());
   for (const row of past || []) {
-    const tuya = await getTuya(s);
+    const tuya = await getTuya(s, row.scope === "test");
+
     if (tuya && row.provider_ref) {
       try { await tuya.deleteTempPassword(row.provider_ref); } catch { /* best effort */ }
     }
@@ -391,9 +477,18 @@ Deno.serve(async (req) => {
           result = await revokeForBooking(body.booking_id, body.reason || "manual");
         }
         break;
+      case "issue_test":
+        result = await issueTestCode({
+          valid_from: body.valid_from,
+          valid_until: body.valid_until,
+          code: body.code,
+          label: body.label,
+        });
+        break;
       case "sync":
         result = await syncAll();
         break;
+
       case "test": {
         const s = await getSettings();
         const creds = getTuyaCredentials();

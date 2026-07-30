@@ -41,6 +41,8 @@ interface DoorCodeRow {
   provider: string;
   last_error: string | null;
   booking_id: string | null;
+  scope?: string;
+
 }
 
 const MODE_LABELS: Record<DoorAccessSettings["mode"], { label: string; help: string }> = {
@@ -62,6 +64,13 @@ const MODE_LABELS: Record<DoorAccessSettings["mode"], { label: string; help: str
   },
 };
 
+/** datetime-local string for "now + n minutes" in Brisbane time. */
+const bneLocalInput = (plusMinutes = 0) =>
+  new Date(Date.now() + plusMinutes * 60_000 + 10 * 3600 * 1000).toISOString().slice(0, 16);
+
+/** datetime-local value entered as Brisbane time → absolute ISO instant. */
+const bneInputToIso = (v: string) => new Date(`${v}:00+10:00`).toISOString();
+
 export function DoorAccessSection() {
   const { toast } = useToast();
   const [settings, setSettings] = useState<DoorAccessSettings | null>(null);
@@ -72,13 +81,20 @@ export function DoorAccessSection() {
   const [testing, setTesting] = useState(false);
   const [capabilities, setCapabilities] = useState<string | null>(null);
 
+  // Staff test-code panel
+  const [testStart, setTestStart] = useState(() => bneLocalInput(2));
+  const [testEnd, setTestEnd] = useState(() => bneLocalInput(32));
+  const [testCodeInput, setTestCodeInput] = useState("");
+  const [issuingTest, setIssuingTest] = useState(false);
+  const [testResult, setTestResult] = useState<string | null>(null);
+
   const load = async () => {
     setIsLoading(true);
     const [{ data: s }, { data: c }] = await Promise.all([
       supabase.from("door_access_settings").select("*").eq("id", "global").maybeSingle(),
       supabase
         .from("door_codes")
-        .select("id, code, status, valid_from, valid_until, provider, last_error, booking_id")
+        .select("id, code, status, valid_from, valid_until, provider, last_error, booking_id, scope")
         .in("status", ["pending", "active"])
         .order("valid_from", { ascending: true })
         .limit(50),
@@ -90,6 +106,7 @@ export function DoorAccessSection() {
     setCodes((c as DoorCodeRow[]) || []);
     setIsLoading(false);
   };
+
 
   useEffect(() => {
     load();
@@ -140,6 +157,37 @@ export function DoorAccessSection() {
     setCapabilities(JSON.stringify(data.capabilities, null, 2));
     toast({ title: "Keypad reachable", description: "Capabilities loaded below.", duration: 4000 });
   };
+
+  const issueTestCode = async () => {
+    setIssuingTest(true);
+    setTestResult(null);
+    const startedAt = Date.now();
+    const { data, error } = await supabase.functions.invoke("door-code-manager", {
+      body: {
+        action: "issue_test",
+        valid_from: bneInputToIso(testStart),
+        valid_until: bneInputToIso(testEnd),
+        code: testCodeInput.replace(/\D/g, "") || undefined,
+        label: "Staff test",
+      },
+    });
+    const roundTrip = Date.now() - startedAt;
+    setIssuingTest(false);
+    if (error || !data?.success) {
+      const msg = error?.message || data?.error || "Unknown error";
+      setTestResult(`❌ ${msg}`);
+      toast({ title: "Test code failed", description: msg, variant: "destructive", duration: 6000 });
+      load();
+      return;
+    }
+    setTestResult(
+      `✅ Code ${data.code} pushed via ${data.via} in ${data.push_ms}ms (round trip ${roundTrip}ms).\n` +
+        `Valid ${formatBrisbane(data.valid_from)} → ${formatBrisbane(data.valid_until)} (Brisbane).`,
+    );
+    toast({ title: `Test code ${data.code} issued`, duration: 5000 });
+    load();
+  };
+
 
   const revoke = async (id: string) => {
     const { error } = await supabase.functions.invoke("door-code-manager", {
@@ -351,6 +399,84 @@ export function DoorAccessSection() {
       </Card>
 
       <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <KeyRound className="h-4 w-4" />
+            Staff Test Code
+          </CardTitle>
+          <CardDescription>
+            Pushes a real temporary code to the keypad for a window you choose (Brisbane time),
+            without touching customer bookings. Works even while "Push codes to the keypad" is off,
+            so the permanent code and live confirmations are unaffected.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-3 max-w-3xl">
+            <div className="space-y-2">
+              <Label>Valid from (Brisbane)</Label>
+              <Input
+                type="datetime-local"
+                value={testStart}
+                onChange={(e) => setTestStart(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Valid until (Brisbane)</Label>
+              <Input
+                type="datetime-local"
+                value={testEnd}
+                onChange={(e) => setTestEnd(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Code (optional)</Label>
+              <Input
+                value={testCodeInput}
+                onChange={(e) => setTestCodeInput(e.target.value)}
+                placeholder="Auto-generated"
+                inputMode="numeric"
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Button onClick={issueTestCode} disabled={issuingTest}>
+              {issuingTest ? "Pushing to keypad..." : "Issue test code"}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setTestStart(bneLocalInput(2));
+                setTestEnd(bneLocalInput(32));
+              }}
+            >
+              Now + 30 min
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setTestStart(bneLocalInput(60));
+                setTestEnd(bneLocalInput(75));
+              }}
+            >
+              In 1 hour, 15 min window
+            </Button>
+          </div>
+
+          {testResult && (
+            <pre className="bg-muted/40 rounded p-3 text-xs whitespace-pre-wrap">{testResult}</pre>
+          )}
+
+          <p className="text-xs text-muted-foreground">
+            Test the three things that matter: the code works from its start time, it is rejected
+            before it starts, and it is rejected after it expires. Revoke it below at any point to
+            check that removal is instant too.
+          </p>
+        </CardContent>
+      </Card>
+
+
+      <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
             <CardTitle>Active Codes</CardTitle>
@@ -378,6 +504,12 @@ export function DoorAccessSection() {
                     <Badge variant="outline" className="text-xs">
                       {c.provider}
                     </Badge>
+                    {c.scope === "test" && (
+                      <Badge variant="outline" className="text-xs">
+                        staff test
+                      </Badge>
+                    )}
+
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
                     {formatBrisbane(c.valid_from)} → {formatBrisbane(c.valid_until)}
