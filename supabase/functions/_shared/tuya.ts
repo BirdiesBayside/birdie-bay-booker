@@ -16,12 +16,37 @@
  * the keypad itself.
  */
 
+import nodeCrypto from "node:crypto";
+import { Buffer } from "node:buffer";
+
 const REGION_HOSTS: Record<string, string> = {
   us: "https://openapi.tuyaus.com",
   eu: "https://openapi.tuyaeu.com",
   cn: "https://openapi.tuyacn.com",
   in: "https://openapi.tuyain.com",
 };
+
+/** Tuya returns ticket_key as hex on some regions and base64 on others. */
+function decodeMaybeHexOrBase64(v: string): Uint8Array {
+  if (/^[0-9a-fA-F]+$/.test(v) && v.length % 2 === 0) {
+    const out = new Uint8Array(v.length / 2);
+    for (let i = 0; i < out.length; i++) out[i] = parseInt(v.substr(i * 2, 2), 16);
+    return out;
+  }
+  return new Uint8Array(Buffer.from(v, "base64"));
+}
+
+function stripPkcs7(buf: Buffer): Buffer {
+  if (buf.length === 0) return buf;
+  const pad = buf[buf.length - 1];
+  if (pad > 0 && pad <= 16 && pad < buf.length) {
+    let ok = true;
+    for (let i = buf.length - pad; i < buf.length; i++) if (buf[i] !== pad) ok = false;
+    if (ok) return buf.subarray(0, buf.length - pad);
+  }
+  return buf;
+}
+
 
 async function sha256Hex(input: string): Promise<string> {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
