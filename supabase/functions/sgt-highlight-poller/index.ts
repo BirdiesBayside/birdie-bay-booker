@@ -281,68 +281,8 @@ Deno.serve(async (req) => {
     .in("user_id", userIds);
   const profileByUserId = new Map((profiles ?? []).map((p) => [p.user_id, p]));
 
-  // 4b. ORPHAN REAPER — a recording must never outlive its booking.
-  // The Bay Controller hard-stops locally at booking end; this is the server-side
-  // safety net for a controller that crashed, restarted or lost network.
-  // Brisbane is UTC+10 year round (no DST).
-  {
-    const { data: liveSessions } = await supabase
-      .from("recording_sessions")
-      .select("id, booking_id, bay_number, status, last_progress_at, started_at")
-      .in("status", ["recording", "stopping"]);
+  // (Orphan reaper now runs earlier — before the active-booking early return.)
 
-    if (liveSessions?.length) {
-      const liveBookingIds = Array.from(
-        new Set(liveSessions.map((s) => s.booking_id).filter(Boolean)),
-      );
-      const { data: liveBookings } = await supabase
-        .from("bookings")
-        .select("id, booking_date, end_time, status")
-        .in("id", liveBookingIds);
-      const bookingById = new Map((liveBookings ?? []).map((b) => [b.id, b]));
-
-      const nowMs = Date.now();
-      for (const s of liveSessions) {
-        const b = bookingById.get(s.booking_id);
-        let reason: string | null = null;
-
-        if (!b || b.status === "cancelled") {
-          reason = "Owning booking no longer exists";
-        } else {
-          const endMs = new Date(`${b.booking_date}T${b.end_time}+10:00`).getTime();
-          if (nowMs > endMs + 5 * 60_000) {
-            reason = "Booking ended — recording never stopped";
-          }
-        }
-
-        // NOTE: no "idle/no-heartbeat" reaping. A recording only ends when its
-        // booking ends (or is cancelled), or when the round/comp score lands.
-        // Idle stretches (range time, slow play) must never chop a session.
-
-
-        if (reason) {
-          console.log(`[reaper] Closing orphaned session ${s.id}: ${reason}`);
-          await supabase
-            .from("recording_sessions")
-            .update({
-              status: "error",
-              ended_at: new Date().toISOString(),
-              error_message: `Orphaned: ${reason}`,
-            })
-            .eq("id", s.id);
-
-          // Best-effort: tell the bay to stop OBS in case it is still rolling.
-          if (s.bay_number) {
-            await supabase.from("bay_commands").insert({
-              bay_number: s.bay_number,
-              command: `obs_stop_recording:session_id=${s.id}`,
-              status: "pending",
-            });
-          }
-        }
-      }
-    }
-  }
 
   // 5. Any recording_sessions currently active for these bookings
 
