@@ -513,6 +513,19 @@ Deno.serve(async (req) => {
         result = { success: true, capabilities: { device, specifications: specs } };
         break;
       }
+      case "device_passwords": {
+        const s = await getSettings();
+        const tuya = await getTuya(s, true);
+        if (!tuya) {
+          result = { success: false, error: "Tuya credentials or device ID missing" };
+          break;
+        }
+        const list = await tuya
+          .listTempPasswords()
+          .catch((e) => ({ error: (e as Error).message }));
+        result = { success: true, passwords: list };
+        break;
+      }
       case "unlock": {
         const s = await getSettings();
         const tuya = await getTuya(s);
