@@ -399,6 +399,84 @@ export function DoorAccessSection() {
       </Card>
 
       <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <KeyRound className="h-4 w-4" />
+            Staff Test Code
+          </CardTitle>
+          <CardDescription>
+            Pushes a real temporary code to the keypad for a window you choose (Brisbane time),
+            without touching customer bookings. Works even while "Push codes to the keypad" is off,
+            so the permanent code and live confirmations are unaffected.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-3 max-w-3xl">
+            <div className="space-y-2">
+              <Label>Valid from (Brisbane)</Label>
+              <Input
+                type="datetime-local"
+                value={testStart}
+                onChange={(e) => setTestStart(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Valid until (Brisbane)</Label>
+              <Input
+                type="datetime-local"
+                value={testEnd}
+                onChange={(e) => setTestEnd(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Code (optional)</Label>
+              <Input
+                value={testCodeInput}
+                onChange={(e) => setTestCodeInput(e.target.value)}
+                placeholder="Auto-generated"
+                inputMode="numeric"
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Button onClick={issueTestCode} disabled={issuingTest}>
+              {issuingTest ? "Pushing to keypad..." : "Issue test code"}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setTestStart(bneLocalInput(2));
+                setTestEnd(bneLocalInput(32));
+              }}
+            >
+              Now + 30 min
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setTestStart(bneLocalInput(60));
+                setTestEnd(bneLocalInput(75));
+              }}
+            >
+              In 1 hour, 15 min window
+            </Button>
+          </div>
+
+          {testResult && (
+            <pre className="bg-muted/40 rounded p-3 text-xs whitespace-pre-wrap">{testResult}</pre>
+          )}
+
+          <p className="text-xs text-muted-foreground">
+            Test the three things that matter: the code works from its start time, it is rejected
+            before it starts, and it is rejected after it expires. Revoke it below at any point to
+            check that removal is instant too.
+          </p>
+        </CardContent>
+      </Card>
+
+
+      <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
             <CardTitle>Active Codes</CardTitle>
