@@ -199,9 +199,8 @@ export function ActivityLog() {
                 })}
               </div>
             )}
-          </CardContent>
-        </CollapsibleContent>
-      </Collapsible>
+      </CardContent>
     </Card>
+
   );
 }
