@@ -1672,7 +1672,7 @@ function CollapsibleSection({
             <button
               type="button"
               className={cn(
-                "flex min-w-0 flex-1 items-center gap-3 text-left",
+                "flex min-w-0 flex-1 items-center gap-2 sm:gap-3 text-left",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
                 isNested ? "py-3 pl-1" : "py-4 pl-2",
               )}
