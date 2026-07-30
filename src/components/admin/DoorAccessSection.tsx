@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { KeyRound, ShieldCheck, RefreshCw } from "lucide-react";
+import { KeyRound, RefreshCw } from "lucide-react";
 import { formatBrisbane } from "@/lib/brisbane-time";
 
 interface DoorAccessSettings {
@@ -78,8 +78,6 @@ export function DoorAccessSection() {
   const [codes, setCodes] = useState<DoorCodeRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [testing, setTesting] = useState(false);
-  const [capabilities, setCapabilities] = useState<string | null>(null);
 
   // Staff test-code panel
   const [testStart, setTestStart] = useState(() => bneLocalInput(2));
@@ -131,31 +129,6 @@ export function DoorAccessSection() {
     await supabase.from("system_settings").update({ door_code: draft.fixed_code } as any).eq("id", "global");
     setSettings(draft);
     toast({ title: "Door access settings saved", duration: 3000 });
-  };
-
-  const testConnection = async () => {
-    setTesting(true);
-    setCapabilities(null);
-    const { data, error } = await supabase.functions.invoke("door-code-manager", {
-      body: { action: "test" },
-    });
-    setTesting(false);
-    if (error) {
-      toast({ title: "Test failed", description: error.message, variant: "destructive", duration: 5000 });
-      return;
-    }
-    if (!data?.success) {
-      setCapabilities(data?.error || "Unknown error");
-      toast({
-        title: "Keypad not reachable",
-        description: data?.error || "Check credentials and device ID.",
-        variant: "destructive",
-        duration: 6000,
-      });
-      return;
-    }
-    setCapabilities(JSON.stringify(data.capabilities, null, 2));
-    toast({ title: "Keypad reachable", description: "Capabilities loaded below.", duration: 4000 });
   };
 
   const issueTestCode = async () => {
