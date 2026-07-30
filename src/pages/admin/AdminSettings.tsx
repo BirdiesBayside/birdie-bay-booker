@@ -1690,14 +1690,14 @@ function CollapsibleSection({
               <span className="min-w-0 flex-1">
                 <span
                   className={cn(
-                    "block font-semibold leading-tight",
-                    isNested ? "text-base" : "text-lg",
+                    "block font-semibold leading-tight break-words",
+                    isNested ? "text-base" : "text-base sm:text-lg",
                   )}
                 >
                   {title}
                 </span>
                 {description && (
-                  <span className="mt-0.5 block text-sm font-normal text-muted-foreground">
+                  <span className="mt-0.5 block text-xs sm:text-sm font-normal text-muted-foreground break-words">
                     {description}
                   </span>
                 )}
