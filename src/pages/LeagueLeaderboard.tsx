@@ -114,6 +114,10 @@ export default function LeagueLeaderboard() {
     refreshInterval: 30000,
   });
 
+  const { isExempt } = useExemptPlayers(activeTab === "weekly" ? selectedTournament : null);
+
+
+
   const isLoading = tourLoading || (activeTab === "weekly" ? tournamentStandingsLoading : monthlyLoading);
 
   useEffect(() => {
