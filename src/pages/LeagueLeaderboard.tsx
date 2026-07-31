@@ -460,6 +460,15 @@ export default function LeagueLeaderboard() {
                 </div>
               )}
 
+              <div className="px-4 py-2 border-b border-border bg-muted/20 font-inter text-xs text-muted-foreground">
+                <span className="font-bold text-foreground">E</span> = Exempt — new
+                players are still setting their true handicap over their first{" "}
+                {TRUE_HCP_ROUNDS} rounds. They play, but aren't eligible for prizes
+                or monthly points until week three.
+              </div>
+
+
+
               {/* Table Header - Mobile */}
               <div className="grid md:hidden grid-cols-12 gap-4 px-4 py-2 bg-muted/50 border-b border-border font-inter text-xs font-medium text-muted-foreground">
                 <div className="col-span-2 text-center">#</div>
