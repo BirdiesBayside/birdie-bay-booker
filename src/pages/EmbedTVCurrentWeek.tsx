@@ -157,7 +157,7 @@ export default function EmbedTVWeekly() {
 
       {/* Footer */}
       <div className="mt-4 text-center text-lg text-[hsl(128,20%,40%)]">
-        Live updates every 30 seconds • Powered by Birdies League Hub
+        <span className="font-bold">E</span> = Exempt (setting true handicap over first 3 rounds) • Live updates every 30 seconds • Powered by Birdies League Hub
       </div>
     </div>
   );
