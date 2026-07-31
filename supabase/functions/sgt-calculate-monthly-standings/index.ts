@@ -215,9 +215,25 @@ Deno.serve(async (req) => {
         const playerMap = tournamentPlayerRounds.get(tournamentId);
         if (!playerMap) continue;
 
+        // Provisional players (fewer than TRUE_HCP_ROUNDS completed full rounds
+        // BEFORE this week started) are exempt: they play, but earn no points
+        // and don't affect anyone else's position.
+        const exemptPlayers = new Set<number>();
+        const { data: history, error: histErr } = await supabase
+          .rpc("sgt_week_round_history", { p_tournament_id: tournamentId });
+        if (histErr) {
+          console.error(`[MONTHLY-STANDINGS] Round history error for ${tournamentId}:`, histErr);
+        } else {
+          for (const h of (history ?? []) as Array<{ player_id: number; prior_rounds: number }>) {
+            if (Number(h.prior_rounds) < TRUE_HCP_ROUNDS) exemptPlayers.add(h.player_id);
+          }
+        }
+
         const results: TournamentResult[] = [];
 
         for (const [playerId, rounds] of playerMap) {
+          if (exemptPlayers.has(playerId)) continue;
+
           let totalNet: number | null = null;
           let totalGross: number | null = null;
           let completedRounds = 0;
