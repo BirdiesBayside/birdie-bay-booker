@@ -2440,6 +2440,42 @@ export type Database = {
         }
         Relationships: []
       }
+      sgt_club_config: {
+        Row: {
+          club_url: string
+          created_at: string
+          credentials_valid: boolean
+          id: string
+          last_error: string | null
+          last_verified_at: string | null
+          sgt_password: string | null
+          sgt_username: string | null
+          updated_at: string
+        }
+        Insert: {
+          club_url?: string
+          created_at?: string
+          credentials_valid?: boolean
+          id?: string
+          last_error?: string | null
+          last_verified_at?: string | null
+          sgt_password?: string | null
+          sgt_username?: string | null
+          updated_at?: string
+        }
+        Update: {
+          club_url?: string
+          created_at?: string
+          credentials_valid?: boolean
+          id?: string
+          last_error?: string | null
+          last_verified_at?: string | null
+          sgt_password?: string | null
+          sgt_username?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       sgt_courses: {
         Row: {
           city: string | null

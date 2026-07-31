@@ -34,8 +34,10 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+import { getClubUrl } from "../_shared/sgt-config.ts";
+
 const SGT_BASE_URL = "https://simulatorgolftour.com/sgt-api/club-admin";
-const SGT_CLUB = "birdiesbayside";
+let SGT_CLUB = "birdiesbayside";
 
 // ---------- SGT embed helpers ----------
 async function fetchEmbedHtml(tournamentId: string): Promise<string | null> {
@@ -302,6 +304,8 @@ async function reapOrphanedSessions(supabase: any) {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
+  SGT_CLUB = await getClubUrl();
 
   const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   const nowIso = new Date().toISOString();

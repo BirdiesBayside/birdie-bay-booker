@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getClubUrl } from "../_shared/sgt-config.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -479,8 +480,9 @@ serve(async (req) => {
 
         if (!apiConfig?.api_key) throw new Error("No SGT API key configured");
 
+        const clubUrl = await getClubUrl();
         const url = new URL(
-          "https://simulatorgolftour.com/sgt-api/club-admin/birdiesbayside/tournaments/stats"
+          `https://simulatorgolftour.com/sgt-api/club-admin/${clubUrl}/tournaments/stats`
         );
         url.searchParams.append("api-key", apiConfig.api_key);
         url.searchParams.append("tournamentId", String(params.tournamentId));

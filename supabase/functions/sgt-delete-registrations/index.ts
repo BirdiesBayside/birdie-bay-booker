@@ -7,7 +7,9 @@ const corsHeaders = {
 };
 
 const SGT_BASE_URL = "https://simulatorgolftour.com/sgt-api/club-admin";
-const CLUB_URL = "birdiesbayside";
+import { getClubUrl } from "../_shared/sgt-config.ts";
+
+let CLUB_URL = "birdiesbayside";
 
 // Supabase client for API key retrieval
 let supabaseClient: ReturnType<typeof createClient> | null = null;
@@ -109,6 +111,9 @@ serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  CLUB_URL = await getClubUrl();
+
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;

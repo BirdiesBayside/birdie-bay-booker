@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createSgtApiKey, getSgtConfig, recordSgtStatus } from "../_shared/sgt-config.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -104,7 +105,7 @@ serve(async (req) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseKey = Deno.env.get("SUPABASE_ANON_KEY")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const clubUrl = Deno.env.get("SGT_CLUB_URL") || "birdiesbayside";
+  const clubUrl = (await getSgtConfig()).clubUrl;
 
   const authHeader = req.headers.get("Authorization");
   
@@ -157,6 +158,82 @@ serve(async (req) => {
     let result: unknown;
 
     switch (action) {
+      // ---------- SGT connection settings (SGT Manager → Settings) ----------
+      case "get-config": {
+        const config = await getSgtConfig(true);
+        const { data: keyRow } = await adminClient
+          .from("sgt_api_config")
+          .select("expires_at, updated_at")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        result = {
+          club_url: config.clubUrl,
+          username: config.username ?? "",
+          has_password: Boolean(config.password),
+          credentials_valid: config.credentialsValid,
+          last_verified_at: config.lastVerifiedAt,
+          last_error: config.lastError,
+          api_key_expires_at: keyRow?.expires_at ?? null,
+          api_key_updated_at: keyRow?.updated_at ?? null,
+        };
+        break;
+      }
+
+      case "save-config": {
+        const { club_url, username, password } = params as {
+          club_url?: string;
+          username?: string;
+          password?: string;
+        };
+
+        const update: Record<string, unknown> = { id: "global" };
+        if (typeof club_url === "string") {
+          update.club_url = club_url.trim().replace(/^https?:\/\//, "").replace(/\/+$/, "");
+        }
+        if (typeof username === "string") update.sgt_username = username.trim();
+        // Empty string means "leave unchanged" so we never wipe a saved password.
+        if (typeof password === "string" && password.length > 0) update.sgt_password = password;
+
+        const { error: saveError } = await adminClient
+          .from("sgt_club_config")
+          .upsert(update, { onConflict: "id" });
+
+        if (saveError) throw new Error(saveError.message);
+
+        await getSgtConfig(true);
+        result = { success: true };
+        break;
+      }
+
+      case "verify-credentials": {
+        try {
+          const created = await createSgtApiKey();
+          const config = await getSgtConfig(true);
+
+          // Prove the key actually works against this club
+          const members = await sgtRequest(config.clubUrl, "/members/list", "GET") as
+            | { members?: unknown[] }
+            | unknown[];
+          const memberCount = Array.isArray(members)
+            ? members.length
+            : Array.isArray(members?.members) ? members.members.length : 0;
+
+          result = {
+            success: true,
+            club_url: config.clubUrl,
+            member_count: memberCount,
+            api_key_expires_at: created.expiresAt,
+          };
+        } catch (verifyError) {
+          const message = verifyError instanceof Error ? verifyError.message : "Unknown error";
+          await recordSgtStatus(false, message);
+          result = { success: false, error: message };
+        }
+        break;
+      }
+
       case "add-member": {
         // Add an existing SGT user to the club by their user_id
         const { userId, email, userName } = params;
