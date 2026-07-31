@@ -586,6 +586,7 @@ export default function LeagueLeaderboard() {
                             isCurrentPlayer ? "text-secondary" : "text-foreground"
                           )}>
                             {result.playerName}
+                            {playerExempt && <ExemptBadge />}
                             <span className="text-muted-foreground font-normal ml-1">
                               ({result.hcp ?? "-"})
                             </span>
