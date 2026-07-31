@@ -160,7 +160,7 @@ Deno.serve(async (req) => {
         old_hcp: null,
         new_hcp: newHcp,
         rounds: roundsPlayed,
-        status: `recalculated (best ${bestRounds} of last ${roundsRequired})`,
+        status: `recalculated (best ${Math.min(bestRounds, roundsPlayed)} of last ${roundsPlayed})`,
       });
     }
 
