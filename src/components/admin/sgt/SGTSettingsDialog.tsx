@@ -209,13 +209,13 @@ export function SGTSettingsDialog({ open, onOpenChange }: Props) {
                 <div>
                   API key valid until:{" "}
                   {config?.api_key_expires_at
-                    ? formatBrisbane(new Date(config.api_key_expires_at), "d MMM yyyy, h:mm a")
+                    ? formatBrisbane(config.api_key_expires_at)
                     : "—"}
                 </div>
                 <div>
                   Last checked:{" "}
                   {config?.last_verified_at
-                    ? formatBrisbane(new Date(config.last_verified_at), "d MMM yyyy, h:mm a")
+                    ? formatBrisbane(config.last_verified_at)
                     : "Never"}
                 </div>
                 {config?.last_error && (
