@@ -156,6 +156,9 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  CLUB_URL = await getClubUrl();
+
+
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   supabaseClient = createClient(supabaseUrl, supabaseKey);
