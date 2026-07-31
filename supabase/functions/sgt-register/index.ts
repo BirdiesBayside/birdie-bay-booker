@@ -197,8 +197,9 @@ async function refreshApiKey(existingKey: string, clubUrl: string): Promise<{ ke
 
 // Create a new API key using username/password
 async function createNewApiKey(supabase: any, clubUrl: string): Promise<{ key: string; expiresAt: Date }> {
-  const username = Deno.env.get("SGT_USERNAME");
-  const password = Deno.env.get("SGT_PASSWORD");
+  const sgtConfig = await getSgtConfig();
+  const username = sgtConfig.username;
+  const password = sgtConfig.password;
 
   if (!username || !password || !clubUrl) {
     throw new Error("SGT credentials not configured");
@@ -308,7 +309,7 @@ serve(async (req) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseKey = Deno.env.get("SUPABASE_ANON_KEY")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const clubUrl = Deno.env.get("SGT_CLUB_URL")!;
+  const clubUrl = await getClubUrl();
 
   const authHeader = req.headers.get("Authorization");
   
