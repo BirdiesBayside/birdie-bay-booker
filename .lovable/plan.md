@@ -1,72 +1,58 @@
-## Keypad research — what we're dealing with
+## Goal
 
-The unit is an **Active Online IP68 standalone keypad with 125kHz RFID + WiFi (Tuya)**. Key points:
+Make the whole SGT subsystem configurable from a settings panel in SGT Manager (club URL + SGT username/password), so a replicated client project only needs those three fields entered to make every SGT feature work — no code edits, no secrets set by hand.
 
-- It is a **standalone** controller (Wiegand 26 out, relay on board). All user/code administration happens **on the device or through the Tuya / Smart Life app** — there is no vendor API of its own.
-- The only programmatic route is the **Tuya IoT Cloud OpenAPI** (`openapi.tuya.com`). You create a free Tuya IoT developer project, link the Smart Life account the keypad is paired to, then call signed HTTP requests (HMAC-SHA256 over client_id + access_token + timestamp + body).
-- Tuya's dedicated **temporary-password APIs** (`/v1.0/devices/{id}/door-lock/temp-password`) are built for the *smart lock* product category. Access-control keypads like this one usually expose the same functionality through **device data points (DPs)** instead — e.g. `unlock_temporary`, `temp_unlock_list`, `remote_unlock`. Which DPs exist is device-firmware specific and can only be confirmed by querying `/v1.0/devices/{device_id}/specifications` once the device is linked.
+## Audit findings (verified)
 
-**Honest assessment:** remote unlock is near-certain to work; *scheduled temporary codes pushed from the cloud* are likely but **not guaranteed** until we read the device's DP spec. So the plan builds the whole system provider-agnostically with a `**tuya` driver + a `manual` fallback driver** (code generated and shown/sent to the customer, staff pre-loads a pool of codes into the keypad and we assign from that pool). That way nothing is wasted if the DPs turn out to be limited.
+**1. The club is hardcoded in 9 edge functions.** `const CLUB_URL = "birdiesbayside"` appears in `sgt-auto-register`, `sgt-sync`, `sgt-sync-eligible`, `sgt-cleanup-ineligible`, `sgt-tournament-auto-register`, `sgt-daily-tournament-register`, `sgt-delete-registrations`, `sgt-fix-tees`, `sgt-refresh-api-key`. `sgt-highlight-poller` uses a hardcoded `SGT_CLUB`, and `sgt-api` has a fully hardcoded stats URL. Only `sgt-member-management` and `sgt-register` read `SGT_CLUB_URL` from env (and `sgt-member-management` falls back to `birdiesbayside`).
 
----
+**2. Credentials come from env only.** `SGT_USERNAME` / `SGT_PASSWORD` are read in `sgt-refresh-api-key` and `sgt-register`. A client can't change them.
 
-## Part 1 — Settings reorganisation (safe, do first)
+**3. `sgt_api_config` is a shared singleton with only `api_key`/`expires_at`** — no club, no credentials, no last-refresh status.
 
-In `AdminSettings.tsx`, add a new default-collapsed `CollapsibleSection` titled **"Access & Messaging"** in the **General** tab, positioned **between Bay Management and General Settings**. It contains two nested collapsible sub-sections (same pattern as Operating Hours):
+**4. Duplicate cron jobs.** `sgt-highlight-poller-1min` and `sgt-highlight-poller-every-minute` both run every minute — the poller is being invoked twice per minute (plus an inline invoke from `bay-controller-api`). This is a live source of the duplicate-session races we've fought.
 
-1. **Door Access** — the door code field currently buried inside `SmsTemplatesSection`, plus the new door-code settings (Part 3).
-2. **SMS Templates** — the existing `SmsTemplatesSection` template editor, moved out of the Notifications tab.
+**5. Overlapping registration functions.** Four functions do overlapping registration work: `sgt-auto-register` (called from the UI), `sgt-tournament-auto-register` (cron 6am), `sgt-daily-tournament-register` (in `config.toml`, **no cron, not called from anywhere** — dead), and `sgt-sync-eligible` (cron 5am). Similarly `sgt-fix-tees` and `sgt-delete-registrations` are one-off tools with no caller.
 
-`SmsTemplatesSection.tsx` gets split so the door-code card and the template list can be rendered independently.
+**6. Two API-key refresh paths.** `sgt-refresh-api-key` deletes-then-inserts; `sgt-register` upserts its own key inline. They can fight over the same singleton row.
 
-## Part 2 — Data model
+## Plan
 
-`**door_access_settings**` (single row, `id = 'global'`)
+### 1. Data model — `sgt_api_config` becomes the single source of truth
+Add to the existing singleton row: `club_url`, `sgt_username`, `sgt_password` (write-only from the client), `credentials_valid`, `last_verified_at`, `last_error`. Admin-only RLS (`has_role(auth.uid(),'admin')`) with **no SELECT of the password column** — the UI reads a masked view (`has_password: true/false`) via the edge function, never the raw value. Explicit GRANTs for `authenticated` + `service_role`.
 
-- `mode` — `fixed` | `daily` | `per_booking` | `unstaffed_only` (default `**fixed**` — nothing changes today)
-- `fixed_code`, `code_length`, `code_format` (numeric + `#` suffix)
-- `valid_from_minutes_before` = **20**, `valid_until_minutes_after` = **1**
-- `provider` — `manual` | `tuya`, `tuya_device_id`, `enabled`
+Seed the row with the current Birdies values so nothing changes today.
 
-`**door_codes**` — one row per issued code
+### 2. Shared helper — `supabase/functions/_shared/sgt-client.ts`
+One module that:
+- loads config from `sgt_api_config` (falling back to `SGT_USERNAME` / `SGT_PASSWORD` / `SGT_CLUB_URL` env for backwards compatibility),
+- builds `https://simulatorgolftour.com/sgt-api/club-admin/{club_url}{endpoint}`,
+- owns the **single** API-key lifecycle: return cached key if unexpired, else `apikey/create` with the stored credentials, else write `last_error`,
+- exposes `sgtGet` / `sgtPost` with one automatic retry on 401/expired key.
 
-- `booking_id`, `user_id`, `code`, `valid_from`, `valid_until`, `status` (`pending` / `active` / `revoked` / `expired` / `failed`), `provider`, `provider_ref`, `slot_index`, `last_error`
-- Unique partial index so a booking has only one live code; codes never collide with an active window.
+Every SGT function is refactored to use it — killing all 11 hardcoded club constants and both duplicate refresh paths.
 
-`**door_code_events**` — audit log of issue / extend / revoke / sync-failure, plus any unlock events pulled back from Tuya.
+### 3. Settings UI — gear icon, top-right of SGT Manager
+New `SGTSettingsDialog` opened from an icon button beside the page title in `AdminSGTManager.tsx`:
+- **Club URL** (with helper text: the slug in your SGT club-admin URL)
+- **SGT username** and **SGT password** (password masked; shows "Saved" rather than the value)
+- **Test connection** button → calls `sgt-member-management` with a new `verify-credentials` action which does a live `apikey/create` and returns club name + member count on success, or the exact SGT error on failure
+- Read-only status block: current API key expiry, last verified, last error
+- A short "what to do next" note: add your Tour, then your first Tournament, and automation starts on the next daily run.
 
-## Part 3 — Settings UI (inside Access & Messaging → Door Access)
+Credentials are only ever written through the edge function (service-role), never stored client-side.
 
-- Mode selector with plain-English descriptions of each option.
-- Fixed code field (as today).
-- Number inputs: *valid from X minutes before start* (default 20) and *expires Y minutes after end* (default 1).
-- Provider block: Tuya on/off, device ID, "Test connection" button, and a read-only display of the detected device capabilities once credentials exist.
-- A live list of currently-active codes with a manual **Revoke** button.
+### 4. Cleanup (part of the same pass)
+- Drop the duplicate `sgt-highlight-poller-every-minute` cron (keep `sgt-highlight-poller-1min`).
+- Delete the dead `sgt-daily-tournament-register` function and its `config.toml` entry.
+- Fold `sgt-delete-registrations` and `sgt-fix-tees` into `sgt-member-management` as actions (they're admin one-offs, not endpoints).
+- Make `sgt-tournament-auto-register` and `sgt-sync-eligible` **no-op cleanly** when no active tour/tournament exists, instead of erroring — so a fresh client's crons stay quiet until they create their first tournament.
+- Every SGT function returns a structured `{ ok, skipped_reason }` so the SGT Dashboard can show "waiting for first tournament" rather than a red error.
 
-## Part 4 — Lifecycle wiring (the part you specified)
-
-New edge function `**door-code-manager**` with actions `issue`, `sync`, `revoke`, `refresh`:
-
-- **On booking confirmed** → if mode requires it, generate a unique code, window = `start − 20 min` → `end + 1 min`, push to provider.
-- **On extend** (`extend-booking`) → the same code's `valid_until` is recalculated from the new end time and re-pushed. Code stays the same so the customer isn't confused.
-- **On cancel / reschedule** (`cancel-booking`, `reschedule-booking`) → revoke immediately (reschedule re-issues against the new window).
-- **Reconciliation cron** (every 5 min) → catches anything the inline call missed: expires past codes, retries failed pushes, and re-derives windows straight from the live booking row so the keypad can never drift from the booking table.
-- `{door_code}` merge tag resolves per-booking when a booking-scoped code exists, otherwise falls back to the fixed code — so existing SMS/email templates keep working untouched.
-
-## Part 5 — Tuya driver
-
-`supabase/functions/_shared/tuya.ts`: token fetch + signed request helper, then
-`issueCode` / `revokeCode` / `unlockNow` implemented against the temp-password DPs, with capability detection via `/specifications`. Requires two secrets when you're ready: `**TUYA_ACCESS_ID**` and `**TUYA_ACCESS_SECRET**` (plus region endpoint — Australia sits on the `openapi.tuya.com` / US-West cluster).
-
-Until those exist, the provider stays `manual`: codes are generated, stored, shown in admin and sent to the customer, and the system logs "provider not configured" rather than failing the booking. Flipping to live is then a single settings toggle.
+### 5. Dashboard signal
+Small status strip on the SGT Dashboard tab: credentials OK / API key valid until X / active tour / current tournament — so a client can see at a glance whether their setup is live.
 
 ## Technical notes
-
-- All windows computed in `Australia/Brisbane` via `src/lib/brisbane-time.ts`.
-- Codes are numeric-only (keypad limitation), collision-checked against active codes, and never reused within 24h.
-- Door code issuance must **never** block booking confirmation — all provider calls are fire-and-forget with retry via the reconciliation cron.
-- New tables get explicit GRANTs; customer read access is scoped to their own booking's code, admin-only for settings.
-
-**Suggested order:** Part 1 (settings move) → Part 2/3 (schema + UI, mode stays `fixed`) → Part 4 (lifecycle in manual mode) → Part 5 (Tuya) once you've created the IoT project.  
-  
-Last thing, i belive the codes set by API must be 6 digits, i would prefer 4 digits but if there is any documentation on this please find out, worth remembering if we get errors or dead codes due to length
+- No behaviour change for Birdies: the config row is seeded with today's values and the env fallback stays in place.
+- Password stored in the DB rather than Supabase secrets because the client must be able to change it themselves; it is admin-RLS protected, never selected by the browser, and only read by service-role edge functions. If you'd rather it live in secrets and be rotated by us, say so and I'll swap that piece.
+- All timing stays Brisbane-based; crons are unchanged apart from the duplicate removal.
