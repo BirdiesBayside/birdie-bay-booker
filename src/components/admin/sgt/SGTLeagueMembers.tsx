@@ -34,7 +34,7 @@ interface LeagueMember {
   rounds_played: number;
 }
 
-const ROUNDS_REQUIRED = 6;
+const ROUNDS_REQUIRED = 3;
 const BEST_ROUNDS = 3;
 
 export function SGTLeagueMembers() {
@@ -221,8 +221,9 @@ export function SGTLeagueMembers() {
                       <p className="font-semibold mb-1">Birdies Custom HCP</p>
                       <p className="text-xs">
                         Auto-calculated weekly using the <strong>best 3 of the last 6 rounds</strong>.
-                        New members are <strong>locked to their onboarding handicap for 6 rounds</strong>
-                        (~3 weeks of league play) before auto-recalc kicks in.
+                        New members are <strong>locked to their onboarding handicap for their first 3 rounds</strong>,
+                        after which their true handicap kicks in. They stay marked <strong>(E) exempt</strong> from
+                        prizes and monthly points until their 4th round (week three).
                       </p>
                       <p className="font-semibold mt-2 mb-1">SGT Combo HCP</p>
                       <p className="text-xs">
@@ -261,7 +262,7 @@ export function SGTLeagueMembers() {
           </div>
           <CardDescription>
             {useCustomEnabled
-              ? "Custom HCP overrides Combo HCP. Locked members show their onboarding HCP until 6 rounds played."
+              ? "Custom HCP overrides Combo HCP. Locked members show their onboarding HCP until 3 rounds played."
               : "Toggle 'Use Birdies Custom HCP' above to enable auto-recalc and manual overrides."}
           </CardDescription>
         </CardHeader>
