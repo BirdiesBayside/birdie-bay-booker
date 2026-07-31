@@ -3358,6 +3358,26 @@ export type Database = {
         }
         Returns: boolean
       }
+      sgt_is_full_18: {
+        Args: { hole_data: Json; in_gross: number; out_gross: number }
+        Returns: boolean
+      }
+      sgt_player_round_counts: {
+        Args: never
+        Returns: {
+          completed_rounds: number
+          player_id: number
+          player_name: string
+        }[]
+      }
+      sgt_week_round_history: {
+        Args: { p_tournament_id: number }
+        Returns: {
+          player_id: number
+          player_name: string
+          prior_rounds: number
+        }[]
+      }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"
