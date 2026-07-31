@@ -479,8 +479,9 @@ serve(async (req) => {
 
         if (!apiConfig?.api_key) throw new Error("No SGT API key configured");
 
+        const clubUrl = await getClubUrl();
         const url = new URL(
-          "https://simulatorgolftour.com/sgt-api/club-admin/birdiesbayside/tournaments/stats"
+          `https://simulatorgolftour.com/sgt-api/club-admin/${clubUrl}/tournaments/stats`
         );
         url.searchParams.append("api-key", apiConfig.api_key);
         url.searchParams.append("tournamentId", String(params.tournamentId));
