@@ -103,8 +103,16 @@ export default function EmbedTVWeekly() {
               </div>
 
               <div className="col-span-4">
-                <p className="font-bold text-2xl text-[hsl(128,42%,21%)]">{result.playerName}</p>
+                <p className="font-bold text-2xl text-[hsl(128,42%,21%)]">
+                  {result.playerName}
+                  {isExempt(result.playerName) && (
+                    <span className="ml-2 align-middle rounded px-2 py-0.5 text-base font-bold bg-[hsl(128,20%,90%)] text-[hsl(128,20%,40%)]">
+                      E
+                    </span>
+                  )}
+                </p>
               </div>
+
 
               <div className="col-span-1 text-center text-xl text-[hsl(128,20%,40%)]">
                 {result.hcp ?? "-"}
