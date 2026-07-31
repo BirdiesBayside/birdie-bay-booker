@@ -20,6 +20,11 @@ function getPoints(position: number): number {
 // Minimum completed rounds to qualify for the monthly leaderboard
 const MIN_ROUNDS = 2;
 
+// Completed full rounds a player needs BEFORE a week starts for that week's
+// results to count towards monthly points (their handicap is only "true"
+// after 3 rounds, so points start accruing from their 4th round onwards).
+const TRUE_HCP_ROUNDS = 3;
+
 // =========================================================
 // Calendar-month model (mirrors src/lib/league-block.ts).
 // A tournament belongs to the calendar month of its Brisbane play
