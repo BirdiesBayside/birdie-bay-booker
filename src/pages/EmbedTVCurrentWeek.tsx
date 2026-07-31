@@ -15,6 +15,8 @@ export default function EmbedTVWeekly() {
     refreshInterval: 30000, // 30 second refresh for live updates
   });
 
+  const { isExempt } = useExemptPlayers(currentTournament?.tournament_id ?? null);
+
   const isLoading = tourLoading || standingsLoading;
 
   const getPositionIcon = (position: number) => {
