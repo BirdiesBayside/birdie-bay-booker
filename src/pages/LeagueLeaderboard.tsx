@@ -482,6 +482,7 @@ export default function LeagueLeaderboard() {
               <div className="divide-y divide-border">
                 {tournamentStandings.map((result, index) => {
                   const isCurrentPlayer = displayName && result.playerName.toLowerCase() === displayName.toLowerCase();
+                  const playerExempt = isExempt(result.playerName);
 
                   return (
                     <div
