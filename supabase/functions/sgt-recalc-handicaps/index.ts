@@ -1,8 +1,8 @@
 // Birdies Custom HCP recalculator
-// Runs weekly. For each onboarded league member with >= 6 completed rounds,
-// calculates the average to-par-gross of their best 3 of the last 6 rounds
-// and writes it to sgt_tour_members.custom_hcp.
-// Members with < 6 rounds keep their onboarding_hcp (locked).
+// Runs weekly. A player's "true handicap" kicks in as soon as they have
+// 3 completed 18-hole rounds: the average to-par-gross of their best 3
+// rounds from their last 6, written to sgt_tour_members.custom_hcp.
+// Members with < 3 rounds keep their onboarding_hcp (locked).
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
