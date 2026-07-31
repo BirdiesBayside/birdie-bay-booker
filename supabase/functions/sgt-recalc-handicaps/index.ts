@@ -127,9 +127,9 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // UNLOCKED: best 3 of last 6 to-par-gross average
+      // UNLOCKED: average of the best N rounds within the last WINDOW_ROUNDS
       const toPars = scorecards.map((s: any) => Number(s.to_par_gross)).sort((a, b) => a - b);
-      const best = toPars.slice(0, bestRounds);
+      const best = toPars.slice(0, Math.min(bestRounds, toPars.length));
       const avgToPar = best.reduce((a, b) => a + b, 0) / best.length;
 
       // Round to 1 decimal and clamp
