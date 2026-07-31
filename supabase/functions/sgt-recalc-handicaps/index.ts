@@ -103,7 +103,7 @@ Deno.serve(async (req) => {
 
       const scorecards = (rawCards ?? [])
         .filter((sc: any) => isFullEighteen(sc))
-        .slice(0, roundsRequired);
+        .slice(0, WINDOW_ROUNDS);
 
       const roundsPlayed = scorecards.length;
 
