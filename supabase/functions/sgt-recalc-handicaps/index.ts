@@ -11,8 +11,9 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const ROUNDS_REQUIRED = 6;
+const ROUNDS_REQUIRED = 3; // rounds needed before a true handicap is calculated
 const BEST_ROUNDS = 3;
+const WINDOW_ROUNDS = 6; // most recent rounds considered
 const HCP_MIN = -36;
 const HCP_MAX = 36;
 
