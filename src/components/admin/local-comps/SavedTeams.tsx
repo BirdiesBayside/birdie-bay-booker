@@ -231,6 +231,9 @@ export function SavedTeams() {
         className="max-w-sm"
       />
 
+      <HandicapMismatches />
+
+
       {/* TEAMS first, used most often */}
 
       {/* TEAMS, read-only pairings */}
