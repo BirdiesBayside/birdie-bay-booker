@@ -9,12 +9,15 @@ import { SGTLeagueMembers } from "@/components/admin/sgt/SGTLeagueMembers";
 import { SGTTournaments } from "@/components/admin/sgt/SGTTournaments";
 import { SGTWinners } from "@/components/admin/sgt/SGTWinners";
 import { LeagueHighlights } from "@/components/admin/LeagueHighlights";
-import { LayoutDashboard, UserPlus, Users, Calendar, Award, Video } from "lucide-react";
+import { SGTSettingsDialog } from "@/components/admin/sgt/SGTSettingsDialog";
+import { Button } from "@/components/ui/button";
+import { LayoutDashboard, UserPlus, Users, Calendar, Award, Video, Settings } from "lucide-react";
 
 export default function AdminSGTManager() {
   const { isLoading } = useAdminAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState("dashboard");
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Handle URL tab parameter (for email links)
   useEffect(() => {
@@ -40,14 +43,27 @@ export default function AdminSGTManager() {
   return (
     <AdminLayout>
       <div className="p-6 space-y-6">
-        <div>
-          <h1 className="text-3xl font-display font-bold text-foreground">
-            SGT Manager
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Manage league members, tournaments, and track winners
-          </p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-3xl font-display font-bold text-foreground">
+              SGT Manager
+            </h1>
+            <p className="text-muted-foreground mt-1">
+              Manage league members, tournaments, and track winners
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="icon"
+            aria-label="SGT connection settings"
+            onClick={() => setSettingsOpen(true)}
+          >
+            <Settings className="h-4 w-4" />
+          </Button>
         </div>
+
+        <SGTSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="bg-muted/50 p-1">
