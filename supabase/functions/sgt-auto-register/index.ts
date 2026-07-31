@@ -9,7 +9,9 @@ const corsHeaders = {
 };
 
 const SGT_BASE_URL = "https://simulatorgolftour.com/sgt-api/club-admin";
-const CLUB_URL = "birdiesbayside";
+import { getClubUrl } from "../_shared/sgt-config.ts";
+
+let CLUB_URL = "birdiesbayside";
 
 // Supabase client for API key retrieval - set on each request
 let supabaseClient: any = null;
