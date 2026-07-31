@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, Users, User, ChevronDown } from "lucide-react";
+import { HandicapMismatches } from "./HandicapMismatches";
 
 interface Player {
   id: string;
