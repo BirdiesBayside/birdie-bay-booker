@@ -235,7 +235,7 @@ export function SGTLeagueMembers() {
               </div>
               <p className="text-sm text-muted-foreground">
                 {useCustomEnabled
-                  ? `Best ${BEST_ROUNDS} of last ${ROUNDS_REQUIRED} rounds. New members locked for ${ROUNDS_REQUIRED} rounds.`
+                  ? `Best ${BEST_ROUNDS} of the last ${WINDOW_ROUNDS} rounds. New members locked to their onboarding HCP for their first ${ROUNDS_REQUIRED} rounds.`
                   : "All players will use SGT's combo handicap during auto-registration."}
               </p>
             </div>
