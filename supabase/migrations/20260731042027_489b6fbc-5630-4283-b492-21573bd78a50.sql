@@ -1,0 +1,1 @@
+SELECT cron.unschedule('sgt-highlight-poller-every-minute') WHERE EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'sgt-highlight-poller-every-minute');
