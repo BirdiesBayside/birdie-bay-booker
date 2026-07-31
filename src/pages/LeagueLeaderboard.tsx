@@ -17,6 +17,26 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { getCurrentBlockLabel } from "@/lib/league-block";
 import { TournamentStatsView } from "@/components/sgt/TournamentStatsView";
+import { useExemptPlayers, TRUE_HCP_ROUNDS } from "@/hooks/useExemptPlayers";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
+function ExemptBadge() {
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="ml-1.5 inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold bg-muted text-muted-foreground align-middle">
+            E
+          </span>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-xs">
+          Exempt — still setting their true handicap ({TRUE_HCP_ROUNDS} rounds).
+          They take part but aren't eligible for prizes or monthly points yet.
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
 
 interface MonthlyStanding {
   id: string;
