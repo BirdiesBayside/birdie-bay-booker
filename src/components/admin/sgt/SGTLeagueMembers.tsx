@@ -36,6 +36,7 @@ interface LeagueMember {
 
 const ROUNDS_REQUIRED = 3;
 const BEST_ROUNDS = 3;
+const WINDOW_ROUNDS = 6;
 
 export function SGTLeagueMembers() {
   const { toast } = useToast();
