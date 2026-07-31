@@ -1,8 +1,8 @@
 // Birdies Custom HCP recalculator
-// Runs weekly. For each onboarded league member with >= 6 completed rounds,
-// calculates the average to-par-gross of their best 3 of the last 6 rounds
-// and writes it to sgt_tour_members.custom_hcp.
-// Members with < 6 rounds keep their onboarding_hcp (locked).
+// Runs weekly. A player's "true handicap" kicks in as soon as they have
+// 3 completed 18-hole rounds: the average to-par-gross of their best 3
+// rounds from their last 6, written to sgt_tour_members.custom_hcp.
+// Members with < 3 rounds keep their onboarding_hcp (locked).
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -11,8 +11,9 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const ROUNDS_REQUIRED = 6;
+const ROUNDS_REQUIRED = 3; // rounds needed before a true handicap is calculated
 const BEST_ROUNDS = 3;
+const WINDOW_ROUNDS = 6; // most recent rounds considered
 const HCP_MIN = -36;
 const HCP_MAX = 36;
 
@@ -102,7 +103,7 @@ Deno.serve(async (req) => {
 
       const scorecards = (rawCards ?? [])
         .filter((sc: any) => isFullEighteen(sc))
-        .slice(0, roundsRequired);
+        .slice(0, WINDOW_ROUNDS);
 
       const roundsPlayed = scorecards.length;
 
@@ -126,9 +127,9 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // UNLOCKED: best 3 of last 6 to-par-gross average
+      // UNLOCKED: average of the best N rounds within the last WINDOW_ROUNDS
       const toPars = scorecards.map((s: any) => Number(s.to_par_gross)).sort((a, b) => a - b);
-      const best = toPars.slice(0, bestRounds);
+      const best = toPars.slice(0, Math.min(bestRounds, toPars.length));
       const avgToPar = best.reduce((a, b) => a + b, 0) / best.length;
 
       // Round to 1 decimal and clamp
@@ -159,7 +160,7 @@ Deno.serve(async (req) => {
         old_hcp: null,
         new_hcp: newHcp,
         rounds: roundsPlayed,
-        status: `recalculated (best ${bestRounds} of last ${roundsRequired})`,
+        status: `recalculated (best ${Math.min(bestRounds, roundsPlayed)} of last ${roundsPlayed})`,
       });
     }
 

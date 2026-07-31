@@ -2,6 +2,7 @@ import { Trophy, Medal, Award, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSGTTournamentStandings } from "@/hooks/useSGTEmbedData";
 import { useActiveTourData } from "@/hooks/useActiveTourData";
+import { useExemptPlayers } from "@/hooks/useExemptPlayers";
 import birdiesLogo from "@/assets/birdies-b-orange.png";
 
 export default function EmbedTVWeekly() {
@@ -13,6 +14,8 @@ export default function EmbedTVWeekly() {
     enabled: !!currentTournament,
     refreshInterval: 30000, // 30 second refresh for live updates
   });
+
+  const { isExempt } = useExemptPlayers(currentTournament?.tournament_id ?? null);
 
   const isLoading = tourLoading || standingsLoading;
 
@@ -100,8 +103,16 @@ export default function EmbedTVWeekly() {
               </div>
 
               <div className="col-span-4">
-                <p className="font-bold text-2xl text-[hsl(128,42%,21%)]">{result.playerName}</p>
+                <p className="font-bold text-2xl text-[hsl(128,42%,21%)]">
+                  {result.playerName}
+                  {isExempt(result.playerName) && (
+                    <span className="ml-2 align-middle rounded px-2 py-0.5 text-base font-bold bg-[hsl(128,20%,90%)] text-[hsl(128,20%,40%)]">
+                      E
+                    </span>
+                  )}
+                </p>
               </div>
+
 
               <div className="col-span-1 text-center text-xl text-[hsl(128,20%,40%)]">
                 {result.hcp ?? "-"}
@@ -146,7 +157,7 @@ export default function EmbedTVWeekly() {
 
       {/* Footer */}
       <div className="mt-4 text-center text-lg text-[hsl(128,20%,40%)]">
-        Live updates every 30 seconds • Powered by Birdies League Hub
+        <span className="font-bold">E</span> = Exempt (setting true handicap over first 3 rounds) • Live updates every 30 seconds • Powered by Birdies League Hub
       </div>
     </div>
   );

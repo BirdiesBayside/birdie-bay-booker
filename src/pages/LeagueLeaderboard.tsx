@@ -17,6 +17,26 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { getCurrentBlockLabel } from "@/lib/league-block";
 import { TournamentStatsView } from "@/components/sgt/TournamentStatsView";
+import { useExemptPlayers, TRUE_HCP_ROUNDS } from "@/hooks/useExemptPlayers";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
+function ExemptBadge() {
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="ml-1.5 inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold bg-muted text-muted-foreground align-middle">
+            E
+          </span>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-xs">
+          Exempt — still setting their true handicap ({TRUE_HCP_ROUNDS} rounds).
+          They take part but aren't eligible for prizes or monthly points yet.
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
 
 interface MonthlyStanding {
   id: string;
@@ -93,6 +113,10 @@ export default function LeagueLeaderboard() {
     enabled: !!selectedTournament && activeTab === "weekly",
     refreshInterval: 30000,
   });
+
+  const { isExempt } = useExemptPlayers(activeTab === "weekly" ? selectedTournament : null);
+
+
 
   const isLoading = tourLoading || (activeTab === "weekly" ? tournamentStandingsLoading : monthlyLoading);
 
@@ -436,6 +460,15 @@ export default function LeagueLeaderboard() {
                 </div>
               )}
 
+              <div className="px-4 py-2 border-b border-border bg-muted/20 font-inter text-xs text-muted-foreground">
+                <span className="font-bold text-foreground">E</span> = Exempt — new
+                players are still setting their true handicap over their first{" "}
+                {TRUE_HCP_ROUNDS} rounds. They play, but aren't eligible for prizes
+                or monthly points until week three.
+              </div>
+
+
+
               {/* Table Header - Mobile */}
               <div className="grid md:hidden grid-cols-12 gap-4 px-4 py-2 bg-muted/50 border-b border-border font-inter text-xs font-medium text-muted-foreground">
                 <div className="col-span-2 text-center">#</div>
@@ -458,6 +491,7 @@ export default function LeagueLeaderboard() {
               <div className="divide-y divide-border">
                 {tournamentStandings.map((result, index) => {
                   const isCurrentPlayer = displayName && result.playerName.toLowerCase() === displayName.toLowerCase();
+                  const playerExempt = isExempt(result.playerName);
 
                   return (
                     <div
@@ -495,6 +529,7 @@ export default function LeagueLeaderboard() {
                             isCurrentPlayer ? "text-secondary" : "text-foreground"
                           )}>
                             {result.playerName}
+                            {playerExempt && <ExemptBadge />}
                             {isCurrentPlayer && <span className="text-xs ml-1">(You)</span>}
                           </p>
                           <p className="font-inter text-xs text-muted-foreground">
@@ -562,6 +597,7 @@ export default function LeagueLeaderboard() {
                             isCurrentPlayer ? "text-secondary" : "text-foreground"
                           )}>
                             {result.playerName}
+                            {playerExempt && <ExemptBadge />}
                             <span className="text-muted-foreground font-normal ml-1">
                               ({result.hcp ?? "-"})
                             </span>
