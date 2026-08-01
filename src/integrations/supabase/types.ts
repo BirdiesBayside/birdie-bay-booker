@@ -886,6 +886,8 @@ export type Database = {
           code: string
           created_at: string
           id: string
+          is_permanent: boolean
+          label: string | null
           last_error: string | null
           provider: string
           provider_ref: string | null
@@ -902,6 +904,8 @@ export type Database = {
           code: string
           created_at?: string
           id?: string
+          is_permanent?: boolean
+          label?: string | null
           last_error?: string | null
           provider?: string
           provider_ref?: string | null
@@ -918,6 +922,8 @@ export type Database = {
           code?: string
           created_at?: string
           id?: string
+          is_permanent?: boolean
+          label?: string | null
           last_error?: string | null
           provider?: string
           provider_ref?: string | null

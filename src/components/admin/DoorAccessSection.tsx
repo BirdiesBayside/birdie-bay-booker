@@ -42,8 +42,10 @@ interface DoorCodeRow {
   last_error: string | null;
   booking_id: string | null;
   scope?: string;
-
+  label?: string | null;
+  is_permanent?: boolean;
 }
+
 
 const MODE_LABELS: Record<DoorAccessSettings["mode"], { label: string; help: string }> = {
   fixed: {
@@ -86,13 +88,22 @@ export function DoorAccessSection() {
   const [issuingTest, setIssuingTest] = useState(false);
   const [testResult, setTestResult] = useState<string | null>(null);
 
+  // Named staff / contractor codes
+  const [namedLabel, setNamedLabel] = useState("");
+  const [namedCodeInput, setNamedCodeInput] = useState("");
+  const [namedPermanent, setNamedPermanent] = useState(true);
+  const [namedExpiry, setNamedExpiry] = useState(() => bneLocalInput(60 * 24 * 30));
+  const [issuingNamed, setIssuingNamed] = useState(false);
+
   const load = async () => {
     setIsLoading(true);
     const [{ data: s }, { data: c }] = await Promise.all([
       supabase.from("door_access_settings").select("*").eq("id", "global").maybeSingle(),
       supabase
         .from("door_codes")
-        .select("id, code, status, valid_from, valid_until, provider, last_error, booking_id, scope")
+        .select(
+          "id, code, status, valid_from, valid_until, provider, last_error, booking_id, scope, label, is_permanent",
+        )
         .in("status", ["pending", "active"])
         .order("valid_from", { ascending: true })
         .limit(50),
@@ -104,6 +115,7 @@ export function DoorAccessSection() {
     setCodes((c as DoorCodeRow[]) || []);
     setIsLoading(false);
   };
+
 
 
   useEffect(() => {
@@ -161,6 +173,38 @@ export function DoorAccessSection() {
     load();
   };
 
+  const issueNamed = async () => {
+    if (!namedLabel.trim()) {
+      toast({ title: "Add a name first", variant: "destructive", duration: 3000 });
+      return;
+    }
+    setIssuingNamed(true);
+    const { data, error } = await supabase.functions.invoke("door-code-manager", {
+      body: {
+        action: "issue_named",
+        label: namedLabel.trim(),
+        code: namedCodeInput.replace(/\D/g, "") || undefined,
+        permanent: namedPermanent,
+        valid_until: namedPermanent ? undefined : bneInputToIso(namedExpiry),
+      },
+    });
+    setIssuingNamed(false);
+    if (error || !data?.success) {
+      const msg = error?.message || data?.error || "Unknown error";
+      toast({ title: "Could not issue code", description: msg, variant: "destructive", duration: 6000 });
+      load();
+      return;
+    }
+    toast({
+      title: `${data.code} assigned to ${namedLabel.trim()}`,
+      description: namedPermanent ? "Permanent (no expiry)" : `Expires ${formatBrisbane(data.valid_until)}`,
+      duration: 6000,
+    });
+    setNamedLabel("");
+    setNamedCodeInput("");
+    load();
+  };
+
 
   const revoke = async (id: string) => {
     const { error } = await supabase.functions.invoke("door-code-manager", {
@@ -178,6 +222,10 @@ export function DoorAccessSection() {
 
   const set = <K extends keyof DoorAccessSettings>(key: K, value: DoorAccessSettings[K]) =>
     setDraft((d) => (d ? { ...d, [key]: value } : d));
+
+  const staffCodes = codes.filter((c) => c.scope === "staff");
+  const otherCodes = codes.filter((c) => c.scope !== "staff");
+
 
   return (
     <div className="space-y-4">
@@ -274,6 +322,100 @@ export function DoorAccessSection() {
       </Card>
 
 
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <KeyRound className="h-4 w-4" />
+            Named Codes (Staff & Contractors)
+          </CardTitle>
+          <CardDescription>
+            Assign a code to a person — staff, cleaner, contractor — and revoke it instantly when
+            they no longer need access. Tuya has no separate "permanent code" API, so a permanent
+            code is issued with a 10-year expiry; it behaves exactly like a fixed code and can be
+            removed from the keypad at any time.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-3 max-w-3xl">
+            <div className="space-y-2">
+              <Label>Name</Label>
+              <Input
+                value={namedLabel}
+                onChange={(e) => setNamedLabel(e.target.value)}
+                placeholder="e.g. Sam — Cleaner"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Code (optional)</Label>
+              <Input
+                value={namedCodeInput}
+                onChange={(e) => setNamedCodeInput(e.target.value)}
+                placeholder="Auto-generated"
+                inputMode="numeric"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Expires (Brisbane)</Label>
+              <Input
+                type="datetime-local"
+                value={namedExpiry}
+                onChange={(e) => setNamedExpiry(e.target.value)}
+                disabled={namedPermanent}
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <Switch id="named_permanent" checked={namedPermanent} onCheckedChange={setNamedPermanent} />
+            <Label htmlFor="named_permanent" className="text-sm">
+              Permanent (no expiry)
+            </Label>
+          </div>
+
+          <Button onClick={issueNamed} disabled={issuingNamed}>
+            {issuingNamed ? "Pushing to keypad..." : "Create code"}
+          </Button>
+
+          <div className="space-y-2">
+            {staffCodes.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No named codes yet.</p>
+            ) : (
+              staffCodes.map((c) => (
+                <div
+                  key={c.id}
+                  className="flex flex-wrap items-center justify-between gap-3 border rounded-lg p-3 text-sm"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium break-words">{c.label || "Unnamed"}</span>
+                      <span className="font-mono font-semibold">{c.code}</span>
+                      <Badge variant={c.status === "active" ? "default" : "secondary"} className="text-xs">
+                        {c.status}
+                      </Badge>
+                      {c.is_permanent && (
+                        <Badge variant="outline" className="text-xs">
+                          permanent
+                        </Badge>
+                      )}
+                    </div>
+                    {!c.is_permanent && (
+                      <p className="text-xs text-muted-foreground mt-1 break-words">
+                        Expires {formatBrisbane(c.valid_until)}
+                      </p>
+                    )}
+                    {c.last_error && (
+                      <p className="text-xs text-destructive mt-1 break-words">{c.last_error}</p>
+                    )}
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => revoke(c.id)}>
+                    Revoke
+                  </Button>
+                </div>
+              ))
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
 
       <Card>
@@ -365,10 +507,10 @@ export function DoorAccessSection() {
           </Button>
         </CardHeader>
         <CardContent className="space-y-2">
-          {codes.length === 0 ? (
+          {otherCodes.length === 0 ? (
             <p className="text-sm text-muted-foreground">No active codes.</p>
           ) : (
-            codes.map((c) => (
+            otherCodes.map((c) => (
               <div
                 key={c.id}
                 className="flex flex-wrap items-center justify-between gap-3 border rounded-lg p-3 text-sm"
