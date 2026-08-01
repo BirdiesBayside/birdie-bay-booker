@@ -88,13 +88,22 @@ export function DoorAccessSection() {
   const [issuingTest, setIssuingTest] = useState(false);
   const [testResult, setTestResult] = useState<string | null>(null);
 
+  // Named staff / contractor codes
+  const [namedLabel, setNamedLabel] = useState("");
+  const [namedCodeInput, setNamedCodeInput] = useState("");
+  const [namedPermanent, setNamedPermanent] = useState(true);
+  const [namedExpiry, setNamedExpiry] = useState(() => bneLocalInput(60 * 24 * 30));
+  const [issuingNamed, setIssuingNamed] = useState(false);
+
   const load = async () => {
     setIsLoading(true);
     const [{ data: s }, { data: c }] = await Promise.all([
       supabase.from("door_access_settings").select("*").eq("id", "global").maybeSingle(),
       supabase
         .from("door_codes")
-        .select("id, code, status, valid_from, valid_until, provider, last_error, booking_id, scope")
+        .select(
+          "id, code, status, valid_from, valid_until, provider, last_error, booking_id, scope, label, is_permanent",
+        )
         .in("status", ["pending", "active"])
         .order("valid_from", { ascending: true })
         .limit(50),
@@ -106,6 +115,7 @@ export function DoorAccessSection() {
     setCodes((c as DoorCodeRow[]) || []);
     setIsLoading(false);
   };
+
 
 
   useEffect(() => {
