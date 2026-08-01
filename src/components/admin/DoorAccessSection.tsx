@@ -318,6 +318,100 @@ export function DoorAccessSection() {
       </Card>
 
 
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <KeyRound className="h-4 w-4" />
+            Named Codes (Staff & Contractors)
+          </CardTitle>
+          <CardDescription>
+            Assign a code to a person — staff, cleaner, contractor — and revoke it instantly when
+            they no longer need access. Tuya has no separate "permanent code" API, so a permanent
+            code is issued with a 10-year expiry; it behaves exactly like a fixed code and can be
+            removed from the keypad at any time.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-3 max-w-3xl">
+            <div className="space-y-2">
+              <Label>Name</Label>
+              <Input
+                value={namedLabel}
+                onChange={(e) => setNamedLabel(e.target.value)}
+                placeholder="e.g. Sam — Cleaner"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Code (optional)</Label>
+              <Input
+                value={namedCodeInput}
+                onChange={(e) => setNamedCodeInput(e.target.value)}
+                placeholder="Auto-generated"
+                inputMode="numeric"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Expires (Brisbane)</Label>
+              <Input
+                type="datetime-local"
+                value={namedExpiry}
+                onChange={(e) => setNamedExpiry(e.target.value)}
+                disabled={namedPermanent}
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <Switch id="named_permanent" checked={namedPermanent} onCheckedChange={setNamedPermanent} />
+            <Label htmlFor="named_permanent" className="text-sm">
+              Permanent (no expiry)
+            </Label>
+          </div>
+
+          <Button onClick={issueNamed} disabled={issuingNamed}>
+            {issuingNamed ? "Pushing to keypad..." : "Create code"}
+          </Button>
+
+          <div className="space-y-2">
+            {staffCodes.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No named codes yet.</p>
+            ) : (
+              staffCodes.map((c) => (
+                <div
+                  key={c.id}
+                  className="flex flex-wrap items-center justify-between gap-3 border rounded-lg p-3 text-sm"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium break-words">{c.label || "Unnamed"}</span>
+                      <span className="font-mono font-semibold">{c.code}</span>
+                      <Badge variant={c.status === "active" ? "default" : "secondary"} className="text-xs">
+                        {c.status}
+                      </Badge>
+                      {c.is_permanent && (
+                        <Badge variant="outline" className="text-xs">
+                          permanent
+                        </Badge>
+                      )}
+                    </div>
+                    {!c.is_permanent && (
+                      <p className="text-xs text-muted-foreground mt-1 break-words">
+                        Expires {formatBrisbane(c.valid_until)}
+                      </p>
+                    )}
+                    {c.last_error && (
+                      <p className="text-xs text-destructive mt-1 break-words">{c.last_error}</p>
+                    )}
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => revoke(c.id)}>
+                    Revoke
+                  </Button>
+                </div>
+              ))
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
 
       <Card>
