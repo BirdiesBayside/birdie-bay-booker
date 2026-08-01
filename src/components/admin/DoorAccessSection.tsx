@@ -507,10 +507,10 @@ export function DoorAccessSection() {
           </Button>
         </CardHeader>
         <CardContent className="space-y-2">
-          {codes.length === 0 ? (
+          {otherCodes.length === 0 ? (
             <p className="text-sm text-muted-foreground">No active codes.</p>
           ) : (
-            codes.map((c) => (
+            otherCodes.map((c) => (
               <div
                 key={c.id}
                 className="flex flex-wrap items-center justify-between gap-3 border rounded-lg p-3 text-sm"
