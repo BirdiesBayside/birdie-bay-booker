@@ -223,6 +223,10 @@ export function DoorAccessSection() {
   const set = <K extends keyof DoorAccessSettings>(key: K, value: DoorAccessSettings[K]) =>
     setDraft((d) => (d ? { ...d, [key]: value } : d));
 
+  const staffCodes = codes.filter((c) => c.scope === "staff");
+  const otherCodes = codes.filter((c) => c.scope !== "staff");
+
+
   return (
     <div className="space-y-4">
       <Card>
