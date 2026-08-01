@@ -351,7 +351,7 @@ async function pushToProvider(codeRow: any, s: Settings, bookingLabel: string) {
 }
 
 async function revokeCode(codeRow: any, s: Settings, reason: string) {
-  const tuya = await getTuya(s, codeRow.scope === "test");
+  const tuya = await getTuya(s, codeRow.scope === "test" || codeRow.scope === "staff");
 
   let removalError: string | null = null;
   if (tuya && codeRow.provider === "tuya" && codeRow.provider_ref) {
@@ -477,7 +477,7 @@ async function syncAll() {
     .in("status", ["pending", "active"])
     .lt("valid_until", now.toISOString());
   for (const row of past || []) {
-    const tuya = await getTuya(s, row.scope === "test");
+    const tuya = await getTuya(s, row.scope === "test" || row.scope === "staff");
 
     if (tuya && row.provider_ref) {
       try { await tuya.deleteTempPassword(row.provider_ref); } catch { /* best effort */ }
@@ -550,7 +550,7 @@ async function syncAll() {
     .not("last_error", "is", null)
     .gte("valid_until", now.toISOString());
   for (const row of stuckRevoked || []) {
-    const tuya = await getTuya(s, row.scope === "test");
+    const tuya = await getTuya(s, row.scope === "test" || row.scope === "staff");
     if (!tuya) break;
     try {
       await tuya.deleteTempPassword(row.provider_ref);
