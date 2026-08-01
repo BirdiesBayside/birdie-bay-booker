@@ -42,8 +42,10 @@ interface DoorCodeRow {
   last_error: string | null;
   booking_id: string | null;
   scope?: string;
-
+  label?: string | null;
+  is_permanent?: boolean;
 }
+
 
 const MODE_LABELS: Record<DoorAccessSettings["mode"], { label: string; help: string }> = {
   fixed: {
