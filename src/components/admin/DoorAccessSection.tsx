@@ -173,6 +173,38 @@ export function DoorAccessSection() {
     load();
   };
 
+  const issueNamed = async () => {
+    if (!namedLabel.trim()) {
+      toast({ title: "Add a name first", variant: "destructive", duration: 3000 });
+      return;
+    }
+    setIssuingNamed(true);
+    const { data, error } = await supabase.functions.invoke("door-code-manager", {
+      body: {
+        action: "issue_named",
+        label: namedLabel.trim(),
+        code: namedCodeInput.replace(/\D/g, "") || undefined,
+        permanent: namedPermanent,
+        valid_until: namedPermanent ? undefined : bneInputToIso(namedExpiry),
+      },
+    });
+    setIssuingNamed(false);
+    if (error || !data?.success) {
+      const msg = error?.message || data?.error || "Unknown error";
+      toast({ title: "Could not issue code", description: msg, variant: "destructive", duration: 6000 });
+      load();
+      return;
+    }
+    toast({
+      title: `${data.code} assigned to ${namedLabel.trim()}`,
+      description: namedPermanent ? "Permanent (no expiry)" : `Expires ${formatBrisbane(data.valid_until)}`,
+      duration: 6000,
+    });
+    setNamedLabel("");
+    setNamedCodeInput("");
+    load();
+  };
+
 
   const revoke = async (id: string) => {
     const { error } = await supabase.functions.invoke("door-code-manager", {
