@@ -622,6 +622,16 @@ Deno.serve(async (req) => {
           label: body.label,
         });
         break;
+      case "issue_named":
+        result = await issueNamedCode({
+          label: body.label,
+          code: body.code,
+          permanent: body.permanent,
+          valid_from: body.valid_from,
+          valid_until: body.valid_until,
+        });
+        break;
+
       case "sync":
         result = await syncAll();
         break;
