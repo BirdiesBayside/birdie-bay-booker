@@ -1,124 +1,102 @@
-# Baseline Hub: remix-ready platform + context handover
+# Handover docs + Baseline de-branding guide
 
-Goal: produce a clean, re-usable "BASELINE HUB" copy of this platform that a new
-client project can be remixed from, without the Birdies-specific wiring — and
-without losing the accumulated knowledge that makes work in this project reliable.
+Write the full platform knowledge into this repo now, so the remix into
+`BASELINE HUB` carries it. Nothing in the app changes — this adds a `docs/platform/`
+folder only.
 
-## What the survey of this codebase actually shows
+## Why this works
 
-- 231 TypeScript/React files, 90 edge functions, 180 migrations.
-- 150 files mention "Birdies" by name.
-- Core operational data is already config-driven, not hardcoded: bays, pricing,
-  operating/staffed hours, POS products, email templates, email header/footer,
-  door access settings and SGT club credentials all live in database tables.
-- What *is* hardcoded and would break or embarrass a client:
-  - `birdiesbayside.com.au` links inside ~25 edge functions (emails, Stripe
-    redirects, password reset, marketing).
-  - Sender/recipient addresses: `info@`, `noreply@`, `admin@birdiesbayside.com`
-    (41 + 7 + 7 occurrences).
-  - Stripe membership price IDs seeded in an old migration.
-  - Marketing site copy, brand colours, fonts, logos, legal pages, and the
-    `/bayside/*` static pages (Sam's own lead-gen assets — should not ship).
-  - Hub vs booking domain detection (`isHubHost()`), Capacitor app id
-    `com.birdiesbayside.hub`, Electron/Bay Controller GitHub release repo.
+Memory and chat history don't travel with a remix; the repo does. Written into
+`docs/platform/`, the knowledge becomes the first thing the next agent reads.
 
-So the risk is real but it is mostly **surface area, not architecture**. The
-booking engine, bay automation state machine, membership billing and SGT logic
-are generic; they are parameterised by DB rows, not by "Birdies".
+The survey of this codebase says the risk is surface area, not architecture:
+bays, pricing, operating/staffed hours, POS products, email templates and
+header/footer, door settings and SGT credentials are all already DB-driven.
+What is genuinely Birdies-specific: `birdiesbayside.com.au` links across ~25
+edge functions, sender addresses (`info@`/`noreply@`/`admin@birdiesbayside.com`),
+seeded Stripe price IDs, marketing copy and brand assets, the `/bayside/*` pages,
+Capacitor app id `com.birdiesbayside.hub`, and the Bay Controller release repo.
 
-## Recommended sequence
+## Part 1 — Docs written into this project now
 
-1. **Harden context in this project first** (below) so the remix carries it.
-2. Remix → `BASELINE HUB` in the Bayside Golf workspace.
-3. Do the de-branding work **in BASELINE HUB**, not here — Birdies keeps running
-   untouched, and Baseline becomes the generic product.
-4. Remix BASELINE HUB per client; run the onboarding runbook.
-5. When Birdies gains a feature worth productising, port it into BASELINE HUB
-   deliberately (never the reverse).
+`docs/platform/README.md` — entry point; tells the agent to read 00 first.
 
-## Part A — Context handover (do this before remixing)
-
-Memory and chat history do not travel with a remix; the repo does. So the
-knowledge has to be written **into the repo** as files the next agent will read.
-
-Create `docs/platform/` containing:
-
-- `00-OVERVIEW.md` — what the platform is, the two domains (booking vs hub),
-  who the actors are (visitor, member tiers, staff, admin), and the
-  non-negotiables (Brisbane timezone everywhere, no bare `toLocaleString`,
-  edge functions use `npm:` imports + `Deno.serve` + CORS).
-- `01-BOOKING-ENGINE.md` — availability rules, see-through pending logic,
-  peak/off-peak, deposits/credits, reschedule + cancel cut-offs (live at
-  T+10min), extensions, idempotency buckets for Stripe.
-- `02-BAY-CONTROLLER.md` — the explicit state machine, the T-3m/T-1m/T-20s/T+0
-  timeline, back-to-back bypass, settings baseline + customer snapshot restore,
-  kiosk mode, watchdog, launch-loop protection, OBS recording + tus upload,
-  hard-stop at T-120s.
-- `03-MEMBERSHIPS-BILLING.md` — tiers, immediate charge policy, tier switching
+- `00-OVERVIEW.md` — what the platform is, booking domain vs hub domain,
+  actors (visitor / weekday / birdie / eagle / staff / admin), and the
+  non-negotiables: Australia/Brisbane everywhere via `src/lib/brisbane-time.ts`,
+  edge functions use `npm:` imports + `Deno.serve` + full CORS, roles live in
+  `user_roles` with `has_role()`, every public table needs GRANTs.
+- `01-BOOKING-ENGINE.md` — availability and see-through pending logic,
+  peak/off-peak, deposits and credits, reschedule/cancel cut-off at T+10min,
+  extensions, Stripe idempotency buckets, bay blocks, admin timetable.
+- `02-BAY-CONTROLLER.md` — explicit state machine, the T-3m/T-1m/T-20s/T+0
+  timeline, back-to-back bypass, baseline + customer snapshot settings restore,
+  kiosk mode, watchdog, launch-loop protection, plug control via
+  `tapo_control.exe`, OBS recording, tus upload, hard stop at T-120s.
+- `03-MEMBERSHIPS-BILLING.md` — tiers, immediate-charge policy, tier switching
   via `subscription.update` with unchanged anchor, payment-failure ladder,
   webhook idempotency via `stripe_processed_events`.
-- `04-LEAGUE-AND-COMP.md` — SGT integration order (club → tour → tournament),
-  3-round provisional handicap and the (E) rule, monthly points scale, Ambrose
-  handicap formula (25% of gap to field average, capped ±2, winner bonuses).
-- `05-NOTIFICATIONS.md` — email layout table, wrapper helper, merge tags
-  including `{staffed_status}`, SMS templates, push.
-- `06-INTEGRATIONS.md` — Stripe, Resend, Tuya door codes, Tapo plugs,
-  Cloudflare Stream, SGT API, Shopify gift cards: what each needs and which
-  secrets/settings tables drive them.
-- `07-TENANT-CONFIG.md` — the single source of truth for everything a new
-  client must change (see Part B).
-- `08-ONBOARDING-RUNBOOK.md` — ordered checklist to stand up a new venue.
+- `04-LEAGUE-AND-COMP.md` — SGT club→tour→tournament order, 3-round provisional
+  handicap and the (E) rule, monthly points scale, Ambrose handicap formula
+  (25% of gap to field average, capped ±2, winner bonuses), highlights pipeline.
+- `05-NOTIFICATIONS.md` — `email_layout` header/footer, the wrapper helper,
+  merge tags including `{staffed_status}`, SMS templates, push.
+- `06-INTEGRATIONS.md` — Stripe, Resend, Tuya door codes, Tapo plugs, Cloudflare
+  Stream, SGT API, gift cards: what each needs, which settings tables drive it,
+  and which secrets must be re-added per project.
+- `07-TENANT-CONFIG.md` — every value a new venue must change, with file/table
+  locations: domains, sender addresses, phone, brand tokens, app ids, bay count.
+- `08-DEBRANDING-GUIDE.md` — the step-by-step for turning the remix into a
+  neutral BASELINE HUB (Part 2 below), written as an instruction set the agent
+  in that project can execute.
+- `09-BAY-CONTROLLER-BUILD.md` — how to stand up the client's own Bay Controller
+  installer: the GitHub Actions workflow, `electron/package.json` publish block,
+  auto-increment versioning from `latest.yml`, electron-updater feed, the
+  PyInstaller Tapo step, icon/product name, and exactly which fields change per
+  client (repo owner/name, appId, productName, artifact name, hub domain).
+  Explicitly: the workflow and Tapo login logic are kept, only the wiring changes.
+- `10-ONBOARDING-RUNBOOK.md` — ordered checklist to take a client project from
+  remix to live.
+- `memory/` — the current project memory exported as plain markdown so the Core
+  rules can be pasted into the new project's Knowledge settings.
 
-Also export the current project memory (the `mem://` index and its files) into
-`docs/platform/memory/` as plain markdown, and add a short `README` pointing the
-agent at `docs/platform/00-OVERVIEW.md` first. In the remixed project, paste the
-Core rules into Project Settings → Knowledge so they load on every message.
+Every doc is written from the code, stating only what the code does.
 
-These docs are written from the code, not from recollection: each one is
-produced by reading the relevant files and stating only what the code does.
+## Part 2 — What the de-branding guide will instruct (run in BASELINE HUB, not here)
 
-## Part B — De-Birdies-ification (performed in BASELINE HUB)
+Target: a neutral blank canvas that still boots and works.
 
-1. **Tenant config table + `src/config/tenant.ts`** — venue name, legal entity,
-   public domain, hub domain, support phone, support email, sender addresses,
-   address/geo, ABN, social links, brand colours/fonts. One typed accessor used
-   everywhere; no literals in components.
+1. **Tenant config** — one `tenant_settings` table + `src/config/tenant.ts`
+   accessor: venue name, legal entity, booking domain, hub domain, support phone
+   and email, sender addresses, address, ABN, socials. No literals in components.
 2. **Edge functions** — replace every `birdiesbayside.com.au` and
-   `*@birdiesbayside.com` literal with values read from the tenant config /
-   `system_settings`, falling back to an env var. Audit all 90 functions.
-3. **Marketing site** — reduce to a neutral template: generic copy, placeholder
-   imagery, tokenised brand colours, tenant-driven contact details, and legal
-   pages (terms, privacy, media-consent clause) with the venue name injected.
-4. **Remove Birdies-only assets** — `public/bayside/*`, the codebase audit page,
-   Birdies logos, SGT club credentials, Tuya device IDs, real Stripe price IDs,
-   GitHub release repo for the Bay Controller, Capacitor app id + Android
-   signing config.
-5. **Seed data instead of Birdies data** — a `baseline_seed` migration creating
-   sensible defaults (bays 1-6 placeholder, 5am-11pm operating hours, example
-   pricing, default email templates and header/footer) so a fresh project boots
-   into a working, obviously-placeholder state.
-6. **Data cleanse** — the remix carries a copy of the database. Baseline must
-   ship with zero real customers, bookings, payments, recordings, SGT members or
-   door codes. A `baseline_reset` script truncates transactional tables and
-   leaves only config + templates.
-7. **Config completeness check** — a small admin "Setup Status" page listing
-   each required tenant setting and integration with a red/green state, so a new
-   client project can be brought live without guessing.
+   `@birdiesbayside.com` literal across all 90 functions with tenant values.
+3. **Marketing site** — neutral copy, placeholder imagery, brand tokens in
+   `index.css`/`tailwind.config.ts` reset to a neutral palette, legal pages with
+   the venue name injected.
+4. **Strip Birdies assets** — `public/bayside/*`, the codebase audit page,
+   Birdies logos/video, `public/birdies-guide.html`, Android package rename off
+   `com.birdiesbayside.hub`, `google-services.json` removed.
+5. **Empty the commercial layer** — no Stripe products or price IDs, no
+   membership tiers seeded, `pricing_config` empty, `MEMBERSHIP_TIERS` in
+   `src/types/booking.ts` reduced to a data-driven empty default, gift cards and
+   POS products cleared. Admin still lets a client create tiers and pricing from
+   scratch, and the app degrades gracefully with zero tiers (visitor-only).
+6. **Data cleanse** — a `baseline_reset` migration truncating all transactional
+   tables (profiles, bookings, payments, orders, recordings, SGT data, door
+   codes, notifications) so Baseline ships with zero real people or money.
+7. **Seed only structure** — 6 placeholder bays, 5am-11pm operating hours,
+   default email templates + header/footer, default door access settings.
+8. **Setup Status page** in Admin — red/green list of every required tenant
+   setting, secret and integration so a client project can be brought live
+   without guessing.
 
 ## Technical notes
 
-- Nothing in Part A changes application behaviour; it is documentation plus a
-  README pointer.
-- Part B item 6 is destructive by design and only ever runs in BASELINE HUB,
-  never here.
-- Bay Controller binaries are per-client: each client project needs its own
-  GitHub repo/release channel and its own auto-update feed.
-- Secrets never travel with a remix — every client project re-adds Stripe,
-  Resend, Tuya, Cloudflare, SGT and push credentials.
-
-## What I need from you before starting
-
-Confirm whether Part A (the handover docs) should be written into **this**
-project now — it adds a `docs/platform/` folder here and changes no code — or
-whether you'd rather remix first and have me write the docs inside BASELINE HUB.
-Writing them here is the safer option, because right now I have full context.
+- The Birdies GitHub repo and its Actions workflow stay exactly as they are; the
+  client's project gets its own repo and release channel, built from the same
+  workflow with the publish block repointed.
+- Secrets never travel with a remix — Stripe, Resend, Tuya, Cloudflare, SGT and
+  push credentials are re-added per project.
+- Nothing in Part 1 touches application code. Part 2 is documentation here and
+  execution only in BASELINE HUB.
