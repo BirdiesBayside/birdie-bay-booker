@@ -1,3 +1,4 @@
+import Seo from "@/components/Seo";
 import { Clock, Phone, AlertTriangle } from "lucide-react";
 import { Link } from "react-router-dom";
 import MarketingLayout from "@/components/marketing/MarketingLayout";
@@ -12,6 +13,7 @@ const hours = [
 const MarketingStaffedHours = () => {
   return (
     <MarketingLayout>
+    <Seo title={"Staffed Hours & Opening Times | Birdies Bayside"} description={"Current staffed hours and automated bay access times for Birdies Bayside indoor golf in Redland Bay. Bays open 5am to 11pm."} path="/staffed-hours" />
       {/* Hero */}
       <section className="bg-primary text-primary-foreground py-10 md:py-14">
         <div className="container mx-auto px-4 text-center">

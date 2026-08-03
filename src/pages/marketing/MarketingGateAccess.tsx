@@ -1,3 +1,4 @@
+import Seo from "@/components/Seo";
 import { useState } from "react";
 import MarketingLayout from "@/components/marketing/MarketingLayout";
 import { supabase } from "@/integrations/supabase/client";
@@ -42,6 +43,7 @@ const MarketingGateAccess = () => {
 
   return (
     <MarketingLayout>
+    <Seo title={"Gate & Bay Access Guide | Birdies Bayside"} description={"How to access the Birdies Bayside car park boom gate and your simulator bay outside staffed hours, step by step."} path="/gate-access" />
       <section className="relative h-[22vh] min-h-[160px] flex items-end overflow-hidden">
         <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${HERO})` }} />
         <div className="absolute inset-0 bg-gradient-to-t from-primary via-primary/70 to-primary/30" />

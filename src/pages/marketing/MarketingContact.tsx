@@ -1,3 +1,4 @@
+import Seo from "@/components/Seo";
 import MarketingLayout from "@/components/marketing/MarketingLayout";
 import { Phone, Mail, MapPin } from "lucide-react";
 
@@ -6,6 +7,7 @@ const MAP_IMG = "https://cdn.shopify.com/s/files/1/0758/7030/6550/files/WE_ARE_H
 
 const MarketingContact = () => (
   <MarketingLayout>
+    <Seo title={"Contact Birdies Bayside | Redland Bay Indoor Golf"} description={"Get in touch with Birdies Bayside. Find our Redland Bay address, phone number, staffed hours and directions to the centre."} path="/contact" />
     <section className="relative h-[22vh] min-h-[160px] flex items-end overflow-hidden">
       <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${HERO})` }} />
       <div className="absolute inset-0 bg-gradient-to-t from-primary via-primary/70 to-primary/30" />

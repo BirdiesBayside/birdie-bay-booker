@@ -1,3 +1,4 @@
+import Seo from "@/components/Seo";
 import MarketingLayout from "@/components/marketing/MarketingLayout";
 import { ArrowRight, LayoutGrid, Monitor, BadgePercent, Trophy, Smartphone } from "lucide-react";
 import birdiesNeonSign from "@/assets/birdies-neon-sign.png.asset.json";
@@ -34,6 +35,7 @@ const highlights = [
 
 const MarketingAbout = () => (
   <MarketingLayout>
+    <Seo title={"About Birdies Bayside | Our Indoor Golf Centre"} description={"Meet Birdies Bayside: six fully automated simulator bays, tour-accurate launch data, 4K visuals and weekly competitions in Redland Bay."} path="/about" />
     <section className="relative h-[17vh] min-h-[110px] flex items-end overflow-hidden">
       <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${HERO})` }} />
       <div className="absolute inset-0 bg-gradient-to-t from-primary via-primary/70 to-primary/30" />
