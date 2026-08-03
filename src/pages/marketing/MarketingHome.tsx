@@ -1,3 +1,4 @@
+import Seo from "@/components/Seo";
 import { Link } from "react-router-dom";
 import MarketingLayout from "@/components/marketing/MarketingLayout";
 import { Check, Clock, DollarSign, Trophy, Target, ArrowRight, BarChart3, Crosshair, TrendingUp, Activity, Gauge } from "lucide-react";
@@ -27,6 +28,7 @@ const swingLabFeatures = [
 const MarketingHome = () => {
   return (
     <MarketingLayout>
+    <Seo title={"Birdies Bayside | Indoor Golf in Redland Bay"} description={"Premium indoor golf in Redland Bay. Book one of six automated simulator bays, play 2,300+ world courses, join the league or visit the Birdies Bar."} path="/" />
       {/* HERO */}
       <section className="relative h-[88vh] min-h-[560px] flex items-center overflow-hidden">
         <video

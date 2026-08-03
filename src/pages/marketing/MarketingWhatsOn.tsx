@@ -1,3 +1,4 @@
+import Seo from "@/components/Seo";
 import { useEffect, useState } from "react";
 import MarketingLayout from "@/components/marketing/MarketingLayout";
 import { supabase } from "@/integrations/supabase/client";
@@ -40,6 +41,7 @@ const MarketingWhatsOn = () => {
 
   return (
     <MarketingLayout>
+    <Seo title={"What's On | Events at Birdies Bayside"} description={"Upcoming events, leagues, competitions and specials at Birdies Bayside indoor golf in Redland Bay."} path="/whats-on" />
       <section className="relative h-[17vh] min-h-[110px] flex items-end overflow-hidden">
         <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${HERO})` }} />
         <div className="absolute inset-0 bg-gradient-to-t from-primary via-primary/70 to-primary/30" />

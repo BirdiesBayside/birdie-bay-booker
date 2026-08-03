@@ -1,3 +1,4 @@
+import Seo from "@/components/Seo";
 import MarketingLayout from "@/components/marketing/MarketingLayout";
 import { ArrowRight, Check, Clock } from "lucide-react";
 
@@ -30,6 +31,7 @@ const tiers = [
 
 const MarketingMembership = () => (
   <MarketingLayout>
+    <Seo title={"Golf Memberships | Birdies Bayside"} description={"Compare Birdies Bayside membership tiers, included simulator hours, member pricing and 24/7 automated bay access in Redland Bay."} path="/membership-info" />
     <section className="relative h-[28vh] min-h-[220px] flex items-end overflow-hidden">
       <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${HERO})` }} />
       <div className="absolute inset-0 bg-gradient-to-t from-primary via-primary/70 to-primary/30" />

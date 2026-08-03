@@ -1,3 +1,4 @@
+import Seo from "@/components/Seo";
 import MarketingLayout from "@/components/marketing/MarketingLayout";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
@@ -41,6 +42,7 @@ const groups = [
 
 const MarketingFAQs = () => (
   <MarketingLayout>
+    <Seo title={"FAQs | Birdies Bayside Indoor Golf"} description={"Answers on booking, pricing, memberships, bay access, rental clubs, gift cards and the Birdies League at our Redland Bay centre."} path="/faqs" />
     <section className="bg-primary text-primary-foreground py-12 sm:py-20">
       <div className="container mx-auto px-4 max-w-3xl text-center">
         <p className="text-accent font-display tracking-[0.25em] uppercase text-sm mb-2">FAQs</p>

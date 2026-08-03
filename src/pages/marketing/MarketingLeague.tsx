@@ -1,3 +1,4 @@
+import Seo from "@/components/Seo";
 import MarketingLayout from "@/components/marketing/MarketingLayout";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Globe, CalendarDays, Zap, Trophy, ArrowRight } from "lucide-react";
@@ -50,6 +51,7 @@ const faqs = [
 
 const MarketingLeague = () => (
   <MarketingLayout>
+    <Seo title={"The Birdies League | Weekly Simulator Golf"} description={"Play the Birdies League each week: handicapped simulator tournaments, live leaderboards, monthly winners and prizes at Redland Bay."} path="/league-info" />
     <section className="relative h-[19vh] min-h-[130px] flex items-end overflow-hidden">
       <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${HERO})` }} />
       <div className="absolute inset-0 bg-gradient-to-t from-primary via-primary/80 to-primary/40" />
