@@ -1,58 +1,124 @@
-## Goal
+# Baseline Hub: remix-ready platform + context handover
 
-Make the whole SGT subsystem configurable from a settings panel in SGT Manager (club URL + SGT username/password), so a replicated client project only needs those three fields entered to make every SGT feature work — no code edits, no secrets set by hand.
+Goal: produce a clean, re-usable "BASELINE HUB" copy of this platform that a new
+client project can be remixed from, without the Birdies-specific wiring — and
+without losing the accumulated knowledge that makes work in this project reliable.
 
-## Audit findings (verified)
+## What the survey of this codebase actually shows
 
-**1. The club is hardcoded in 9 edge functions.** `const CLUB_URL = "birdiesbayside"` appears in `sgt-auto-register`, `sgt-sync`, `sgt-sync-eligible`, `sgt-cleanup-ineligible`, `sgt-tournament-auto-register`, `sgt-daily-tournament-register`, `sgt-delete-registrations`, `sgt-fix-tees`, `sgt-refresh-api-key`. `sgt-highlight-poller` uses a hardcoded `SGT_CLUB`, and `sgt-api` has a fully hardcoded stats URL. Only `sgt-member-management` and `sgt-register` read `SGT_CLUB_URL` from env (and `sgt-member-management` falls back to `birdiesbayside`).
+- 231 TypeScript/React files, 90 edge functions, 180 migrations.
+- 150 files mention "Birdies" by name.
+- Core operational data is already config-driven, not hardcoded: bays, pricing,
+  operating/staffed hours, POS products, email templates, email header/footer,
+  door access settings and SGT club credentials all live in database tables.
+- What *is* hardcoded and would break or embarrass a client:
+  - `birdiesbayside.com.au` links inside ~25 edge functions (emails, Stripe
+    redirects, password reset, marketing).
+  - Sender/recipient addresses: `info@`, `noreply@`, `admin@birdiesbayside.com`
+    (41 + 7 + 7 occurrences).
+  - Stripe membership price IDs seeded in an old migration.
+  - Marketing site copy, brand colours, fonts, logos, legal pages, and the
+    `/bayside/*` static pages (Sam's own lead-gen assets — should not ship).
+  - Hub vs booking domain detection (`isHubHost()`), Capacitor app id
+    `com.birdiesbayside.hub`, Electron/Bay Controller GitHub release repo.
 
-**2. Credentials come from env only.** `SGT_USERNAME` / `SGT_PASSWORD` are read in `sgt-refresh-api-key` and `sgt-register`. A client can't change them.
+So the risk is real but it is mostly **surface area, not architecture**. The
+booking engine, bay automation state machine, membership billing and SGT logic
+are generic; they are parameterised by DB rows, not by "Birdies".
 
-**3. `sgt_api_config` is a shared singleton with only `api_key`/`expires_at`** — no club, no credentials, no last-refresh status.
+## Recommended sequence
 
-**4. Duplicate cron jobs.** `sgt-highlight-poller-1min` and `sgt-highlight-poller-every-minute` both run every minute — the poller is being invoked twice per minute (plus an inline invoke from `bay-controller-api`). This is a live source of the duplicate-session races we've fought.
+1. **Harden context in this project first** (below) so the remix carries it.
+2. Remix → `BASELINE HUB` in the Bayside Golf workspace.
+3. Do the de-branding work **in BASELINE HUB**, not here — Birdies keeps running
+   untouched, and Baseline becomes the generic product.
+4. Remix BASELINE HUB per client; run the onboarding runbook.
+5. When Birdies gains a feature worth productising, port it into BASELINE HUB
+   deliberately (never the reverse).
 
-**5. Overlapping registration functions.** Four functions do overlapping registration work: `sgt-auto-register` (called from the UI), `sgt-tournament-auto-register` (cron 6am), `sgt-daily-tournament-register` (in `config.toml`, **no cron, not called from anywhere** — dead), and `sgt-sync-eligible` (cron 5am). Similarly `sgt-fix-tees` and `sgt-delete-registrations` are one-off tools with no caller.
+## Part A — Context handover (do this before remixing)
 
-**6. Two API-key refresh paths.** `sgt-refresh-api-key` deletes-then-inserts; `sgt-register` upserts its own key inline. They can fight over the same singleton row.
+Memory and chat history do not travel with a remix; the repo does. So the
+knowledge has to be written **into the repo** as files the next agent will read.
 
-## Plan
+Create `docs/platform/` containing:
 
-### 1. Data model — `sgt_api_config` becomes the single source of truth
-Add to the existing singleton row: `club_url`, `sgt_username`, `sgt_password` (write-only from the client), `credentials_valid`, `last_verified_at`, `last_error`. Admin-only RLS (`has_role(auth.uid(),'admin')`) with **no SELECT of the password column** — the UI reads a masked view (`has_password: true/false`) via the edge function, never the raw value. Explicit GRANTs for `authenticated` + `service_role`.
+- `00-OVERVIEW.md` — what the platform is, the two domains (booking vs hub),
+  who the actors are (visitor, member tiers, staff, admin), and the
+  non-negotiables (Brisbane timezone everywhere, no bare `toLocaleString`,
+  edge functions use `npm:` imports + `Deno.serve` + CORS).
+- `01-BOOKING-ENGINE.md` — availability rules, see-through pending logic,
+  peak/off-peak, deposits/credits, reschedule + cancel cut-offs (live at
+  T+10min), extensions, idempotency buckets for Stripe.
+- `02-BAY-CONTROLLER.md` — the explicit state machine, the T-3m/T-1m/T-20s/T+0
+  timeline, back-to-back bypass, settings baseline + customer snapshot restore,
+  kiosk mode, watchdog, launch-loop protection, OBS recording + tus upload,
+  hard-stop at T-120s.
+- `03-MEMBERSHIPS-BILLING.md` — tiers, immediate charge policy, tier switching
+  via `subscription.update` with unchanged anchor, payment-failure ladder,
+  webhook idempotency via `stripe_processed_events`.
+- `04-LEAGUE-AND-COMP.md` — SGT integration order (club → tour → tournament),
+  3-round provisional handicap and the (E) rule, monthly points scale, Ambrose
+  handicap formula (25% of gap to field average, capped ±2, winner bonuses).
+- `05-NOTIFICATIONS.md` — email layout table, wrapper helper, merge tags
+  including `{staffed_status}`, SMS templates, push.
+- `06-INTEGRATIONS.md` — Stripe, Resend, Tuya door codes, Tapo plugs,
+  Cloudflare Stream, SGT API, Shopify gift cards: what each needs and which
+  secrets/settings tables drive them.
+- `07-TENANT-CONFIG.md` — the single source of truth for everything a new
+  client must change (see Part B).
+- `08-ONBOARDING-RUNBOOK.md` — ordered checklist to stand up a new venue.
 
-Seed the row with the current Birdies values so nothing changes today.
+Also export the current project memory (the `mem://` index and its files) into
+`docs/platform/memory/` as plain markdown, and add a short `README` pointing the
+agent at `docs/platform/00-OVERVIEW.md` first. In the remixed project, paste the
+Core rules into Project Settings → Knowledge so they load on every message.
 
-### 2. Shared helper — `supabase/functions/_shared/sgt-client.ts`
-One module that:
-- loads config from `sgt_api_config` (falling back to `SGT_USERNAME` / `SGT_PASSWORD` / `SGT_CLUB_URL` env for backwards compatibility),
-- builds `https://simulatorgolftour.com/sgt-api/club-admin/{club_url}{endpoint}`,
-- owns the **single** API-key lifecycle: return cached key if unexpired, else `apikey/create` with the stored credentials, else write `last_error`,
-- exposes `sgtGet` / `sgtPost` with one automatic retry on 401/expired key.
+These docs are written from the code, not from recollection: each one is
+produced by reading the relevant files and stating only what the code does.
 
-Every SGT function is refactored to use it — killing all 11 hardcoded club constants and both duplicate refresh paths.
+## Part B — De-Birdies-ification (performed in BASELINE HUB)
 
-### 3. Settings UI — gear icon, top-right of SGT Manager
-New `SGTSettingsDialog` opened from an icon button beside the page title in `AdminSGTManager.tsx`:
-- **Club URL** (with helper text: the slug in your SGT club-admin URL)
-- **SGT username** and **SGT password** (password masked; shows "Saved" rather than the value)
-- **Test connection** button → calls `sgt-member-management` with a new `verify-credentials` action which does a live `apikey/create` and returns club name + member count on success, or the exact SGT error on failure
-- Read-only status block: current API key expiry, last verified, last error
-- A short "what to do next" note: add your Tour, then your first Tournament, and automation starts on the next daily run.
-
-Credentials are only ever written through the edge function (service-role), never stored client-side.
-
-### 4. Cleanup (part of the same pass)
-- Drop the duplicate `sgt-highlight-poller-every-minute` cron (keep `sgt-highlight-poller-1min`).
-- Delete the dead `sgt-daily-tournament-register` function and its `config.toml` entry.
-- Fold `sgt-delete-registrations` and `sgt-fix-tees` into `sgt-member-management` as actions (they're admin one-offs, not endpoints).
-- Make `sgt-tournament-auto-register` and `sgt-sync-eligible` **no-op cleanly** when no active tour/tournament exists, instead of erroring — so a fresh client's crons stay quiet until they create their first tournament.
-- Every SGT function returns a structured `{ ok, skipped_reason }` so the SGT Dashboard can show "waiting for first tournament" rather than a red error.
-
-### 5. Dashboard signal
-Small status strip on the SGT Dashboard tab: credentials OK / API key valid until X / active tour / current tournament — so a client can see at a glance whether their setup is live.
+1. **Tenant config table + `src/config/tenant.ts`** — venue name, legal entity,
+   public domain, hub domain, support phone, support email, sender addresses,
+   address/geo, ABN, social links, brand colours/fonts. One typed accessor used
+   everywhere; no literals in components.
+2. **Edge functions** — replace every `birdiesbayside.com.au` and
+   `*@birdiesbayside.com` literal with values read from the tenant config /
+   `system_settings`, falling back to an env var. Audit all 90 functions.
+3. **Marketing site** — reduce to a neutral template: generic copy, placeholder
+   imagery, tokenised brand colours, tenant-driven contact details, and legal
+   pages (terms, privacy, media-consent clause) with the venue name injected.
+4. **Remove Birdies-only assets** — `public/bayside/*`, the codebase audit page,
+   Birdies logos, SGT club credentials, Tuya device IDs, real Stripe price IDs,
+   GitHub release repo for the Bay Controller, Capacitor app id + Android
+   signing config.
+5. **Seed data instead of Birdies data** — a `baseline_seed` migration creating
+   sensible defaults (bays 1-6 placeholder, 5am-11pm operating hours, example
+   pricing, default email templates and header/footer) so a fresh project boots
+   into a working, obviously-placeholder state.
+6. **Data cleanse** — the remix carries a copy of the database. Baseline must
+   ship with zero real customers, bookings, payments, recordings, SGT members or
+   door codes. A `baseline_reset` script truncates transactional tables and
+   leaves only config + templates.
+7. **Config completeness check** — a small admin "Setup Status" page listing
+   each required tenant setting and integration with a red/green state, so a new
+   client project can be brought live without guessing.
 
 ## Technical notes
-- No behaviour change for Birdies: the config row is seeded with today's values and the env fallback stays in place.
-- Password stored in the DB rather than Supabase secrets because the client must be able to change it themselves; it is admin-RLS protected, never selected by the browser, and only read by service-role edge functions. If you'd rather it live in secrets and be rotated by us, say so and I'll swap that piece.
-- All timing stays Brisbane-based; crons are unchanged apart from the duplicate removal.
+
+- Nothing in Part A changes application behaviour; it is documentation plus a
+  README pointer.
+- Part B item 6 is destructive by design and only ever runs in BASELINE HUB,
+  never here.
+- Bay Controller binaries are per-client: each client project needs its own
+  GitHub repo/release channel and its own auto-update feed.
+- Secrets never travel with a remix — every client project re-adds Stripe,
+  Resend, Tuya, Cloudflare, SGT and push credentials.
+
+## What I need from you before starting
+
+Confirm whether Part A (the handover docs) should be written into **this**
+project now — it adds a `docs/platform/` folder here and changes no code — or
+whether you'd rather remix first and have me write the docs inside BASELINE HUB.
+Writing them here is the safer option, because right now I have full context.
