@@ -1,3 +1,4 @@
+import Seo from "@/components/Seo";
 import { useEffect, useState } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { format } from "date-fns";
@@ -388,6 +389,7 @@ export default function Gift() {
   }
   return (
     <MarketingLayout>
+      <Seo title={"Gift Cards | Birdies Bayside Indoor Golf"} description={"Buy a Birdies Bayside gift card, redeemable on simulator bay bookings and memberships at our Redland Bay indoor golf centre."} path="/gift" />
       <GiftContent />
     </MarketingLayout>
   );

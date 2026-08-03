@@ -1,9 +1,11 @@
+import Seo from "@/components/Seo";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 export default function PrivacyPolicy() {
   return (
     <div className="min-h-screen bg-background p-4 md:p-8">
+      <Seo title={"Privacy Policy | Birdies Bayside"} description={"How Birdies Bayside collects, uses and protects your personal information, including booking data, recordings and marketing preferences."} path="/privacy" />
       <div className="mx-auto max-w-3xl">
         <Card>
           <CardHeader>
