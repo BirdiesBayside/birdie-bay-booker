@@ -24,6 +24,7 @@ this platform is written down here.
 | `09-BAY-CONTROLLER-BUILD.md` | GitHub repo, Actions workflow, EXE + auto-update per client |
 | `10-ONBOARDING-RUNBOOK.md` | Remix → live checklist for a new client venue |
 | `11-REMIX-PLAYBOOK.md` | How to remix, what prompts to paste, how context survives |
+| `12-STRIPE-BILLING-PLAYBOOK.md` | Portable Stripe rules: switching, idempotency, failed-payment ladder, tier pricing |
 | `memory/CORE-RULES.md` | The always-on rules to paste into project Knowledge |
 
 ## Project lineage
