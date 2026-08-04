@@ -82,6 +82,48 @@ Baseline must ship with **no** commercial configuration at all.
 - Verify the booking flow still completes end-to-end with a single visitor rate created
   from scratch in Admin.
 
+### Step 5a — DO NOT remove billing *logic* (read this twice)
+
+Emptying the commercial layer means deleting **data** (products, price IDs, tiers, POS
+items). It does **not** mean deleting or simplifying the billing **code**. Every rule
+below was written in response to a real production incident on the Birdies platform,
+usually one that cost real money. A fresh agent looking at an empty `pricing_config` will
+be tempted to "simplify" these paths because nothing appears to use them. Do not.
+
+Preserve, unchanged and untested-by-deletion:
+
+- **Single active subscription rule.** `create-membership-checkout` must switch tiers via
+  `stripe.subscriptions.update()` with proration and `billing_cycle_anchor: "unchanged"` —
+  never by creating a second subscription. Cause: a member was billed for two tiers in the
+  same week. Never replace this with "cancel then create".
+- **Webhook idempotency.** The `stripe_processed_events` table plus the global guard at the
+  top of `stripe-webhook` must survive. Cause: duplicate cancellation emails and repeat
+  charges from Stripe redelivering the same event.
+- **Checkout idempotency keys.** Random-UUID-suffixed idempotency identifiers so a customer
+  can retry immediately after a failure without being blocked or double-charged.
+- **Activation on `active` only.** A tier upgrade is applied on the `active` status webhook,
+  not at checkout creation. Cause: unpaid members getting member pricing.
+- **Payment-failure ladder.** 1st failure → cancel + refund future bookings, set
+  `profile.payment_failed_at`, force visitor pricing (still bookable), send heads-up email.
+  2nd failure → downgrade to visitor and void the invoice. On `payment_succeeded`, clear the
+  flag to restore member pricing. Self-serve retry via `MembershipPaymentIssueDialog`.
+- **Auto-refund path** for duplicate payments and deleted bookings (reason `duplicate`).
+- **Membership audit trail.** `trg_log_membership_tier_change` and `membership_changes`.
+- **Immediate-charge policy.** New signups are charged immediately; no trial coupons.
+- **Stripe API version pinning.** Keep the pinned version string consistent across every
+  function; do not let one function drift.
+
+The correct end state for Baseline is: all of the above code present and working, with
+**zero rows** of pricing/product data behind it. Test it by creating one visitor rate and
+one membership tier from scratch in Admin, attaching a real test-mode Stripe price, and
+running: subscribe → switch tier → fail a payment → recover. If that sequence works on an
+otherwise-empty database, the logic survived the de-brand.
+
+A related trap: with `pricing_config` empty, any code that assumes at least one tier exists
+will crash rather than render an empty state. Fix those by making the UI tolerate zero rows —
+not by re-seeding a placeholder tier, and never by weakening the rules above.
+
+
 ## Step 6 — Data cleanse
 
 A remix copies the database. Baseline must contain zero real records. Write a single
