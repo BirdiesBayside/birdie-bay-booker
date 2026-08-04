@@ -4,6 +4,7 @@ import { AuthForm } from "@/components/auth/AuthForm";
 import { useAuth } from "@/hooks/useAuth";
 import birdiesLogo from "@/assets/birdies-logo.png";
 import birdiesAppIcon from "@/assets/birdies-app-icon.png";
+import BrandLoader from "@/components/BrandLoader";
 import MarketingHome from "./marketing/MarketingHome";
 
 /**
