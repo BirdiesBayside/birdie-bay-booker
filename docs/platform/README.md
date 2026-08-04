@@ -23,6 +23,7 @@ this platform is written down here.
 | `08-DEBRANDING-GUIDE.md` | How to turn a remix into a neutral BASELINE HUB |
 | `09-BAY-CONTROLLER-BUILD.md` | GitHub repo, Actions workflow, EXE + auto-update per client |
 | `10-ONBOARDING-RUNBOOK.md` | Remix → live checklist for a new client venue |
+| `11-REMIX-PLAYBOOK.md` | How to remix, what prompts to paste, how context survives |
 | `memory/CORE-RULES.md` | The always-on rules to paste into project Knowledge |
 
 ## Project lineage
