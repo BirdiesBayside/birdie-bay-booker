@@ -12,6 +12,7 @@ import { ArrowLeft, Plus, ThumbsUp, MessageCircle, Trash2, Image as ImageIcon, X
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import birdiesLogo from "@/assets/birdies-logo.png";
+import BrandLoader from "@/components/BrandLoader";
 
 interface Post {
   id: string;
@@ -403,7 +404,7 @@ const Clubhouse = () => {
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="animate-pulse text-muted-foreground">Loading...</div>
+        <BrandLoader size={72} />
       </div>
     );
   }

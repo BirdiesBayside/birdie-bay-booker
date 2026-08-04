@@ -9,6 +9,7 @@ import { App as CapacitorApp } from "@capacitor/app";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import ScrollToTop from "@/components/ScrollToTop";
 import { TermsGate } from "@/components/legal/TermsGate";
+import BrandLoader from "@/components/BrandLoader";
 
 
 // Lazy load all pages for code splitting
@@ -102,14 +103,8 @@ const isElectron = typeof window !== 'undefined' && (window as any).electronAPI?
 const Router = isElectron ? HashRouter : BrowserRouter;
 
 // Loading fallback component
-const PageLoader = () => (
-  <div className="min-h-screen flex items-center justify-center bg-background">
-    <div className="flex flex-col items-center gap-3">
-      <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-      <span className="text-sm text-muted-foreground">Loading...</span>
-    </div>
-  </div>
-);
+const PageLoader = () => <BrandLoader fullScreen size={72} />;
+
 
 // Deep link handler component - handles birdiesbayside:// URLs
 function DeepLinkHandler() {

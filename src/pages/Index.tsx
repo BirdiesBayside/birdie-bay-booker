@@ -4,6 +4,7 @@ import { AuthForm } from "@/components/auth/AuthForm";
 import { useAuth } from "@/hooks/useAuth";
 import birdiesLogo from "@/assets/birdies-logo.png";
 import birdiesAppIcon from "@/assets/birdies-app-icon.png";
+import BrandLoader from "@/components/BrandLoader";
 import MarketingHome from "./marketing/MarketingHome";
 
 /**
@@ -40,8 +41,7 @@ const Index = () => {
   if (authLoading || isAuthenticated) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background safe-area-top safe-area-bottom">
-        <img src={birdiesAppIcon} alt="Birdies" className="h-20 mb-6" />
-        <div className="animate-pulse text-muted-foreground">Loading...</div>
+        <BrandLoader size={88} />
       </div>
     );
   }

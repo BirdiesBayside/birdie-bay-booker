@@ -21,6 +21,7 @@ import {
 import { RescheduleDialog } from "@/components/booking/RescheduleDialog";
 import { ExtendDialog } from "@/components/booking/ExtendDialog";
 import { AuthForm } from "@/components/auth/AuthForm";
+import BrandLoader from "@/components/BrandLoader";
 
 interface Booking {
   id: string;
@@ -213,7 +214,7 @@ const MyBookings = () => {
   if (authLoading || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="animate-pulse text-muted-foreground">Loading...</div>
+        <BrandLoader size={72} />
       </div>
     );
   }
