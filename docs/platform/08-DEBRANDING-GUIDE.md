@@ -10,6 +10,28 @@ the Admin UI plus a short list of code constants.
 
 Work top to bottom. Each step is independently verifiable.
 
+## What gets removed vs what stays
+
+The goal is a blank canvas, not a smaller app. De-branding removes **identity, data, and venue-specific commercial configuration**. It does **not** remove features, components, edge functions, tables, or the hard-won billing/safety logic.
+
+### Removed
+
+- Birdies identity: venue name, domains, email addresses, phone number, logos, hero media, brand colours and fonts.
+- Birdies-only sales assets: `public/bayside/`, `send-questionnaire-submission`, `sim_centre_submissions`.
+- Real transactional data: bookings, payments, profiles, auth users, SGT records, recordings, POS transactions, door codes, etc.
+- Commercial configuration rows: `pricing_config` entries, Stripe price IDs, membership tiers, gift cards, POS products, loyalty/promo defaults, marketing campaigns.
+
+### Preserved (neutralised, not deleted)
+
+- Every React component, page, route, hook, and layout.
+- Every edge function and its logic, especially the billing rules in Step 5a.
+- Every database table, trigger, RLS policy, and GRANT.
+- Bay Controller, SGT, local comp, POS, door access, and notification code.
+- The design-token *structure*; only the values change.
+- The legal-clause *structure*; only venue names and the version string change.
+
+If a step looks like it is deleting a feature, re-read it: it is deleting **data** or **identity**, not the code that makes the feature work.
+
 ---
 
 ## Step 1 — Tenant configuration layer
