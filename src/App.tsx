@@ -9,6 +9,7 @@ import { App as CapacitorApp } from "@capacitor/app";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import ScrollToTop from "@/components/ScrollToTop";
 import { TermsGate } from "@/components/legal/TermsGate";
+import BrandLoader from "@/components/BrandLoader";
 
 
 // Lazy load all pages for code splitting
