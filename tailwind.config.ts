@@ -100,12 +100,23 @@ export default {
           from: { opacity: "0", transform: "translateX(-10px)" },
           to: { opacity: "1", transform: "translateX(0)" },
         },
+        "brand-bob": {
+          "0%, 100%": { transform: "translateY(0) scale(1) rotate(0deg)" },
+          "35%": { transform: "translateY(-10px) scale(1.06) rotate(-4deg)" },
+          "70%": { transform: "translateY(2px) scale(0.97) rotate(3deg)" },
+        },
+        "brand-glow": {
+          "0%, 100%": { opacity: "0.35", transform: "scale(0.85)" },
+          "50%": { opacity: "0.8", transform: "scale(1.15)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
         "fade-in": "fade-in 0.3s ease-out",
         "slide-in": "slide-in 0.3s ease-out",
+        "brand-bob": "brand-bob 1.6s ease-in-out infinite",
+        "brand-glow": "brand-glow 1.6s ease-in-out infinite",
       },
     },
   },
