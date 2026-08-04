@@ -15,6 +15,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import BrandLoader from "@/components/BrandLoader";
 
 type MembershipTier = "visitor" | "weekday" | "birdie" | "eagle";
 
@@ -180,7 +181,7 @@ const Dashboard = () => {
   if (isLoading || (isAuthenticated && accountAccessLoading)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="animate-pulse text-muted-foreground">Loading...</div>
+        <BrandLoader size={72} />
       </div>
     );
   }

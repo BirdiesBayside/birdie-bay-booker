@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { MembershipPaymentIssueDialog } from "@/components/membership/MembershipPaymentIssueDialog";
 import { AlertCircle } from "lucide-react";
+import BrandLoader from "@/components/BrandLoader";
 
 const MEMBERSHIP_DETAILS: Record<string, { name: string; color: string; rate: number }> = {
   visitor: { name: "Visitor", color: "bg-muted text-muted-foreground", rate: 35 },
@@ -349,7 +350,7 @@ const MyAccount = () => {
   if (authLoading || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="animate-pulse text-muted-foreground">Loading...</div>
+        <BrandLoader size={72} />
       </div>
     );
   }
