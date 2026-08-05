@@ -22,7 +22,7 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CalendarIcon, Plus, UserPlus, Ban } from "lucide-react";
+import { CalendarIcon, Plus, UserPlus, Ban, Check, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { calculateHourlyRate, isWeekdayMemberTime, getPricingLabel } from "@/lib/pricing-utils";
 
