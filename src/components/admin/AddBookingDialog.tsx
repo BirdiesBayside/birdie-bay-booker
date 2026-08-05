@@ -22,7 +22,7 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CalendarIcon, Plus, UserPlus, Ban } from "lucide-react";
+import { CalendarIcon, Plus, UserPlus, Ban, Check, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { calculateHourlyRate, isWeekdayMemberTime, getPricingLabel } from "@/lib/pricing-utils";
 
@@ -224,6 +224,8 @@ export function AddBookingDialog({
 
   const handleCustomerSearch = (value: string) => {
     setCustomerSearch(value);
+    // Typing again clears any previously selected customer
+    if (selectedCustomerId) setSelectedCustomerId("");
     if (value.length >= 2) {
       fetchCustomers(value);
     } else {
@@ -636,7 +638,7 @@ export function AddBookingDialog({
                     onChange={(e) => handleCustomerSearch(e.target.value)}
                   />
                   
-                  {customerSearch.length >= 2 && (
+                  {customerSearch.length >= 2 && !selectedCustomer && (
                     <div className="max-h-40 overflow-y-auto border rounded-md">
                       {isLoadingCustomers ? (
                         <div className="p-3 text-sm text-muted-foreground text-center">Searching...</div>
@@ -647,9 +649,7 @@ export function AddBookingDialog({
                         <button
                           key={customer.user_id}
                           onClick={() => setSelectedCustomerId(customer.user_id)}
-                          className={`w-full p-2 text-left text-sm hover:bg-muted/50 flex items-center justify-between border-b last:border-b-0 ${
-                            selectedCustomerId === customer.user_id ? "bg-primary/10" : ""
-                          }`}
+                          className="w-full p-2 text-left text-sm hover:bg-muted/50 flex items-center justify-between border-b last:border-b-0"
                         >
                           <div>
                             <span className="font-medium">{customer.first_name} {customer.last_name}</span>
@@ -674,20 +674,45 @@ export function AddBookingDialog({
                     <UserPlus className="h-4 w-4 mr-2" />
                     Add New Customer
                   </Button>
-                </div>
 
-                {selectedCustomer && (
-                  <div className="p-3 bg-muted/50 rounded-lg">
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium text-sm">
-                        {selectedCustomer.first_name} {selectedCustomer.last_name}
-                      </span>
-                      <Badge className={getMembershipColor(selectedCustomer.membership_tier)}>
-                        {selectedCustomer.membership_tier} - ${getCalculatedHourlyRate()}/hr
-                      </Badge>
+                  {selectedCustomer && (
+                    <div className="p-3 rounded-lg border-2 border-primary bg-primary/10">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                            <Check className="h-3.5 w-3.5" />
+                          </span>
+                          <div className="min-w-0">
+                            <div className="font-medium text-sm truncate">
+                              {selectedCustomer.first_name} {selectedCustomer.last_name}
+                            </div>
+                            <div className="text-xs text-muted-foreground truncate">
+                              {selectedCustomer.email}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Badge className={getMembershipColor(selectedCustomer.membership_tier)}>
+                            {selectedCustomer.membership_tier} - ${getCalculatedHourlyRate()}/hr
+                          </Badge>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => {
+                              setSelectedCustomerId("");
+                              setCustomerSearch("");
+                              setCustomers([]);
+                            }}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             ) : (
               <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
