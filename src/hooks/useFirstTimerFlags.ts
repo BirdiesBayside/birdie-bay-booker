@@ -11,7 +11,7 @@ export interface FirstTimerFlag {
 /**
  * Debut-round flags for a local (Ambrose) competition.
  * A team is a "first timer" the first time that exact pairing posts a score.
- * Their round is flagged when their net finishes 10+ strokes better than par.
+ * Their round is flagged when their net finishes 5+ strokes better than par.
  */
 export function useFirstTimerFlags(competitionId?: string) {
   const { data } = useQuery({

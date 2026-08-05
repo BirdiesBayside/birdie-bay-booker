@@ -551,8 +551,8 @@ export function ScoreEntry() {
                                     </Badge>
                                   </TooltipTrigger>
                                   <TooltipContent>
-                                    Debut round finished {Math.abs(firstTimerFlags.get(team.id)!.net_vs_par ?? 0)} under par on net —
-                                    10+ better than the handicap they gave us, so they're not eligible to win.
+                                  Debut round finished {Math.abs(firstTimerFlags.get(team.id)!.net_vs_par ?? 0)} under par on net —
+                                    5+ better than the handicap they gave us, so they're not eligible to win.
                                   </TooltipContent>
                                 </Tooltip>
                               </TooltipProvider>
