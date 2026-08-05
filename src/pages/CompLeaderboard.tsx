@@ -78,6 +78,7 @@ export default function CompLeaderboard() {
       return a.net_score - b.net_score;
     });
   }, [teams]);
+  const firstTimerFlags = useFirstTimerFlags(selectedCompId || undefined);
 
   const isLoading = compsLoading || teamsLoading;
 
