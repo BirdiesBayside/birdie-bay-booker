@@ -4584,6 +4584,33 @@ export default function BayController() {
           </div>
         </CollapsibleSettingsCard>
 
+        {/* Scorecard Snap */}
+        <CollapsibleSettingsCard
+          title="Scorecard Snap"
+          icon={<Camera className="w-5 h-5 text-muted-foreground" />}
+          defaultOpen={false}
+        >
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              With the GSPro scorecard on screen, press{" "}
+              <kbd className="px-2 py-1 rounded bg-background border text-xs font-mono">F8</kbd>{" "}
+              (or use the button below). The screenshot is uploaded to this bay's current round in
+              League Highlights and read into a scorecard automatically.
+            </p>
+            <Button
+              onClick={() => void snapScorecard()}
+              disabled={scorecardSnapping || !isElectron}
+              className="w-full"
+            >
+              {scorecardSnapping ? "Capturing…" : "Snap Scorecard Now"}
+            </Button>
+            {!isElectron && (
+              <p className="text-xs text-destructive">
+                Scorecard Snap only functions in the Electron desktop build.
+              </p>
+            )}
+          </div>
+        </CollapsibleSettingsCard>
 
 
         <Card>
