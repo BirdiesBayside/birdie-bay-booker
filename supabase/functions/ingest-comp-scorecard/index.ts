@@ -212,14 +212,23 @@ Deno.serve(async (req) => {
       }
     }
 
-    const { error: updErr } = await admin
-      .from("recording_sessions")
-      .update(update)
-      .eq("id", sessionId);
-    if (updErr) throw new Error(`session update failed: ${updErr.message}`);
+    if (!testMode) {
+      const { error: updErr } = await admin
+        .from("recording_sessions")
+        .update(update)
+        .eq("id", sessionId);
+      if (updErr) throw new Error(`session update failed: ${updErr.message}`);
+    }
+
+    console.log(
+      `[ingest-comp-scorecard] bay=${bayNumber} test_mode=${testMode} path=${path} parsed=${!!parsed} ` +
+        `gross=${parsed?.total_gross ?? "-"} to_par=${parsed?.to_par_gross ?? "-"} ` +
+        `holes=${parsed ? JSON.stringify((parsed.hole_data as Record<string, number>)) : "none"}`,
+    );
 
     return json({
       success: true,
+      test_mode: testMode,
       recording_session_id: sessionId,
       image_path: path,
       parsed: parsed ? true : false,
