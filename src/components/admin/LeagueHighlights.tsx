@@ -10,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
-import { Download, FolderOpen, Loader2, Play, Trash2 } from "lucide-react";
+import { Download, FolderOpen, Image as ImageIcon, Loader2, Play, Trash2 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatBrisbane } from "@/lib/brisbane-time";
 
 
@@ -44,6 +45,7 @@ interface SessionRow {
   round_number: number | null;
   trigger_source: string | null;
   scorecard: Scorecard | null;
+  scorecard_image_path: string | null;
 }
 
 export function fmtOffset(secs: number | null): string {
@@ -147,6 +149,21 @@ export function ScorecardGrid({ scorecard }: { scorecard: Scorecard }) {
         <div className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-secondary border" /> Par</div>
         <div className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-blue-100" /> Bogey+</div>
       </div>
+      <Dialog open={!!scorecardImageSession} onOpenChange={(open) => { if (!open) { setScorecardImageSession(null); setScorecardImageUrl(null); } }}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {scorecardImageSession?.player_name ?? "Scorecard"} — Bay {scorecardImageSession?.bay_number}
+            </DialogTitle>
+          </DialogHeader>
+          {scorecardImageSession?.scorecard && <ScorecardGrid scorecard={scorecardImageSession.scorecard} />}
+          {scorecardImageUrl ? (
+            <img src={scorecardImageUrl} alt="Captured GSPro scorecard screenshot" className="w-full rounded-md border" />
+          ) : (
+            <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin" /></div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -183,7 +200,7 @@ export function LeagueHighlights() {
     // every tus upload, because those never get a storage_path.
     const { data: sessRows } = await supabase
       .from("recording_sessions")
-      .select("id, player_name, tournament_name, bay_number, started_at, stream_uid, stream_status, stream_error, round_number, trigger_source, scorecard")
+      .select("id, player_name, tournament_name, bay_number, started_at, stream_uid, stream_status, stream_error, round_number, trigger_source, scorecard, scorecard_image_path")
       .gte("started_at", since)
       .or("stream_uid.not.is.null,status.eq.uploaded")
       .neq("status", "purged")
@@ -216,6 +233,7 @@ export function LeagueHighlights() {
       round_number: r.round_number ?? null,
       trigger_source: r.trigger_source ?? null,
       scorecard: (r.scorecard as Scorecard | null) ?? null,
+      scorecard_image_path: r.scorecard_image_path ?? null,
     }));
     setSessions(mapped);
     if (!silent) setLoading(false);
@@ -513,6 +531,21 @@ export function LeagueHighlights() {
         </CardContent>
       </Card>
 
+      <Dialog open={!!scorecardImageSession} onOpenChange={(open) => { if (!open) { setScorecardImageSession(null); setScorecardImageUrl(null); } }}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {scorecardImageSession?.player_name ?? "Scorecard"} — Bay {scorecardImageSession?.bay_number}
+            </DialogTitle>
+          </DialogHeader>
+          {scorecardImageSession?.scorecard && <ScorecardGrid scorecard={scorecardImageSession.scorecard} />}
+          {scorecardImageUrl ? (
+            <img src={scorecardImageUrl} alt="Captured GSPro scorecard screenshot" className="w-full rounded-md border" />
+          ) : (
+            <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin" /></div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
