@@ -178,6 +178,22 @@ export function LeagueHighlights() {
   const [streamBusyIds, setStreamBusyIds] = useState<Set<string>>(new Set());
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [selectMode, setSelectMode] = useState(false);
+  const [scorecardImageSession, setScorecardImageSession] = useState<SessionRow | null>(null);
+  const [scorecardImageUrl, setScorecardImageUrl] = useState<string | null>(null);
+
+  const openScorecardImage = async (sess: SessionRow) => {
+    setScorecardImageSession(sess);
+    setScorecardImageUrl(null);
+    if (!sess.scorecard_image_path) return;
+    const { data, error } = await supabase.storage
+      .from("comp-scorecards")
+      .createSignedUrl(sess.scorecard_image_path, 60 * 30);
+    if (error || !data?.signedUrl) {
+      toast({ title: "Couldn't load scorecard image", description: error?.message, variant: "destructive" });
+      return;
+    }
+    setScorecardImageUrl(data.signedUrl);
+  };
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const autoKickedRef = useRef<Set<string>>(new Set());
 
@@ -499,6 +515,7 @@ export function LeagueHighlights() {
                        </div>
                        <div className="flex gap-2 mt-2 flex-wrap">
                          {sess.trigger_source === "local_comp" && <Badge variant="secondary">Local Comp</Badge>}
+                         {sess.scorecard_image_path && <Badge variant="outline">Scorecard snap</Badge>}
                           {sess.scorecard ? (
                             <Badge variant="outline">
                               {sess.scorecard.total_gross ?? "-"} gross ({fmtToPar(sess.scorecard.to_par_gross)})
@@ -517,6 +534,11 @@ export function LeagueHighlights() {
                         <Button asChild size="sm" variant="outline">
                           <Link to={`/admin/highlights/${sess.session_id}/review`}><Play className="h-4 w-4 mr-1" />Open</Link>
                         </Button>
+                       {sess.scorecard_image_path && (
+                         <Button size="sm" variant="outline" onClick={() => void openScorecardImage(sess)}>
+                           <ImageIcon className="h-4 w-4 mr-1" />Scorecard
+                         </Button>
+                       )}
                        <Button size="sm" variant="outline" onClick={() => downloadSession(sess)} disabled={!sess.storage_path}><Download className="h-4 w-4 mr-1" />Download</Button>
                        <Button asChild size="sm" variant="outline">
                          <Link to={`/admin/highlights/${sess.session_id}/exports`}><FolderOpen className="h-4 w-4 mr-1" />Exports</Link>
