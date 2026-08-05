@@ -149,21 +149,6 @@ export function ScorecardGrid({ scorecard }: { scorecard: Scorecard }) {
         <div className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-secondary border" /> Par</div>
         <div className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-blue-100" /> Bogey+</div>
       </div>
-      <Dialog open={!!scorecardImageSession} onOpenChange={(open) => { if (!open) { setScorecardImageSession(null); setScorecardImageUrl(null); } }}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              {scorecardImageSession?.player_name ?? "Scorecard"} — Bay {scorecardImageSession?.bay_number}
-            </DialogTitle>
-          </DialogHeader>
-          {scorecardImageSession?.scorecard && <ScorecardGrid scorecard={scorecardImageSession.scorecard} />}
-          {scorecardImageUrl ? (
-            <img src={scorecardImageUrl} alt="Captured GSPro scorecard screenshot" className="w-full rounded-md border" />
-          ) : (
-            <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin" /></div>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
@@ -553,6 +538,21 @@ export function LeagueHighlights() {
         </CardContent>
       </Card>
 
+      <Dialog open={!!scorecardImageSession} onOpenChange={(open) => { if (!open) { setScorecardImageSession(null); setScorecardImageUrl(null); } }}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {scorecardImageSession?.player_name ?? "Scorecard"} — Bay {scorecardImageSession?.bay_number}
+            </DialogTitle>
+          </DialogHeader>
+          {scorecardImageSession?.scorecard && <ScorecardGrid scorecard={scorecardImageSession.scorecard} />}
+          {scorecardImageUrl ? (
+            <img src={scorecardImageUrl} alt="Captured GSPro scorecard screenshot" className="w-full rounded-md border" />
+          ) : (
+            <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin" /></div>
+          )}
+        </DialogContent>
+      </Dialog>
       <Dialog open={!!scorecardImageSession} onOpenChange={(open) => { if (!open) { setScorecardImageSession(null); setScorecardImageUrl(null); } }}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
