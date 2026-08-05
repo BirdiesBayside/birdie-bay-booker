@@ -2,8 +2,9 @@ import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Trophy, Medal, Award, Loader2, ArrowLeft } from "lucide-react";
+import { Trophy, Medal, Award, Loader2, ArrowLeft, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useFirstTimerFlags } from "@/hooks/useFirstTimerFlags";
 import {
   Select,
   SelectContent,
@@ -77,6 +78,7 @@ export default function CompLeaderboard() {
       return a.net_score - b.net_score;
     });
   }, [teams]);
+  const firstTimerFlags = useFirstTimerFlags(selectedCompId || undefined);
 
   const isLoading = compsLoading || teamsLoading;
 
@@ -186,10 +188,21 @@ export default function CompLeaderboard() {
                     </div>
 
                     <div className="col-span-4">
-                      <p className="font-semibold text-sm text-foreground truncate">{team.team_name}</p>
+                      <p className="font-semibold text-sm text-foreground truncate">
+                        {team.team_name}
+                        {firstTimerFlags.get(team.id)?.is_first_timer && (
+                          <span className="ml-1 text-[10px] font-bold text-muted-foreground align-middle">NEW</span>
+                        )}
+                      </p>
                       <p className="text-[11px] text-muted-foreground truncate">
                         {team.player1_name} & {team.player2_name}
                       </p>
+                      {firstTimerFlags.get(team.id)?.flagged && (
+                        <p className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-semibold text-destructive">
+                          <AlertTriangle className="h-3 w-3" />
+                          Debut round under review — not eligible to win
+                        </p>
+                      )}
                     </div>
 
                     <div className="col-span-2 text-center text-sm text-muted-foreground">

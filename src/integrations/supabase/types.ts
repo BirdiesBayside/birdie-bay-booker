@@ -3364,6 +3364,15 @@ export type Database = {
         }
         Returns: boolean
       }
+      local_comp_first_timer_flags: {
+        Args: { p_competition_id: string }
+        Returns: {
+          flagged: boolean
+          is_first_timer: boolean
+          net_vs_par: number
+          team_id: string
+        }[]
+      }
       sgt_is_full_18: {
         Args: { hole_data: Json; in_gross: number; out_gross: number }
         Returns: boolean
