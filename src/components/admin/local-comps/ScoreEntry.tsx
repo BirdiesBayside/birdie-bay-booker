@@ -534,7 +534,31 @@ export function ScoreEntry() {
                         <TableCell className="font-bold text-muted-foreground">
                           {team.position || idx + 1}
                         </TableCell>
-                        <TableCell className="font-medium">{team.team_name}</TableCell>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span>{team.team_name}</span>
+                            {firstTimerFlags.get(team.id)?.is_first_timer && (
+                              <Badge variant="outline" className="gap-1 text-[10px] font-semibold">
+                                <Sparkles className="h-3 w-3" /> 1st comp
+                              </Badge>
+                            )}
+                            {firstTimerFlags.get(team.id)?.flagged && (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Badge variant="destructive" className="gap-1 text-[10px] font-semibold">
+                                      <AlertTriangle className="h-3 w-3" /> Review
+                                    </Badge>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    Debut round finished {Math.abs(firstTimerFlags.get(team.id)!.net_vs_par ?? 0)} under par on net —
+                                    10+ better than the handicap they gave us, so they're not eligible to win.
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
                           {team.player1_name} ({team.player1_handicap}) & {team.player2_name} ({team.player2_handicap})
                         </TableCell>
