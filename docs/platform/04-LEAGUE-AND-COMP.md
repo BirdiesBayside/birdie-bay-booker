@@ -78,6 +78,11 @@ UI: `src/pages/admin/AdminLocalComps.tsx` and `src/components/admin/local-comps/
   an extra −0.5 for teams whose gross is 3+ better than the field average gross, or −1.0 at
   6+ better (catches teams clearly playing above their handicap). Winners get an extra −0.5,
   back-to-back winners a further −1.5.
+- **First-timer flag:** `local_comp_first_timer_flags(competition_id)` marks a pairing's debut
+  round (case-insensitive name match, either order). If a debut team's **net** finishes 10+
+  strokes better than course par (`sgt_courses.par` via `course_id`, fallback 72) the round is
+  flagged and the team is not eligible to win. Surfaced in `ScoreEntry.tsx` ("1st comp" /
+  "Review" badges) and `CompLeaderboard.tsx`.
 - `HandicapMismatches.tsx` flags players whose Ambrose handicap differs from their league
   handicap by 4+ shots.
 - `local-comp-commentary` generates an AI recap per week (Gemini via Lovable AI Gateway),
