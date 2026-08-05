@@ -1466,18 +1466,53 @@ export default function BayController() {
               } else {
                 // Persist session id, start time AND the booking that owns it so the
                 // hard-stop watchdog can kill it when that booking ends / changes hands.
-                const owner = activeBookingRef.current;
+                // IMPORTANT: at changeover the poller can fire this command a moment
+                // before activeBooking flips to the new customer. Prefer the booking
+                // recorded on the session row, then any booking whose window contains
+                // "now", and only then the (possibly stale) active booking.
+                const nowMs = Date.now();
+                const endMsOf = (b: any) =>
+                  b?.booking_date && b?.end_time ? new Date(`${b.booking_date}T${b.end_time}`).getTime() : null;
+                const startMsOf = (b: any) =>
+                  b?.booking_date && b?.start_time ? new Date(`${b.booking_date}T${b.start_time}`).getTime() : null;
+
+                let owner: any = activeBookingRef.current;
+                try {
+                  const { data: sessRow } = await supabase
+                    .from('recording_sessions')
+                    .select('booking_id')
+                    .eq('id', sessionId)
+                    .maybeSingle();
+                  const fromSession = sessRow?.booking_id
+                    ? bookingsRef.current.find(b => b.id === sessRow.booking_id)
+                    : null;
+                  if (fromSession) owner = fromSession;
+                } catch { /* fall through to window match */ }
+
+                // Reject an owner whose booking has effectively already ended.
+                const ownerEnd = endMsOf(owner);
+                if (!owner || (ownerEnd !== null && nowMs >= ownerEnd - 120_000)) {
+                  const covering = bookingsRef.current.find(b => {
+                    const s = startMsOf(b);
+                    const e = endMsOf(b);
+                    return s !== null && e !== null && nowMs >= s - 120_000 && nowMs < e - 120_000;
+                  });
+                  if (covering) {
+                    addLog(`[Highlights] Owner booking corrected at changeover → ${covering.id}`, 'info');
+                    owner = covering;
+                  }
+                }
+
                 (window as any).__activeRecording = {
                   sessionId,
                   startedAtMs: startRes.startedAtMs,
                   bookingId: owner?.id ?? null,
                   userId: owner?.user_id ?? null,
-                  bookingEndMs: owner?.booking_date && owner?.end_time
-                    ? new Date(`${owner.booking_date}T${owner.end_time}`).getTime()
-                    : null,
+                  bookingEndMs: endMsOf(owner),
                 };
                 addLog(`[Highlights] Recording session ${sessionId} started`, 'success');
               }
+
 
             } catch (e) {
               addLog(`[Highlights] Start handler error: ${(e as Error).message}`, 'error');
