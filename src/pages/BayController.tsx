@@ -318,6 +318,63 @@ export default function BayController() {
     return cleanup;
   }, []);
 
+  // =====================================================
+  // SCORECARD SNAP (F8)
+  // Staff press F8 with the GSPro scorecard on screen. We grab the GSPro
+  // window/display, upload the PNG, and let the Hub read it into a
+  // structured scorecard attached to this bay's current round.
+  // =====================================================
+  const [scorecardSnapping, setScorecardSnapping] = useState(false);
+  const scorecardSnappingRef = useRef(false);
+
+  const snapScorecard = useCallback(async () => {
+    const api: any = (window as any).electronAPI;
+    if (!api?.isElectron || typeof api.captureScorecardScreenshot !== 'function') {
+      toast.error("Scorecard snap needs the desktop Bay Controller");
+      return;
+    }
+    if (scorecardSnappingRef.current) return;
+    scorecardSnappingRef.current = true;
+    setScorecardSnapping(true);
+    try {
+      addLog('[Scorecard] Capturing GSPro screenshot…', 'info');
+      const shot = await api.captureScorecardScreenshot();
+      if (!shot?.success || !shot.dataUrl) {
+        throw new Error(shot?.error || 'capture failed');
+      }
+      const { data, error } = await supabase.functions.invoke('ingest-comp-scorecard', {
+        headers: { 'x-bay-number': String(selectedBay ?? '') },
+        body: { bay_number: selectedBay, image_base64: shot.dataUrl },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+
+      const res = data as any;
+      if (res?.parsed) {
+        const gross = res.scorecard?.total_gross;
+        toast.success(`Scorecard saved${gross ? ` — ${gross} gross` : ''}`);
+        addLog(`[Scorecard] Saved + read for session ${res.recording_session_id}`, 'success');
+      } else {
+        toast.success("Scorecard image saved (couldn't auto-read it)");
+        addLog(`[Scorecard] Image saved, parse failed: ${res?.parse_error ?? 'unknown'}`, 'warning');
+      }
+    } catch (e: any) {
+      const msg = e?.message ?? String(e);
+      toast.error(`Scorecard snap failed: ${msg}`);
+      addLog(`[Scorecard] Snap failed: ${msg}`, 'error');
+    } finally {
+      scorecardSnappingRef.current = false;
+      setScorecardSnapping(false);
+    }
+  }, [selectedBay]);
+
+  useEffect(() => {
+    const api: any = (window as any).electronAPI;
+    if (!api?.isElectron || typeof api.onScorecardHotkey !== 'function') return;
+    const cleanup = api.onScorecardHotkey(() => { void snapScorecard(); });
+    return cleanup;
+  }, [snapScorecard]);
+
   const toggleKiosk = (enable: boolean) => {
     if (enable) {
       localStorage.setItem("bayController_kioskEnabled", "true");
