@@ -546,9 +546,12 @@ serve(async (req) => {
           } else {
             console.warn("[SGT-AUTO-REG] No active league_welcome email template found");
           }
-        } else {
+        } else if (!profile?.email) {
           console.log(`[SGT-AUTO-REG] No profile with email found for sgt_user_id ${sgt_user_id}, skipping email`);
+        } else {
+          console.log(`[SGT-AUTO-REG] No starting handicap set for ${sgt_user_id} yet - holding league welcome email until admin onboards them`);
         }
+
       } catch (emailError) {
         console.error("[SGT-AUTO-REG] Failed to send league welcome email:", emailError);
         // Don't fail the whole request for email errors
