@@ -116,6 +116,8 @@ export function ScoreEntry() {
     enabled: !!selectedCompId,
   });
 
+  const firstTimerFlags = useFirstTimerFlags(selectedCompId || undefined);
+
   // Realtime subscription for payment updates
   useEffect(() => {
     if (!selectedCompId) return;
