@@ -2,8 +2,9 @@ import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Trophy, Medal, Award, Loader2, ArrowLeft } from "lucide-react";
+import { Trophy, Medal, Award, Loader2, ArrowLeft, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useFirstTimerFlags } from "@/hooks/useFirstTimerFlags";
 import {
   Select,
   SelectContent,
