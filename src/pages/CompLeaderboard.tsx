@@ -188,10 +188,21 @@ export default function CompLeaderboard() {
                     </div>
 
                     <div className="col-span-4">
-                      <p className="font-semibold text-sm text-foreground truncate">{team.team_name}</p>
+                      <p className="font-semibold text-sm text-foreground truncate">
+                        {team.team_name}
+                        {firstTimerFlags.get(team.id)?.is_first_timer && (
+                          <span className="ml-1 text-[10px] font-bold text-muted-foreground align-middle">NEW</span>
+                        )}
+                      </p>
                       <p className="text-[11px] text-muted-foreground truncate">
                         {team.player1_name} & {team.player2_name}
                       </p>
+                      {firstTimerFlags.get(team.id)?.flagged && (
+                        <p className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-semibold text-destructive">
+                          <AlertTriangle className="h-3 w-3" />
+                          Debut round under review — not eligible to win
+                        </p>
+                      )}
                     </div>
 
                     <div className="col-span-2 text-center text-sm text-muted-foreground">
