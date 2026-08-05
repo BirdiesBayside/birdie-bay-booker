@@ -4609,8 +4609,9 @@ export default function BayController() {
             <p className="text-sm text-muted-foreground">
               With the GSPro scorecard on screen, press{" "}
               <kbd className="px-2 py-1 rounded bg-background border text-xs font-mono">F8</kbd>{" "}
-              (or use the button below). The screenshot is uploaded to this bay's current round in
-              League Highlights and read into a scorecard automatically.
+              (or use the button below). Press it as many times as you like — each snap is uploaded
+              and re-read. If there's a live round it attaches to League Highlights; otherwise it's
+              saved as a test snap so the read can be checked.
             </p>
             <Button
               onClick={() => void snapScorecard()}
@@ -4619,11 +4620,17 @@ export default function BayController() {
             >
               {scorecardSnapping ? "Capturing…" : "Snap Scorecard Now"}
             </Button>
+            {lastScorecardRead && (
+              <p className="text-xs text-muted-foreground font-mono">
+                Last read: {lastScorecardRead}
+              </p>
+            )}
             {!isElectron && (
               <p className="text-xs text-destructive">
                 Scorecard Snap only functions in the Electron desktop build.
               </p>
             )}
+
           </div>
         </CollapsibleSettingsCard>
 
