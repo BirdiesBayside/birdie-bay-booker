@@ -57,10 +57,12 @@ export function SGTPendingOnboarding() {
       if (profilesError) throw profilesError;
       if (!profiles || profiles.length === 0) return [];
 
-      // Get all unique user_ids that are already in tour_members
+      // Get user_ids that are already properly onboarded (in a tour WITH a handicap set).
+      // Automated syncs can add a player to a tour with no custom_hcp - those still
+      // need an admin to set a starting handicap, so they must stay in this list.
       const { data: tourMembers, error: tourMembersError } = await supabase
         .from("sgt_tour_members")
-        .select("user_id");
+        .select("user_id, custom_hcp");
 
       if (tourMembersError) throw tourMembersError;
 
@@ -75,15 +77,20 @@ export function SGTPendingOnboarding() {
 
       if (scoredError) throw scoredError;
 
-      const onboardedUserIds = new Set((tourMembers || []).map(tm => tm.user_id));
+      const onboardedUserIds = new Set(
+        (tourMembers || [])
+          .filter(tm => tm.custom_hcp !== null && tm.custom_hcp !== undefined)
+          .map(tm => tm.user_id)
+      );
       const playedUserIds = new Set((scoredPlayers || []).map(s => s.player_id));
 
-      // Filter to only truly new pending (not in any tour AND no play history)
+      // Filter to only truly new pending (no handicap set AND no play history)
       const pending = profiles.filter(p =>
         p.sgt_user_id &&
         !onboardedUserIds.has(p.sgt_user_id) &&
         !playedUserIds.has(p.sgt_user_id)
       );
+
 
       return pending as PendingMember[];
     },

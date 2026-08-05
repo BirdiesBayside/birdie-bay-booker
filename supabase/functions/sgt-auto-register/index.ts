@@ -481,13 +481,16 @@ serve(async (req) => {
           .eq("sgt_user_id", sgt_user_id)
           .maybeSingle();
 
-        if (profile?.email) {
-          // Get the handicap used (from the first tour processed)
-          const firstTourId = memberTourIds[0];
-          const handicapValue = tourHcpMap.get(firstTourId);
-          const handicapDisplay = handicapValue !== null && handicapValue !== undefined
-            ? String(handicapValue)
-            : "Combo (auto)";
+        // Only email once a real starting handicap exists. Automated syncs can add a
+        // player to a tour with no custom_hcp - those must stay in Pending Onboarding
+        // until an admin sets the handicap (which re-triggers this function).
+        const anyHcp = memberTourIds
+          .map((tid) => tourHcpMap.get(tid))
+          .find((v) => v !== null && v !== undefined);
+
+        if (profile?.email && anyHcp !== null && anyHcp !== undefined) {
+          const handicapDisplay = String(anyHcp);
+
 
           // Fetch league welcome email template
           const { data: emailTemplate } = await supabaseClient
@@ -543,9 +546,12 @@ serve(async (req) => {
           } else {
             console.warn("[SGT-AUTO-REG] No active league_welcome email template found");
           }
-        } else {
+        } else if (!profile?.email) {
           console.log(`[SGT-AUTO-REG] No profile with email found for sgt_user_id ${sgt_user_id}, skipping email`);
+        } else {
+          console.log(`[SGT-AUTO-REG] No starting handicap set for ${sgt_user_id} yet - holding league welcome email until admin onboards them`);
         }
+
       } catch (emailError) {
         console.error("[SGT-AUTO-REG] Failed to send league welcome email:", emailError);
         // Don't fail the whole request for email errors
