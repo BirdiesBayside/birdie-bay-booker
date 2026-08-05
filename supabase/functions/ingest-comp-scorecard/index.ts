@@ -155,13 +155,15 @@ Deno.serve(async (req) => {
       sessionId = session?.id ?? null;
     }
 
-    if (!sessionId) {
-      return json({ error: `No recording session found for bay ${bayNumber}` }, 404);
-    }
+    // No live/recent recording session (e.g. testing during a normal round):
+    // still store the image and parse it so the read can be verified.
+    const testMode = !sessionId;
 
     // Store the raw screenshot (always kept, even if parsing fails).
     const bytes = Uint8Array.from(atob(imageB64), (c) => c.charCodeAt(0));
-    const path = `${sessionId}/${Date.now()}.png`;
+    const path = testMode
+      ? `test/bay-${Number.isFinite(bayNumber) ? bayNumber : "unknown"}/${Date.now()}.png`
+      : `${sessionId}/${Date.now()}.png`;
     const { error: upErr } = await admin.storage
       .from(BUCKET)
       .upload(path, bytes, { contentType: "image/png", upsert: true });
@@ -210,14 +212,23 @@ Deno.serve(async (req) => {
       }
     }
 
-    const { error: updErr } = await admin
-      .from("recording_sessions")
-      .update(update)
-      .eq("id", sessionId);
-    if (updErr) throw new Error(`session update failed: ${updErr.message}`);
+    if (!testMode) {
+      const { error: updErr } = await admin
+        .from("recording_sessions")
+        .update(update)
+        .eq("id", sessionId);
+      if (updErr) throw new Error(`session update failed: ${updErr.message}`);
+    }
+
+    console.log(
+      `[ingest-comp-scorecard] bay=${bayNumber} test_mode=${testMode} path=${path} parsed=${!!parsed} ` +
+        `gross=${parsed?.total_gross ?? "-"} to_par=${parsed?.to_par_gross ?? "-"} ` +
+        `holes=${parsed ? JSON.stringify((parsed.hole_data as Record<string, number>)) : "none"}`,
+    );
 
     return json({
       success: true,
+      test_mode: testMode,
       recording_session_id: sessionId,
       image_path: path,
       parsed: parsed ? true : false,

@@ -326,6 +326,7 @@ export default function BayController() {
   // =====================================================
   const [scorecardSnapping, setScorecardSnapping] = useState(false);
   const scorecardSnappingRef = useRef(false);
+  const [lastScorecardRead, setLastScorecardRead] = useState<string | null>(null);
 
   const snapScorecard = useCallback(async () => {
     const api: any = (window as any).electronAPI;
@@ -351,15 +352,28 @@ export default function BayController() {
 
       const res = data as any;
       if (res?.parsed) {
-        const gross = res.scorecard?.total_gross;
-        toast.success(`Scorecard saved${gross ? ` — ${gross} gross` : ''}`);
-        addLog(`[Scorecard] Saved + read for session ${res.recording_session_id}`, 'success');
+        const card = res.scorecard ?? {};
+        const gross = card.total_gross;
+        const toPar = card.to_par_gross;
+        const summary = `${gross ?? '?'} gross${
+          typeof toPar === 'number' ? ` (${toPar > 0 ? '+' : ''}${toPar})` : ''
+        }${res.test_mode ? ' — test snap' : ''}`;
+        setLastScorecardRead(
+          `${new Date().toLocaleTimeString()} — ${summary}${card.course_name ? ` · ${card.course_name}` : ''}`,
+        );
+        toast.success(`Scorecard read: ${summary}`);
+        addLog(
+          `[Scorecard] Read ${summary} ${res.test_mode ? '(no session — test)' : `for session ${res.recording_session_id}`}`,
+          'success',
+        );
       } else {
+        setLastScorecardRead(`${new Date().toLocaleTimeString()} — image saved, read failed`);
         toast.success("Scorecard image saved (couldn't auto-read it)");
         addLog(`[Scorecard] Image saved, parse failed: ${res?.parse_error ?? 'unknown'}`, 'info');
       }
     } catch (e: any) {
       const msg = e?.message ?? String(e);
+      setLastScorecardRead(`${new Date().toLocaleTimeString()} — failed: ${msg}`);
       toast.error(`Scorecard snap failed: ${msg}`);
       addLog(`[Scorecard] Snap failed: ${msg}`, 'error');
     } finally {
@@ -367,6 +381,7 @@ export default function BayController() {
       setScorecardSnapping(false);
     }
   }, [selectedBay]);
+
 
   useEffect(() => {
     const api: any = (window as any).electronAPI;
@@ -4594,8 +4609,9 @@ export default function BayController() {
             <p className="text-sm text-muted-foreground">
               With the GSPro scorecard on screen, press{" "}
               <kbd className="px-2 py-1 rounded bg-background border text-xs font-mono">F8</kbd>{" "}
-              (or use the button below). The screenshot is uploaded to this bay's current round in
-              League Highlights and read into a scorecard automatically.
+              (or use the button below). Press it as many times as you like — each snap is uploaded
+              and re-read. If there's a live round it attaches to League Highlights; otherwise it's
+              saved as a test snap so the read can be checked.
             </p>
             <Button
               onClick={() => void snapScorecard()}
@@ -4604,11 +4620,17 @@ export default function BayController() {
             >
               {scorecardSnapping ? "Capturing…" : "Snap Scorecard Now"}
             </Button>
+            {lastScorecardRead && (
+              <p className="text-xs text-muted-foreground font-mono">
+                Last read: {lastScorecardRead}
+              </p>
+            )}
             {!isElectron && (
               <p className="text-xs text-destructive">
                 Scorecard Snap only functions in the Electron desktop build.
               </p>
             )}
+
           </div>
         </CollapsibleSettingsCard>
 
