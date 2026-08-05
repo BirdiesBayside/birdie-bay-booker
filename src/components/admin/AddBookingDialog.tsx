@@ -224,6 +224,8 @@ export function AddBookingDialog({
 
   const handleCustomerSearch = (value: string) => {
     setCustomerSearch(value);
+    // Typing again clears any previously selected customer
+    if (selectedCustomerId) setSelectedCustomerId("");
     if (value.length >= 2) {
       fetchCustomers(value);
     } else {
