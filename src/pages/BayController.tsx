@@ -356,7 +356,7 @@ export default function BayController() {
         addLog(`[Scorecard] Saved + read for session ${res.recording_session_id}`, 'success');
       } else {
         toast.success("Scorecard image saved (couldn't auto-read it)");
-        addLog(`[Scorecard] Image saved, parse failed: ${res?.parse_error ?? 'unknown'}`, 'warning');
+        addLog(`[Scorecard] Image saved, parse failed: ${res?.parse_error ?? 'unknown'}`, 'info');
       }
     } catch (e: any) {
       const msg = e?.message ?? String(e);
