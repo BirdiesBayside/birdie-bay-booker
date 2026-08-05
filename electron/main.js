@@ -3987,6 +3987,58 @@ ipcMain.handle('obs-add-chapter', async (_e, { name } = {}) => {
   }
 });
 
+// =====================================================
+// SCORECARD SCREENSHOT CAPTURE
+// Grabs the GSPro window (or the display GSPro is configured to run on)
+// and returns a PNG data URL for upload to the Hub.
+// =====================================================
+async function captureGsproScreenshot() {
+  const displays = screen.getAllDisplays();
+  const gsproLabel = currentAppLaunchConfig?.gsproDisplayLabel;
+  const targetDisplay = displays.find((d) => d.label === gsproLabel) || screen.getPrimaryDisplay();
+  const { width, height } = targetDisplay.size;
+  const scale = targetDisplay.scaleFactor || 1;
+  const thumbnailSize = {
+    width: Math.round(width * scale),
+    height: Math.round(height * scale),
+  };
+
+  const sources = await desktopCapturer.getSources({
+    types: ['window', 'screen'],
+    thumbnailSize,
+  });
+
+  // 1. Prefer an actual GSPro window
+  const gsproWindow = sources.find(
+    (s) => /gspro/i.test(s.name || '') && s.thumbnail && !s.thumbnail.isEmpty()
+  );
+  if (gsproWindow) {
+    console.log('[Scorecard] Captured GSPro window:', gsproWindow.name);
+    return { success: true, dataUrl: gsproWindow.thumbnail.toPNG().toString('base64'), source: gsproWindow.name };
+  }
+
+  // 2. Fall back to the whole GSPro display (fullscreen DX games often
+  //    don't expose a capturable window on Windows)
+  const screenSource =
+    sources.find((s) => s.display_id && String(s.display_id) === String(targetDisplay.id)) ||
+    sources.find((s) => s.id.startsWith('screen'));
+  if (screenSource && screenSource.thumbnail && !screenSource.thumbnail.isEmpty()) {
+    console.log('[Scorecard] Captured screen:', screenSource.name);
+    return { success: true, dataUrl: screenSource.thumbnail.toPNG().toString('base64'), source: screenSource.name };
+  }
+
+  return { success: false, error: 'No capturable GSPro window or display found' };
+}
+
+ipcMain.handle('capture-scorecard-screenshot', async () => {
+  try {
+    return await captureGsproScreenshot();
+  } catch (e) {
+    console.error('[Scorecard] Capture failed:', e.message);
+    return { success: false, error: e.message };
+  }
+});
+
 // Upload a local file (e.g. OBS recording) to a Supabase signed upload URL.
 // Streams the file so we don't blow renderer memory on multi-GB captures.
 // Direct-to-Cloudflare Stream upload using the tus resumable protocol.
