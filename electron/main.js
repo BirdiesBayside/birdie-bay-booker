@@ -556,6 +556,15 @@ app.whenReady().then(() => {
     }
   });
 
+  // Register global Scorecard Snap hotkey (F8) — staff press this with the
+  // GSPro scorecard on screen to capture it into the round's highlight.
+  globalShortcut.register('F8', () => {
+    console.log('[GlobalShortcut] F8 pressed - scorecard snap requested');
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('scorecard-hotkey');
+    }
+  });
+
 });
 
 // Global crash diagnostics for main process
