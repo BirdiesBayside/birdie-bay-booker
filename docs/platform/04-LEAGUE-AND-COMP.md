@@ -71,9 +71,11 @@ UI: `src/pages/admin/AdminLocalComps.tsx` and `src/components/admin/local-comps/
 
 - 2-man teams, combined handicap, split payments handled through Admin POS.
 - Leaderboard ties are broken by `position` so ordering is stable.
-- **Handicap adjustment (runs when a comp is marked completed):** each team's local
-  handicap moves by **25% of the team's gap to the field average net score**, capped at
-  ±2 shots. Winners get an extra −0.5, back-to-back winners −1.5.
+- **Handicap adjustment (runs when a comp is marked completed):** based on **finishing
+  position**, not scores. Position is spread across the field (1st = −1.5, last = +1.5,
+  rounded to 0.5); the middle band (|spread| < 0.45, roughly the middle third) gets no
+  change, so blow-out scores can't drag the whole field. Winners get an extra −0.5,
+  back-to-back winners a further −1.5.
 - `HandicapMismatches.tsx` flags players whose Ambrose handicap differs from their league
   handicap by 4+ shots.
 - `local-comp-commentary` generates an AI recap per week (Gemini via Lovable AI Gateway),
