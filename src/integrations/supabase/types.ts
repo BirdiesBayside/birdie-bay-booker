@@ -2346,6 +2346,9 @@ export type Database = {
           retention_until: string | null
           round_number: number
           scorecard: Json | null
+          scorecard_captured_at: string | null
+          scorecard_image_path: string | null
+          scorecard_source: string | null
           sgt_tournament_id: string | null
           sgt_user_id: string | null
           started_at: string | null
@@ -2373,6 +2376,9 @@ export type Database = {
           retention_until?: string | null
           round_number?: number
           scorecard?: Json | null
+          scorecard_captured_at?: string | null
+          scorecard_image_path?: string | null
+          scorecard_source?: string | null
           sgt_tournament_id?: string | null
           sgt_user_id?: string | null
           started_at?: string | null
@@ -2400,6 +2406,9 @@ export type Database = {
           retention_until?: string | null
           round_number?: number
           scorecard?: Json | null
+          scorecard_captured_at?: string | null
+          scorecard_image_path?: string | null
+          scorecard_source?: string | null
           sgt_tournament_id?: string | null
           sgt_user_id?: string | null
           started_at?: string | null

@@ -10,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
-import { Download, FolderOpen, Loader2, Play, Trash2 } from "lucide-react";
+import { Download, FolderOpen, Image as ImageIcon, Loader2, Play, Trash2 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatBrisbane } from "@/lib/brisbane-time";
 
 
@@ -44,6 +45,7 @@ interface SessionRow {
   round_number: number | null;
   trigger_source: string | null;
   scorecard: Scorecard | null;
+  scorecard_image_path: string | null;
 }
 
 export function fmtOffset(secs: number | null): string {
@@ -161,6 +163,22 @@ export function LeagueHighlights() {
   const [streamBusyIds, setStreamBusyIds] = useState<Set<string>>(new Set());
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [selectMode, setSelectMode] = useState(false);
+  const [scorecardImageSession, setScorecardImageSession] = useState<SessionRow | null>(null);
+  const [scorecardImageUrl, setScorecardImageUrl] = useState<string | null>(null);
+
+  const openScorecardImage = async (sess: SessionRow) => {
+    setScorecardImageSession(sess);
+    setScorecardImageUrl(null);
+    if (!sess.scorecard_image_path) return;
+    const { data, error } = await supabase.storage
+      .from("comp-scorecards")
+      .createSignedUrl(sess.scorecard_image_path, 60 * 30);
+    if (error || !data?.signedUrl) {
+      toast({ title: "Couldn't load scorecard image", description: error?.message, variant: "destructive" });
+      return;
+    }
+    setScorecardImageUrl(data.signedUrl);
+  };
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const autoKickedRef = useRef<Set<string>>(new Set());
 
@@ -183,7 +201,7 @@ export function LeagueHighlights() {
     // every tus upload, because those never get a storage_path.
     const { data: sessRows } = await supabase
       .from("recording_sessions")
-      .select("id, player_name, tournament_name, bay_number, started_at, stream_uid, stream_status, stream_error, round_number, trigger_source, scorecard")
+      .select("id, player_name, tournament_name, bay_number, started_at, stream_uid, stream_status, stream_error, round_number, trigger_source, scorecard, scorecard_image_path")
       .gte("started_at", since)
       .or("stream_uid.not.is.null,status.eq.uploaded")
       .neq("status", "purged")
@@ -216,6 +234,7 @@ export function LeagueHighlights() {
       round_number: r.round_number ?? null,
       trigger_source: r.trigger_source ?? null,
       scorecard: (r.scorecard as Scorecard | null) ?? null,
+      scorecard_image_path: r.scorecard_image_path ?? null,
     }));
     setSessions(mapped);
     if (!silent) setLoading(false);
@@ -481,6 +500,7 @@ export function LeagueHighlights() {
                        </div>
                        <div className="flex gap-2 mt-2 flex-wrap">
                          {sess.trigger_source === "local_comp" && <Badge variant="secondary">Local Comp</Badge>}
+                         {sess.scorecard_image_path && <Badge variant="outline">Scorecard snap</Badge>}
                           {sess.scorecard ? (
                             <Badge variant="outline">
                               {sess.scorecard.total_gross ?? "-"} gross ({fmtToPar(sess.scorecard.to_par_gross)})
@@ -499,6 +519,11 @@ export function LeagueHighlights() {
                         <Button asChild size="sm" variant="outline">
                           <Link to={`/admin/highlights/${sess.session_id}/review`}><Play className="h-4 w-4 mr-1" />Open</Link>
                         </Button>
+                       {sess.scorecard_image_path && (
+                         <Button size="sm" variant="outline" onClick={() => void openScorecardImage(sess)}>
+                           <ImageIcon className="h-4 w-4 mr-1" />Scorecard
+                         </Button>
+                       )}
                        <Button size="sm" variant="outline" onClick={() => downloadSession(sess)} disabled={!sess.storage_path}><Download className="h-4 w-4 mr-1" />Download</Button>
                        <Button asChild size="sm" variant="outline">
                          <Link to={`/admin/highlights/${sess.session_id}/exports`}><FolderOpen className="h-4 w-4 mr-1" />Exports</Link>
@@ -513,6 +538,36 @@ export function LeagueHighlights() {
         </CardContent>
       </Card>
 
+      <Dialog open={!!scorecardImageSession} onOpenChange={(open) => { if (!open) { setScorecardImageSession(null); setScorecardImageUrl(null); } }}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {scorecardImageSession?.player_name ?? "Scorecard"} — Bay {scorecardImageSession?.bay_number}
+            </DialogTitle>
+          </DialogHeader>
+          {scorecardImageSession?.scorecard && <ScorecardGrid scorecard={scorecardImageSession.scorecard} />}
+          {scorecardImageUrl ? (
+            <img src={scorecardImageUrl} alt="Captured GSPro scorecard screenshot" className="w-full rounded-md border" />
+          ) : (
+            <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin" /></div>
+          )}
+        </DialogContent>
+      </Dialog>
+      <Dialog open={!!scorecardImageSession} onOpenChange={(open) => { if (!open) { setScorecardImageSession(null); setScorecardImageUrl(null); } }}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {scorecardImageSession?.player_name ?? "Scorecard"} — Bay {scorecardImageSession?.bay_number}
+            </DialogTitle>
+          </DialogHeader>
+          {scorecardImageSession?.scorecard && <ScorecardGrid scorecard={scorecardImageSession.scorecard} />}
+          {scorecardImageUrl ? (
+            <img src={scorecardImageUrl} alt="Captured GSPro scorecard screenshot" className="w-full rounded-md border" />
+          ) : (
+            <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin" /></div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Lock, Wifi, Power, Clock, AlertTriangle, CheckCircle, XCircle, Settings, RefreshCw, Monitor, Play, Square, FolderOpen, ChevronDown, ChevronUp, Bell, X, Trash2, TestTube, User, FileText } from "lucide-react";
+import { Lock, Wifi, Power, Clock, AlertTriangle, CheckCircle, XCircle, Settings, RefreshCw, Monitor, Play, Square, FolderOpen, ChevronDown, ChevronUp, Bell, X, Trash2, TestTube, User, FileText, Camera } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format, addMinutes, isBefore, isAfter, parseISO } from "date-fns";
@@ -317,6 +317,63 @@ export default function BayController() {
     });
     return cleanup;
   }, []);
+
+  // =====================================================
+  // SCORECARD SNAP (F8)
+  // Staff press F8 with the GSPro scorecard on screen. We grab the GSPro
+  // window/display, upload the PNG, and let the Hub read it into a
+  // structured scorecard attached to this bay's current round.
+  // =====================================================
+  const [scorecardSnapping, setScorecardSnapping] = useState(false);
+  const scorecardSnappingRef = useRef(false);
+
+  const snapScorecard = useCallback(async () => {
+    const api: any = (window as any).electronAPI;
+    if (!api?.isElectron || typeof api.captureScorecardScreenshot !== 'function') {
+      toast.error("Scorecard snap needs the desktop Bay Controller");
+      return;
+    }
+    if (scorecardSnappingRef.current) return;
+    scorecardSnappingRef.current = true;
+    setScorecardSnapping(true);
+    try {
+      addLog('[Scorecard] Capturing GSPro screenshot…', 'info');
+      const shot = await api.captureScorecardScreenshot();
+      if (!shot?.success || !shot.dataUrl) {
+        throw new Error(shot?.error || 'capture failed');
+      }
+      const { data, error } = await supabase.functions.invoke('ingest-comp-scorecard', {
+        headers: { 'x-bay-number': String(selectedBay ?? '') },
+        body: { bay_number: selectedBay, image_base64: shot.dataUrl },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+
+      const res = data as any;
+      if (res?.parsed) {
+        const gross = res.scorecard?.total_gross;
+        toast.success(`Scorecard saved${gross ? ` — ${gross} gross` : ''}`);
+        addLog(`[Scorecard] Saved + read for session ${res.recording_session_id}`, 'success');
+      } else {
+        toast.success("Scorecard image saved (couldn't auto-read it)");
+        addLog(`[Scorecard] Image saved, parse failed: ${res?.parse_error ?? 'unknown'}`, 'info');
+      }
+    } catch (e: any) {
+      const msg = e?.message ?? String(e);
+      toast.error(`Scorecard snap failed: ${msg}`);
+      addLog(`[Scorecard] Snap failed: ${msg}`, 'error');
+    } finally {
+      scorecardSnappingRef.current = false;
+      setScorecardSnapping(false);
+    }
+  }, [selectedBay]);
+
+  useEffect(() => {
+    const api: any = (window as any).electronAPI;
+    if (!api?.isElectron || typeof api.onScorecardHotkey !== 'function') return;
+    const cleanup = api.onScorecardHotkey(() => { void snapScorecard(); });
+    return cleanup;
+  }, [snapScorecard]);
 
   const toggleKiosk = (enable: boolean) => {
     if (enable) {
@@ -4527,6 +4584,33 @@ export default function BayController() {
           </div>
         </CollapsibleSettingsCard>
 
+        {/* Scorecard Snap */}
+        <CollapsibleSettingsCard
+          title="Scorecard Snap"
+          icon={<Camera className="w-5 h-5 text-muted-foreground" />}
+          defaultOpen={false}
+        >
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              With the GSPro scorecard on screen, press{" "}
+              <kbd className="px-2 py-1 rounded bg-background border text-xs font-mono">F8</kbd>{" "}
+              (or use the button below). The screenshot is uploaded to this bay's current round in
+              League Highlights and read into a scorecard automatically.
+            </p>
+            <Button
+              onClick={() => void snapScorecard()}
+              disabled={scorecardSnapping || !isElectron}
+              className="w-full"
+            >
+              {scorecardSnapping ? "Capturing…" : "Snap Scorecard Now"}
+            </Button>
+            {!isElectron && (
+              <p className="text-xs text-destructive">
+                Scorecard Snap only functions in the Electron desktop build.
+              </p>
+            )}
+          </div>
+        </CollapsibleSettingsCard>
 
 
         <Card>
