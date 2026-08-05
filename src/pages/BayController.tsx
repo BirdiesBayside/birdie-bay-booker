@@ -2575,6 +2575,31 @@ export default function BayController() {
       const current = activeBookingRef.current;
       let reason: string | null = null;
 
+      // Changeover grace: for the first 3 minutes of a recording the active
+      // booking / stored end time can still be the OUTGOING booking (the poller
+      // fires the start command a few seconds before the ref flips). Re-bind to
+      // the live booking instead of instantly hard-stopping a fresh recording.
+      const startedAtMs = rec.startedAtMs ?? now;
+      const withinGrace = now - startedAtMs < 180_000;
+      const staleOwner = rec.bookingEndMs && now >= rec.bookingEndMs - 120_000;
+      if (withinGrace && (staleOwner || (rec.bookingId && current && current.id !== rec.bookingId))) {
+        if (current && current.id !== rec.bookingId) {
+          const endMs = current.booking_date && current.end_time
+            ? new Date(`${current.booking_date}T${current.end_time}`).getTime()
+            : null;
+          if (endMs && now < endMs - 120_000) {
+            addLog(`[Highlights] Re-bound recording ${rec.sessionId} to live booking ${current.id} (changeover grace)`, 'info');
+            bayLogger.sendLog('automation_decision', `[Highlights] Re-bound recording ${rec.sessionId} to booking ${current.id} during changeover grace`, {
+              bookingId: current.id,
+            });
+            rec.bookingId = current.id;
+            rec.userId = current.user_id ?? null;
+            rec.bookingEndMs = endMs;
+          }
+        }
+        return;
+      }
+
       if (rec.bookingEndMs && now >= rec.bookingEndMs - 120_000) {
         reason = 'booking end approaching (T-2m)';
 
@@ -2596,6 +2621,7 @@ export default function BayController() {
         void finalizeRecording(rec.sessionId, `hard stop — ${reason}`);
       }
     }, 10_000);
+
 
     return () => clearInterval(interval);
   }, [isElectron, selectedBay, addLog, bayLogger, finalizeRecording]);
