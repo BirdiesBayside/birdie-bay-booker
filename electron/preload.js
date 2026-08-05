@@ -257,4 +257,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('obs-tus-upload', { filePath, uploadUrl, declaredSize }),
   obsDeleteFile: (filePath) => ipcRenderer.invoke('obs-delete-file', { filePath }),
   obsAddChapter: (name) => ipcRenderer.invoke('obs-add-chapter', { name }),
+
+  // =====================================================
+  // SCORECARD SCREENSHOT
+  // =====================================================
+  captureScorecardScreenshot: () => ipcRenderer.invoke('capture-scorecard-screenshot'),
+  onScorecardHotkey: (callback) => {
+    ipcRenderer.on('scorecard-hotkey', () => callback());
+    return () => ipcRenderer.removeAllListeners('scorecard-hotkey');
+  },
 });
