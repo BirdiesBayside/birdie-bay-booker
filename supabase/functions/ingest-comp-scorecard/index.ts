@@ -155,13 +155,15 @@ Deno.serve(async (req) => {
       sessionId = session?.id ?? null;
     }
 
-    if (!sessionId) {
-      return json({ error: `No recording session found for bay ${bayNumber}` }, 404);
-    }
+    // No live/recent recording session (e.g. testing during a normal round):
+    // still store the image and parse it so the read can be verified.
+    const testMode = !sessionId;
 
     // Store the raw screenshot (always kept, even if parsing fails).
     const bytes = Uint8Array.from(atob(imageB64), (c) => c.charCodeAt(0));
-    const path = `${sessionId}/${Date.now()}.png`;
+    const path = testMode
+      ? `test/bay-${Number.isFinite(bayNumber) ? bayNumber : "unknown"}/${Date.now()}.png`
+      : `${sessionId}/${Date.now()}.png`;
     const { error: upErr } = await admin.storage
       .from(BUCKET)
       .upload(path, bytes, { contentType: "image/png", upsert: true });
