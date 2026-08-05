@@ -36,8 +36,9 @@ export function HcpAdjustments() {
       <div>
         <h2 className="text-xl font-display font-bold text-foreground">Handicap Adjustments</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Auto-applied to every team when a competition is marked completed: a quarter of your team's gap to the field average net,
-          rounded to the nearest 0.5 and capped at ±2.0. Winners get an extra −0.5 (a further −1.5 for back-to-back wins).
+          Auto-applied to every team when a competition is marked completed. Based on finishing position across the field
+          (1st ≈ −1.5, last ≈ +1.5, middle third unchanged), plus a gross-score check: teams shooting 3+ under the field's
+          average gross get an extra −0.5, and 6+ under gets −1.0. Winners get a further −0.5 (and −1.5 for back-to-back wins).
           Changes sync across every saved team containing that player (case-insensitive name match).
         </p>
 
