@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, FolderOpen, Loader2, Scissors, Video, X } from "lucide-react";
+import { ArrowLeft, FolderOpen, Image as ImageIcon, Loader2, Scissors, Video, X } from "lucide-react";
 import {
   ScorecardGrid,
   fmtOffset,
@@ -13,6 +13,7 @@ import {
   type Scorecard,
 } from "@/components/admin/LeagueHighlights";
 import { formatBrisbane } from "@/lib/brisbane-time";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 interface ReviewSession {
   id: string;
@@ -26,6 +27,8 @@ interface ReviewSession {
   stream_status: string | null;
   stream_error: string | null;
   scorecard: Scorecard | null;
+  scorecard_image_path: string | null;
+  scorecard_captured_at: string | null;
 }
 
 export default function AdminHighlightReview() {
@@ -39,6 +42,8 @@ export default function AdminHighlightReview() {
   const [clipStart, setClipStart] = useState<number | null>(null);
   const [clipEnd, setClipEnd] = useState<number | null>(null);
   const [clipLoading, setClipLoading] = useState(false);
+  const [scorecardImageUrl, setScorecardImageUrl] = useState<string | null>(null);
+  const [scorecardImageOpen, setScorecardImageOpen] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
   const attemptedRef = useRef(false);
@@ -47,7 +52,7 @@ export default function AdminHighlightReview() {
     if (!sessionId) return;
     const { data } = await supabase
       .from("recording_sessions")
-      .select("id, player_name, tournament_name, bay_number, started_at, round_number, trigger_source, stream_uid, stream_status, stream_error, scorecard")
+      .select("id, player_name, tournament_name, bay_number, started_at, round_number, trigger_source, stream_uid, stream_status, stream_error, scorecard, scorecard_image_path, scorecard_captured_at")
       .eq("id", sessionId)
       .maybeSingle();
     setSession((data as ReviewSession | null) ?? null);
@@ -97,6 +102,20 @@ export default function AdminHighlightReview() {
     } finally {
       setPreparing(false);
     }
+  };
+
+  const openScorecardImage = async () => {
+    if (!session?.scorecard_image_path) return;
+    setScorecardImageOpen(true);
+    setScorecardImageUrl(null);
+    const { data, error } = await supabase.storage
+      .from("comp-scorecards")
+      .createSignedUrl(session.scorecard_image_path, 60 * 30);
+    if (error || !data?.signedUrl) {
+      toast({ title: "Couldn't load scorecard image", description: error?.message, variant: "destructive" });
+      return;
+    }
+    setScorecardImageUrl(data.signedUrl);
   };
 
   const markStart = () => { if (videoRef.current) setClipStart(videoRef.current.currentTime); };
@@ -205,10 +224,37 @@ export default function AdminHighlightReview() {
                   Scorecard will appear here once the round is finished and pulled from SGT.
                 </div>
               )}
+              {session.scorecard_image_path && (
+                <div className="mt-3">
+                  <Button size="sm" variant="outline" onClick={() => void openScorecardImage()}>
+                    <ImageIcon className="h-4 w-4 mr-1" /> View Scorecard Screenshot
+                  </Button>
+                  {session.scorecard_captured_at && (
+                    <span className="ml-2 text-xs text-muted-foreground">
+                      Captured {formatBrisbane(session.scorecard_captured_at)}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           </>
         )}
       </div>
+
+      <Dialog open={scorecardImageOpen} onOpenChange={(open) => { if (!open) { setScorecardImageOpen(false); setScorecardImageUrl(null); } }}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {session?.player_name ?? "Scorecard"} — Bay {session?.bay_number}
+            </DialogTitle>
+          </DialogHeader>
+          {scorecardImageUrl ? (
+            <img src={scorecardImageUrl} alt="Captured GSPro scorecard screenshot" className="w-full rounded-md border" />
+          ) : (
+            <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin" /></div>
+          )}
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
   );
 }
