@@ -550,6 +550,23 @@ export default function Booking() {
 
   const canConfirm = selectedDate && selectedTime && selectedBayId;
 
+  // Default to paying with credit whenever the customer has any balance.
+  // Full balance -> "balance"; partial balance -> card with credit applied.
+  useEffect(() => {
+    if (paymentMethodTouched) return;
+    const total = hourlyRate * selectedDuration;
+    if (depositBalance <= 0 || total <= 0) return;
+    if (depositBalance >= total) {
+      setSelectedPaymentMethod("balance");
+      setUsePartialBalance(false);
+    } else {
+      setSelectedPaymentMethod("card");
+      setUsePartialBalance(true);
+    }
+  }, [depositBalance, hourlyRate, selectedDuration, paymentMethodTouched]);
+
+
+
   return (
     <div className="min-h-screen bg-background">
       <header className="bg-primary text-primary-foreground py-4 px-4 safe-area-top">
