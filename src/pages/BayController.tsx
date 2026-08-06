@@ -343,34 +343,22 @@ export default function BayController() {
       if (!shot?.success || !shot.dataUrl) {
         throw new Error(shot?.error || 'capture failed');
       }
+      // Image-only upload. Staff enter scores manually; the screenshot is kept
+      // in the Hub for reference. Pass parse: true if you ever want AI vision.
       const { data, error } = await supabase.functions.invoke('ingest-comp-scorecard', {
         headers: { 'x-bay-number': String(selectedBay ?? '') },
-        body: { bay_number: selectedBay, image_base64: shot.dataUrl },
+        body: { bay_number: selectedBay, image_base64: shot.dataUrl, parse: false },
       });
       if (error) throw error;
       if ((data as any)?.error) throw new Error((data as any).error);
 
       const res = data as any;
-      if (res?.parsed) {
-        const card = res.scorecard ?? {};
-        const gross = card.total_gross;
-        const toPar = card.to_par_gross;
-        const summary = `${gross ?? '?'} gross${
-          typeof toPar === 'number' ? ` (${toPar > 0 ? '+' : ''}${toPar})` : ''
-        }${res.test_mode ? ' — test snap' : ''}`;
-        setLastScorecardRead(
-          `${new Date().toLocaleTimeString()} — ${summary}${card.course_name ? ` · ${card.course_name}` : ''}`,
-        );
-        toast.success(`Scorecard read: ${summary}`);
-        addLog(
-          `[Scorecard] Read ${summary} ${res.test_mode ? '(no session — test)' : `for session ${res.recording_session_id}`}`,
-          'success',
-        );
-      } else {
-        setLastScorecardRead(`${new Date().toLocaleTimeString()} — image saved, read failed`);
-        toast.success("Scorecard image saved (couldn't auto-read it)");
-        addLog(`[Scorecard] Image saved, parse failed: ${res?.parse_error ?? 'unknown'}`, 'info');
-      }
+      const label = res.test_mode ? 'test snap' : `session ${res.recording_session_id ?? 'unknown'}`;
+      setLastScorecardRead(
+        `${new Date().toLocaleTimeString()} — image sent to Hub (${label})`,
+      );
+      toast.success('Scorecard image sent to Hub');
+      addLog(`[Scorecard] Image uploaded for ${label}`, 'success');
     } catch (e: any) {
       const msg = e?.message ?? String(e);
       setLastScorecardRead(`${new Date().toLocaleTimeString()} — failed: ${msg}`);
@@ -381,6 +369,7 @@ export default function BayController() {
       setScorecardSnapping(false);
     }
   }, [selectedBay]);
+
 
 
   useEffect(() => {
@@ -4609,20 +4598,20 @@ export default function BayController() {
             <p className="text-sm text-muted-foreground">
               With the GSPro scorecard on screen, press{" "}
               <kbd className="px-2 py-1 rounded bg-background border text-xs font-mono">F8</kbd>{" "}
-              (or use the button below). Press it as many times as you like — each snap is uploaded
-              and re-read. If there's a live round it attaches to League Highlights; otherwise it's
-              saved as a test snap so the read can be checked.
+              (or use the button below). Each snap uploads the screenshot to the Hub for staff
+              reference. Scores are entered manually by staff — the image is just there so you can
+              see the scorecard without walking back to the bay.
             </p>
             <Button
               onClick={() => void snapScorecard()}
               disabled={scorecardSnapping || !isElectron}
               className="w-full"
             >
-              {scorecardSnapping ? "Capturing…" : "Snap Scorecard Now"}
+              {scorecardSnapping ? "Capturing…" : "Send Scorecard to Hub"}
             </Button>
             {lastScorecardRead && (
               <p className="text-xs text-muted-foreground font-mono">
-                Last read: {lastScorecardRead}
+                Last sent: {lastScorecardRead}
               </p>
             )}
             {!isElectron && (
@@ -4632,6 +4621,7 @@ export default function BayController() {
             )}
 
           </div>
+
         </CollapsibleSettingsCard>
 
 

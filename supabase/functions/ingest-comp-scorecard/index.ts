@@ -178,7 +178,9 @@ Deno.serve(async (req) => {
     let parsed: Record<string, unknown> | null = null;
     let parseError: string | null = null;
 
-    if (body?.parse !== false) {
+    // Default to image-only upload. Staff enter scores manually; the screenshot
+    // is kept in the Hub for reference. Pass parse: true to run AI vision.
+    if (body?.parse === true) {
       try {
         const ai = await parseScorecard(`data:image/png;base64,${imageB64}`);
         const scores = (ai.scores ?? []).slice(0, 18);
@@ -211,6 +213,7 @@ Deno.serve(async (req) => {
         console.error("[ingest-comp-scorecard] parse failed:", parseError);
       }
     }
+
 
     if (!testMode) {
       const { error: updErr } = await admin
