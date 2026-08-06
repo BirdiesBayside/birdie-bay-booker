@@ -725,6 +725,7 @@ export default function Booking() {
                     <RadioGroup
                       value={selectedPaymentMethod}
                       onValueChange={(value) => {
+                        setPaymentMethodTouched(true);
                         setSelectedPaymentMethod(value as "balance" | "card");
                         if (value === "balance") {
                           setUsePartialBalance(false);
