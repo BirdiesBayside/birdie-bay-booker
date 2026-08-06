@@ -66,6 +66,7 @@ export default function Booking() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<"balance" | "card">("card");
   const [usePartialBalance, setUsePartialBalance] = useState(false);
+  const [paymentMethodTouched, setPaymentMethodTouched] = useState(false);
   const [pendingBookingId, setPendingBookingId] = useState<string | null>(null);
   const [playingComp, setPlayingComp] = useState(false);
   const [showMembershipIssueDialog, setShowMembershipIssueDialog] = useState(false);
