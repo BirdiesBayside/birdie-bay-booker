@@ -186,34 +186,39 @@ export function NotificationBell() {
       </Popover>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>{selectedAnnouncement?.title}</DialogTitle>
+        <DialogContent className="max-w-md max-h-[85vh] flex flex-col p-0">
+          <DialogHeader className="p-6 pb-3 shrink-0">
+            <DialogTitle className="pr-6">{selectedAnnouncement?.title}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-              {selectedAnnouncement?.content?.split(/(https?:\/\/[^\s]+)/g).map((part, i) =>
-                /^https?:\/\//.test(part) ? (
-                  <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-birdies-orange underline break-all">
-                    {part}
-                  </a>
-                ) : part
-              )}
-            </p>
-            <p className="text-xs text-muted-foreground">
+          <div className="flex-1 min-h-0 overflow-y-auto px-6">
+            <div className="rounded-lg border bg-muted/30 p-4">
+              <p className="text-sm text-muted-foreground whitespace-pre-wrap break-words">
+                {selectedAnnouncement?.content?.split(/(https?:\/\/[^\s]+)/g).map((part, i) =>
+                  /^https?:\/\//.test(part) ? (
+                    <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-birdies-orange underline break-all">
+                      {part}
+                    </a>
+                  ) : part
+                )}
+              </p>
+            </div>
+            <p className="text-xs text-muted-foreground mt-3">
               {selectedAnnouncement && format(new Date(selectedAnnouncement.created_at), "MMMM d, yyyy 'at' h:mm a")}
             </p>
+          </div>
+          <div className="p-6 pt-4 shrink-0 space-y-2 border-t">
             {selectedAnnouncement?.source_type === 'clubhouse_post' && (
-              <Button 
-                onClick={handleViewSource}
-                className="w-full"
-              >
+              <Button onClick={handleViewSource} className="w-full">
                 View in Clubhouse
               </Button>
             )}
+            <Button variant="outline" className="w-full" onClick={() => setDialogOpen(false)}>
+              Close
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
+
     </>
   );
 }
