@@ -318,6 +318,41 @@ export function CustomerAlertsSection() {
           })}
         </div>
       )}
+
+      <Dialog open={!!detailAlertId} onOpenChange={(o) => !o && setDetailAlertId(null)}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Alert delivery log</DialogTitle>
+          </DialogHeader>
+          {detailsLoading ? (
+            <Skeleton className="h-24" />
+          ) : !sendDetails?.length ? (
+            <p className="text-sm text-muted-foreground">No sends recorded yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {sendDetails.map((s) => (
+                <div
+                  key={s.id}
+                  className="flex items-start gap-3 rounded-md border border-border p-2"
+                >
+                  {s.success ? (
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-green-600" />
+                  ) : (
+                    <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+                  )}
+                  <div className="min-w-0 space-y-0.5">
+                    <p className="text-sm font-medium">{s.label}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {s.phone ?? "no phone"} · {formatBrisbane(s.created_at)}
+                    </p>
+                    <p className="text-xs text-muted-foreground break-words">{s.response}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
