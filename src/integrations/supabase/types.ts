@@ -740,6 +740,80 @@ export type Database = {
         }
         Relationships: []
       }
+      customer_alert_sends: {
+        Row: {
+          alert_id: string
+          booking_id: string | null
+          created_at: string
+          id: string
+          phone: string | null
+          response: string | null
+          success: boolean
+        }
+        Insert: {
+          alert_id: string
+          booking_id?: string | null
+          created_at?: string
+          id?: string
+          phone?: string | null
+          response?: string | null
+          success?: boolean
+        }
+        Update: {
+          alert_id?: string
+          booking_id?: string | null
+          created_at?: string
+          id?: string
+          phone?: string | null
+          response?: string | null
+          success?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_alert_sends_alert_id_fkey"
+            columns: ["alert_id"]
+            isOneToOne: false
+            referencedRelation: "customer_alerts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer_alerts: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          last_run_at: string | null
+          message: string
+          updated_at: string
+          window_end: string
+          window_start: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          last_run_at?: string | null
+          message: string
+          updated_at?: string
+          window_end: string
+          window_start: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          last_run_at?: string | null
+          message?: string
+          updated_at?: string
+          window_end?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
       deposit_transactions: {
         Row: {
           amount: number
