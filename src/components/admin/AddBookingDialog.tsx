@@ -175,6 +175,11 @@ export function AddBookingDialog({
     }
   }, [open, initialDate, initialTime, initialBayId]);
 
+  // Reset duration when switching tabs so booking stays within 4h and block can go up to 12h
+  useEffect(() => {
+    setDuration("1");
+  }, [activeTab]);
+
   const resetNewCustomerForm = () => {
     setNewFirstName("");
     setNewLastName("");
