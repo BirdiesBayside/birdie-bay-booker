@@ -834,7 +834,7 @@ export function AddBookingDialog({
                   <SelectValue placeholder="Select duration" />
                 </SelectTrigger>
                 <SelectContent>
-                  {DURATION_OPTIONS.map((opt) => (
+                  {BOOKING_DURATION_OPTIONS.map((opt) => (
                     <SelectItem key={opt.value} value={opt.value}>
                       {opt.label}
                     </SelectItem>
@@ -972,7 +972,7 @@ export function AddBookingDialog({
                   <SelectValue placeholder="Select duration" />
                 </SelectTrigger>
                 <SelectContent>
-                  {DURATION_OPTIONS.map((opt) => (
+                  {BLOCK_DURATION_OPTIONS.map((opt) => (
                     <SelectItem key={opt.value} value={opt.value}>
                       {opt.label}
                     </SelectItem>
