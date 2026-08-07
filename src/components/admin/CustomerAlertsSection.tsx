@@ -42,6 +42,48 @@ export function CustomerAlertsSection() {
   const [end, setEnd] = useState("");
   const [message, setMessage] = useState("");
   const [runningId, setRunningId] = useState<string | null>(null);
+  const [detailAlertId, setDetailAlertId] = useState<string | null>(null);
+
+  const { data: sendDetails, isLoading: detailsLoading } = useQuery({
+    queryKey: ["customer-alert-send-details", detailAlertId],
+    enabled: !!detailAlertId,
+    queryFn: async () => {
+      const { data: sends, error } = await supabase
+        .from("customer_alert_sends")
+        .select("id, booking_id, phone, success, response, created_at")
+        .eq("alert_id", detailAlertId!)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      const bookingIds = [...new Set((sends ?? []).map((s) => s.booking_id).filter(Boolean))];
+      const nameByBooking = new Map<string, string>();
+      if (bookingIds.length) {
+        const { data: bookings } = await supabase
+          .from("bookings")
+          .select("id, user_id, booking_date, start_time")
+          .in("id", bookingIds as string[]);
+        const userIds = [...new Set((bookings ?? []).map((b) => b.user_id))];
+        const profileMap = new Map<string, string>();
+        if (userIds.length) {
+          const { data: profiles } = await supabase
+            .from("profiles")
+            .select("user_id, full_name")
+            .in("user_id", userIds);
+          for (const p of profiles ?? []) profileMap.set(p.user_id, p.full_name ?? "");
+        }
+        for (const b of bookings ?? []) {
+          const name = profileMap.get(b.user_id) || "Unknown";
+          nameByBooking.set(
+            b.id,
+            `${name} · ${b.booking_date} ${String(b.start_time).slice(0, 5)}`,
+          );
+        }
+      }
+      return (sends ?? []).map((s) => ({
+        ...s,
+        label: nameByBooking.get(s.booking_id) ?? "Unknown booking",
+      }));
+    },
+  });
 
   const { data: alerts, isLoading } = useQuery({
     queryKey: ["customer-alerts"],
