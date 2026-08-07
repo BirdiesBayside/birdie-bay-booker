@@ -8,9 +8,15 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { formatBrisbane } from "@/lib/brisbane-time";
-import { Loader2, Send, Trash2, RefreshCw, Power } from "lucide-react";
+import { Loader2, Send, Trash2, RefreshCw, Power, CheckCircle2, XCircle } from "lucide-react";
 
 // The venue runs on Australia/Brisbane (UTC+10, no DST). Datetime-local inputs
 // are naive strings, so we pin them to +10:00 explicitly rather than trusting
@@ -36,6 +42,48 @@ export function CustomerAlertsSection() {
   const [end, setEnd] = useState("");
   const [message, setMessage] = useState("");
   const [runningId, setRunningId] = useState<string | null>(null);
+  const [detailAlertId, setDetailAlertId] = useState<string | null>(null);
+
+  const { data: sendDetails, isLoading: detailsLoading } = useQuery({
+    queryKey: ["customer-alert-send-details", detailAlertId],
+    enabled: !!detailAlertId,
+    queryFn: async () => {
+      const { data: sends, error } = await supabase
+        .from("customer_alert_sends")
+        .select("id, booking_id, phone, success, response, created_at")
+        .eq("alert_id", detailAlertId!)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      const bookingIds = [...new Set((sends ?? []).map((s) => s.booking_id).filter(Boolean))];
+      const nameByBooking = new Map<string, string>();
+      if (bookingIds.length) {
+        const { data: bookings } = await supabase
+          .from("bookings")
+          .select("id, user_id, booking_date, start_time")
+          .in("id", bookingIds as string[]);
+        const userIds = [...new Set((bookings ?? []).map((b) => b.user_id))];
+        const profileMap = new Map<string, string>();
+        if (userIds.length) {
+          const { data: profiles } = await supabase
+            .from("profiles")
+            .select("user_id, first_name, last_name")
+            .in("user_id", userIds);
+          for (const p of profiles ?? []) profileMap.set(p.user_id, `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim());
+        }
+        for (const b of bookings ?? []) {
+          const name = profileMap.get(b.user_id) || "Unknown";
+          nameByBooking.set(
+            b.id,
+            `${name} · ${b.booking_date} ${String(b.start_time).slice(0, 5)}`,
+          );
+        }
+      }
+      return (sends ?? []).map((s) => ({
+        ...s,
+        label: nameByBooking.get(s.booking_id) ?? "Unknown booking",
+      }));
+    },
+  });
 
   const { data: alerts, isLoading } = useQuery({
     queryKey: ["customer-alerts"],
@@ -222,9 +270,13 @@ export function CustomerAlertsSection() {
                     {formatBrisbane(alert.window_start)} → {formatBrisbane(alert.window_end)}
                   </span>
                   {counts && (
-                    <span className="text-xs text-muted-foreground">
-                      · {counts.sent} sent{counts.failed ? `, ${counts.failed} failed` : ""}
-                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setDetailAlertId(alert.id)}
+                      className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                    >
+                      · {counts.sent} sent{counts.failed ? `, ${counts.failed} failed` : ""} — view
+                    </button>
                   )}
                 </div>
                 <p className="text-sm whitespace-pre-wrap">{alert.message}</p>
@@ -266,6 +318,41 @@ export function CustomerAlertsSection() {
           })}
         </div>
       )}
+
+      <Dialog open={!!detailAlertId} onOpenChange={(o) => !o && setDetailAlertId(null)}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Alert delivery log</DialogTitle>
+          </DialogHeader>
+          {detailsLoading ? (
+            <Skeleton className="h-24" />
+          ) : !sendDetails?.length ? (
+            <p className="text-sm text-muted-foreground">No sends recorded yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {sendDetails.map((s) => (
+                <div
+                  key={s.id}
+                  className="flex items-start gap-3 rounded-md border border-border p-2"
+                >
+                  {s.success ? (
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-green-600" />
+                  ) : (
+                    <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+                  )}
+                  <div className="min-w-0 space-y-0.5">
+                    <p className="text-sm font-medium">{s.label}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {s.phone ?? "no phone"} · {formatBrisbane(s.created_at)}
+                    </p>
+                    <p className="text-xs text-muted-foreground break-words">{s.response}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
