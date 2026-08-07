@@ -37,6 +37,7 @@ import { TableServiceSettings } from "@/components/admin/TableServiceSettings";
 import { DailyHoursEditor } from "@/components/admin/DailyHoursEditor";
 import { PublicHolidaysSection } from "@/components/admin/PublicHolidaysSection";
 import { SmsTemplatesSection } from "@/components/admin/SmsTemplatesSection";
+import { CustomerAlertsSection } from "@/components/admin/CustomerAlertsSection";
 import { DoorAccessSection } from "@/components/admin/DoorAccessSection";
 
 import { EmailLayoutEditor } from "@/components/admin/EmailLayoutEditor";
@@ -1353,6 +1354,13 @@ export default function AdminSettings() {
               description="Customize SMS notification templates"
             >
               <SmsTemplatesSection />
+            </CollapsibleSection>
+
+            <CollapsibleSection
+              title="Customer Alerts"
+              description="One-off SMS broadcast to every booking inside a date/time window — existing bookings now, new bookings until the window ends"
+            >
+              <CustomerAlertsSection />
             </CollapsibleSection>
 
 
