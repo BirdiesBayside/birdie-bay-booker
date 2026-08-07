@@ -522,12 +522,11 @@ export default function AdminTimetable() {
     return { value: timeStr, label: formatSlotTime(slot) };
   });
 
-  const DURATION_OPTIONS = [
-    { value: "1", label: "1 hour" },
-    { value: "2", label: "2 hours" },
-    { value: "3", label: "3 hours" },
-    { value: "4", label: "4 hours" },
-  ];
+  const DURATION_OPTIONS = Array.from({ length: 12 }, (_, i) => ({
+    value: String(i + 1),
+    label: `${i + 1} ${i === 0 ? "hour" : "hours"}`,
+  }));
+
 
   const PLAYER_OPTIONS = [
     { value: "1", label: "1 player" },
