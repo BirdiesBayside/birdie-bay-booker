@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
   try {
     const body = await req.json().catch(() => ({}));
     const cronSecret = body?.cron_secret as string | undefined;
-    const isCron = !!cronSecret && cronSecret === Deno.env.get("SYNC_SECRET");
+    const isCron = !!cronSecret && cronSecret === Deno.env.get("CUSTOMER_ALERT_CRON_SECRET");
 
     // Anything that is not the scheduled job must be an authenticated admin.
     if (!isCron) {
