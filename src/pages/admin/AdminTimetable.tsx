@@ -522,7 +522,7 @@ export default function AdminTimetable() {
     return { value: timeStr, label: formatSlotTime(slot) };
   });
 
-  const DURATION_OPTIONS = Array.from({ length: 12 }, (_, i) => ({
+  const DURATION_OPTIONS = Array.from({ length: 4 }, (_, i) => ({
     value: String(i + 1),
     label: `${i + 1} ${i === 0 ? "hour" : "hours"}`,
   }));
