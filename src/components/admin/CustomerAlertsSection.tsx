@@ -270,9 +270,13 @@ export function CustomerAlertsSection() {
                     {formatBrisbane(alert.window_start)} → {formatBrisbane(alert.window_end)}
                   </span>
                   {counts && (
-                    <span className="text-xs text-muted-foreground">
-                      · {counts.sent} sent{counts.failed ? `, ${counts.failed} failed` : ""}
-                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setDetailAlertId(alert.id)}
+                      className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                    >
+                      · {counts.sent} sent{counts.failed ? `, ${counts.failed} failed` : ""} — view
+                    </button>
                   )}
                 </div>
                 <p className="text-sm whitespace-pre-wrap">{alert.message}</p>
