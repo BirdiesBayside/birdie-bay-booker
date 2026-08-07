@@ -74,7 +74,12 @@ for (let hour = 5; hour < 23; hour++) {
   }
 }
 
-const DURATION_OPTIONS = Array.from({ length: 12 }, (_, i) => ({
+const BOOKING_DURATION_OPTIONS = Array.from({ length: 4 }, (_, i) => ({
+  value: String(i + 1),
+  label: `${i + 1} ${i === 0 ? "hour" : "hours"}`,
+}));
+
+const BLOCK_DURATION_OPTIONS = Array.from({ length: 12 }, (_, i) => ({
   value: String(i + 1),
   label: `${i + 1} ${i === 0 ? "hour" : "hours"}`,
 }));
@@ -169,6 +174,11 @@ export function AddBookingDialog({
       resetNewCustomerForm();
     }
   }, [open, initialDate, initialTime, initialBayId]);
+
+  // Reset duration when switching tabs so booking stays within 4h and block can go up to 12h
+  useEffect(() => {
+    setDuration("1");
+  }, [activeTab]);
 
   const resetNewCustomerForm = () => {
     setNewFirstName("");
@@ -829,7 +839,7 @@ export function AddBookingDialog({
                   <SelectValue placeholder="Select duration" />
                 </SelectTrigger>
                 <SelectContent>
-                  {DURATION_OPTIONS.map((opt) => (
+                  {BOOKING_DURATION_OPTIONS.map((opt) => (
                     <SelectItem key={opt.value} value={opt.value}>
                       {opt.label}
                     </SelectItem>
@@ -967,7 +977,7 @@ export function AddBookingDialog({
                   <SelectValue placeholder="Select duration" />
                 </SelectTrigger>
                 <SelectContent>
-                  {DURATION_OPTIONS.map((opt) => (
+                  {BLOCK_DURATION_OPTIONS.map((opt) => (
                     <SelectItem key={opt.value} value={opt.value}>
                       {opt.label}
                     </SelectItem>
