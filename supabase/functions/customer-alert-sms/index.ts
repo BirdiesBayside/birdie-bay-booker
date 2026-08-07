@@ -99,15 +99,20 @@ Deno.serve(async (req) => {
 
       const { data: bookings, error: bookingsError } = await admin
         .from("bookings")
-        .select("id, user_id, booking_date, start_time, status")
+        .select("id, user_id, booking_date, start_time, end_time, status")
         .gte("booking_date", start.date)
         .lte("booking_date", end.date)
         .in("status", ["confirmed", "pending"]);
       if (bookingsError) throw bookingsError;
 
+      // Overlap match: any session that touches the window, including sessions
+      // that started before it and bleed into the period.
       const inWindow = (bookings ?? []).filter((b) => {
-        const key = `${b.booking_date}T${String(b.start_time).slice(0, 5)}`;
-        return key >= start.key && key <= end.key;
+        const startKey = `${b.booking_date}T${String(b.start_time).slice(0, 5)}`;
+        const endKey = b.end_time
+          ? `${b.booking_date}T${String(b.end_time).slice(0, 5)}`
+          : startKey;
+        return startKey <= end.key && endKey >= start.key;
       });
 
       const { data: sentRows } = await admin
