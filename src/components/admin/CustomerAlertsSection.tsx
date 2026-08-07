@@ -8,9 +8,15 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { formatBrisbane } from "@/lib/brisbane-time";
-import { Loader2, Send, Trash2, RefreshCw, Power } from "lucide-react";
+import { Loader2, Send, Trash2, RefreshCw, Power, CheckCircle2, XCircle } from "lucide-react";
 
 // The venue runs on Australia/Brisbane (UTC+10, no DST). Datetime-local inputs
 // are naive strings, so we pin them to +10:00 explicitly rather than trusting
