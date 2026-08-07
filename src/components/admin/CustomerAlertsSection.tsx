@@ -66,9 +66,9 @@ export function CustomerAlertsSection() {
         if (userIds.length) {
           const { data: profiles } = await supabase
             .from("profiles")
-            .select("user_id, full_name")
+            .select("user_id, first_name, last_name")
             .in("user_id", userIds);
-          for (const p of profiles ?? []) profileMap.set(p.user_id, p.full_name ?? "");
+          for (const p of profiles ?? []) profileMap.set(p.user_id, `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim());
         }
         for (const b of bookings ?? []) {
           const name = profileMap.get(b.user_id) || "Unknown";
