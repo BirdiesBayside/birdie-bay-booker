@@ -447,6 +447,32 @@ Deno.serve(async (req) => {
     }
   }
 
+  // 7b. Completed rounds for the week. Two full 18-hole cards = the player's
+  // league week is done; anything they play after that is a social round and
+  // must never trigger a highlight recording.
+  const completedRoundsByPlayer = new Map<number, number>();
+  if (activeTourney && sgtUserIds.length > 0) {
+    const { data: cards } = await supabase
+      .from("sgt_scorecards")
+      .select("player_id, round, hole_data, in_gross, out_gross, total_gross")
+      .eq("tournament_id", activeTourney.tournament_id)
+      .in("player_id", sgtUserIds);
+    for (const c of cards ?? []) {
+      const holes = (c.hole_data ?? {}) as Record<string, unknown>;
+      let played = 0;
+      for (let i = 1; i <= 18; i++) {
+        const v = holes[`h${i}`] ?? holes[`hole${i}`] ?? holes[`hole${i}_gross`];
+        if (v !== null && v !== undefined && Number(v) > 0) played++;
+      }
+      const full = played > 0 ? played >= 18 : Number(c.out_gross) > 0 && Number(c.in_gross) > 0;
+      if (!full || !c.total_gross) continue;
+      const pid = Number(c.player_id);
+      completedRoundsByPlayer.set(pid, (completedRoundsByPlayer.get(pid) ?? 0) + 1);
+    }
+  }
+
+
+
   // 8. Load today's local competition (single) if any [COMP] booking present
   const hasCompBooking = activeBookings.some((b) => (b.notes ?? "").includes("[COMP]"));
   const { data: compRows } = hasCompBooking
