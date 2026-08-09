@@ -409,6 +409,26 @@ Deno.serve(async (req) => {
     .limit(1);
   const activeTourney = tournaments?.[0] ?? null;
 
+  // 6b. Rounds already recorded for this player in THIS tournament, across every
+  // booking. Without this, a stale "in progress" row on the SGT embed (an
+  // abandoned partial card that never flips to F) re-triggered a fresh multi-hour
+  // recording on every later booking that week.
+  const roundsRecordedByPlayer = new Map<string, Set<number>>();
+  if (activeTourney) {
+    const { data: tourneySessions } = await supabase
+      .from("recording_sessions")
+      .select("sgt_user_id, round_number")
+      .eq("trigger_source", "sgt")
+      .eq("sgt_tournament_id", String(activeTourney.tournament_id));
+    for (const s of tourneySessions ?? []) {
+      if (!s.sgt_user_id || typeof s.round_number !== "number") continue;
+      const key = String(s.sgt_user_id);
+      const set = roundsRecordedByPlayer.get(key) ?? new Set<number>();
+      set.add(s.round_number);
+      roundsRecordedByPlayer.set(key, set);
+    }
+  }
+
   const sgtUserIds = Array.from(
     new Set(
       activeBookings
