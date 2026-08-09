@@ -831,6 +831,9 @@ Deno.serve(async (req) => {
             const rounds = sgtRoundsByBooking.get(booking.id) ?? new Set<number>();
             rounds.add(roundNumber);
             sgtRoundsByBooking.set(booking.id, rounds);
+            const weekRounds = roundsRecordedByPlayer.get(String(sgtUserIdNum)) ?? new Set<number>();
+            weekRounds.add(roundNumber);
+            roundsRecordedByPlayer.set(String(sgtUserIdNum), weekRounds);
             results.push({ booking: booking.id, action: "start_round", round: roundNumber, hole: state.hole });
           }
         } else {
