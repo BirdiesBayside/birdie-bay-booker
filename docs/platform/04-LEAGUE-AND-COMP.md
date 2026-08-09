@@ -110,6 +110,11 @@ Hard-won behaviours:
   cards (`isFullEighteen()`) are cached to a highlight.
 - Highlight filtering queries `recording_sessions` directly rather than trusting a status
   column.
+- A round is only recorded **once per player per tournament** (checked across all bookings,
+  not just the current one), and recording is skipped entirely once the player has two full
+  18-hole cards for the week. This stops an abandoned partial card — which stays "in
+  progress" on the SGT embed forever — from re-triggering multi-hour recordings on every
+  later booking that week.
 - `delete-recording-session` cascades deletion to Cloudflare, not just the database.
 - Mobile "Save to Photos" uses the Web Share API with real `File` objects;
   `clip-download-proxy` exists to defeat mobile CORS.
