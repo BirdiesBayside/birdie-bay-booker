@@ -804,6 +804,19 @@ Deno.serve(async (req) => {
             results.push({ booking: booking.id, action: "sgt_round_already_recorded", round: roundNumber });
             continue;
           }
+          // Week already complete — two full 18-hole cards means they cannot be
+          // playing a league round now.
+          if ((completedRoundsByPlayer.get(sgtUserIdNum) ?? 0) >= 2) {
+            results.push({ booking: booking.id, action: "sgt_week_complete" });
+            continue;
+          }
+          // This round has already been recorded earlier in the week (on another
+          // booking). A stale in-progress embed row must not restart it.
+          if (roundsRecordedByPlayer.get(String(sgtUserIdNum))?.has(roundNumber)) {
+            results.push({ booking: booking.id, action: "sgt_round_recorded_this_week", round: roundNumber });
+            continue;
+          }
+
           const newId = await issueStart({
             booking_id: booking.id,
             bay_number: bayNumber,
