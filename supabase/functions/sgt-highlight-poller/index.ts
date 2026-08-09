@@ -409,6 +409,26 @@ Deno.serve(async (req) => {
     .limit(1);
   const activeTourney = tournaments?.[0] ?? null;
 
+  // 6b. Rounds already recorded for this player in THIS tournament, across every
+  // booking. Without this, a stale "in progress" row on the SGT embed (an
+  // abandoned partial card that never flips to F) re-triggered a fresh multi-hour
+  // recording on every later booking that week.
+  const roundsRecordedByPlayer = new Map<string, Set<number>>();
+  if (activeTourney) {
+    const { data: tourneySessions } = await supabase
+      .from("recording_sessions")
+      .select("sgt_user_id, round_number")
+      .eq("trigger_source", "sgt")
+      .eq("sgt_tournament_id", String(activeTourney.tournament_id));
+    for (const s of tourneySessions ?? []) {
+      if (!s.sgt_user_id || typeof s.round_number !== "number") continue;
+      const key = String(s.sgt_user_id);
+      const set = roundsRecordedByPlayer.get(key) ?? new Set<number>();
+      set.add(s.round_number);
+      roundsRecordedByPlayer.set(key, set);
+    }
+  }
+
   const sgtUserIds = Array.from(
     new Set(
       activeBookings
@@ -426,6 +446,32 @@ Deno.serve(async (req) => {
       if (m.user_name) nameByUserId.set(Number(m.user_id), String(m.user_name).trim().toLowerCase());
     }
   }
+
+  // 7b. Completed rounds for the week. Two full 18-hole cards = the player's
+  // league week is done; anything they play after that is a social round and
+  // must never trigger a highlight recording.
+  const completedRoundsByPlayer = new Map<number, number>();
+  if (activeTourney && sgtUserIds.length > 0) {
+    const { data: cards } = await supabase
+      .from("sgt_scorecards")
+      .select("player_id, round, hole_data, in_gross, out_gross, total_gross")
+      .eq("tournament_id", activeTourney.tournament_id)
+      .in("player_id", sgtUserIds);
+    for (const c of cards ?? []) {
+      const holes = (c.hole_data ?? {}) as Record<string, unknown>;
+      let played = 0;
+      for (let i = 1; i <= 18; i++) {
+        const v = holes[`h${i}`] ?? holes[`hole${i}`] ?? holes[`hole${i}_gross`];
+        if (v !== null && v !== undefined && Number(v) > 0) played++;
+      }
+      const full = played > 0 ? played >= 18 : Number(c.out_gross) > 0 && Number(c.in_gross) > 0;
+      if (!full || !c.total_gross) continue;
+      const pid = Number(c.player_id);
+      completedRoundsByPlayer.set(pid, (completedRoundsByPlayer.get(pid) ?? 0) + 1);
+    }
+  }
+
+
 
   // 8. Load today's local competition (single) if any [COMP] booking present
   const hasCompBooking = activeBookings.some((b) => (b.notes ?? "").includes("[COMP]"));
@@ -758,6 +804,19 @@ Deno.serve(async (req) => {
             results.push({ booking: booking.id, action: "sgt_round_already_recorded", round: roundNumber });
             continue;
           }
+          // Week already complete — two full 18-hole cards means they cannot be
+          // playing a league round now.
+          if ((completedRoundsByPlayer.get(sgtUserIdNum) ?? 0) >= 2) {
+            results.push({ booking: booking.id, action: "sgt_week_complete" });
+            continue;
+          }
+          // This round has already been recorded earlier in the week (on another
+          // booking). A stale in-progress embed row must not restart it.
+          if (roundsRecordedByPlayer.get(String(sgtUserIdNum))?.has(roundNumber)) {
+            results.push({ booking: booking.id, action: "sgt_round_recorded_this_week", round: roundNumber });
+            continue;
+          }
+
           const newId = await issueStart({
             booking_id: booking.id,
             bay_number: bayNumber,
@@ -772,6 +831,9 @@ Deno.serve(async (req) => {
             const rounds = sgtRoundsByBooking.get(booking.id) ?? new Set<number>();
             rounds.add(roundNumber);
             sgtRoundsByBooking.set(booking.id, rounds);
+            const weekRounds = roundsRecordedByPlayer.get(String(sgtUserIdNum)) ?? new Set<number>();
+            weekRounds.add(roundNumber);
+            roundsRecordedByPlayer.set(String(sgtUserIdNum), weekRounds);
             results.push({ booking: booking.id, action: "start_round", round: roundNumber, hole: state.hole });
           }
         } else {
