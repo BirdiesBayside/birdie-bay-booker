@@ -11,16 +11,6 @@ export interface RevenueTrendPoint {
   total: number;
 }
 
-/** Number of buckets to display per granularity */
-const BUCKET_COUNT: Record<RevenueGranularity, number> = {
-  day: 30,
-  week: 12,
-  month: 12,
-  quarter: 8,
-  half: 6,
-  year: 5,
-};
-
 const BRISBANE_OFFSET_MS = 10 * 60 * 60 * 1000; // AEST (UTC+10), no DST
 
 /** Convert an instant into Brisbane-local calendar parts */
@@ -32,11 +22,6 @@ function brisbaneParts(iso: string) {
     d: d.getUTCDate(),
     time: d.getTime(),
   };
-}
-
-function nowBrisbane() {
-  const d = new Date(Date.now() + BRISBANE_OFFSET_MS);
-  return { y: d.getUTCFullYear(), m: d.getUTCMonth(), d: d.getUTCDate(), time: d.getTime() };
 }
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -76,37 +61,59 @@ function bucketFor(iso: string, granularity: RevenueGranularity): { key: string;
   }
 }
 
-/** Build the ordered list of bucket keys/labels ending at the current period */
-function buildBuckets(granularity: RevenueGranularity): { key: string; label: string }[] {
-  const count = BUCKET_COUNT[granularity];
-  const n = nowBrisbane();
-  const out: { key: string; label: string }[] = [];
+function startOfDayBrisbane(date: Date): Date {
+  const parts = brisbaneParts(date.toISOString());
+  return new Date(Date.UTC(parts.y, parts.m, parts.d, 0, 0, 0) - BRISBANE_OFFSET_MS);
+}
 
-  for (let i = count - 1; i >= 0; i--) {
-    let iso: string;
+function endOfDayBrisbane(date: Date): Date {
+  const parts = brisbaneParts(date.toISOString());
+  return new Date(Date.UTC(parts.y, parts.m, parts.d, 23, 59, 59, 999) - BRISBANE_OFFSET_MS);
+}
+
+/** Build ordered buckets between start and end (inclusive) for the chosen granularity */
+function buildBuckets(
+  startDate: Date,
+  endDate: Date,
+  granularity: RevenueGranularity
+): { key: string; label: string }[] {
+  const start = startOfDayBrisbane(startDate);
+  const end = endOfDayBrisbane(endDate);
+  const out: { key: string; label: string }[] = [];
+  const seen = new Set<string>();
+
+  let current = new Date(start.getTime());
+  while (current.getTime() <= end.getTime()) {
+    const b = bucketFor(current.toISOString(), granularity);
+    if (b && !seen.has(b.key)) {
+      seen.add(b.key);
+      out.push(b);
+    }
+
+    // Advance by one bucket
+    const p = brisbaneParts(current.toISOString());
     switch (granularity) {
       case "day":
-        iso = new Date(Date.UTC(n.y, n.m, n.d - i) - BRISBANE_OFFSET_MS + 43200000).toISOString();
+        current = new Date(Date.UTC(p.y, p.m, p.d + 1) - BRISBANE_OFFSET_MS);
         break;
       case "week":
-        iso = new Date(Date.UTC(n.y, n.m, n.d - i * 7) - BRISBANE_OFFSET_MS + 43200000).toISOString();
+        current = new Date(Date.UTC(p.y, p.m, p.d + 7) - BRISBANE_OFFSET_MS);
         break;
       case "month":
-        iso = new Date(Date.UTC(n.y, n.m - i, 15) - BRISBANE_OFFSET_MS).toISOString();
+        current = new Date(Date.UTC(p.y, p.m + 1, 1) - BRISBANE_OFFSET_MS);
         break;
       case "quarter":
-        iso = new Date(Date.UTC(n.y, Math.floor(n.m / 3) * 3 - i * 3, 15) - BRISBANE_OFFSET_MS).toISOString();
+        current = new Date(Date.UTC(p.y, p.m + 3, 1) - BRISBANE_OFFSET_MS);
         break;
       case "half":
-        iso = new Date(Date.UTC(n.y, (n.m < 6 ? 0 : 6) - i * 6, 15) - BRISBANE_OFFSET_MS).toISOString();
+        current = new Date(Date.UTC(p.y, p.m + 6, 1) - BRISBANE_OFFSET_MS);
         break;
       case "year":
-        iso = new Date(Date.UTC(n.y - i, 6, 1) - BRISBANE_OFFSET_MS).toISOString();
+        current = new Date(Date.UTC(p.y + 1, 0, 1) - BRISBANE_OFFSET_MS);
         break;
     }
-    const b = bucketFor(iso, granularity);
-    if (b) out.push(b);
   }
+
   return out;
 }
 
@@ -129,28 +136,49 @@ async function fetchAllRows(queryFn: (from: number, to: number) => any): Promise
   return allRows;
 }
 
-export function useRevenueTrend(granularity: RevenueGranularity) {
+export interface UseRevenueTrendOptions {
+  granularity: RevenueGranularity;
+  startDate: Date;
+  endDate: Date;
+}
+
+export function useRevenueTrend({ granularity, startDate, endDate }: UseRevenueTrendOptions) {
   return useQuery({
-    queryKey: ["revenue-trend", granularity],
+    queryKey: ["revenue-trend", granularity, startDate.toISOString(), endDate.toISOString()],
     staleTime: 1000 * 60 * 5,
     queryFn: async (): Promise<RevenueTrendPoint[]> => {
+      const start = startOfDayBrisbane(startDate).toISOString();
+      const end = endOfDayBrisbane(endDate).toISOString();
+
       const [bookings, pos, memberships] = await Promise.all([
         fetchAllRows((from, to) =>
           supabase
             .from("bookings")
             .select("created_at, total_price, status")
             .neq("status", "cancelled")
+            .gte("created_at", start)
+            .lte("created_at", end)
             .range(from, to)
         ),
         fetchAllRows((from, to) =>
-          supabase.from("pos_transactions").select("created_at, total").range(from, to)
+          supabase
+            .from("pos_transactions")
+            .select("created_at, total")
+            .gte("created_at", start)
+            .lte("created_at", end)
+            .range(from, to)
         ),
         fetchAllRows((from, to) =>
-          supabase.from("membership_payments").select("paid_at, amount").range(from, to)
+          supabase
+            .from("membership_payments")
+            .select("paid_at, amount")
+            .gte("paid_at", start)
+            .lte("paid_at", end)
+            .range(from, to)
         ),
       ]);
 
-      const buckets = buildBuckets(granularity);
+      const buckets = buildBuckets(startDate, endDate, granularity);
       const map = new Map<string, RevenueTrendPoint>();
       buckets.forEach((b) =>
         map.set(b.key, { label: b.label, bookings: 0, pos: 0, memberships: 0, total: 0 })
@@ -161,7 +189,7 @@ export function useRevenueTrend(granularity: RevenueGranularity) {
         const b = bucketFor(iso, granularity);
         if (!b) return;
         const row = map.get(b.key);
-        if (!row) return; // outside displayed window
+        if (!row) return; // outside selected range
         row[field] += amount;
         row.total += amount;
       };
