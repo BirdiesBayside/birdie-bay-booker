@@ -157,14 +157,33 @@ export default function AdminAllHighlightExports() {
     return <Badge variant="outline"><Loader2 className="h-3 w-3 mr-1 animate-spin" />Queued</Badge>;
   };
 
-  // Group chronologically by Brisbane day
-  const groups: Array<{ day: string; items: Clip[] }> = [];
+  // Group into folders: Wednesday comps by comp date, SGT tournaments by tournament (both rounds together)
+  const groupMap = new Map<string, { key: string; title: string; subtitle: string; items: Clip[] }>();
   for (const clip of clips) {
-    const day = formatBrisbaneDate(clip.created_at);
-    const last = groups[groups.length - 1];
-    if (last && last.day === day) last.items.push(clip);
-    else groups.push({ day, items: [clip] });
+    const session = sessions[clip.recording_session_id];
+    const when = session?.started_at ?? clip.created_at;
+    const day = formatBrisbaneDate(when);
+    let key: string;
+    let title: string;
+    let subtitle: string;
+    if (session?.trigger_source === "local_comp") {
+      key = `comp:${day}`;
+      title = session?.tournament_name ?? "Local Comp";
+      subtitle = day;
+    } else if (session?.tournament_name) {
+      key = `sgt:${session.sgt_tournament_id ?? session.tournament_name}`;
+      title = session.tournament_name;
+      subtitle = "Weekly League — Rounds 1 & 2";
+    } else {
+      key = `other:${day}`;
+      title = "Practice Sessions";
+      subtitle = day;
+    }
+    const existing = groupMap.get(key);
+    if (existing) existing.items.push(clip);
+    else groupMap.set(key, { key, title, subtitle, items: [clip] });
   }
+  const groups = Array.from(groupMap.values());
 
   return (
     <AdminLayout>
@@ -184,10 +203,27 @@ export default function AdminAllHighlightExports() {
             ) : clips.length === 0 ? (
               <p className="text-sm text-muted-foreground py-8 text-center">No clips exported yet.</p>
             ) : (
-              <div className="space-y-6">
-                {groups.map((group) => (
-                  <div key={group.day} className="space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{group.day}</p>
+              <div className="space-y-3">
+                {groups.map((group, gi) => {
+                  const isOpen = openGroups[group.key] ?? gi === 0;
+                  return (
+                  <div key={group.key} className="border rounded-lg">
+                    <button
+                      type="button"
+                      onClick={() => setOpenGroups((p) => ({ ...p, [group.key]: !isOpen }))}
+                      className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-muted/50 rounded-lg"
+                    >
+                      {isOpen ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
+                      <FolderOpen className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-semibold truncate">{group.title}</span>
+                        <span className="block text-xs text-muted-foreground truncate">{group.subtitle}</span>
+                      </span>
+                      <Badge variant="secondary" className="shrink-0">{group.items.length}</Badge>
+                    </button>
+                    {isOpen && (
+                  <div className="space-y-2 p-3 pt-0">
+
                     {group.items.map((clip) => {
                       const session = sessions[clip.recording_session_id];
                       return (
