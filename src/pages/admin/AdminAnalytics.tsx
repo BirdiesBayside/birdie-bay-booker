@@ -4,6 +4,7 @@ import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { useAnalyticsData, AnalyticsTimeframe } from "@/hooks/useAnalyticsData";
 import { GrowthMetricCard } from "@/components/admin/analytics/GrowthMetricCard";
 import { RevenueChart } from "@/components/admin/analytics/RevenueChart";
+import { RevenueTrendChart } from "@/components/admin/analytics/RevenueTrendChart";
 import { CustomerEngagementChart } from "@/components/admin/analytics/CustomerEngagementChart";
 import { DayOfWeekChart } from "@/components/admin/analytics/DayOfWeekChart";
 import { HourlyHeatmap } from "@/components/admin/analytics/HourlyHeatmap";
