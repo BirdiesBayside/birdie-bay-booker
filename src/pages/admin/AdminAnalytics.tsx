@@ -184,7 +184,16 @@ export default function AdminAnalytics() {
               </div>
             </div>
 
+            {/* Revenue Trend */}
+            <div>
+              <h2 className="text-sm font-medium text-muted-foreground mb-3 uppercase tracking-wide">
+                Revenue Trend
+              </h2>
+              <RevenueTrendChart />
+            </div>
+
             {/* Customer Engagement */}
+
             <div>
               <h2 className="text-sm font-medium text-muted-foreground mb-3 uppercase tracking-wide">
                 Customer Engagement
