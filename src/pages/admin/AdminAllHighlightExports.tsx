@@ -69,7 +69,7 @@ export default function AdminAllHighlightExports() {
     if (ids.length) {
       const { data: sessRows } = await supabase
         .from("recording_sessions")
-        .select("id, player_name, tournament_name, bay_number, started_at, round_number, trigger_source")
+        .select("id, player_name, tournament_name, bay_number, started_at, round_number, trigger_source, sgt_tournament_id")
         .in("id", ids);
       const map: Record<string, SessionInfo> = {};
       for (const s of (sessRows ?? []) as SessionInfo[]) map[s.id] = s;
