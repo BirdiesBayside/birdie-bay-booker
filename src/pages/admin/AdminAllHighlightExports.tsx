@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Download, ImageDown, Loader2, RefreshCw, Trash2, FolderOpen } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronRight, Download, ImageDown, Loader2, RefreshCw, Trash2, FolderOpen } from "lucide-react";
 import { formatBrisbane, formatBrisbaneDate } from "@/lib/brisbane-time";
 import { fetchClipViaProxy, saveFileFallback, shareVideoFile, supportsVideoFileShare } from "@/lib/share-video";
 
@@ -18,6 +18,7 @@ interface SessionInfo {
   started_at: string | null;
   round_number: number | null;
   trigger_source: string | null;
+  sgt_tournament_id: string | null;
 }
 
 interface Clip {
