@@ -4,6 +4,7 @@ import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { useAnalyticsData, AnalyticsTimeframe } from "@/hooks/useAnalyticsData";
 import { GrowthMetricCard } from "@/components/admin/analytics/GrowthMetricCard";
 import { RevenueChart } from "@/components/admin/analytics/RevenueChart";
+import { RevenueTrendChart } from "@/components/admin/analytics/RevenueTrendChart";
 import { CustomerEngagementChart } from "@/components/admin/analytics/CustomerEngagementChart";
 import { DayOfWeekChart } from "@/components/admin/analytics/DayOfWeekChart";
 import { HourlyHeatmap } from "@/components/admin/analytics/HourlyHeatmap";
@@ -183,7 +184,16 @@ export default function AdminAnalytics() {
               </div>
             </div>
 
+            {/* Revenue Trend */}
+            <div>
+              <h2 className="text-sm font-medium text-muted-foreground mb-3 uppercase tracking-wide">
+                Revenue Trend
+              </h2>
+              <RevenueTrendChart />
+            </div>
+
             {/* Customer Engagement */}
+
             <div>
               <h2 className="text-sm font-medium text-muted-foreground mb-3 uppercase tracking-wide">
                 Customer Engagement
