@@ -759,6 +759,17 @@ Deno.serve(async (req) => {
         });
         break;
 
+      case "capacity_probe":
+        result = await capacityProbe({
+          count: body.count,
+          hours: body.hours,
+          sample_every: body.sample_every,
+        });
+        break;
+      case "capacity_probe_cleanup":
+        result = await capacityProbeCleanup();
+        break;
+
       case "sync":
         result = await syncAll();
         break;
