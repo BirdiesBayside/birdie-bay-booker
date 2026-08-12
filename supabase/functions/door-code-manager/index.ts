@@ -295,6 +295,133 @@ async function issueNamedCode(opts: {
   }
 }
 
+/**
+ * BACK-END ONLY capacity probe.
+ * Pushes a batch of real 6-digit codes to the keypad so we can find out how
+ * many the device will actually hold at once. Deliberately not exposed in the
+ * UI — call via the edge function with { action: "capacity_probe", count }.
+ * Codes are labelled "PROBE n" so they can all be wiped with
+ * { action: "capacity_probe_cleanup" }.
+ */
+async function capacityProbe(opts: { count?: number; hours?: number; sample_every?: number }) {
+  const s = await getSettings();
+  const count = Math.min(Math.max(opts.count ?? 25, 1), 50);
+  const hours = Math.min(Math.max(opts.hours ?? 48, 1), 24 * 30);
+  const sampleEvery = opts.sample_every ?? 10;
+
+  const tuya = await getTuya(s, true);
+  if (!tuya) return { success: false, error: "Tuya credentials or device ID missing" };
+
+  // Continue numbering from any probe codes already live
+  const { count: existing } = await supabase
+    .from("door_codes")
+    .select("id", { count: "exact", head: true })
+    .eq("scope", "probe");
+  let index = (existing || 0) + 1;
+
+  const validFrom = new Date(Date.now() - 60_000);
+  const validUntil = new Date(Date.now() + hours * 3600 * 1000);
+
+  const issued: { index: number; code: string }[] = [];
+  const samples: { index: number; code: string }[] = [];
+  let firstFailure: { index: number; error: string } | null = null;
+
+  for (let i = 0; i < count; i++, index++) {
+    const code = await generateUniqueCode(s);
+    const label = `PROBE ${index}`;
+    const { data: inserted, error } = await supabase
+      .from("door_codes")
+      .insert({
+        booking_id: null,
+        user_id: null,
+        code,
+        label,
+        scope: "probe",
+        valid_from: validFrom.toISOString(),
+        valid_until: validUntil.toISOString(),
+        status: "pending",
+        provider: "tuya",
+      })
+      .select()
+      .single();
+    if (error) {
+      firstFailure = { index, error: error.message };
+      break;
+    }
+
+    try {
+      const { ref } = await tuya.issueTempPassword({
+        code,
+        name: label,
+        effectiveTime: validFrom,
+        invalidTime: validUntil,
+      });
+      await supabase
+        .from("door_codes")
+        .update({ status: "active", provider_ref: ref, last_error: null })
+        .eq("id", inserted.id);
+      issued.push({ index, code });
+      if (index % sampleEvery === 0) samples.push({ index, code });
+    } catch (e) {
+      const msg = (e as Error).message;
+      await supabase
+        .from("door_codes")
+        .update({ status: "failed", last_error: msg })
+        .eq("id", inserted.id);
+      await logEvent(inserted.id, null, "probe_push_failed", { error: msg, index });
+      firstFailure = { index, error: msg };
+      break;
+    }
+    // gentle pacing so Tuya doesn't rate-limit us
+    await new Promise((r) => setTimeout(r, 200));
+  }
+
+  const { count: totalActive } = await supabase
+    .from("door_codes")
+    .select("id", { count: "exact", head: true })
+    .eq("scope", "probe")
+    .eq("status", "active");
+
+  return {
+    success: !firstFailure,
+    issued_this_batch: issued.length,
+    total_probe_codes_active: totalActive || 0,
+    next_index: index,
+    samples,
+    all_codes: issued,
+    first_failure: firstFailure,
+    valid_until: validUntil.toISOString(),
+  };
+}
+
+/** Wipes every probe code from the keypad and marks them revoked. */
+async function capacityProbeCleanup() {
+  const s = await getSettings();
+  const tuya = await getTuya(s, true);
+  const { data: rows } = await supabase
+    .from("door_codes")
+    .select("*")
+    .eq("scope", "probe")
+    .in("status", ["pending", "active", "failed"]);
+
+  let removed = 0;
+  const errors: string[] = [];
+  for (const row of rows || []) {
+    if (tuya && row.provider_ref) {
+      try {
+        await tuya.deleteTempPassword(row.provider_ref);
+        removed++;
+      } catch (e) {
+        errors.push(`${row.code}: ${(e as Error).message}`);
+      }
+    }
+    await supabase.from("door_codes").update({ status: "revoked" }).eq("id", row.id);
+  }
+  return { success: true, cleared: (rows || []).length, removed_from_keypad: removed, errors };
+}
+
+
+
 
 
 /** Whether this booking should get its own code, given the mode. */
@@ -630,6 +757,17 @@ Deno.serve(async (req) => {
           valid_from: body.valid_from,
           valid_until: body.valid_until,
         });
+        break;
+
+      case "capacity_probe":
+        result = await capacityProbe({
+          count: body.count,
+          hours: body.hours,
+          sample_every: body.sample_every,
+        });
+        break;
+      case "capacity_probe_cleanup":
+        result = await capacityProbeCleanup();
         break;
 
       case "sync":
