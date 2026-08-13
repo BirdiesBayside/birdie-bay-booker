@@ -53,6 +53,7 @@ export default function AdminAllHighlightExports() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
   const [readyFiles, setReadyFiles] = useState<Record<string, File>>({});
+  const [filterType, setFilterType] = useState<"all" | "local_comp" | "sgt">("all");
   const canSaveToPhotos = supportsVideoFileShare();
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
