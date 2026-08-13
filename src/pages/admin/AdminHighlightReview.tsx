@@ -44,6 +44,9 @@ export default function AdminHighlightReview() {
   const [clipLoading, setClipLoading] = useState(false);
   const [scorecardImageUrl, setScorecardImageUrl] = useState<string | null>(null);
   const [scorecardImageOpen, setScorecardImageOpen] = useState(false);
+  const [parsingScorecard, setParsingScorecard] = useState(false);
+  const parseAttemptedRef = useRef(false);
+
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
   const attemptedRef = useRef(false);
