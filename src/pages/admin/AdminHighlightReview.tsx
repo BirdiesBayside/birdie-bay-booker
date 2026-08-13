@@ -44,6 +44,9 @@ export default function AdminHighlightReview() {
   const [clipLoading, setClipLoading] = useState(false);
   const [scorecardImageUrl, setScorecardImageUrl] = useState<string | null>(null);
   const [scorecardImageOpen, setScorecardImageOpen] = useState(false);
+  const [parsingScorecard, setParsingScorecard] = useState(false);
+  const parseAttemptedRef = useRef(false);
+
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
   const attemptedRef = useRef(false);
@@ -117,6 +120,34 @@ export default function AdminHighlightReview() {
     }
     setScorecardImageUrl(data.signedUrl);
   };
+
+  const parseFromScreenshot = async (force = false) => {
+    if (!sessionId || parsingScorecard) return;
+    setParsingScorecard(true);
+    const { data, error } = await supabase.functions.invoke("parse-comp-scorecard", {
+      body: { recording_session_id: sessionId, force },
+    });
+    setParsingScorecard(false);
+    if (error || data?.error) {
+      const description = await getFunctionErrorMessage(error, data);
+      toast({ title: "Couldn't read the scorecard", description, variant: "destructive" });
+      return;
+    }
+    await load();
+    if (data?.scorecard && !data?.skipped) {
+      toast({ title: "Scorecard read", description: "Scores extracted from the captured screenshot." });
+    }
+  };
+
+  // Auto-read scores from the screenshot when there's no scorecard yet
+  useEffect(() => {
+    if (!session || parseAttemptedRef.current) return;
+    if (session.scorecard || !session.scorecard_image_path) return;
+    parseAttemptedRef.current = true;
+    void parseFromScreenshot();
+  }, [session]);
+
+
 
   const markStart = () => { if (videoRef.current) setClipStart(videoRef.current.currentTime); };
   const markEnd = () => { if (videoRef.current) setClipEnd(videoRef.current.currentTime); };
@@ -219,24 +250,42 @@ export default function AdminHighlightReview() {
               <div className="text-xs font-semibold text-muted-foreground uppercase mb-3">Scorecard</div>
               {session.scorecard ? (
                 <ScorecardGrid scorecard={session.scorecard} />
+              ) : parsingScorecard ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Reading scores from the captured screenshot…
+                </div>
+              ) : session.scorecard_image_path ? (
+                <div className="text-sm text-muted-foreground">
+                  Scores haven't been read from the screenshot yet.
+                </div>
               ) : (
                 <div className="text-sm text-muted-foreground">
                   Scorecard will appear here once the round is finished and pulled from SGT.
                 </div>
               )}
               {session.scorecard_image_path && (
-                <div className="mt-3">
+                <div className="mt-3 flex flex-wrap items-center gap-2">
                   <Button size="sm" variant="outline" onClick={() => void openScorecardImage()}>
                     <ImageIcon className="h-4 w-4 mr-1" /> View Scorecard Screenshot
                   </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={parsingScorecard}
+                    onClick={() => void parseFromScreenshot(true)}
+                  >
+                    {parsingScorecard ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                    {session.scorecard ? "Re-read scores" : "Read scores from screenshot"}
+                  </Button>
                   {session.scorecard_captured_at && (
-                    <span className="ml-2 text-xs text-muted-foreground">
+                    <span className="text-xs text-muted-foreground">
                       Captured {formatBrisbane(session.scorecard_captured_at)}
                     </span>
                   )}
                 </div>
               )}
             </div>
+
           </>
         )}
       </div>
