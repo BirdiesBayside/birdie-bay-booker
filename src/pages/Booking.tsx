@@ -56,7 +56,9 @@ export default function Booking() {
     checkBayAvailability,
     createBooking,
     refetchSavedCard,
+    refetchUserProfile,
   } = useBooking();
+
 
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [selectedTime, setSelectedTime] = useState<string | undefined>();
