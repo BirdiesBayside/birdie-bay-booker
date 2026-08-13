@@ -173,12 +173,15 @@ export function useBooking() {
     staleTime: STALE_TIMES.STATIC,
   });
 
-  // User data - cached for 5 minutes
-  const { data: userProfile } = useQuery({
+  // User data - balance-critical, always revalidated on mount so admin-added
+  // credit shows up immediately in an already-open session.
+  const { data: userProfile, refetch: refetchUserProfile } = useQuery({
     queryKey: QUERY_KEYS.USER_PROFILE(),
     queryFn: fetchUserProfile,
-    staleTime: STALE_TIMES.SEMI_STATIC,
+    staleTime: 0,
+    refetchOnMount: "always",
   });
+
 
   // Saved card - cached for 5 minutes
   const { data: savedCard, isLoading: isLoadingSavedCard, refetch: refetchSavedCard } = useQuery({
