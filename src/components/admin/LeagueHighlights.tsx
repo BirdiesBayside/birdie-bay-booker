@@ -438,7 +438,22 @@ export function LeagueHighlights() {
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-2">
-          <CardTitle>Review Queue ({sessions.length})</CardTitle>
+          <div className="flex flex-wrap items-center gap-3">
+            <CardTitle>Review Queue ({filteredSessions.length})</CardTitle>
+            <Select value={filterType} onValueChange={(v) => {
+              setFilterType(v as "all" | "local_comp" | "sgt");
+              setSelectedIds(new Set());
+            }}>
+              <SelectTrigger className="w-[150px] h-8 text-xs">
+                <SelectValue placeholder="Filter" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All rounds</SelectItem>
+                <SelectItem value="local_comp">Local Comp</SelectItem>
+                <SelectItem value="sgt">SGT League</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <div className="flex items-center gap-2">
             {selectMode && selectedIds.size > 0 && (
               <Button size="sm" variant="destructive" onClick={deleteSelected} disabled={bulkDeleting}>
@@ -446,7 +461,7 @@ export function LeagueHighlights() {
                 Delete {selectedIds.size} selected
               </Button>
             )}
-            {sessions.length > 0 && (
+            {filteredSessions.length > 0 && (
               <Button
                 size="sm"
                 variant={selectMode ? "secondary" : "outline"}
