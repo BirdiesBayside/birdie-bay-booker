@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -163,6 +163,7 @@ export function LeagueHighlights() {
   const [streamBusyIds, setStreamBusyIds] = useState<Set<string>>(new Set());
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [selectMode, setSelectMode] = useState(false);
+  const [filterType, setFilterType] = useState<"all" | "local_comp" | "sgt">("all");
   const [scorecardImageSession, setScorecardImageSession] = useState<SessionRow | null>(null);
   const [scorecardImageUrl, setScorecardImageUrl] = useState<string | null>(null);
 
@@ -351,9 +352,14 @@ export function LeagueHighlights() {
     });
   };
 
+  const filteredSessions = useMemo(() => {
+    if (filterType === "all") return sessions;
+    return sessions.filter((s) => s.trigger_source === filterType);
+  }, [sessions, filterType]);
+
   const toggleSelectAll = () => {
     setSelectedIds((prev) =>
-      prev.size === sessions.length ? new Set() : new Set(sessions.map((s) => s.session_id))
+      prev.size === filteredSessions.length ? new Set() : new Set(filteredSessions.map((s) => s.session_id))
     );
   };
 
@@ -432,7 +438,22 @@ export function LeagueHighlights() {
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-2">
-          <CardTitle>Review Queue ({sessions.length})</CardTitle>
+          <div className="flex flex-wrap items-center gap-3">
+            <CardTitle>Review Queue ({filteredSessions.length})</CardTitle>
+            <Select value={filterType} onValueChange={(v) => {
+              setFilterType(v as "all" | "local_comp" | "sgt");
+              setSelectedIds(new Set());
+            }}>
+              <SelectTrigger className="w-[150px] h-8 text-xs">
+                <SelectValue placeholder="Filter" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All rounds</SelectItem>
+                <SelectItem value="local_comp">Local Comp</SelectItem>
+                <SelectItem value="sgt">SGT League</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <div className="flex items-center gap-2">
             {selectMode && selectedIds.size > 0 && (
               <Button size="sm" variant="destructive" onClick={deleteSelected} disabled={bulkDeleting}>
@@ -440,7 +461,7 @@ export function LeagueHighlights() {
                 Delete {selectedIds.size} selected
               </Button>
             )}
-            {sessions.length > 0 && (
+            {filteredSessions.length > 0 && (
               <Button
                 size="sm"
                 variant={selectMode ? "secondary" : "outline"}
@@ -459,22 +480,22 @@ export function LeagueHighlights() {
         </CardHeader>
         <CardContent>
           {loading ? <div className="flex justify-center py-8"><Loader2 className="animate-spin" /></div> :
-           sessions.length === 0 ? <p className="text-muted-foreground text-sm py-8 text-center">No recorded sessions yet.</p> :
+           filteredSessions.length === 0 ? <p className="text-muted-foreground text-sm py-8 text-center">No recorded sessions for this filter.</p> :
            <div className="space-y-3">
-             {selectMode && (
-               <div className="flex items-center gap-2 pb-1">
-                 <Checkbox
-                   id="select-all-recordings"
-                   checked={selectedIds.size > 0 && selectedIds.size === sessions.length}
-                   onCheckedChange={toggleSelectAll}
-                 />
-                 <Label htmlFor="select-all-recordings" className="text-sm text-muted-foreground">
-                   Select all
-                 </Label>
-               </div>
-             )}
+              {selectMode && (
+                <div className="flex items-center gap-2 pb-1">
+                  <Checkbox
+                    id="select-all-recordings"
+                    checked={selectedIds.size > 0 && selectedIds.size === filteredSessions.length}
+                    onCheckedChange={toggleSelectAll}
+                  />
+                  <Label htmlFor="select-all-recordings" className="text-sm text-muted-foreground">
+                    Select all
+                  </Label>
+                </div>
+              )}
 
-             {sessions.map((sess) => {
+             {filteredSessions.map((sess) => {
                const streamReady = sess.stream_status === "ready";
                const streamFailed = ["failed", "status_failed", "error"].includes(sess.stream_status ?? "");
                const highlightCount = countHighlights(sess.scorecard);
