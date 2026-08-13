@@ -352,9 +352,14 @@ export function LeagueHighlights() {
     });
   };
 
+  const filteredSessions = useMemo(() => {
+    if (filterType === "all") return sessions;
+    return sessions.filter((s) => s.trigger_source === filterType);
+  }, [sessions, filterType]);
+
   const toggleSelectAll = () => {
     setSelectedIds((prev) =>
-      prev.size === sessions.length ? new Set() : new Set(sessions.map((s) => s.session_id))
+      prev.size === filteredSessions.length ? new Set() : new Set(filteredSessions.map((s) => s.session_id))
     );
   };
 
