@@ -821,5 +821,7 @@ export function useBooking() {
     checkBayAvailability,
     createBooking,
     refetchSavedCard,
+    refetchUserProfile,
   };
+
 }
