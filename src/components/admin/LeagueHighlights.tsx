@@ -480,7 +480,7 @@ export function LeagueHighlights() {
         </CardHeader>
         <CardContent>
           {loading ? <div className="flex justify-center py-8"><Loader2 className="animate-spin" /></div> :
-           sessions.length === 0 ? <p className="text-muted-foreground text-sm py-8 text-center">No recorded sessions yet.</p> :
+           filteredSessions.length === 0 ? <p className="text-muted-foreground text-sm py-8 text-center">No recorded sessions for this filter.</p> :
            <div className="space-y-3">
               {selectMode && (
                 <div className="flex items-center gap-2 pb-1">
@@ -495,7 +495,7 @@ export function LeagueHighlights() {
                 </div>
               )}
 
-             {sessions.map((sess) => {
+             {filteredSessions.map((sess) => {
                const streamReady = sess.stream_status === "ready";
                const streamFailed = ["failed", "status_failed", "error"].includes(sess.stream_status ?? "");
                const highlightCount = countHighlights(sess.scorecard);
