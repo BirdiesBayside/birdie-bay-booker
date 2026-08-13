@@ -3945,8 +3945,21 @@ async function waitForStableSize(filePath, { timeoutMs = 60000, quietMs = 1500 }
 
 ipcMain.handle('obs-stop-recording', async () => {
   try {
-    if (!obsController || !obsController.identified) {
+    if (!obsController) {
       return { success: false, error: 'OBS not connected' };
+    }
+    // The OBS WebSocket can drop during a long round while OBS itself keeps
+    // recording. Reconnect at stop time instead of abandoning the completed
+    // video. This was the cause of several local-comp sessions ending with
+    // "OBS not connected" despite recording having started successfully.
+    if (!obsController.identified) {
+      console.warn('[OBS] WebSocket disconnected before stop - reconnecting');
+      await obsController.connect();
+      console.log('[OBS] Reconnected for recording stop');
+    }
+    const status = await obsController.getStatus();
+    if (!status?.outputActive) {
+      return { success: false, error: 'OBS is connected but no recording is active' };
     }
     const res = await obsController.stopRecording();
     // v5 protocol returns outputPath in responseData. OBS is configured to record
