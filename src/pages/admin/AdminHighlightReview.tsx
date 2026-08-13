@@ -219,24 +219,42 @@ export default function AdminHighlightReview() {
               <div className="text-xs font-semibold text-muted-foreground uppercase mb-3">Scorecard</div>
               {session.scorecard ? (
                 <ScorecardGrid scorecard={session.scorecard} />
+              ) : parsingScorecard ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Reading scores from the captured screenshot…
+                </div>
+              ) : session.scorecard_image_path ? (
+                <div className="text-sm text-muted-foreground">
+                  Scores haven't been read from the screenshot yet.
+                </div>
               ) : (
                 <div className="text-sm text-muted-foreground">
                   Scorecard will appear here once the round is finished and pulled from SGT.
                 </div>
               )}
               {session.scorecard_image_path && (
-                <div className="mt-3">
+                <div className="mt-3 flex flex-wrap items-center gap-2">
                   <Button size="sm" variant="outline" onClick={() => void openScorecardImage()}>
                     <ImageIcon className="h-4 w-4 mr-1" /> View Scorecard Screenshot
                   </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={parsingScorecard}
+                    onClick={() => void parseFromScreenshot(true)}
+                  >
+                    {parsingScorecard ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                    {session.scorecard ? "Re-read scores" : "Read scores from screenshot"}
+                  </Button>
                   {session.scorecard_captured_at && (
-                    <span className="ml-2 text-xs text-muted-foreground">
+                    <span className="text-xs text-muted-foreground">
                       Captured {formatBrisbane(session.scorecard_captured_at)}
                     </span>
                   )}
                 </div>
               )}
             </div>
+
           </>
         )}
       </div>
