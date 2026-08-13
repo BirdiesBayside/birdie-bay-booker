@@ -163,6 +163,7 @@ export function LeagueHighlights() {
   const [streamBusyIds, setStreamBusyIds] = useState<Set<string>>(new Set());
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [selectMode, setSelectMode] = useState(false);
+  const [filterType, setFilterType] = useState<"all" | "local_comp" | "sgt">("all");
   const [scorecardImageSession, setScorecardImageSession] = useState<SessionRow | null>(null);
   const [scorecardImageUrl, setScorecardImageUrl] = useState<string | null>(null);
 
