@@ -248,7 +248,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // =====================================================
   obsConfigure: (url, password) => ipcRenderer.invoke('obs-configure', { url, password }),
   obsStartRecording: (url, password) => ipcRenderer.invoke('obs-start-recording', { url, password }),
-  obsStopRecording: () => ipcRenderer.invoke('obs-stop-recording'),
+  obsStopRecording: (url, password) => ipcRenderer.invoke('obs-stop-recording', { url, password }),
   obsGetStatus: () => ipcRenderer.invoke('obs-get-status'),
   obsUploadFile: (filePath, signedUrl, contentType) =>
     ipcRenderer.invoke('obs-upload-file', { filePath, signedUrl, contentType }),

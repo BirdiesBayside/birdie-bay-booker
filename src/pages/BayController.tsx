@@ -422,7 +422,20 @@ export default function BayController() {
     try {
       const electronApi: any = (window as any).electronAPI;
       addLog(`[Highlights] Stopping OBS recording for session ${sessionId} (${reason})`, 'info');
-      const stopRes = await electronApi?.obsStopRecording?.();
+      const { data: bayRow } = await supabase
+        .from('bays')
+        .select('id')
+        .eq('bay_number', selectedBay)
+        .maybeSingle();
+      const { data: deviceRow } = await supabase
+        .from('bay_devices')
+        .select('obs_ws_url, obs_ws_password')
+        .eq('bay_id', bayRow?.id ?? '')
+        .maybeSingle() as { data: { obs_ws_url?: string | null; obs_ws_password?: string | null } | null };
+      const stopRes = await electronApi?.obsStopRecording?.(
+        deviceRow?.obs_ws_url || 'ws://127.0.0.1:4455',
+        deviceRow?.obs_ws_password || '',
+      );
       if (!stopRes?.success || !stopRes.filePath) {
         addLog(`[Highlights] OBS stop failed: ${stopRes?.error ?? 'no file'}`, 'error');
         await supabase.functions.invoke('bay-controller-api', {
@@ -1585,8 +1598,16 @@ export default function BayController() {
           // OBS stop recording (format: "obs_stop_recording:session_id=<uuid>")
           if (typeof command.command === 'string' && command.command.startsWith('obs_stop_recording:')) {
             const sessionId = command.command.split('session_id=')[1];
-            await finalizeRecording(sessionId, 'sgt scorecard stop command');
-            await supabase.from('bay_commands').update({ status: 'executed', executed_at: new Date().toISOString() }).eq('id', command.id);
+            await finalizeRecording(sessionId, 'recording stop command');
+            const { data: stoppedSession } = await supabase
+              .from('recording_sessions')
+              .select('status')
+              .eq('id', sessionId)
+              .maybeSingle();
+            await supabase.from('bay_commands').update({
+              status: stoppedSession?.status === 'error' ? 'failed' : 'executed',
+              executed_at: new Date().toISOString(),
+            }).eq('id', command.id);
             return;
           }
 

@@ -113,7 +113,7 @@ declare global {
       // OBS Recording (League Highlights pilot)
       obsConfigure: (url: string, password: string) => Promise<{ success: boolean; error?: string }>;
       obsStartRecording: (url: string, password: string) => Promise<{ success: boolean; startedAtMs?: number; alreadyRecording?: boolean; error?: string }>;
-      obsStopRecording: () => Promise<{ success: boolean; filePath?: string | null; mkvPath?: string | null; sizeBytes?: number | null; error?: string }>;
+      obsStopRecording: (url?: string, password?: string) => Promise<{ success: boolean; filePath?: string | null; mkvPath?: string | null; sizeBytes?: number | null; error?: string }>;
       obsGetStatus: () => Promise<{ success: boolean; connected?: boolean; recording?: boolean; timecode?: string; error?: string }>;
       obsUploadFile: (filePath: string, signedUrl: string, contentType?: string) => Promise<{ success: boolean; sizeBytes?: number; error?: string }>;
       obsFileSize: (filePath: string) => Promise<{ success: boolean; sizeBytes?: number; error?: string }>;
