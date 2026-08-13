@@ -210,13 +210,25 @@ export default function AdminAllHighlightExports() {
 
         <Card>
           <CardHeader>
-            <CardTitle>All Clip Exports ({clips.length})</CardTitle>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <CardTitle>All Clip Exports ({filteredClips.length})</CardTitle>
+              <Select value={filterType} onValueChange={(v) => setFilterType(v as "all" | "local_comp" | "sgt")}>
+                <SelectTrigger className="w-full sm:w-[180px]">
+                  <SelectValue placeholder="Filter rounds" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All rounds</SelectItem>
+                  <SelectItem value="local_comp">Local Comp</SelectItem>
+                  <SelectItem value="sgt">SGT League</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </CardHeader>
           <CardContent>
             {loading ? (
               <div className="flex justify-center py-8"><Loader2 className="animate-spin" /></div>
-            ) : clips.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-8 text-center">No clips exported yet.</p>
+            ) : filteredClips.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-8 text-center">No clips match this filter.</p>
             ) : (
               <div className="space-y-3">
                 {groups.map((group, gi) => {
