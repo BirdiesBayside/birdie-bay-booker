@@ -3943,25 +3943,29 @@ async function waitForStableSize(filePath, { timeoutMs = 60000, quietMs = 1500 }
   return last > 0 ? last : null;
 }
 
-ipcMain.handle('obs-stop-recording', async () => {
+ipcMain.handle('obs-stop-recording', async (_e, { url, password } = {}) => {
   try {
-    if (!obsController) {
-      return { success: false, error: 'OBS not connected' };
-    }
+    // The Electron main process can restart or reload during a long round. In
+    // that case OBS keeps recording but our in-memory controller is gone.
+    // Recreate it from the bay's persisted connection details before stopping.
+    const ctl = ensureObs({
+      url: url || obsController?.url || 'ws://127.0.0.1:4455',
+      password: password ?? obsController?.password ?? '',
+    });
     // The OBS WebSocket can drop during a long round while OBS itself keeps
     // recording. Reconnect at stop time instead of abandoning the completed
     // video. This was the cause of several local-comp sessions ending with
     // "OBS not connected" despite recording having started successfully.
-    if (!obsController.identified) {
+    if (!ctl.identified) {
       console.warn('[OBS] WebSocket disconnected before stop - reconnecting');
-      await obsController.connect();
+      await ctl.connect();
       console.log('[OBS] Reconnected for recording stop');
     }
-    const status = await obsController.getStatus();
+    const status = await ctl.getStatus();
     if (!status?.outputActive) {
       return { success: false, error: 'OBS is connected but no recording is active' };
     }
-    const res = await obsController.stopRecording();
+    const res = await ctl.stopRecording();
     // v5 protocol returns outputPath in responseData. OBS is configured to record
     // direct to MP4, so this is the final file — no remux sibling to wait for.
     const filePath = res?.outputPath || null;
