@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, ChevronDown, ChevronRight, Download, ImageDown, Loader2, RefreshCw, Trash2, FolderOpen } from "lucide-react";
 import { formatBrisbane, formatBrisbaneDate } from "@/lib/brisbane-time";
@@ -52,6 +53,7 @@ export default function AdminAllHighlightExports() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
   const [readyFiles, setReadyFiles] = useState<Record<string, File>>({});
+  const [filterType, setFilterType] = useState<"all" | "local_comp" | "sgt">("all");
   const canSaveToPhotos = supportsVideoFileShare();
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
@@ -157,33 +159,46 @@ export default function AdminAllHighlightExports() {
     return <Badge variant="outline"><Loader2 className="h-3 w-3 mr-1 animate-spin" />Queued</Badge>;
   };
 
+  // Filter clips by round type before grouping
+  const filteredClips = useMemo(() => {
+    if (filterType === "all") return clips;
+    return clips.filter((clip) => {
+      const session = sessions[clip.recording_session_id];
+      if (filterType === "local_comp") return session?.trigger_source === "local_comp";
+      if (filterType === "sgt") return session?.trigger_source !== "local_comp" && session?.tournament_name;
+      return true;
+    });
+  }, [clips, sessions, filterType]);
+
   // Group into folders: Wednesday comps by comp date, SGT tournaments by tournament (both rounds together)
-  const groupMap = new Map<string, { key: string; title: string; subtitle: string; items: Clip[] }>();
-  for (const clip of clips) {
-    const session = sessions[clip.recording_session_id];
-    const when = session?.started_at ?? clip.created_at;
-    const day = formatBrisbaneDate(when);
-    let key: string;
-    let title: string;
-    let subtitle: string;
-    if (session?.trigger_source === "local_comp") {
-      key = `comp:${day}`;
-      title = session?.tournament_name ?? "Local Comp";
-      subtitle = day;
-    } else if (session?.tournament_name) {
-      key = `sgt:${session.sgt_tournament_id ?? session.tournament_name}`;
-      title = session.tournament_name;
-      subtitle = "Weekly League — Rounds 1 & 2";
-    } else {
-      key = `other:${day}`;
-      title = "Practice Sessions";
-      subtitle = day;
+  const groups = useMemo(() => {
+    const groupMap = new Map<string, { key: string; title: string; subtitle: string; items: Clip[] }>();
+    for (const clip of filteredClips) {
+      const session = sessions[clip.recording_session_id];
+      const when = session?.started_at ?? clip.created_at;
+      const day = formatBrisbaneDate(when);
+      let key: string;
+      let title: string;
+      let subtitle: string;
+      if (session?.trigger_source === "local_comp") {
+        key = `comp:${day}`;
+        title = session?.tournament_name ?? "Local Comp";
+        subtitle = day;
+      } else if (session?.tournament_name) {
+        key = `sgt:${session.sgt_tournament_id ?? session.tournament_name}`;
+        title = session.tournament_name;
+        subtitle = "Weekly League — Rounds 1 & 2";
+      } else {
+        key = `other:${day}`;
+        title = "Practice Sessions";
+        subtitle = day;
+      }
+      const existing = groupMap.get(key);
+      if (existing) existing.items.push(clip);
+      else groupMap.set(key, { key, title, subtitle, items: [clip] });
     }
-    const existing = groupMap.get(key);
-    if (existing) existing.items.push(clip);
-    else groupMap.set(key, { key, title, subtitle, items: [clip] });
-  }
-  const groups = Array.from(groupMap.values());
+    return Array.from(groupMap.values());
+  }, [filteredClips, sessions]);
 
   return (
     <AdminLayout>
@@ -195,13 +210,25 @@ export default function AdminAllHighlightExports() {
 
         <Card>
           <CardHeader>
-            <CardTitle>All Clip Exports ({clips.length})</CardTitle>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <CardTitle>All Clip Exports ({filteredClips.length})</CardTitle>
+              <Select value={filterType} onValueChange={(v) => setFilterType(v as "all" | "local_comp" | "sgt")}>
+                <SelectTrigger className="w-full sm:w-[180px]">
+                  <SelectValue placeholder="Filter rounds" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All rounds</SelectItem>
+                  <SelectItem value="local_comp">Local Comp</SelectItem>
+                  <SelectItem value="sgt">SGT League</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </CardHeader>
           <CardContent>
             {loading ? (
               <div className="flex justify-center py-8"><Loader2 className="animate-spin" /></div>
-            ) : clips.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-8 text-center">No clips exported yet.</p>
+            ) : filteredClips.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-8 text-center">No clips match this filter.</p>
             ) : (
               <div className="space-y-3">
                 {groups.map((group, gi) => {
