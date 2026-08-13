@@ -308,6 +308,28 @@ export default function Booking() {
       return;
     }
 
+    // Guard against a stale cached balance: re-read credit straight from the DB
+    // before taking the card path. If credit was added while this page was open,
+    // stop and let the customer use it instead of silently charging the card.
+    if (selectedPaymentMethod === "card" && !usePartialBalance && user?.id) {
+      const { data: freshProfile } = await supabase
+        .from("profiles")
+        .select("deposit_balance")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      const freshBalance = Number(freshProfile?.deposit_balance) || 0;
+      if (freshBalance > depositBalance) {
+        await refetchUserProfile();
+        setPaymentMethodTouched(false);
+        toast({
+          title: "You have credit available",
+          description: `$${freshBalance.toFixed(2)} credit was found on your account. Choose how you'd like to pay.`,
+        });
+        return;
+      }
+    }
+
     // If paying with balance and have enough, skip pending/checkout entirely
     if (selectedPaymentMethod === "balance" && depositBalance >= totalPrice) {
       handleConfirmBookingWithBalance();
@@ -319,6 +341,7 @@ export default function Booking() {
       handleConfirmBooking("card", true);
       return;
     }
+
 
     // ALWAYS create a pending booking first to lock the slot
     setIsSubmitting(true);
