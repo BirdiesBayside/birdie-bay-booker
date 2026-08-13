@@ -121,6 +121,34 @@ export default function AdminHighlightReview() {
     setScorecardImageUrl(data.signedUrl);
   };
 
+  const parseFromScreenshot = async (force = false) => {
+    if (!sessionId || parsingScorecard) return;
+    setParsingScorecard(true);
+    const { data, error } = await supabase.functions.invoke("parse-comp-scorecard", {
+      body: { recording_session_id: sessionId, force },
+    });
+    setParsingScorecard(false);
+    if (error || data?.error) {
+      const description = await getFunctionErrorMessage(error, data);
+      toast({ title: "Couldn't read the scorecard", description, variant: "destructive" });
+      return;
+    }
+    await load();
+    if (data?.scorecard && !data?.skipped) {
+      toast({ title: "Scorecard read", description: "Scores extracted from the captured screenshot." });
+    }
+  };
+
+  // Auto-read scores from the screenshot when there's no scorecard yet
+  useEffect(() => {
+    if (!session || parseAttemptedRef.current) return;
+    if (session.scorecard || !session.scorecard_image_path) return;
+    parseAttemptedRef.current = true;
+    void parseFromScreenshot();
+  }, [session]);
+
+
+
   const markStart = () => { if (videoRef.current) setClipStart(videoRef.current.currentTime); };
   const markEnd = () => { if (videoRef.current) setClipEnd(videoRef.current.currentTime); };
   const clearClip = () => { setClipStart(null); setClipEnd(null); };
