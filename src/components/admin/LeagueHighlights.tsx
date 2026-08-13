@@ -482,18 +482,18 @@ export function LeagueHighlights() {
           {loading ? <div className="flex justify-center py-8"><Loader2 className="animate-spin" /></div> :
            sessions.length === 0 ? <p className="text-muted-foreground text-sm py-8 text-center">No recorded sessions yet.</p> :
            <div className="space-y-3">
-             {selectMode && (
-               <div className="flex items-center gap-2 pb-1">
-                 <Checkbox
-                   id="select-all-recordings"
-                   checked={selectedIds.size > 0 && selectedIds.size === sessions.length}
-                   onCheckedChange={toggleSelectAll}
-                 />
-                 <Label htmlFor="select-all-recordings" className="text-sm text-muted-foreground">
-                   Select all
-                 </Label>
-               </div>
-             )}
+              {selectMode && (
+                <div className="flex items-center gap-2 pb-1">
+                  <Checkbox
+                    id="select-all-recordings"
+                    checked={selectedIds.size > 0 && selectedIds.size === filteredSessions.length}
+                    onCheckedChange={toggleSelectAll}
+                  />
+                  <Label htmlFor="select-all-recordings" className="text-sm text-muted-foreground">
+                    Select all
+                  </Label>
+                </div>
+              )}
 
              {sessions.map((sess) => {
                const streamReady = sess.stream_status === "ready";
