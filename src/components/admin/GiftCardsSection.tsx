@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -25,10 +26,13 @@ import { useToast } from "@/hooks/use-toast";
 import { Gift, Send, Loader2, CheckCircle2, Clock, XCircle } from "lucide-react";
 import { format } from "date-fns";
 
+const HOUR_PRICE = 42;
+
 interface GiftCard {
   id: string;
   recipient_email: string;
   amount: number;
+  credit_hours: number | null;
   status: string;
   token: string;
   issued_at: string;
