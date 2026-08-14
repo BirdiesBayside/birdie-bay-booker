@@ -141,7 +141,7 @@ const MyAccount = () => {
     try {
       const { data, error } = await supabase
         .from("profiles")
-        .select("first_name, last_name, email, phone, membership_tier, deposit_balance, sgt_user_id, payment_failed_at")
+        .select("first_name, last_name, email, phone, membership_tier, deposit_balance, hour_credit_balance, sgt_user_id, payment_failed_at")
         .eq("user_id", user.id)
         .maybeSingle();
 
