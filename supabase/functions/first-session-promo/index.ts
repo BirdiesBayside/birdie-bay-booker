@@ -78,7 +78,7 @@ serve(async (req: Request): Promise<Response> => {
     // First get all potential users, then filter in code for bulk import
     const { data: allEligibleUsers, error: fetchError } = await supabase
       .from("profiles")
-      .select("id, user_id, email, first_name, last_name, deposit_balance, created_at")
+      .select("id, user_id, email, first_name, last_name, hour_credit_balance, created_at")
       .is("first_session_promo_sent", null)
       .eq("marketing_opt_out", false)
       .lt("created_at", twentyFourHoursAgo);
