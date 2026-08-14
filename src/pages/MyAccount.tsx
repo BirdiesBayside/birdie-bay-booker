@@ -506,6 +506,33 @@ const MyAccount = () => {
             </Card>
           )}
 
+          {/* Hour Credits */}
+          {(profile?.hour_credit_balance || 0) > 0 && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-lg bg-accent/10 flex items-center justify-center">
+                    <Clock className="h-5 w-5 text-accent" />
+                  </div>
+                  <div>
+                    <CardTitle>Hour Credits</CardTitle>
+                    <CardDescription>1 credit = 1 hour off any booking</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-3xl font-bold text-primary">
+                      {(profile?.hour_credit_balance || 0).toFixed(0)}
+                    </p>
+                    <p className="text-sm text-muted-foreground">hours available</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Redeem Gift Card */}
           <Card>
             <CardHeader>
