@@ -1,4 +1,4 @@
-# Peak rate $42 + Hour Credits — staged rollout for 21 August
+# Peak rate $42 + Hour Credits — staged rollout for 21 August 2026
 
 Everything gets built now behind a date switch. Nothing customer-facing changes until **Fri 21 Aug 2026, 00:00 Brisbane**, when the new peak rate and the hour-credit system go live automatically.
 
@@ -12,7 +12,7 @@ Everything gets built now behind a date switch. Nothing customer-facing changes 
 ## 1. Date-switched pricing
 
 - Add an effective-from date to the pricing config so both the $35 and $42 peak rates exist side by side.
-- Every place that prices a booking asks for "the rate on this booking's date", so a booking made in August for a September session is already priced at $42. This is the correct behaviour — the session date decides the price, not the day it was booked.
+- Every place that prices a booking asks for "the rate on this booking's date", so a booking made in August for a session on or after 21 August is already priced at $42. This is the correct behaviour — the session date decides the price, not the day it was booked.
 - Admin Settings gets a small "Upcoming price change" note showing the scheduled rate and date, with the ability to change or cancel it before it lands.
 
 ## 2. Hour credits
@@ -33,7 +33,7 @@ Partial hours (30 min bookings) round to the nearest half credit. Credits are ch
 
 ## 3. First Session Free promo
 
-Switches from a $35 dollar credit to **1 hour credit**. The promo email copy changes from "$35 credit" to "1 free hour". Both versions are wired up now; the switch flips on 1 September so anyone who receives the email in August still gets the $35 they were promised.
+Switches from a $35 dollar credit to **1 hour credit**. The promo email copy changes from "$35 credit" to "1 free hour". Both versions are wired up now; the switch flips on 21 August so anyone who receives the email in August before the cut-off still gets the $35 they were promised.
 
 ## 4. Gift cards
 
@@ -54,15 +54,15 @@ Peak line items are repriced on the switch date: 1 Hr Peak $42, 2 Hr $84, 3 Hr $
 ## 7. Emails, site copy and comms
 
 - Everywhere "$35" appears (booking confirmations, marketing templates, website pricing, Hub pricing screens, membership sell copy) gets updated with date-switched copy where it's dynamic, and a coordinated content update for the static pages.
-- Optional: a heads-up email to the customer base in mid-August announcing the change from 1 September. Say the word and I'll draft it.
+- Optional: a heads-up email to the customer base in early August announcing the change from 21 August. Say the word and I'll draft it.
 
 ## Rollout timeline
 
 | When | What happens |
 |---|---|
 | Now | Build everything. Hour credits live but unfunded. Peak stays $35. |
-| Now → 31 Aug | Internal testing: grant yourself credits, book with them, buy a test hour pack. |
-| Optional, mid-Aug | Announcement email to customers. |
+| Now → 20 Aug | Internal testing: grant yourself credits, book with them, buy a test hour pack. |
+| Optional, early Aug | Announcement email to customers. |
 | **21 Aug 00:00 Brisbane** | Peak $42, POS repriced, gift cards become hour packs, promo becomes 1 hour. Automatic — no manual step. |
 | 21 Aug onward | Old dollar gift cards and dollar balances continue to work indefinitely. |
 
@@ -74,4 +74,4 @@ The switch runs off a single stored date. If you want to move it, delay it, or p
 - New `profiles.hour_credit_balance` (numeric) plus `hour_credit_transactions` table, RLS + GRANTs mirroring `deposit_transactions` (user reads own, admin manages, service_role all).
 - Credit spend happens server-side in `charge-booking` so the balance can't be manipulated client-side; `cancel-booking`, `refund-booking`, `reschedule-booking` and `extend-booking` all get credit-aware paths.
 - `create-gift-checkout` takes `hours` instead of a free-form amount; `redeem-gift-card` / `redeem-gift-card-by-code` / `issue-gift-card` branch on gift card type (`dollars` vs `hours`) with a new `credit_hours` column on `gift_cards`.
-- POS reprice and Stripe price archival run as a one-shot scheduled job on 1 Sep (pg_cron → edge function), guarded so it can only apply once.
+- POS reprice and Stripe price archival run as a one-shot scheduled job on 21 Aug (pg_cron → edge function), guarded so it can only apply once.
