@@ -20,7 +20,7 @@ interface Row {
 export function PriceScheduleSection() {
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
-  const today = getBrisbaneDateKey(new Date());
+  const today = brisbaneDateKey(new Date());
 
   useEffect(() => {
     (async () => {
