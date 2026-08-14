@@ -37,6 +37,7 @@ interface Profile {
   phone: string | null;
   membership_tier: string;
   deposit_balance: number;
+  hour_credit_balance: number;
   sgt_user_id: number | null;
   payment_failed_at: string | null;
 }
