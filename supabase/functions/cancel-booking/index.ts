@@ -105,6 +105,51 @@ serve(async (req) => {
       };
 
       console.log("[CANCEL-BOOKING] Stripe refund created:", refundResult);
+    } else if (booking.payment_method === "hours") {
+      // Restore hour credits used for this booking
+      const hoursUsed = booking.hour_credits_used || 0;
+      console.log("[CANCEL-BOOKING] Restoring hour credits:", hoursUsed);
+
+      if (hoursUsed > 0) {
+        const { data: profile, error: profileError } = await supabaseAdmin
+          .from("profiles")
+          .select("hour_credit_balance")
+          .eq("user_id", user.id)
+          .single();
+
+        if (profileError) {
+          throw new Error(`Failed to fetch profile: ${profileError.message}`);
+        }
+
+        const newHourBalance = (profile.hour_credit_balance || 0) + hoursUsed;
+
+        const { error: updateHourError } = await supabaseAdmin
+          .from("profiles")
+          .update({ hour_credit_balance: newHourBalance })
+          .eq("user_id", user.id);
+
+        if (updateHourError) {
+          throw new Error(`Failed to restore hour credits: ${updateHourError.message}`);
+        }
+
+        await supabaseAdmin.from("hour_credit_transactions").insert({
+          user_id: user.id,
+          amount: hoursUsed,
+          balance_before: profile.hour_credit_balance || 0,
+          balance_after: newHourBalance,
+          transaction_type: "refund",
+          description: "Restored from cancelled booking",
+          related_booking_id: booking_id,
+        });
+
+        refundResult = {
+          type: "hours",
+          amount: hoursUsed,
+          new_hour_balance: newHourBalance,
+        };
+      }
+
+      console.log("[CANCEL-BOOKING] Hour credit restoration completed:", refundResult);
     } else if (booking.payment_method === "balance") {
       // Refund to deposit balance
       console.log("[CANCEL-BOOKING] Refunding to deposit balance:", booking.total_price);
