@@ -36,6 +36,7 @@ import { ActivityLog } from "@/components/admin/ActivityLog";
 import { TableServiceSettings } from "@/components/admin/TableServiceSettings";
 import { DailyHoursEditor } from "@/components/admin/DailyHoursEditor";
 import { PublicHolidaysSection } from "@/components/admin/PublicHolidaysSection";
+import { PriceScheduleSection } from "@/components/admin/PriceScheduleSection";
 import { SmsTemplatesSection } from "@/components/admin/SmsTemplatesSection";
 import { CustomerAlertsSection } from "@/components/admin/CustomerAlertsSection";
 import { DoorAccessSection } from "@/components/admin/DoorAccessSection";
