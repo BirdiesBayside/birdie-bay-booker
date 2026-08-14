@@ -257,8 +257,8 @@ serve(async (req: Request): Promise<Response> => {
               <ol style="margin:0; padding-left:22px; font-family:Inter, Arial, sans-serif; font-size:14px; line-height:1.7; color:#1F4C25;">
                 <li>Head to <a href="https://hub.birdiesbayside.com.au" style="color:#EC622D; text-decoration:underline;"><strong>hub.birdiesbayside.com.au</strong></a> and create a free account (or sign in).</li>
                 <li>Go to <strong>My Account</strong> and find the <strong>"Redeem Gift Card"</strong> section.</li>
-                <li>Enter the redemption code above — credit applies to their account instantly.</li>
-                <li>Book a bay and the credit is automatically used at checkout.</li>
+                <li>Enter the redemption code above — ${creditHours > 0 ? "hour credits" : "credit"} applies to their account instantly.</li>
+                <li>Book a bay and the ${creditHours > 0 ? "hour credits" : "credit"} is automatically used at checkout.</li>
               </ol>
             </td>
           </tr>
