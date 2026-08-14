@@ -22,7 +22,8 @@ function generateCode(): string {
 }
 
 interface Body {
-  amount: number;
+  amount?: number;
+  hours?: number;
   recipient_name: string;
   recipient_email: string;
   sender_name: string;
@@ -32,16 +33,31 @@ interface Body {
   delivery_method: "email_recipient" | "print_to_sender" | "both";
 }
 
+const HOUR_PRICE = 42;
+
 serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
     const body = (await req.json()) as Body;
 
-    // Validation
-    const amount = Number(body.amount);
+    // Normalise to an amount and optional hours. If hours is supplied, that defines the purchase.
+    const hours = body.hours ? Number(body.hours) : 0;
+    let amount = body.amount ? Number(body.amount) : 0;
+    if (hours > 0) {
+      amount = hours * HOUR_PRICE;
+    } else if (amount > 0) {
+      // Legacy dollar-based path still buys hours: 1 hour per $42 chunk.
+      // Keep the dollar amount as the checkout value and the whole hours as credit_hours.
+      // Both are recorded, but the card is treated as a "hours pack" at redemption.
+    }
+    const credit_hours = hours > 0 ? hours : Math.floor(amount / HOUR_PRICE);
+
     if (!amount || amount < 10 || amount > 1000) {
       throw new Error("Amount must be between $10 and $1000");
+    }
+    if (credit_hours <= 0) {
+      throw new Error("Gift card must be for at least 1 hour of credit");
     }
     if (!body.recipient_name || body.recipient_name.trim().length === 0) {
       throw new Error("Recipient name required");
@@ -97,6 +113,7 @@ serve(async (req: Request): Promise<Response> => {
         sender_name: body.sender_name.trim(),
         personal_message: body.personal_message?.trim() || null,
         amount,
+        credit_hours,
         status: "pending_payment",
         source: "web",
         delivery_method: body.delivery_method,
@@ -121,8 +138,8 @@ serve(async (req: Request): Promise<Response> => {
           price_data: {
             currency: "aud",
             product_data: {
-              name: `Birdies Bayside Gift Card — $${amount.toFixed(2)}`,
-              description: `For ${body.recipient_name}`,
+              name: `Birdies Bayside Gift Card — ${credit_hours} Hour${credit_hours === 1 ? "" : "s"}`,
+              description: `For ${body.recipient_name} — ${credit_hours} hour${credit_hours === 1 ? "" : "s"} of bay time`,
             },
             unit_amount: Math.round(amount * 100),
           },

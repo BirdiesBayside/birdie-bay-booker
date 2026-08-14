@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import birdiesLogo from "@/assets/birdies-logo.png";
 import { usePricing, PricingTier } from "@/hooks/usePricing";
-import { VISITOR_PEAK_RATE, VISITOR_OFF_PEAK_RATE } from "@/lib/pricing-utils";
+import { getVisitorPeakRateForDate, VISITOR_OFF_PEAK_RATE, PricingConfigRow } from "@/lib/pricing-utils";
 import { useSavedCard } from "@/hooks/useSavedCard";
 import { NoCardDialog } from "@/components/booking/NoCardDialog";
 
@@ -57,9 +57,9 @@ const Membership = () => {
   // Get subscription tiers (exclude visitor) from pricing config
   const subscriptionTiers = pricing.filter(p => p.is_subscription && p.tier !== 'visitor');
   
-  // Get visitor pricing for display
+  // Get visitor pricing for display (current day)
   const visitorPricing = pricing.find(p => p.tier === 'visitor');
-  const peakRate = visitorPricing?.hourly_rate ?? VISITOR_PEAK_RATE;
+  const peakRate = visitorPricing?.hourly_rate ?? getVisitorPeakRateForDate(pricing as PricingConfigRow[], new Date());
   const offPeakRate = VISITOR_OFF_PEAK_RATE;
 
   useEffect(() => {

@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Crown, Lock, User, Mail, Phone, Plus, Loader2, Trash2, Pencil, Check, X, Wallet, CreditCard, Gamepad2, Copy, Eye, EyeOff, Gift } from "lucide-react";
+import { ArrowLeft, Crown, Lock, User, Mail, Phone, Plus, Loader2, Trash2, Pencil, Check, X, Wallet, CreditCard, Gamepad2, Copy, Eye, EyeOff, Gift, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -37,6 +37,7 @@ interface Profile {
   phone: string | null;
   membership_tier: string;
   deposit_balance: number;
+  hour_credit_balance: number;
   sgt_user_id: number | null;
   payment_failed_at: string | null;
 }
@@ -83,7 +84,15 @@ const MyAccount = () => {
       });
       if (error) throw error;
       if ((data as any)?.error) throw new Error((data as any).error);
-      toast.success(`$${Number((data as any).amount).toFixed(2)} credit added to your account!`);
+      const addedAmount = Number((data as any).totalAmount || 0);
+      const addedHours = Number((data as any).totalHours || 0);
+      if (addedHours > 0) {
+        toast.success(`${addedHours} hour credit${addedHours === 1 ? "" : "s"} added to your account!`);
+      } else if (addedAmount > 0) {
+        toast.success(`$${addedAmount.toFixed(2)} credit added to your account!`);
+      } else {
+        toast.success("Gift card redeemed!");
+      }
       setRedeemCode("");
       fetchProfile();
     } catch (e: any) {
@@ -140,7 +149,7 @@ const MyAccount = () => {
     try {
       const { data, error } = await supabase
         .from("profiles")
-        .select("first_name, last_name, email, phone, membership_tier, deposit_balance, sgt_user_id, payment_failed_at")
+        .select("first_name, last_name, email, phone, membership_tier, deposit_balance, hour_credit_balance, sgt_user_id, payment_failed_at")
         .eq("user_id", user.id)
         .maybeSingle();
 
@@ -505,6 +514,33 @@ const MyAccount = () => {
             </Card>
           )}
 
+          {/* Hour Credits */}
+          {(profile?.hour_credit_balance || 0) > 0 && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-lg bg-accent/10 flex items-center justify-center">
+                    <Clock className="h-5 w-5 text-accent" />
+                  </div>
+                  <div>
+                    <CardTitle>Hour Credits</CardTitle>
+                    <CardDescription>1 credit = 1 hour off any booking</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-3xl font-bold text-primary">
+                      {(profile?.hour_credit_balance || 0).toFixed(0)}
+                    </p>
+                    <p className="text-sm text-muted-foreground">hours available</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Redeem Gift Card */}
           <Card>
             <CardHeader>
@@ -514,7 +550,7 @@ const MyAccount = () => {
                 </div>
                 <div>
                   <CardTitle>Redeem Gift Card</CardTitle>
-                  <CardDescription>Got a printed gift card? Enter the code to add credit.</CardDescription>
+                  <CardDescription>Got a printed gift card? Enter the code to add hour credits or account credit.</CardDescription>
                 </div>
               </div>
             </CardHeader>

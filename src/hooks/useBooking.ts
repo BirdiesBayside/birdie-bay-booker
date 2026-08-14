@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
-import { calculateHourlyRate, isPeakTime, isWeekdayMemberTime, formatLocalDateKey } from "@/lib/pricing-utils";
+import { calculateHourlyRate, isPeakTime, isWeekdayMemberTime, formatLocalDateKey, PricingConfigRow, getVisitorPeakRateForDate } from "@/lib/pricing-utils";
 import { Capacitor } from "@capacitor/core";
 import { QUERY_KEYS, STALE_TIMES } from "@/lib/query-keys";
 export interface Bay {
@@ -42,15 +42,17 @@ export interface SavedCard {
   expYear?: number;
 }
 
-// Updated fallback pricing for new tier structure
-const FALLBACK_PRICING: Record<string, number> = {
-  visitor: 35, // Peak rate
-  weekday: 10,
-  birdie: 10,
-  eagle: 8,
-};
+// Fallback pricing config rows with effective_from dates so the date-aware rate lookup
+// still works when the DB is unreachable. The pre-switch $35 row and the post-switch $42 row are both included.
+const FALLBACK_PRICING: PricingConfigRow[] = [
+  { tier: "visitor", hourly_rate: 35, effective_from: "1970-01-01", display_order: 1 },
+  { tier: "visitor", hourly_rate: 42, effective_from: "2026-08-21", display_order: 1 },
+  { tier: "weekday", hourly_rate: 10, effective_from: "1970-01-01", display_order: 2 },
+  { tier: "birdie", hourly_rate: 10, effective_from: "1970-01-01", display_order: 3 },
+  { tier: "eagle", hourly_rate: 8, effective_from: "1970-01-01", display_order: 4 },
+];
 
-export type PaymentMethod = "card" | "balance";
+export type PaymentMethod = "card" | "balance" | "hours";
 
 // Fetch functions extracted for React Query
 const fetchBays = async (): Promise<Bay[]> => {
@@ -64,18 +66,19 @@ const fetchBays = async (): Promise<Bay[]> => {
   return data || [];
 };
 
-const fetchPricing = async (): Promise<Record<string, number>> => {
+const fetchPricing = async (): Promise<PricingConfigRow[]> => {
   const { data, error } = await supabase
     .from("pricing_config")
-    .select("tier, hourly_rate");
+    .select("tier, hourly_rate, effective_from, display_order")
+    .order("display_order")
+    .order("effective_from", { ascending: false });
 
   if (error) throw error;
   
-  const pricing: Record<string, number> = {};
-  (data || []).forEach((p: { tier: string; hourly_rate: number }) => {
-    pricing[p.tier] = Number(p.hourly_rate);
-  });
-  return pricing;
+  return (data || []).map((p: PricingConfigRow) => ({
+    ...p,
+    hourly_rate: Number(p.hourly_rate),
+  }));
 };
 
 export interface PublicHoliday {
@@ -106,7 +109,7 @@ const fetchUserProfile = async () => {
 
   const { data } = await supabase
     .from("profiles")
-    .select("membership_tier, custom_hourly_rate, deposit_balance, custom_segment, payment_failed_at")
+    .select("membership_tier, custom_hourly_rate, deposit_balance, hour_credit_balance, custom_segment, payment_failed_at")
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -124,6 +127,7 @@ const fetchUserProfile = async () => {
     isPaymentLimbo: !!paymentFailedAt,
     customHourlyRate: data?.custom_hourly_rate ?? null,
     depositBalance: Number(data?.deposit_balance) || 0,
+    hourCreditBalance: Number(data?.hour_credit_balance) || 0,
     customSegment: data?.custom_segment ?? null,
   };
 };
@@ -196,6 +200,7 @@ export function useBooking() {
   const isPaymentLimbo = !!userProfile?.isPaymentLimbo;
   const customHourlyRate = userProfile?.customHourlyRate ?? null;
   const depositBalance = userProfile?.depositBalance || 0;
+  const hourCreditBalance = userProfile?.hourCreditBalance || 0;
   const customSegment = userProfile?.customSegment ?? null;
 
   /**
@@ -366,9 +371,11 @@ export function useBooking() {
       return customHourlyRate;
     }
     
-    // If no date/time provided, return the base tier rate
+    // If no date/time provided, return today's visitor rate as the default display
     if (!date || !startTime) {
-      return tierPricing[tier] || FALLBACK_PRICING[tier] || FALLBACK_PRICING.visitor;
+      return tierPricing.find(p => p.tier === tier && p.effective_from && p.effective_from <= formatLocalDateKey(new Date()))?.hourly_rate
+        ?? FALLBACK_PRICING.find(p => p.tier === tier)?.hourly_rate
+        ?? getVisitorPeakRateForDate(tierPricing, new Date());
     }
     
     const holidaySurchargePercent = getHolidaySurchargeForDate(date);
@@ -456,10 +463,10 @@ export function useBooking() {
       ? checkMultiBayRestriction(date, startTime, durationHours, bayId)
       : false;
     
-    // If multi-bay restricted, rate becomes visitor peak rate (then surcharge applied on top)
+    // If multi-bay restricted, rate becomes visitor peak rate for the booking date (then surcharge applied on top)
     let rate: number;
     if (isMultiBayRestricted) {
-      const baseRate = FALLBACK_PRICING.visitor; // $35 peak visitor rate
+      const baseRate = getVisitorPeakRateForDate(tierPricing, date);
       rate = surchargePercent > 0 
         ? Math.round(baseRate * (1 + surchargePercent / 100) * 100) / 100
         : baseRate;
@@ -563,7 +570,8 @@ export function useBooking() {
     paymentMethod: PaymentMethod = "card",
     newPaymentMethodId?: string,
     partialBalanceAmount?: number,
-    notes?: string
+    notes?: string,
+    useHourCredits?: number,
   ): Promise<{ booking: any; requiresCheckout?: boolean; checkoutUrl?: string }> => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
@@ -622,9 +630,9 @@ export function useBooking() {
       
       const holidaySurchargePercent = getHolidaySurchargeForDate(date);
       if (hasOverlappingBooking) {
-        // Multi-bay during peak: charge visitor rate instead of member rate (+ holiday surcharge if any)
+        // Multi-bay during peak: charge visitor rate for the booking date instead of member rate (+ holiday surcharge if any)
         console.log("[useBooking] Multi-bay peak restriction triggered - charging visitor rate");
-        const baseRate = FALLBACK_PRICING.visitor; // $35 peak visitor rate
+        const baseRate = getVisitorPeakRateForDate(tierPricing, date);
         actualHourlyRate = holidaySurchargePercent > 0
           ? Math.round(baseRate * (1 + holidaySurchargePercent / 100) * 100) / 100
           : baseRate;
@@ -644,9 +652,39 @@ export function useBooking() {
     let balanceDeduction = 0;
     let cardAmount = totalPrice;
     let currentDepositBalance = depositBalance;
+    let hourCreditsUsed = 0;
+    let currentHourCreditBalance = hourCreditBalance;
 
-    // If using balance, check if sufficient funds
-    if (paymentMethod === "balance") {
+    // If using hour credits, spend them first (1 credit = 1 hour, partial hours round to nearest 0.5)
+    if (useHourCredits !== undefined && useHourCredits > 0) {
+      const requestedCredits = Math.min(useHourCredits, currentHourCreditBalance);
+      if (requestedCredits <= 0) {
+        throw new Error("Insufficient hour credits");
+      }
+      hourCreditsUsed = requestedCredits;
+      const creditValue = hourCreditsUsed * actualHourlyRate;
+      cardAmount = Math.max(0, totalPrice - creditValue);
+
+      const newHourBalance = currentHourCreditBalance - hourCreditsUsed;
+      const { error: hourBalanceError } = await supabase
+        .from("profiles")
+        .update({ hour_credit_balance: newHourBalance })
+        .eq("user_id", user.id);
+
+      if (hourBalanceError) throw new Error("Failed to deduct hour credits");
+
+      await supabase.from("hour_credit_transactions").insert({
+        user_id: user.id,
+        amount: -hourCreditsUsed,
+        balance_before: currentHourCreditBalance,
+        balance_after: newHourBalance,
+        transaction_type: "booking",
+        description: `Booking payment - ${format(date, "PPP")} at ${startTime}`,
+      });
+
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.USER_PROFILE() });
+    } else if (paymentMethod === "balance") {
+      // If using balance, check if sufficient funds
       if (currentDepositBalance < totalPrice) {
         throw new Error("Insufficient balance");
       }
@@ -698,10 +736,23 @@ export function useBooking() {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.USER_PROFILE() });
     }
 
-    // Auto-confirm if total is $0 (free booking) or paid by balance
+    // Auto-confirm if total is $0 (free booking), paid by balance, or fully covered by hour credits
     // Use <= 0 to handle floating point edge cases
     const isFreeBooking = totalPrice <= 0;
-    const shouldAutoConfirm = isFreeBooking || paymentMethod === "balance";
+    const isFullyCoveredByHours = hourCreditsUsed > 0 && cardAmount <= 0;
+    const shouldAutoConfirm = isFreeBooking || paymentMethod === "balance" || isFullyCoveredByHours;
+    
+    const paymentMethodValue: string = isFreeBooking
+      ? "free"
+      : hourCreditsUsed > 0 && balanceDeduction > 0
+        ? "partial"
+        : hourCreditsUsed > 0
+          ? "hours"
+          : paymentMethod === "balance"
+            ? "balance"
+            : balanceDeduction > 0
+              ? "partial"
+              : "pending";
     
     const { data: bookingData, error } = await supabase
       .from("bookings")
@@ -715,7 +766,8 @@ export function useBooking() {
         hourly_rate: actualHourlyRate,
         total_price: totalPrice,
         player_count: playerCount,
-        payment_method: isFreeBooking ? "free" : (paymentMethod === "balance" ? "balance" : (balanceDeduction > 0 ? "partial" : "pending")),
+        payment_method: paymentMethodValue,
+        hour_credits_used: hourCreditsUsed > 0 ? hourCreditsUsed : null,
         status: shouldAutoConfirm ? "confirmed" : "pending",
         notes: notes ?? null,
       })
@@ -723,7 +775,7 @@ export function useBooking() {
       .single();
 
     if (error) {
-      // CRITICAL: Restore balance if it was already deducted before the booking insert failed
+      // CRITICAL: Restore balance/hour credits if it was already deducted before the booking insert failed
       if (balanceDeduction > 0) {
         console.log("[useBooking] Booking insert failed, restoring balance deduction of", balanceDeduction);
         await supabase
@@ -732,11 +784,19 @@ export function useBooking() {
           .eq("user_id", user.id);
         queryClient.invalidateQueries({ queryKey: QUERY_KEYS.USER_PROFILE() });
       }
+      if (hourCreditsUsed > 0) {
+        console.log("[useBooking] Booking insert failed, restoring hour credit deduction of", hourCreditsUsed);
+        await supabase
+          .from("profiles")
+          .update({ hour_credit_balance: currentHourCreditBalance })
+          .eq("user_id", user.id);
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.USER_PROFILE() });
+      }
       throw error;
     }
 
     // Only charge card if there's an amount to charge
-    if (paymentMethod === "card" && cardAmount > 0) {
+    if (cardAmount > 0) {
       const bayName = bays.find(b => b.id === bayId)?.name || "Bay";
       const description = `${bayName} - ${format(date, "PPP")} at ${startTime} (${durationHours}hr)`;
       
@@ -807,6 +867,7 @@ export function useBooking() {
     actualMembershipTier,
     isPaymentLimbo,
     depositBalance,
+    hourCreditBalance,
     savedCard: savedCard ?? null,
     isLoadingSavedCard,
     tierPricing,

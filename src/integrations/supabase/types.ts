@@ -523,6 +523,7 @@ export type Database = {
           created_at: string
           duration_hours: number
           end_time: string
+          hour_credits_used: number | null
           hourly_rate: number
           id: string
           notes: string | null
@@ -542,6 +543,7 @@ export type Database = {
           created_at?: string
           duration_hours: number
           end_time: string
+          hour_credits_used?: number | null
           hourly_rate: number
           id?: string
           notes?: string | null
@@ -561,6 +563,7 @@ export type Database = {
           created_at?: string
           duration_hours?: number
           end_time?: string
+          hour_credits_used?: number | null
           hourly_rate?: number
           id?: string
           notes?: string | null
@@ -1140,6 +1143,7 @@ export type Database = {
         Row: {
           amount: number
           created_at: string
+          credit_hours: number | null
           delivery_method: string
           id: string
           issued_at: string
@@ -1167,6 +1171,7 @@ export type Database = {
         Insert: {
           amount: number
           created_at?: string
+          credit_hours?: number | null
           delivery_method?: string
           id?: string
           issued_at?: string
@@ -1194,6 +1199,7 @@ export type Database = {
         Update: {
           amount?: number
           created_at?: string
+          credit_hours?: number | null
           delivery_method?: string
           id?: string
           issued_at?: string
@@ -1346,6 +1352,63 @@ export type Database = {
             columns: ["recording_hole_id"]
             isOneToOne: false
             referencedRelation: "recording_holes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hour_credit_transactions: {
+        Row: {
+          amount: number
+          balance_after: number
+          balance_before: number
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          related_booking_id: string | null
+          related_gift_card_id: string | null
+          transaction_type: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          balance_after: number
+          balance_before: number
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          related_booking_id?: string | null
+          related_gift_card_id?: string | null
+          transaction_type: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          balance_after?: number
+          balance_before?: number
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          related_booking_id?: string | null
+          related_gift_card_id?: string | null
+          transaction_type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hour_credit_transactions_related_booking_id_fkey"
+            columns: ["related_booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "hour_credit_transactions_related_gift_card_id_fkey"
+            columns: ["related_gift_card_id"]
+            isOneToOne: false
+            referencedRelation: "gift_cards"
             referencedColumns: ["id"]
           },
         ]
@@ -1953,6 +2016,7 @@ export type Database = {
           created_at: string
           display_name: string
           display_order: number
+          effective_from: string
           hourly_rate: number
           id: string
           is_subscription: boolean
@@ -1966,6 +2030,7 @@ export type Database = {
           created_at?: string
           display_name: string
           display_order?: number
+          effective_from?: string
           hourly_rate: number
           id?: string
           is_subscription?: boolean
@@ -1979,6 +2044,7 @@ export type Database = {
           created_at?: string
           display_name?: string
           display_order?: number
+          effective_from?: string
           hourly_rate?: number
           id?: string
           is_subscription?: boolean
@@ -2002,6 +2068,7 @@ export type Database = {
           email: string
           first_name: string
           first_session_promo_sent: string | null
+          hour_credit_balance: number
           id: string
           last_name: string
           marketing_opt_out: boolean | null
@@ -2028,6 +2095,7 @@ export type Database = {
           email: string
           first_name: string
           first_session_promo_sent?: string | null
+          hour_credit_balance?: number
           id?: string
           last_name: string
           marketing_opt_out?: boolean | null
@@ -2054,6 +2122,7 @@ export type Database = {
           email?: string
           first_name?: string
           first_session_promo_sent?: string | null
+          hour_credit_balance?: number
           id?: string
           last_name?: string
           marketing_opt_out?: boolean | null
@@ -3277,6 +3346,7 @@ export type Database = {
           highlight_recording_pilot_bay: number | null
           highlight_retention_days: number
           id: string
+          peak_rate_effective_from: string | null
           timezone: string
           updated_at: string
         }
@@ -3287,6 +3357,7 @@ export type Database = {
           highlight_recording_pilot_bay?: number | null
           highlight_retention_days?: number
           id?: string
+          peak_rate_effective_from?: string | null
           timezone?: string
           updated_at?: string
         }
@@ -3297,6 +3368,7 @@ export type Database = {
           highlight_recording_pilot_bay?: number | null
           highlight_retention_days?: number
           id?: string
+          peak_rate_effective_from?: string | null
           timezone?: string
           updated_at?: string
         }

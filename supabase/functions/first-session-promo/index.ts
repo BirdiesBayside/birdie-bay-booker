@@ -21,7 +21,7 @@ interface EligibleUser {
   email: string;
   first_name: string;
   last_name: string;
-  deposit_balance: number;
+  hour_credit_balance: number;
 }
 
 const logStep = (step: string, details?: unknown) => {
@@ -78,7 +78,7 @@ serve(async (req: Request): Promise<Response> => {
     // First get all potential users, then filter in code for bulk import
     const { data: allEligibleUsers, error: fetchError } = await supabase
       .from("profiles")
-      .select("id, user_id, email, first_name, last_name, deposit_balance, created_at")
+      .select("id, user_id, email, first_name, last_name, hour_credit_balance, created_at")
       .is("first_session_promo_sent", null)
       .eq("marketing_opt_out", false)
       .lt("created_at", twentyFourHoursAgo);
@@ -213,7 +213,7 @@ serve(async (req: Request): Promise<Response> => {
       errors: [] as string[],
     };
 
-    const CREDIT_AMOUNT = 35;
+    const CREDIT_HOURS = 1;
     const BATCH_DELAY_MS = 600;
 
     for (let i = 0; i < finalEligibleUsers.length; i++) {
@@ -222,13 +222,13 @@ serve(async (req: Request): Promise<Response> => {
       try {
         logStep(`Processing user ${i + 1}/${finalEligibleUsers.length}`, { email: user.email });
 
-        // 1. Update deposit_balance and set promo timestamp
-        const currentBalance = user.deposit_balance || 0;
-        const newBalance = currentBalance + CREDIT_AMOUNT;
+        // 1. Update hour_credit_balance and set promo timestamp
+        const currentHourBalance = user.hour_credit_balance || 0;
+        const newHourBalance = currentHourBalance + CREDIT_HOURS;
         const { error: updateError } = await supabase
           .from("profiles")
           .update({
-            deposit_balance: newBalance,
+            hour_credit_balance: newHourBalance,
             first_session_promo_sent: new Date().toISOString(),
           })
           .eq("id", user.id);
@@ -237,20 +237,20 @@ serve(async (req: Request): Promise<Response> => {
           throw new Error(`Failed to update profile: ${updateError.message}`);
         }
 
-        // 2. Log deposit transaction for audit trail
+        // 2. Log hour credit transaction for audit trail
         const { error: txError } = await supabase
-          .from("deposit_transactions")
+          .from("hour_credit_transactions")
           .insert({
             user_id: user.user_id,
-            amount: CREDIT_AMOUNT,
-            balance_before: currentBalance,
-            balance_after: newBalance,
+            amount: CREDIT_HOURS,
+            balance_before: currentHourBalance,
+            balance_after: newHourBalance,
             transaction_type: "promo_credit",
-            description: "First Session Free - $35 credit",
+            description: "First Session Free - 1 hour credit",
           });
 
         if (txError) {
-          logStep("Warning: Failed to log deposit transaction", { email: user.email, error: txError.message });
+          logStep("Warning: Failed to log hour credit transaction", { email: user.email, error: txError.message });
         }
 
         // 2. Send email
@@ -403,9 +403,9 @@ function getDefaultTemplate(): string {
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#1F4C25; border-radius:12px; margin:18px 0;">
                 <tr>
                   <td style="padding:30px; text-align:center;">
-                    <p style="margin:0 0 8px; font-family:Arial, sans-serif; font-size:14px; color:#FFF5E4; opacity:0.9;">Your Account Credit</p>
-                    <p style="margin:0; font-family:Arial, sans-serif; font-size:52px; font-weight:bold; color:#EC622D;">$35.00</p>
-                    <p style="margin:8px 0 0; font-family:Arial, sans-serif; font-size:14px; color:#FFF5E4; opacity:0.9;">Enough for 1 hour off-peak!</p>
+                  <p style="margin:0 0 8px; font-family:Arial, sans-serif; font-size:14px; color:#FFF5E4; opacity:0.9;">Your Account Credit</p>
+                    <p style="margin:0; font-family:Arial, sans-serif; font-size:52px; font-weight:bold; color:#EC622D;">1 HOUR</p>
+                    <p style="margin:8px 0 0; font-family:Arial, sans-serif; font-size:14px; color:#FFF5E4; opacity:0.9;">Redeem at checkout for 1 hour free</p>
                   </td>
                 </tr>
               </table>

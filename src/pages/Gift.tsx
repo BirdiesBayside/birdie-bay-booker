@@ -15,7 +15,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { toast } from "sonner";
 import MarketingLayout from "@/components/marketing/MarketingLayout";
 
-const PRESET_AMOUNTS = [35, 70, 105, 175, 350];
+const PRESET_HOURS = [1, 2, 3, 5, 10];
+const HOUR_PRICE = 42;
 type DeliveryMethod = "email_recipient" | "print_to_sender" | "both";
 
 const isHubHost = () => {
@@ -29,8 +30,8 @@ function GiftContent() {
   const success = params.get("success") === "1";
   const cancelled = params.get("cancelled") === "1";
 
-  const [amount, setAmount] = useState<number>(70);
-  const [customAmount, setCustomAmount] = useState<string>("");
+  const [hours, setHours] = useState<number>(2);
+  const [customHours, setCustomHours] = useState<string>("");
   const [recipientName, setRecipientName] = useState("");
   const [recipientEmail, setRecipientEmail] = useState("");
   const [senderName, setSenderName] = useState("");
@@ -64,11 +65,12 @@ function GiftContent() {
     if (cancelled) toast.error("Payment cancelled. No charge was made.");
   }, [cancelled]);
 
-  const finalAmount = customAmount ? Number(customAmount) : amount;
+  const finalHours = customHours ? Number(customHours) : hours;
+  const finalAmount = finalHours * HOUR_PRICE;
 
   const handleSubmit = async () => {
-    if (!finalAmount || finalAmount < 10 || finalAmount > 1000) {
-      toast.error("Amount must be between $10 and $1000");
+    if (!finalHours || finalHours < 1 || finalHours > 100) {
+      toast.error("Hours must be between 1 and 100");
       return;
     }
     if (!recipientName.trim()) return toast.error("Recipient name required");
@@ -82,7 +84,7 @@ function GiftContent() {
     try {
       const { data, error } = await supabase.functions.invoke("create-gift-checkout", {
         body: {
-          amount: finalAmount,
+          hours: finalHours,
           recipient_name: recipientName.trim(),
           recipient_email: (recipientEmail || senderEmail).trim().toLowerCase(),
           sender_name: senderName.trim(),
@@ -169,41 +171,40 @@ function GiftContent() {
         </div>
 
         <Card className="p-6 md:p-8 bg-white border-[#1F4C25]/15 space-y-7">
-          {/* Amount */}
+          {/* Hours */}
           <div>
-            <Label className="text-[#1F4C25] font-semibold mb-3 block">Gift Amount</Label>
+            <Label className="text-[#1F4C25] font-semibold mb-3 block">Gift Hours</Label>
             <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mb-3">
-              {PRESET_AMOUNTS.map((a) => (
+              {PRESET_HOURS.map((h) => (
                 <button
-                  key={a}
+                  key={h}
                   type="button"
                   onClick={() => {
-                    setAmount(a);
-                    setCustomAmount("");
+                    setHours(h);
+                    setCustomHours("");
                   }}
                   className={cn(
                     "py-3 rounded-lg border-2 font-semibold transition-all",
-                    amount === a && !customAmount
+                    hours === h && !customHours
                       ? "border-[#EC622D] bg-[#EC622D] text-white"
                       : "border-[#1F4C25]/20 text-[#1F4C25] hover:border-[#EC622D]/50"
                   )}
                 >
-                  ${a}
+                  {h}h
                 </button>
               ))}
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-[#1F4C25]/60 text-sm">Or custom:</span>
+              <span className="text-[#1F4C25]/60 text-sm">Or custom hours:</span>
               <div className="relative flex-1">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#1F4C25]/60">$</span>
                 <Input
                   type="number"
-                  min={10}
-                  max={1000}
-                  placeholder="Other amount"
-                  value={customAmount}
-                  onChange={(e) => setCustomAmount(e.target.value)}
-                  className="pl-7 border-[#1F4C25]/20"
+                  min={1}
+                  max={100}
+                  placeholder="Other hours"
+                  value={customHours}
+                  onChange={(e) => setCustomHours(e.target.value)}
+                  className="pl-3 border-[#1F4C25]/20"
                 />
               </div>
             </div>

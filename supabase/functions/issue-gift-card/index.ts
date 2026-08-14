@@ -50,6 +50,7 @@ serve(async (req: Request): Promise<Response> => {
     }
 
     const amount = Number(card.amount);
+    const creditHours = Number(card.credit_hours || 0);
     const recipientEmail = String(card.recipient_email).toLowerCase().trim();
     const recipientName = card.recipient_name || "there";
     const senderName = card.sender_name || "A friend";
@@ -59,38 +60,60 @@ serve(async (req: Request): Promise<Response> => {
     const redemptionCode = card.redemption_code;
 
     console.log(
-      `[issue-gift-card] Issuing card ${card.id} amount=$${amount} method=${deliveryMethod} recipient=${recipientEmail}`
+      `[issue-gift-card] Issuing card ${card.id} amount=$${amount} hours=${creditHours} method=${deliveryMethod} recipient=${recipientEmail}`
     );
 
     // Check if recipient already has a Birdies account
     const { data: recipientProfile } = await supabase
       .from("profiles")
-      .select("user_id, first_name, deposit_balance")
+      .select("user_id, first_name, deposit_balance, hour_credit_balance")
       .eq("email", recipientEmail)
       .maybeSingle();
 
     const recipientHasAccount = !!recipientProfile?.user_id;
 
-    // If recipient has an account AND delivery includes them → auto-apply credit
+    // If recipient has an account AND delivery includes them → auto-apply credit (hours preferred, then dollars)
     let autoApplied = false;
     if (recipientHasAccount && deliveryMethod !== "print_to_sender") {
-      const before = Number(recipientProfile.deposit_balance ?? 0);
-      const after = before + amount;
+      const updates: Record<string, number> = {};
+      const hourBefore = Number(recipientProfile.hour_credit_balance ?? 0);
+      const hourAfter = hourBefore + creditHours;
+      if (creditHours > 0) updates.hour_credit_balance = hourAfter;
 
-      await supabase
-        .from("profiles")
-        .update({ deposit_balance: after })
-        .eq("user_id", recipientProfile.user_id);
+      const dollarBefore = Number(recipientProfile.deposit_balance ?? 0);
+      const dollarAfter = dollarBefore + amount;
+      if (amount > 0) updates.deposit_balance = dollarAfter;
 
-      await supabase.from("deposit_transactions").insert({
-        user_id: recipientProfile.user_id,
-        amount,
-        balance_before: before,
-        balance_after: after,
-        transaction_type: "gift_card",
-        description: `Gift card from ${senderName}`,
-        related_gift_card_id: card.id,
-      });
+      if (Object.keys(updates).length > 0) {
+        await supabase
+          .from("profiles")
+          .update(updates)
+          .eq("user_id", recipientProfile.user_id);
+      }
+
+      if (creditHours > 0) {
+        await supabase.from("hour_credit_transactions").insert({
+          user_id: recipientProfile.user_id,
+          amount: creditHours,
+          balance_before: hourBefore,
+          balance_after: hourAfter,
+          transaction_type: "gift_card",
+          description: `Gift card from ${senderName} — ${creditHours} hour${creditHours === 1 ? "" : "s"}`,
+          related_gift_card_id: card.id,
+        });
+      }
+
+      if (amount > 0) {
+        await supabase.from("deposit_transactions").insert({
+          user_id: recipientProfile.user_id,
+          amount,
+          balance_before: dollarBefore,
+          balance_after: dollarAfter,
+          transaction_type: "gift_card",
+          description: `Gift card from ${senderName}`,
+          related_gift_card_id: card.id,
+        });
+      }
 
       await supabase
         .from("gift_cards")
@@ -104,7 +127,7 @@ serve(async (req: Request): Promise<Response> => {
 
       autoApplied = true;
       console.log(
-        `[issue-gift-card] Auto-applied $${amount} to existing user ${recipientProfile.user_id}`
+        `[issue-gift-card] Auto-applied ${creditHours} hours + $${amount} to existing user ${recipientProfile.user_id}`
       );
     }
 
@@ -113,8 +136,8 @@ serve(async (req: Request): Promise<Response> => {
     // ── Email to RECIPIENT ──
     if (deliveryMethod === "email_recipient" || deliveryMethod === "both") {
       const subject = autoApplied
-        ? `${senderName} just gifted you $${amount.toFixed(2)} of Birdies credit!`
-        : `${senderName} sent you a $${amount.toFixed(2)} Birdies gift!`;
+        ? `${senderName} just gifted you ${creditHours > 0 ? `${creditHours} hour${creditHours === 1 ? "" : "s"} of Birdies time` : `$${amount.toFixed(2)} of Birdies credit`}!`
+        : `${senderName} sent you a ${creditHours > 0 ? `${creditHours} hour` : `$${amount.toFixed(2)}`} Birdies gift!`;
 
       const heading = autoApplied ? "You've Been Gifted!" : "You've Been Gifted!";
 
@@ -131,7 +154,18 @@ serve(async (req: Request): Promise<Response> => {
         `
         : `<p style="margin:0 0 14px; font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">From <strong>${escapeHtml(senderName)}</strong></p>`;
 
-      const amountBlock = `
+      const amountBlock = creditHours > 0
+        ? `
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#1F4C25; border-radius:12px; margin:18px 0;">
+          <tr>
+            <td style="padding:30px; text-align:center;">
+              <p style="margin:0 0 8px; font-family:Inter, Arial, sans-serif; font-size:14px; color:#FFF5E4; opacity:0.9; letter-spacing:1px; text-transform:uppercase;">Gift Card Value</p>
+              <p style="margin:0; font-family:Anton, Impact, Arial Black, sans-serif; font-size:56px; color:#EC622D;">${creditHours} HOUR${creditHours === 1 ? "" : "S"}</p>
+            </td>
+          </tr>
+        </table>
+      `
+        : `
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#1F4C25; border-radius:12px; margin:18px 0;">
           <tr>
             <td style="padding:30px; text-align:center;">
@@ -143,12 +177,12 @@ serve(async (req: Request): Promise<Response> => {
       `;
 
       const intro = autoApplied
-        ? `<p style="margin:0 0 14px; font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">Hi ${escapeHtml(recipientName)}, great news — <strong>${escapeHtml(senderName)}</strong> has gifted you Birdies credit, and we've already added it to your account.</p>`
+        ? `<p style="margin:0 0 14px; font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">Hi ${escapeHtml(recipientName)}, great news — <strong>${escapeHtml(senderName)}</strong> has gifted you ${creditHours > 0 ? `${creditHours} hour${creditHours === 1 ? "" : "s"} of Birdies bay time` : `Birdies credit`}, and we've already added it to your account.</p>`
         : `<p style="margin:0 0 14px; font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">Hi ${escapeHtml(recipientName)}, <strong>${escapeHtml(senderName)}</strong> wants you to enjoy a session at Birdies Bayside on them.</p>`;
 
       const footer = autoApplied
-        ? `<p style="margin:18px 0 0; font-family:Inter, Arial, sans-serif; font-size:15px; line-height:1.6; color:#1F4C25; text-align:center;">Book a bay and your credit will apply automatically at checkout.</p>`
-        : `<p style="margin:18px 0 0; font-family:Inter, Arial, sans-serif; font-size:15px; line-height:1.6; color:#1F4C25; text-align:center;">Create your free account using <strong>this email address</strong> and your credit applies automatically.</p>`;
+        ? `<p style="margin:18px 0 0; font-family:Inter, Arial, sans-serif; font-size:15px; line-height:1.6; color:#1F4C25; text-align:center;">Book a bay and your ${creditHours > 0 ? "hour credits" : "credit"} will apply automatically at checkout.</p>`
+        : `<p style="margin:18px 0 0; font-family:Inter, Arial, sans-serif; font-size:15px; line-height:1.6; color:#1F4C25; text-align:center;">Create your free account using <strong>this email address</strong> and your ${creditHours > 0 ? "hour credits" : "credit"} applies automatically.</p>`;
 
       const body = intro + messageBlock + amountBlock + footer;
 
@@ -174,7 +208,13 @@ serve(async (req: Request): Promise<Response> => {
 
     // ── Printable email to SENDER ──
     if ((deliveryMethod === "print_to_sender" || deliveryMethod === "both") && senderEmail) {
-      const subject = `Your printable gift card for ${recipientName} — $${amount.toFixed(2)}`;
+      const subject = creditHours > 0
+        ? `Your printable gift card for ${recipientName} — ${creditHours} hour${creditHours === 1 ? "" : "s"}`
+        : `Your printable gift card for ${recipientName} — $${amount.toFixed(2)}`;
+
+      const valueDisplay = creditHours > 0
+        ? `<p style="margin:0 0 18px; font-family:Anton, Impact, Arial Black, sans-serif; font-size:64px; line-height:1; color:#EC622D;">${creditHours} HOUR${creditHours === 1 ? "" : "S"}</p>`
+        : `<p style="margin:0 0 18px; font-family:Anton, Impact, Arial Black, sans-serif; font-size:64px; line-height:1; color:#EC622D;">$${amount.toFixed(2)}</p>`;
 
       const printableCard = `
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;">
@@ -184,7 +224,7 @@ serve(async (req: Request): Promise<Response> => {
                 <tr>
                   <td style="padding:34px 28px; text-align:center;">
                     <p style="margin:0 0 6px; font-family:Inter, Arial, sans-serif; font-size:13px; color:#1F4C25; letter-spacing:2px; text-transform:uppercase; opacity:0.8;">Birdies Bayside Gift Card</p>
-                    <p style="margin:0 0 18px; font-family:Anton, Impact, Arial Black, sans-serif; font-size:64px; line-height:1; color:#EC622D;">$${amount.toFixed(2)}</p>
+                    ${valueDisplay}
                     <p style="margin:0 0 6px; font-family:Inter, Arial, sans-serif; font-size:14px; color:#1F4C25; opacity:0.75;">To</p>
                     <p style="margin:0 0 18px; font-family:Anton, Impact, Arial Black, sans-serif; font-size:28px; color:#1F4C25;">${escapeHtml(recipientName)}</p>
                     ${personalMessage ? `<p style="margin:0 0 18px; font-family:Inter, Arial, sans-serif; font-size:15px; line-height:1.5; color:#1F4C25; font-style:italic; padding:0 12px;">"${escapeHtml(personalMessage)}"</p>` : ""}
@@ -217,8 +257,8 @@ serve(async (req: Request): Promise<Response> => {
               <ol style="margin:0; padding-left:22px; font-family:Inter, Arial, sans-serif; font-size:14px; line-height:1.7; color:#1F4C25;">
                 <li>Head to <a href="https://hub.birdiesbayside.com.au" style="color:#EC622D; text-decoration:underline;"><strong>hub.birdiesbayside.com.au</strong></a> and create a free account (or sign in).</li>
                 <li>Go to <strong>My Account</strong> and find the <strong>"Redeem Gift Card"</strong> section.</li>
-                <li>Enter the redemption code above — credit applies to their account instantly.</li>
-                <li>Book a bay and the credit is automatically used at checkout.</li>
+                <li>Enter the redemption code above — ${creditHours > 0 ? "hour credits" : "credit"} applies to their account instantly.</li>
+                <li>Book a bay and the ${creditHours > 0 ? "hour credits" : "credit"} is automatically used at checkout.</li>
               </ol>
             </td>
           </tr>
