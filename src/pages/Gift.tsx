@@ -171,41 +171,40 @@ function GiftContent() {
         </div>
 
         <Card className="p-6 md:p-8 bg-white border-[#1F4C25]/15 space-y-7">
-          {/* Amount */}
+          {/* Hours */}
           <div>
-            <Label className="text-[#1F4C25] font-semibold mb-3 block">Gift Amount</Label>
+            <Label className="text-[#1F4C25] font-semibold mb-3 block">Gift Hours</Label>
             <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mb-3">
-              {PRESET_AMOUNTS.map((a) => (
+              {PRESET_HOURS.map((h) => (
                 <button
-                  key={a}
+                  key={h}
                   type="button"
                   onClick={() => {
-                    setAmount(a);
-                    setCustomAmount("");
+                    setHours(h);
+                    setCustomHours("");
                   }}
                   className={cn(
                     "py-3 rounded-lg border-2 font-semibold transition-all",
-                    amount === a && !customAmount
+                    hours === h && !customHours
                       ? "border-[#EC622D] bg-[#EC622D] text-white"
                       : "border-[#1F4C25]/20 text-[#1F4C25] hover:border-[#EC622D]/50"
                   )}
                 >
-                  ${a}
+                  {h}h
                 </button>
               ))}
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-[#1F4C25]/60 text-sm">Or custom:</span>
+              <span className="text-[#1F4C25]/60 text-sm">Or custom hours:</span>
               <div className="relative flex-1">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#1F4C25]/60">$</span>
                 <Input
                   type="number"
-                  min={10}
-                  max={1000}
-                  placeholder="Other amount"
-                  value={customAmount}
-                  onChange={(e) => setCustomAmount(e.target.value)}
-                  className="pl-7 border-[#1F4C25]/20"
+                  min={1}
+                  max={100}
+                  placeholder="Other hours"
+                  value={customHours}
+                  onChange={(e) => setCustomHours(e.target.value)}
+                  className="pl-3 border-[#1F4C25]/20"
                 />
               </div>
             </div>
