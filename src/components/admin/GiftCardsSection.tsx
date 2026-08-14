@@ -49,6 +49,8 @@ export function GiftCardsSection() {
   // Form state
   const [recipientEmail, setRecipientEmail] = useState("");
   const [amount, setAmount] = useState("");
+  const [hours, setHours] = useState("");
+  const [creditType, setCreditType] = useState<"hours" | "dollars">("hours");
 
   useEffect(() => {
     fetchGiftCards();
