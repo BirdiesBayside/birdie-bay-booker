@@ -84,7 +84,15 @@ const MyAccount = () => {
       });
       if (error) throw error;
       if ((data as any)?.error) throw new Error((data as any).error);
-      toast.success(`$${Number((data as any).amount).toFixed(2)} credit added to your account!`);
+      const addedAmount = Number((data as any).totalAmount || 0);
+      const addedHours = Number((data as any).totalHours || 0);
+      if (addedHours > 0) {
+        toast.success(`${addedHours} hour credit${addedHours === 1 ? "" : "s"} added to your account!`);
+      } else if (addedAmount > 0) {
+        toast.success(`$${addedAmount.toFixed(2)} credit added to your account!`);
+      } else {
+        toast.success("Gift card redeemed!");
+      }
       setRedeemCode("");
       fetchProfile();
     } catch (e: any) {
