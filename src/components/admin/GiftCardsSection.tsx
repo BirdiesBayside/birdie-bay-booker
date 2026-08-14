@@ -321,6 +321,20 @@ export function GiftCardsSection() {
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 pt-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Credit Type</Label>
+                  <p className="text-xs text-muted-foreground">Issue hour credits or dollar credit.</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={cn("text-sm", creditType === "hours" ? "font-semibold" : "text-muted-foreground")}>Hours</span>
+                  <Switch
+                    checked={creditType === "dollars"}
+                    onCheckedChange={(checked) => setCreditType(checked ? "dollars" : "hours")}
+                  />
+                  <span className={cn("text-sm", creditType === "dollars" ? "font-semibold" : "text-muted-foreground")}>Dollars</span>
+                </div>
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="recipient-email">Recipient Email</Label>
                 <Input
@@ -331,23 +345,37 @@ export function GiftCardsSection() {
                   onChange={(e) => setRecipientEmail(e.target.value)}
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="amount">Amount ($)</Label>
-                <Input
-                  id="amount"
-                  type="number"
-                  min="1"
-                  step="0.01"
-                  placeholder="50.00"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                />
-              </div>
-              <Button 
-                className="w-full" 
-                onClick={issueGiftCard} 
-                disabled={isIssuing}
-              >
+              {creditType === "hours" ? (
+                <div className="space-y-2">
+                  <Label htmlFor="hours">Hours (1 credit = 1 hour, ${HOUR_PRICE}/hour)</Label>
+                  <Input
+                    id="hours"
+                    type="number"
+                    min="1"
+                    step="1"
+                    placeholder="2"
+                    value={hours}
+                    onChange={(e) => setHours(e.target.value)}
+                  />
+                  {hours && !isNaN(parseFloat(hours)) && parseFloat(hours) > 0 && (
+                    <p className="text-xs text-muted-foreground">Charged value: ${(parseFloat(hours) * HOUR_PRICE).toFixed(2)}</p>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Label htmlFor="amount">Amount ($)</Label>
+                  <Input
+                    id="amount"
+                    type="number"
+                    min="1"
+                    step="0.01"
+                    placeholder="50.00"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                  />
+                </div>
+              )}
+              <Button className="w-full" onClick={issueGiftCard} disabled={isIssuing}>
                 {isIssuing ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
