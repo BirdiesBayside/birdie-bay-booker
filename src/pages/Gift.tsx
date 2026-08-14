@@ -65,11 +65,12 @@ function GiftContent() {
     if (cancelled) toast.error("Payment cancelled. No charge was made.");
   }, [cancelled]);
 
-  const finalAmount = customAmount ? Number(customAmount) : amount;
+  const finalHours = customHours ? Number(customHours) : hours;
+  const finalAmount = finalHours * HOUR_PRICE;
 
   const handleSubmit = async () => {
-    if (!finalAmount || finalAmount < 10 || finalAmount > 1000) {
-      toast.error("Amount must be between $10 and $1000");
+    if (!finalHours || finalHours < 1 || finalHours > 100) {
+      toast.error("Hours must be between 1 and 100");
       return;
     }
     if (!recipientName.trim()) return toast.error("Recipient name required");
@@ -83,7 +84,7 @@ function GiftContent() {
     try {
       const { data, error } = await supabase.functions.invoke("create-gift-checkout", {
         body: {
-          amount: finalAmount,
+          hours: finalHours,
           recipient_name: recipientName.trim(),
           recipient_email: (recipientEmail || senderEmail).trim().toLowerCase(),
           sender_name: senderName.trim(),
