@@ -550,7 +550,7 @@ const MyAccount = () => {
                 </div>
                 <div>
                   <CardTitle>Redeem Gift Card</CardTitle>
-                  <CardDescription>Got a printed gift card? Enter the code to add credit.</CardDescription>
+                  <CardDescription>Got a printed gift card? Enter the code to add hour credits or account credit.</CardDescription>
                 </div>
               </div>
             </CardHeader>
