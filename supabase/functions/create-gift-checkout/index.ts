@@ -22,7 +22,8 @@ function generateCode(): string {
 }
 
 interface Body {
-  amount: number;
+  amount?: number;
+  hours?: number;
   recipient_name: string;
   recipient_email: string;
   sender_name: string;
@@ -31,6 +32,8 @@ interface Body {
   scheduled_for?: string; // YYYY-MM-DD (Brisbane local)
   delivery_method: "email_recipient" | "print_to_sender" | "both";
 }
+
+const HOUR_PRICE = 42;
 
 serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
