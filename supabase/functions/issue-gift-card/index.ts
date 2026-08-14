@@ -208,7 +208,13 @@ serve(async (req: Request): Promise<Response> => {
 
     // ── Printable email to SENDER ──
     if ((deliveryMethod === "print_to_sender" || deliveryMethod === "both") && senderEmail) {
-      const subject = `Your printable gift card for ${recipientName} — $${amount.toFixed(2)}`;
+      const subject = creditHours > 0
+        ? `Your printable gift card for ${recipientName} — ${creditHours} hour${creditHours === 1 ? "" : "s"}`
+        : `Your printable gift card for ${recipientName} — $${amount.toFixed(2)}`;
+
+      const valueDisplay = creditHours > 0
+        ? `<p style="margin:0 0 18px; font-family:Anton, Impact, Arial Black, sans-serif; font-size:64px; line-height:1; color:#EC622D;">${creditHours} HOUR${creditHours === 1 ? "" : "S"}</p>`
+        : `<p style="margin:0 0 18px; font-family:Anton, Impact, Arial Black, sans-serif; font-size:64px; line-height:1; color:#EC622D;">$${amount.toFixed(2)}</p>`;
 
       const printableCard = `
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0;">
@@ -218,7 +224,7 @@ serve(async (req: Request): Promise<Response> => {
                 <tr>
                   <td style="padding:34px 28px; text-align:center;">
                     <p style="margin:0 0 6px; font-family:Inter, Arial, sans-serif; font-size:13px; color:#1F4C25; letter-spacing:2px; text-transform:uppercase; opacity:0.8;">Birdies Bayside Gift Card</p>
-                    <p style="margin:0 0 18px; font-family:Anton, Impact, Arial Black, sans-serif; font-size:64px; line-height:1; color:#EC622D;">$${amount.toFixed(2)}</p>
+                    ${valueDisplay}
                     <p style="margin:0 0 6px; font-family:Inter, Arial, sans-serif; font-size:14px; color:#1F4C25; opacity:0.75;">To</p>
                     <p style="margin:0 0 18px; font-family:Anton, Impact, Arial Black, sans-serif; font-size:28px; color:#1F4C25;">${escapeHtml(recipientName)}</p>
                     ${personalMessage ? `<p style="margin:0 0 18px; font-family:Inter, Arial, sans-serif; font-size:15px; line-height:1.5; color:#1F4C25; font-style:italic; padding:0 12px;">"${escapeHtml(personalMessage)}"</p>` : ""}
