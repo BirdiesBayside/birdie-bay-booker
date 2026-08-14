@@ -61,15 +61,16 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    // Calculate total amount
+    // Calculate total amounts
     const totalAmount = giftCards.reduce((sum, gc) => sum + Number(gc.amount), 0);
+    const totalHours = giftCards.reduce((sum, gc) => sum + Number(gc.credit_hours || 0), 0);
 
-    console.log(`[redeem-gift-card] Found ${giftCards.length} gift cards totaling $${totalAmount}`);
+    console.log(`[redeem-gift-card] Found ${giftCards.length} gift cards totaling $${totalAmount} and ${totalHours} hours`);
 
-    // Get current user balance
+    // Get current user profile
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
-      .select("deposit_balance")
+      .select("deposit_balance, hour_credit_balance")
       .eq("user_id", user_id)
       .maybeSingle();
 
@@ -79,12 +80,14 @@ serve(async (req: Request): Promise<Response> => {
     }
 
     const currentBalance = profile?.deposit_balance || 0;
+    const currentHourBalance = profile?.hour_credit_balance || 0;
     const newBalance = currentBalance + totalAmount;
+    const newHourBalance = currentHourBalance + totalHours;
 
     // Update user balance
     const { error: updateError } = await supabase
       .from("profiles")
-      .update({ deposit_balance: newBalance })
+      .update({ deposit_balance: newBalance, hour_credit_balance: newHourBalance })
       .eq("user_id", user_id);
 
     if (updateError) {
@@ -108,14 +111,42 @@ serve(async (req: Request): Promise<Response> => {
       throw redeemError;
     }
 
-    console.log(`[redeem-gift-card] Successfully redeemed ${giftCards.length} gift cards for $${totalAmount}`);
+    // Log dollar transactions
+    for (const gc of giftCards) {
+      if (gc.amount > 0) {
+        await supabase.from("deposit_transactions").insert({
+          user_id,
+          amount: gc.amount,
+          balance_before: currentBalance,
+          balance_after: newBalance,
+          transaction_type: "gift_card",
+          description: "Gift card redemption",
+          related_gift_card_id: gc.id,
+        });
+      }
+      if (gc.credit_hours > 0) {
+        await supabase.from("hour_credit_transactions").insert({
+          user_id,
+          amount: gc.credit_hours,
+          balance_before: currentHourBalance,
+          balance_after: newHourBalance,
+          transaction_type: "gift_card",
+          description: "Gift card redemption - hour credits",
+          related_gift_card_id: gc.id,
+        });
+      }
+    }
+
+    console.log(`[redeem-gift-card] Successfully redeemed ${giftCards.length} gift cards for $${totalAmount} and ${totalHours} hours`);
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         redeemed: giftCards.length, 
         totalAmount,
-        newBalance 
+        totalHours,
+        newBalance,
+        newHourBalance,
       }),
       {
         status: 200,
