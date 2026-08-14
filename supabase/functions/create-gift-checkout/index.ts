@@ -41,10 +41,23 @@ serve(async (req: Request): Promise<Response> => {
   try {
     const body = (await req.json()) as Body;
 
-    // Validation
-    const amount = Number(body.amount);
+    // Normalise to an amount and optional hours. If hours is supplied, that defines the purchase.
+    const hours = body.hours ? Number(body.hours) : 0;
+    let amount = body.amount ? Number(body.amount) : 0;
+    if (hours > 0) {
+      amount = hours * HOUR_PRICE;
+    } else if (amount > 0) {
+      // Legacy dollar-based path still buys hours: 1 hour per $42 chunk.
+      // Keep the dollar amount as the checkout value and the whole hours as credit_hours.
+      // Both are recorded, but the card is treated as a "hours pack" at redemption.
+    }
+    const credit_hours = hours > 0 ? hours : Math.floor(amount / HOUR_PRICE);
+
     if (!amount || amount < 10 || amount > 1000) {
       throw new Error("Amount must be between $10 and $1000");
+    }
+    if (credit_hours <= 0) {
+      throw new Error("Gift card must be for at least 1 hour of credit");
     }
     if (!body.recipient_name || body.recipient_name.trim().length === 0) {
       throw new Error("Recipient name required");
