@@ -15,7 +15,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { toast } from "sonner";
 import MarketingLayout from "@/components/marketing/MarketingLayout";
 
-const PRESET_AMOUNTS = [35, 70, 105, 175, 350];
+const PRESET_HOURS = [1, 2, 3, 5, 10];
+const HOUR_PRICE = 42;
 type DeliveryMethod = "email_recipient" | "print_to_sender" | "both";
 
 const isHubHost = () => {
@@ -29,8 +30,8 @@ function GiftContent() {
   const success = params.get("success") === "1";
   const cancelled = params.get("cancelled") === "1";
 
-  const [amount, setAmount] = useState<number>(70);
-  const [customAmount, setCustomAmount] = useState<string>("");
+  const [hours, setHours] = useState<number>(2);
+  const [customHours, setCustomHours] = useState<string>("");
   const [recipientName, setRecipientName] = useState("");
   const [recipientEmail, setRecipientEmail] = useState("");
   const [senderName, setSenderName] = useState("");
