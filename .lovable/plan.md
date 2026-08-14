@@ -64,7 +64,7 @@ Peak line items are repriced on the switch date: 1 Hr Peak $42, 2 Hr $84, 3 Hr $
 | Now → 31 Aug | Internal testing: grant yourself credits, book with them, buy a test hour pack. |
 | Optional, mid-Aug | Announcement email to customers. |
 | **21 Aug 00:00 Brisbane** | Peak $42, POS repriced, gift cards become hour packs, promo becomes 1 hour. Automatic — no manual step. |
-| 1 Sep onward | Old dollar gift cards and dollar balances continue to work indefinitely. |
+| 21 Aug onward | Old dollar gift cards and dollar balances continue to work indefinitely. |
 
 The switch runs off a single stored date. If you want to move it, delay it, or pull the trigger early, it's one field in Admin Settings.
 
