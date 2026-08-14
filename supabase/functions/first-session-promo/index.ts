@@ -213,7 +213,7 @@ serve(async (req: Request): Promise<Response> => {
       errors: [] as string[],
     };
 
-    const CREDIT_AMOUNT = 35;
+    const CREDIT_HOURS = 1;
     const BATCH_DELAY_MS = 600;
 
     for (let i = 0; i < finalEligibleUsers.length; i++) {
@@ -222,13 +222,13 @@ serve(async (req: Request): Promise<Response> => {
       try {
         logStep(`Processing user ${i + 1}/${finalEligibleUsers.length}`, { email: user.email });
 
-        // 1. Update deposit_balance and set promo timestamp
-        const currentBalance = user.deposit_balance || 0;
-        const newBalance = currentBalance + CREDIT_AMOUNT;
+        // 1. Update hour_credit_balance and set promo timestamp
+        const currentHourBalance = user.hour_credit_balance || 0;
+        const newHourBalance = currentHourBalance + CREDIT_HOURS;
         const { error: updateError } = await supabase
           .from("profiles")
           .update({
-            deposit_balance: newBalance,
+            hour_credit_balance: newHourBalance,
             first_session_promo_sent: new Date().toISOString(),
           })
           .eq("id", user.id);
@@ -237,20 +237,20 @@ serve(async (req: Request): Promise<Response> => {
           throw new Error(`Failed to update profile: ${updateError.message}`);
         }
 
-        // 2. Log deposit transaction for audit trail
+        // 2. Log hour credit transaction for audit trail
         const { error: txError } = await supabase
-          .from("deposit_transactions")
+          .from("hour_credit_transactions")
           .insert({
             user_id: user.user_id,
-            amount: CREDIT_AMOUNT,
-            balance_before: currentBalance,
-            balance_after: newBalance,
+            amount: CREDIT_HOURS,
+            balance_before: currentHourBalance,
+            balance_after: newHourBalance,
             transaction_type: "promo_credit",
-            description: "First Session Free - $35 credit",
+            description: "First Session Free - 1 hour credit",
           });
 
         if (txError) {
-          logStep("Warning: Failed to log deposit transaction", { email: user.email, error: txError.message });
+          logStep("Warning: Failed to log hour credit transaction", { email: user.email, error: txError.message });
         }
 
         // 2. Send email

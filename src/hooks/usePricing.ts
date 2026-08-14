@@ -1,10 +1,9 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { PricingConfigRow, getVisitorPeakRateForDate, formatLocalDateKey } from "@/lib/pricing-utils";
 
-export interface PricingTier {
+export interface PricingTier extends PricingConfigRow {
   id: string;
-  tier: string;
-  hourly_rate: number;
   weekly_subscription_price: number | null;
   stripe_product_id: string | null;
   stripe_price_id: string | null;
@@ -33,7 +32,8 @@ export function usePricing() {
     const { data, error: fetchError } = await supabase
       .from("pricing_config")
       .select("*")
-      .order("display_order");
+      .order("display_order")
+      .order("effective_from", { ascending: false });
 
     if (fetchError) {
       console.error("Error fetching pricing:", fetchError);
@@ -46,11 +46,15 @@ export function usePricing() {
   };
 
   const getHourlyRate = (tier: string): number => {
-    const tierPricing = pricing.find(p => p.tier === tier.toLowerCase());
+    const tierPricing = pricing.find(p => p.tier === tier.toLowerCase() && p.effective_from && p.effective_from <= formatLocalDateKey(new Date()));
     if (tierPricing) {
       return Number(tierPricing.hourly_rate);
     }
     return FALLBACK_RATES[tier.toLowerCase()] || FALLBACK_RATES.visitor;
+  };
+
+  const getVisitorRateForDate = (date: Date | string): number => {
+    return getVisitorPeakRateForDate(pricing, date);
   };
 
   const getWeeklyPrice = (tier: string): number | null => {
@@ -74,6 +78,7 @@ export function usePricing() {
     isLoading,
     error,
     getHourlyRate,
+    getVisitorRateForDate,
     getWeeklyPrice,
     getStripePriceId,
     refetch: fetchPricing,

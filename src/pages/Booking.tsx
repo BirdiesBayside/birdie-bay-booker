@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { isPeakTime } from "@/lib/pricing-utils";
+import { isPeakTime, getVisitorPeakRateForDate, formatLocalDateKey, hoursToCredits } from "@/lib/pricing-utils";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Loader2, AlertCircle, Wallet, CreditCard } from "lucide-react";
+import { ArrowLeft, Loader2, AlertCircle, Wallet, CreditCard, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -47,7 +47,9 @@ export default function Booking() {
     actualMembershipTier,
     isPaymentLimbo,
     depositBalance,
+    hourCreditBalance,
     savedCard,
+    tierPricing,
     getHourlyRate,
     getRateInfo,
     checkMultiBayRestriction,
@@ -66,8 +68,9 @@ export default function Booking() {
   const [selectedPlayers, setSelectedPlayers] = useState<number>(1);
   const [selectedBayId, setSelectedBayId] = useState<string | undefined>();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<"balance" | "card">("card");
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<"balance" | "card" | "hours">("card");
   const [usePartialBalance, setUsePartialBalance] = useState(false);
+  const [usePartialHours, setUsePartialHours] = useState(false);
   const [paymentMethodTouched, setPaymentMethodTouched] = useState(false);
   const [pendingBookingId, setPendingBookingId] = useState<string | null>(null);
   const [playingComp, setPlayingComp] = useState(false);
@@ -218,11 +221,12 @@ export default function Booking() {
         });
         
         if (hasOverlap) {
-          console.log("[Booking] Multi-bay peak restriction triggered - charging visitor rate $35/hr");
+          const visitorPeakRate = getVisitorPeakRateForDate(tierPricing, selectedDate);
+          console.log(`[Booking] Multi-bay peak restriction triggered - charging visitor rate $${visitorPeakRate}/hr`);
           const holidaySurcharge = getHolidaySurchargeForDate(selectedDate);
           currentHourlyRate = holidaySurcharge > 0
-            ? Math.round(35 * (1 + holidaySurcharge / 100) * 100) / 100
-            : 35; // VISITOR_PEAK_RATE
+            ? Math.round(visitorPeakRate * (1 + holidaySurcharge / 100) * 100) / 100
+            : visitorPeakRate;
         }
       }
       
@@ -313,20 +317,21 @@ export default function Booking() {
     // Guard against a stale cached balance: re-read credit straight from the DB
     // before taking the card path. If credit was added while this page was open,
     // stop and let the customer use it instead of silently charging the card.
-    if (selectedPaymentMethod === "card" && !usePartialBalance && user?.id) {
+    if (selectedPaymentMethod === "card" && !usePartialBalance && !usePartialHours && user?.id) {
       const { data: freshProfile } = await supabase
         .from("profiles")
-        .select("deposit_balance")
+        .select("deposit_balance, hour_credit_balance")
         .eq("user_id", user.id)
         .maybeSingle();
 
       const freshBalance = Number(freshProfile?.deposit_balance) || 0;
-      if (freshBalance > depositBalance) {
+      const freshHourCredits = Number(freshProfile?.hour_credit_balance) || 0;
+      if (freshBalance > depositBalance || freshHourCredits > hourCreditBalance) {
         await refetchUserProfile();
         setPaymentMethodTouched(false);
         toast({
           title: "You have credit available",
-          description: `$${freshBalance.toFixed(2)} credit was found on your account. Choose how you'd like to pay.`,
+          description: "Credit was found on your account. Choose how you'd like to pay.",
         });
         return;
       }
@@ -335,6 +340,18 @@ export default function Booking() {
     // If paying with balance and have enough, skip pending/checkout entirely
     if (selectedPaymentMethod === "balance" && depositBalance >= totalPrice) {
       handleConfirmBookingWithBalance();
+      return;
+    }
+
+    // If using hour credits only, skip pending/checkout if they cover the whole session
+    if (selectedPaymentMethod === "hours" && hourCreditBalance >= selectedDuration) {
+      handleConfirmBooking("hours", false, false, selectedDuration);
+      return;
+    }
+
+    // If using partial hour credits with card, handle in createBooking
+    if (selectedPaymentMethod === "card" && usePartialHours && hourCreditBalance > 0) {
+      handleConfirmBooking("card", false, true, 1);
       return;
     }
 
@@ -451,7 +468,12 @@ export default function Booking() {
     }
   };
 
-  const handleConfirmBooking = async (paymentMethod: PaymentMethod, applyPartialBalance: boolean = false) => {
+  const handleConfirmBooking = async (
+    paymentMethod: PaymentMethod,
+    applyPartialBalance: boolean = false,
+    applyPartialHours: boolean = false,
+    hoursToUse: number = 0,
+  ) => {
     if (!selectedDate || !selectedTime || !selectedBayId) return;
 
     setIsSubmitting(true);
@@ -466,7 +488,8 @@ export default function Booking() {
         paymentMethod,
         undefined, // No new payment method ID - we use saved card
         partialAmount,
-        playingComp ? COMP_NOTE : undefined
+        playingComp ? COMP_NOTE : undefined,
+        hoursToUse > 0 ? hoursToUse : undefined,
       );
       
       // If charge-booking returned a checkout URL (no saved card), redirect there
@@ -484,6 +507,11 @@ export default function Booking() {
       let message = `Your bay is booked for ${format(selectedDate, "PPP")} at ${selectedTime}.`;
       if (paymentMethod === "balance") {
         message += " Balance deducted.";
+      } else if (hoursToUse > 0 && hoursToUse >= selectedDuration) {
+        message += ` ${hoursToUse} hour credit${hoursToUse > 1 ? "s" : ""} used.`;
+      } else if (hoursToUse > 0) {
+        const cardAmount = totalPrice - (hoursToUse * hourlyRate);
+        message += ` ${hoursToUse} hour credit${hoursToUse > 1 ? "s" : ""} + $${cardAmount.toFixed(2)} by card.`;
       } else if (applyPartialBalance && depositBalance > 0) {
         const cardAmount = totalPrice - depositBalance;
         message += ` $${depositBalance.toFixed(2)} from balance, $${cardAmount.toFixed(2)} charged to card.`;
@@ -565,20 +593,26 @@ export default function Booking() {
 
   const canConfirm = selectedDate && selectedTime && selectedBayId;
 
-  // Default to paying with credit whenever the customer has any balance.
-  // Full balance -> "balance"; partial balance -> card with credit applied.
+  // Default payment method: prefer hour credits first, then balance, then card.
   useEffect(() => {
     if (paymentMethodTouched) return;
     const total = hourlyRate * selectedDuration;
-    if (depositBalance <= 0 || total <= 0) return;
-    if (depositBalance >= total) {
+    if (total <= 0) return;
+
+    if (hourCreditBalance >= selectedDuration) {
+      setSelectedPaymentMethod("hours");
+      setUsePartialHours(false);
+      setUsePartialBalance(false);
+    } else if (depositBalance >= total) {
       setSelectedPaymentMethod("balance");
       setUsePartialBalance(false);
+      setUsePartialHours(false);
     } else {
       setSelectedPaymentMethod("card");
-      setUsePartialBalance(true);
+      setUsePartialBalance(false);
+      setUsePartialHours(false);
     }
-  }, [depositBalance, hourlyRate, selectedDuration, paymentMethodTouched]);
+  }, [depositBalance, hourCreditBalance, hourlyRate, selectedDuration, paymentMethodTouched]);
 
   if (authLoading) {
     return (
@@ -739,8 +773,8 @@ export default function Booking() {
           </CardContent>
         </Card>
 
-        {/* Payment Method Selection - Only show if user has balance */}
-        {canConfirm && depositBalance > 0 && (
+        {/* Payment Method Selection - Only show if user has credit or hour credits */}
+        {canConfirm && (depositBalance > 0 || hourCreditBalance > 0) && (
           <Card>
             <CardHeader>
               <CardTitle className="font-display text-xl">Payment Method</CardTitle>
@@ -750,34 +784,74 @@ export default function Booking() {
                 const totalPrice = hourlyRate * selectedDuration;
                 const hasEnoughBalance = depositBalance >= totalPrice;
                 const remainingAfterBalance = totalPrice - depositBalance;
+                const hasEnoughHours = hourCreditBalance >= selectedDuration;
 
                 return (
                   <>
-                    <div className={`flex items-center justify-between p-3 rounded-lg ${hasEnoughBalance ? 'bg-green-50 border border-green-200' : 'bg-secondary/50'}`}>
-                      <div className="flex items-center gap-2">
-                        <Wallet className="h-5 w-5 text-accent" />
-                        <div>
-                          <span className="font-medium">Credit Balance</span>
-                          {hasEnoughBalance && (
-                            <p className="text-sm text-green-700 font-semibold">You can pay with this!</p>
-                          )}
+                    {/* Balance summary */}
+                    {depositBalance > 0 && (
+                      <div className={`flex items-center justify-between p-3 rounded-lg ${hasEnoughBalance ? 'bg-green-50 border border-green-200' : 'bg-secondary/50'}`}>
+                        <div className="flex items-center gap-2">
+                          <Wallet className="h-5 w-5 text-accent" />
+                          <div>
+                            <span className="font-medium">Credit Balance</span>
+                            {hasEnoughBalance && (
+                              <p className="text-sm text-green-700 font-semibold">You can pay with this!</p>
+                            )}
+                          </div>
                         </div>
+                        <span className="font-semibold text-accent">${depositBalance.toFixed(2)}</span>
                       </div>
-                      <span className="font-semibold text-accent">${depositBalance.toFixed(2)}</span>
-                    </div>
+                    )}
+
+                    {/* Hour credit summary */}
+                    {hourCreditBalance > 0 && (
+                      <div className={`flex items-center justify-between p-3 rounded-lg ${hasEnoughHours ? 'bg-green-50 border border-green-200' : 'bg-secondary/50'}`}>
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-5 w-5 text-accent" />
+                          <div>
+                            <span className="font-medium">Hour Credits</span>
+                            {hasEnoughHours && (
+                              <p className="text-sm text-green-700 font-semibold">Covers this session!</p>
+                            )}
+                          </div>
+                        </div>
+                        <span className="font-semibold text-accent">{hourCreditBalance.toFixed(1)} credit{hourCreditBalance !== 1 ? 's' : ''}</span>
+                      </div>
+                    )}
 
                     <RadioGroup
                       value={selectedPaymentMethod}
                       onValueChange={(value) => {
                         setPaymentMethodTouched(true);
-                        setSelectedPaymentMethod(value as "balance" | "card");
-                        if (value === "balance") {
+                        setSelectedPaymentMethod(value as "balance" | "card" | "hours");
+                        if (value === "balance" || value === "hours") {
                           setUsePartialBalance(false);
+                          setUsePartialHours(false);
                         }
                       }}
                       className="space-y-3"
                     >
-                    {/* Full balance payment option - only if enough balance */}
+                    {/* Full hour credit payment option */}
+                    {hasEnoughHours && (
+                      <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-secondary/30 transition-colors">
+                        <RadioGroupItem value="hours" id="hours" />
+                        <Label htmlFor="hours" className="flex-1 cursor-pointer">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <Clock className="h-4 w-4 text-muted-foreground" />
+                              <span>Pay with Hour Credits</span>
+                            </div>
+                            <span className="font-medium text-green-600">-{selectedDuration} credit{selectedDuration !== 1 ? 's' : ''}</span>
+                          </div>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            Remaining credits: {(hourCreditBalance - selectedDuration).toFixed(1)}
+                          </p>
+                        </Label>
+                      </div>
+                    )}
+
+                    {/* Full balance payment option */}
                     {hasEnoughBalance && (
                       <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-secondary/30 transition-colors">
                         <RadioGroupItem value="balance" id="balance" />
@@ -814,8 +888,27 @@ export default function Booking() {
                       </Label>
                     </div>
 
-                    {/* Partial payment option - only if not enough balance but has some */}
-                    {!hasEnoughBalance && selectedPaymentMethod === "card" && (
+                    {/* Partial hour credit option - only if some hours but not enough to cover full session */}
+                    {hourCreditBalance > 0 && !hasEnoughHours && selectedPaymentMethod === "card" && (
+                      <div className="ml-6 p-3 border border-dashed rounded-lg bg-secondary/20">
+                        <div className="flex items-start space-x-3">
+                          <Checkbox 
+                            id="partial-hours" 
+                            checked={usePartialHours}
+                            onCheckedChange={(checked) => setUsePartialHours(checked === true)}
+                          />
+                          <Label htmlFor="partial-hours" className="cursor-pointer">
+                            <div className="font-medium">Use 1 hour credit to reduce the price</div>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              Pay 1 credit, then ${(totalPrice - hourlyRate).toFixed(2)} by card
+                            </p>
+                          </Label>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Partial balance option - only if balance exists but not enough */}
+                    {depositBalance > 0 && !hasEnoughBalance && selectedPaymentMethod === "card" && (
                       <div className="ml-6 p-3 border border-dashed rounded-lg bg-secondary/20">
                         <div className="flex items-start space-x-3">
                           <Checkbox 
@@ -852,7 +945,7 @@ export default function Booking() {
                 <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                 {hourlyRate * selectedDuration <= 0 
                   ? "Confirming..." 
-                  : selectedPaymentMethod === "balance" 
+                  : selectedPaymentMethod === "balance" || selectedPaymentMethod === "hours"
                     ? "Processing..." 
                     : "Charging Card..."}
               </>
@@ -864,8 +957,15 @@ export default function Booking() {
                 if (totalPrice <= 0) {
                   return "Confirm Free Booking";
                 }
+                if (selectedPaymentMethod === "hours" && hourCreditBalance >= selectedDuration) {
+                  return `Confirm Booking - ${selectedDuration} Hour Credit${selectedDuration !== 1 ? 's' : ''}`;
+                }
                 if (selectedPaymentMethod === "balance" && depositBalance >= totalPrice) {
                   return `Confirm Booking - $${totalPrice.toFixed(2)} from Balance`;
+                }
+                if (usePartialHours && hourCreditBalance > 0) {
+                  const cardAmount = totalPrice - hourlyRate;
+                  return `Confirm Booking - 1 Credit + $${cardAmount.toFixed(2)} Card`;
                 }
                 if (usePartialBalance && depositBalance > 0) {
                   const cardAmount = totalPrice - depositBalance;
