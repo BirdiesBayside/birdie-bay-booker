@@ -21,7 +21,7 @@ interface EligibleUser {
   email: string;
   first_name: string;
   last_name: string;
-  deposit_balance: number;
+  hour_credit_balance: number;
 }
 
 const logStep = (step: string, details?: unknown) => {
