@@ -70,17 +70,43 @@ export function GiftCardsSection() {
   };
 
   const issueGiftCard = async () => {
-    if (!recipientEmail || !amount) {
+    if (!recipientEmail) {
       toast({
         title: "Missing information",
-        description: "Please enter recipient email and amount.",
+        description: "Please enter recipient email.",
         variant: "destructive",
       });
       return;
     }
 
-    const amountNum = parseFloat(amount);
-    if (isNaN(amountNum) || amountNum <= 0) {
+    if (creditType === "dollars" && !amount) {
+      toast({
+        title: "Missing amount",
+        description: "Please enter a dollar amount.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (creditType === "hours" && !hours) {
+      toast({
+        title: "Missing hours",
+        description: "Please enter the number of hours.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const hourValue = creditType === "hours" ? parseFloat(hours) : 0;
+    const dollarValue = creditType === "dollars" ? parseFloat(amount) : 0;
+    if (creditType === "hours" && (isNaN(hourValue) || hourValue <= 0 || !Number.isInteger(hourValue))) {
+      toast({
+        title: "Invalid hours",
+        description: "Please enter a whole number of hours.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (creditType === "dollars" && (isNaN(dollarValue) || dollarValue <= 0)) {
       toast({
         title: "Invalid amount",
         description: "Please enter a valid positive amount.",
@@ -89,69 +115,81 @@ export function GiftCardsSection() {
       return;
     }
 
+    const displayAmount = creditType === "hours" ? hourValue * HOUR_PRICE : dollarValue;
+    const creditHours = creditType === "hours" ? hourValue : 0;
+
     setIsIssuing(true);
 
     try {
       // Check if recipient already has an account
       const { data: existingProfile } = await supabase
         .from("profiles")
-        .select("id, user_id, first_name, deposit_balance")
+        .select("id, user_id, first_name, deposit_balance, hour_credit_balance")
         .eq("email", recipientEmail.toLowerCase().trim())
         .maybeSingle();
 
       if (existingProfile) {
         // User exists - add credit directly
+        const updates: Record<string, number> = {};
         const balanceBefore = existingProfile.deposit_balance || 0;
-        const newBalance = balanceBefore + amountNum;
-        
-        const { error: updateError } = await supabase
-          .from("profiles")
-          .update({ deposit_balance: newBalance })
-          .eq("id", existingProfile.id);
+        const hourBalanceBefore = existingProfile.hour_credit_balance || 0;
+        const newBalance = balanceBefore + dollarValue;
+        const newHourBalance = hourBalanceBefore + creditHours;
+        if (dollarValue > 0) updates.deposit_balance = newBalance;
+        if (creditHours > 0) updates.hour_credit_balance = newHourBalance;
 
-        if (updateError) throw updateError;
+        if (Object.keys(updates).length > 0) {
+          const { error: updateError } = await supabase
+            .from("profiles")
+            .update(updates)
+            .eq("id", existingProfile.id);
+          if (updateError) throw updateError;
+        }
 
-        // Log the transaction
-        await supabase.from("deposit_transactions").insert({
-          user_id: existingProfile.user_id,
-          amount: amountNum,
-          balance_before: balanceBefore,
-          balance_after: newBalance,
-          transaction_type: "gift_card",
-          description: `Gift card credit - auto-redeemed for existing account`,
-          created_by: (await supabase.auth.getUser()).data.user?.id,
-        });
+        if (dollarValue > 0) {
+          await supabase.from("deposit_transactions").insert({
+            user_id: existingProfile.user_id,
+            amount: dollarValue,
+            balance_before: balanceBefore,
+            balance_after: newBalance,
+            transaction_type: "gift_card",
+            description: `Gift card credit - auto-redeemed for existing account`,
+            created_by: (await supabase.auth.getUser()).data.user?.id,
+          });
+        }
+
+        if (creditHours > 0) {
+          await supabase.from("hour_credit_transactions").insert({
+            user_id: existingProfile.user_id,
+            amount: creditHours,
+            balance_before: hourBalanceBefore,
+            balance_after: newHourBalance,
+            transaction_type: "gift_card",
+            description: `Gift card - ${creditHours} hour credit auto-redeemed for existing account`,
+            created_by: (await supabase.auth.getUser()).data.user?.id,
+          });
+        }
 
         // Create gift card record as redeemed
         const { error: giftCardError } = await supabase
           .from("gift_cards")
           .insert({
             recipient_email: recipientEmail.toLowerCase().trim(),
-            amount: amountNum,
+            amount: displayAmount,
+            credit_hours: creditHours,
             status: "redeemed",
             redeemed_at: new Date().toISOString(),
             redeemed_by_user_id: existingProfile.user_id,
+            source: "manual",
           });
 
         if (giftCardError) throw giftCardError;
 
-        // Send notification to existing user
-        try {
-          await supabase.functions.invoke("send-deposit-notification", {
-            body: {
-              user_id: existingProfile.user_id,
-              amount: amountNum,
-              new_balance: newBalance,
-              is_gift_card: true,
-            },
-          });
-        } catch (notifyError) {
-          console.error("Failed to send notification:", notifyError);
-        }
-
         toast({
           title: "Credit added",
-          description: `$${amountNum.toFixed(2)} added to existing account for ${recipientEmail}.`,
+          description: creditHours > 0
+            ? `${creditHours} hour credit added to existing account for ${recipientEmail}.`
+            : `$${dollarValue.toFixed(2)} credit added to existing account for ${recipientEmail}.`,
         });
       } else {
         // New user - create pending gift card and send email
@@ -159,8 +197,10 @@ export function GiftCardsSection() {
           .from("gift_cards")
           .insert({
             recipient_email: recipientEmail.toLowerCase().trim(),
-            amount: amountNum,
+            amount: displayAmount,
+            credit_hours: creditHours,
             status: "pending",
+            source: "manual",
           })
           .select()
           .single();
@@ -173,7 +213,8 @@ export function GiftCardsSection() {
             body: {
               gift_card_id: newGiftCard.id,
               recipient_email: recipientEmail.toLowerCase().trim(),
-              amount: amountNum,
+              amount: displayAmount,
+              credit_hours: creditHours,
             },
           });
 
@@ -195,13 +236,16 @@ export function GiftCardsSection() {
 
         toast({
           title: "Gift card issued",
-          description: `$${amountNum.toFixed(2)} gift card sent to ${recipientEmail}.`,
+          description: creditHours > 0
+            ? `${creditHours} hour gift card sent to ${recipientEmail}.`
+            : `$${displayAmount.toFixed(2)} gift card sent to ${recipientEmail}.`,
         });
       }
 
       // Reset form and refresh
       setRecipientEmail("");
       setAmount("");
+      setHours("");
       setShowIssueDialog(false);
       fetchGiftCards();
     } catch (error: any) {
