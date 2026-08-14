@@ -113,6 +113,7 @@ serve(async (req: Request): Promise<Response> => {
         sender_name: body.sender_name.trim(),
         personal_message: body.personal_message?.trim() || null,
         amount,
+        credit_hours,
         status: "pending_payment",
         source: "web",
         delivery_method: body.delivery_method,
