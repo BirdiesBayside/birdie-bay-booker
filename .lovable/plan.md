@@ -1,6 +1,6 @@
 # Peak rate $42 + Hour Credits — staged rollout for 21 August
 
-Everything gets built now behind a date switch. Nothing customer-facing changes until **Mon 1 Sep 2026, 00:00 Brisbane**, when the new peak rate and the hour-credit system go live automatically.
+Everything gets built now behind a date switch. Nothing customer-facing changes until **Fri 21 Aug 2026, 00:00 Brisbane**, when the new peak rate and the hour-credit system go live automatically.
 
 ## Decisions locked in
 
