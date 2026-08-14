@@ -1,6 +1,6 @@
-# Peak rate $42 + Hour Credits — staged rollout for 1 September
+# Peak rate $42 + Hour Credits — staged rollout for 21 August
 
-Everything gets built now behind a date switch. Nothing customer-facing changes until **Mon 1 Sep 2026, 00:00 Brisbane**, when the new peak rate and the hour-credit system go live automatically.
+Everything gets built now behind a date switch. Nothing customer-facing changes until **Fri 21 Aug 2026, 00:00 Brisbane**, when the new peak rate and the hour-credit system go live automatically.
 
 ## Decisions locked in
 
@@ -63,8 +63,8 @@ Peak line items are repriced on the switch date: 1 Hr Peak $42, 2 Hr $84, 3 Hr $
 | Now | Build everything. Hour credits live but unfunded. Peak stays $35. |
 | Now → 31 Aug | Internal testing: grant yourself credits, book with them, buy a test hour pack. |
 | Optional, mid-Aug | Announcement email to customers. |
-| **1 Sep 00:00 Brisbane** | Peak $42, POS repriced, gift cards become hour packs, promo becomes 1 hour. Automatic — no manual step. |
-| 1 Sep onward | Old dollar gift cards and dollar balances continue to work indefinitely. |
+| **21 Aug 00:00 Brisbane** | Peak $42, POS repriced, gift cards become hour packs, promo becomes 1 hour. Automatic — no manual step. |
+| 21 Aug onward | Old dollar gift cards and dollar balances continue to work indefinitely. |
 
 The switch runs off a single stored date. If you want to move it, delay it, or pull the trigger early, it's one field in Admin Settings.
 
