@@ -1,25 +1,32 @@
-# Bay Controller recording: confirm and ship the final fix
+# Peak Rate Scenario Chart ($35 vs $42)
 
-## Where things stand
+## The numbers (last 3 months, actual data)
 
-The two failure modes we've seen are now both covered in code:
+Only bookings billed at the $35 visitor peak rate are affected. Member rates ($8/$10), off-peak $30, and free/staff sessions stay unchanged.
 
-1. **Runaway recordings (4–5 hours)** — the hard-stop watchdog finalises a recording when its booking ends, so a recording can never outlive its session.
-2. **Lost recordings ("OBS not connected")** — the stop path now rebuilds the OBS connection from the bay's saved URL/password before stopping, so a dropped control socket during a long round no longer abandons a completed video.
+| Month | Peak hours @ $35 | Actual peak revenue | At $42/hr | Uplift |
+|---|---|---|---|---|
+| May 2026 | 305 | $10,675 | $12,810 | +$2,135 |
+| Jun 2026 | 325 | $11,375 | $13,650 | +$2,275 |
+| Jul 2026 | 294 | $10,290 | $12,348 | +$2,058 |
+| Aug 2026 (to 14th) | 160 | $5,600 | $6,720 | +$1,120 |
+| **Total** | **1,084** | **$37,940** | **$45,528** | **+$7,588** |
 
-Both paths funnel through a single stop call site in `BayController.tsx` (`finalizeRecording`), which means the reconnect logic applies to the normal end-of-session stop, the hard-stop watchdog, and the orphan reaper alike. No chunking risk: reconnecting is control-plane only, and the start handler reuses an in-progress recording rather than starting a second one.
+Full-month average uplift is roughly **$2,150/month**, or about **+12.7%** on total booking revenue (assumes no drop in demand from the price rise).
 
-## Remaining work
+## What to build
 
-This is a release and verification task, not new logic.
+Add a "Peak Rate Scenario" card to Admin > Analytics, under the Revenue Trend chart:
 
-1. **Ship the update to the bay PCs.** Version bump and release so the reconnect fix is actually running on Bays 1–6. Until every bay is updated, Bays 3 and 6 can still lose rounds the same way.
-2. **Confirm all bays are on the new build.** Check the version shown in each bay's controller UI after the auto-update lands.
-3. **Verify on the next comp night.** Expect one recording session per round, all reaching uploaded state, each a single continuous file.
+- Grouped bar chart per month: actual revenue vs. scenario revenue, with the uplift called out.
+- A slider or number input for the hypothetical peak rate (default $42) so other rates can be tested instantly.
+- A date range (default last 3 months) matching the existing Revenue Trend controls.
+- Summary line above the chart: total uplift $ and % over the selected range.
 
 ## Technical notes
 
-- Stop handler: `electron/main.js` → `obs-stop-recording` (rebuilds controller via `ensureObs`, reconnects when not identified, then `StopRecord` + `waitForStableSize`).
-- Start handler reuses an active recording under 5 minutes old and only discards recordings older than that as strays — so a reconnect never produces a second file.
-- Failed stops are now marked `failed` rather than `executed`, so a repeat of this issue shows up in the command log instead of looking successful.
-- No database or edge function changes are needed.
+- New hook `src/hooks/usePeakRateScenario.ts`: pull `bookings` (`booking_date`, `start_time`, `duration_hours`, `hourly_rate`, `total_price`, `status`) for the range, non-cancelled, paginated with `.range()`.
+- Scenario revenue = actual revenue + `(newRate - 35) * duration_hours` for rows where `hourly_rate = 35` and the slot is peak per `isPeakTime()` in `src/lib/pricing-utils.ts`. All other rows pass through unchanged.
+- Bucket by Brisbane month using the same helpers as `useRevenueTrend.ts`.
+- New component `src/components/admin/analytics/PeakRateScenarioChart.tsx` using recharts + `ChartContainer`, semantic tokens only, rendered from `src/pages/admin/AdminAnalytics.tsx`.
+- Read-only: no pricing config or booking data is changed.
