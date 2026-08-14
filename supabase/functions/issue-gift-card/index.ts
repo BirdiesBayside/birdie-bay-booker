@@ -50,6 +50,7 @@ serve(async (req: Request): Promise<Response> => {
     }
 
     const amount = Number(card.amount);
+    const creditHours = Number(card.credit_hours || 0);
     const recipientEmail = String(card.recipient_email).toLowerCase().trim();
     const recipientName = card.recipient_name || "there";
     const senderName = card.sender_name || "A friend";
@@ -59,38 +60,60 @@ serve(async (req: Request): Promise<Response> => {
     const redemptionCode = card.redemption_code;
 
     console.log(
-      `[issue-gift-card] Issuing card ${card.id} amount=$${amount} method=${deliveryMethod} recipient=${recipientEmail}`
+      `[issue-gift-card] Issuing card ${card.id} amount=$${amount} hours=${creditHours} method=${deliveryMethod} recipient=${recipientEmail}`
     );
 
     // Check if recipient already has a Birdies account
     const { data: recipientProfile } = await supabase
       .from("profiles")
-      .select("user_id, first_name, deposit_balance")
+      .select("user_id, first_name, deposit_balance, hour_credit_balance")
       .eq("email", recipientEmail)
       .maybeSingle();
 
     const recipientHasAccount = !!recipientProfile?.user_id;
 
-    // If recipient has an account AND delivery includes them → auto-apply credit
+    // If recipient has an account AND delivery includes them → auto-apply credit (hours preferred, then dollars)
     let autoApplied = false;
     if (recipientHasAccount && deliveryMethod !== "print_to_sender") {
-      const before = Number(recipientProfile.deposit_balance ?? 0);
-      const after = before + amount;
+      const updates: Record<string, number> = {};
+      const hourBefore = Number(recipientProfile.hour_credit_balance ?? 0);
+      const hourAfter = hourBefore + creditHours;
+      if (creditHours > 0) updates.hour_credit_balance = hourAfter;
 
-      await supabase
-        .from("profiles")
-        .update({ deposit_balance: after })
-        .eq("user_id", recipientProfile.user_id);
+      const dollarBefore = Number(recipientProfile.deposit_balance ?? 0);
+      const dollarAfter = dollarBefore + amount;
+      if (amount > 0) updates.deposit_balance = dollarAfter;
 
-      await supabase.from("deposit_transactions").insert({
-        user_id: recipientProfile.user_id,
-        amount,
-        balance_before: before,
-        balance_after: after,
-        transaction_type: "gift_card",
-        description: `Gift card from ${senderName}`,
-        related_gift_card_id: card.id,
-      });
+      if (Object.keys(updates).length > 0) {
+        await supabase
+          .from("profiles")
+          .update(updates)
+          .eq("user_id", recipientProfile.user_id);
+      }
+
+      if (creditHours > 0) {
+        await supabase.from("hour_credit_transactions").insert({
+          user_id: recipientProfile.user_id,
+          amount: creditHours,
+          balance_before: hourBefore,
+          balance_after: hourAfter,
+          transaction_type: "gift_card",
+          description: `Gift card from ${senderName} — ${creditHours} hour${creditHours === 1 ? "" : "s"}`,
+          related_gift_card_id: card.id,
+        });
+      }
+
+      if (amount > 0) {
+        await supabase.from("deposit_transactions").insert({
+          user_id: recipientProfile.user_id,
+          amount,
+          balance_before: dollarBefore,
+          balance_after: dollarAfter,
+          transaction_type: "gift_card",
+          description: `Gift card from ${senderName}`,
+          related_gift_card_id: card.id,
+        });
+      }
 
       await supabase
         .from("gift_cards")
@@ -104,7 +127,7 @@ serve(async (req: Request): Promise<Response> => {
 
       autoApplied = true;
       console.log(
-        `[issue-gift-card] Auto-applied $${amount} to existing user ${recipientProfile.user_id}`
+        `[issue-gift-card] Auto-applied ${creditHours} hours + $${amount} to existing user ${recipientProfile.user_id}`
       );
     }
 
