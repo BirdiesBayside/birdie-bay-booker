@@ -423,7 +423,16 @@ export function GiftCardsSection() {
               giftCards.map((gc) => (
                 <TableRow key={gc.id}>
                   <TableCell className="font-medium">{gc.recipient_email}</TableCell>
-                  <TableCell>${Number(gc.amount).toFixed(2)}</TableCell>
+                  <TableCell>
+                    {gc.credit_hours ? (
+                      <span className="flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        {gc.credit_hours} hour{gc.credit_hours === 1 ? "" : "s"} (${Number(gc.amount).toFixed(2)})
+                      </span>
+                    ) : (
+                      `$${Number(gc.amount).toFixed(2)}`
+                    )}
+                  </TableCell>
                   <TableCell>{getStatusBadge(gc.status)}</TableCell>
                   <TableCell className="text-muted-foreground">
                     {format(new Date(gc.issued_at), "MMM d, yyyy")}
