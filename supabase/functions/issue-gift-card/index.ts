@@ -136,8 +136,8 @@ serve(async (req: Request): Promise<Response> => {
     // ── Email to RECIPIENT ──
     if (deliveryMethod === "email_recipient" || deliveryMethod === "both") {
       const subject = autoApplied
-        ? `${senderName} just gifted you $${amount.toFixed(2)} of Birdies credit!`
-        : `${senderName} sent you a $${amount.toFixed(2)} Birdies gift!`;
+        ? `${senderName} just gifted you ${creditHours > 0 ? `${creditHours} hour${creditHours === 1 ? "" : "s"} of Birdies time` : `$${amount.toFixed(2)} of Birdies credit`}!`
+        : `${senderName} sent you a ${creditHours > 0 ? `${creditHours} hour` : `$${amount.toFixed(2)}`} Birdies gift!`;
 
       const heading = autoApplied ? "You've Been Gifted!" : "You've Been Gifted!";
 
@@ -154,7 +154,18 @@ serve(async (req: Request): Promise<Response> => {
         `
         : `<p style="margin:0 0 14px; font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">From <strong>${escapeHtml(senderName)}</strong></p>`;
 
-      const amountBlock = `
+      const amountBlock = creditHours > 0
+        ? `
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#1F4C25; border-radius:12px; margin:18px 0;">
+          <tr>
+            <td style="padding:30px; text-align:center;">
+              <p style="margin:0 0 8px; font-family:Inter, Arial, sans-serif; font-size:14px; color:#FFF5E4; opacity:0.9; letter-spacing:1px; text-transform:uppercase;">Gift Card Value</p>
+              <p style="margin:0; font-family:Anton, Impact, Arial Black, sans-serif; font-size:56px; color:#EC622D;">${creditHours} HOUR${creditHours === 1 ? "" : "S"}</p>
+            </td>
+          </tr>
+        </table>
+      `
+        : `
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#1F4C25; border-radius:12px; margin:18px 0;">
           <tr>
             <td style="padding:30px; text-align:center;">
@@ -166,12 +177,12 @@ serve(async (req: Request): Promise<Response> => {
       `;
 
       const intro = autoApplied
-        ? `<p style="margin:0 0 14px; font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">Hi ${escapeHtml(recipientName)}, great news — <strong>${escapeHtml(senderName)}</strong> has gifted you Birdies credit, and we've already added it to your account.</p>`
+        ? `<p style="margin:0 0 14px; font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">Hi ${escapeHtml(recipientName)}, great news — <strong>${escapeHtml(senderName)}</strong> has gifted you ${creditHours > 0 ? `${creditHours} hour${creditHours === 1 ? "" : "s"} of Birdies bay time` : `Birdies credit`}, and we've already added it to your account.</p>`
         : `<p style="margin:0 0 14px; font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">Hi ${escapeHtml(recipientName)}, <strong>${escapeHtml(senderName)}</strong> wants you to enjoy a session at Birdies Bayside on them.</p>`;
 
       const footer = autoApplied
-        ? `<p style="margin:18px 0 0; font-family:Inter, Arial, sans-serif; font-size:15px; line-height:1.6; color:#1F4C25; text-align:center;">Book a bay and your credit will apply automatically at checkout.</p>`
-        : `<p style="margin:18px 0 0; font-family:Inter, Arial, sans-serif; font-size:15px; line-height:1.6; color:#1F4C25; text-align:center;">Create your free account using <strong>this email address</strong> and your credit applies automatically.</p>`;
+        ? `<p style="margin:18px 0 0; font-family:Inter, Arial, sans-serif; font-size:15px; line-height:1.6; color:#1F4C25; text-align:center;">Book a bay and your ${creditHours > 0 ? "hour credits" : "credit"} will apply automatically at checkout.</p>`
+        : `<p style="margin:18px 0 0; font-family:Inter, Arial, sans-serif; font-size:15px; line-height:1.6; color:#1F4C25; text-align:center;">Create your free account using <strong>this email address</strong> and your ${creditHours > 0 ? "hour credits" : "credit"} applies automatically.</p>`;
 
       const body = intro + messageBlock + amountBlock + footer;
 
