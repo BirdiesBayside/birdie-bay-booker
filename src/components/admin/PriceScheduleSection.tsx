@@ -3,7 +3,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CalendarClock } from "lucide-react";
-import { getBrisbaneDateKey } from "@/lib/brisbane-time";
+import { BRISBANE_TZ } from "@/lib/brisbane-time";
+
+const brisbaneDateKey = (d: Date) =>
+  new Intl.DateTimeFormat("en-CA", { timeZone: BRISBANE_TZ }).format(d);
 
 interface Row {
   id: string;
