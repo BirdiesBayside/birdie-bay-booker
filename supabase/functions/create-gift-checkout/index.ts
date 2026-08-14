@@ -138,8 +138,8 @@ serve(async (req: Request): Promise<Response> => {
           price_data: {
             currency: "aud",
             product_data: {
-              name: `Birdies Bayside Gift Card — $${amount.toFixed(2)}`,
-              description: `For ${body.recipient_name}`,
+              name: `Birdies Bayside Gift Card — ${credit_hours} Hour${credit_hours === 1 ? "" : "s"}`,
+              description: `For ${body.recipient_name} — ${credit_hours} hour${credit_hours === 1 ? "" : "s"} of bay time`,
             },
             unit_amount: Math.round(amount * 100),
           },
