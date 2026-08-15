@@ -62,7 +62,8 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    const { visit_threshold, credit_amount } = settings;
+    const visit_threshold = settings.visit_threshold;
+    const credit_hours = Number(settings.credit_hours ?? 1);
 
     // Get user profile
     const { data: profile, error: profileError } = await supabase
@@ -118,22 +119,24 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    // Issue the credit!
-    const balanceBefore = profile.deposit_balance || 0;
-    const newBalance = balanceBefore + credit_amount;
+    // Issue the hour credit!
+    const balanceBefore = Number(profile.hour_credit_balance || 0);
+    const newBalance = balanceBefore + credit_hours;
+    const hoursLabel = `${credit_hours} ${credit_hours === 1 ? "hour" : "hours"}`;
+    const balanceLabel = `${newBalance} ${newBalance === 1 ? "hour" : "hours"}`;
 
-    // Update balance
+    // Update hour credit balance
     const { error: updateError } = await supabase
       .from("profiles")
-      .update({ deposit_balance: newBalance })
+      .update({ hour_credit_balance: newBalance })
       .eq("id", profile.id);
 
     if (updateError) throw updateError;
 
-    // Log the deposit transaction
-    await supabase.from("deposit_transactions").insert({
+    // Log the hour credit transaction
+    await supabase.from("hour_credit_transactions").insert({
       user_id,
-      amount: credit_amount,
+      amount: credit_hours,
       balance_before: balanceBefore,
       balance_after: newBalance,
       transaction_type: "loyalty_credit",
@@ -145,10 +148,11 @@ serve(async (req: Request): Promise<Response> => {
       user_id,
       milestone_number: milestoneNumber,
       total_bookings_at_issue: totalBookings,
-      credit_amount,
+      credit_amount: 0,
+      credit_hours,
     });
 
-    logStep("Credit issued!", { milestoneNumber, credit_amount, newBalance });
+    logStep("Hour credit issued!", { milestoneNumber, credit_hours, newBalance });
 
     // Send loyalty email
     try {
@@ -167,44 +171,47 @@ serve(async (req: Request): Promise<Response> => {
           '{first_name}': profile.first_name || '',
           '{last_name}': profile.last_name || '',
           '{email}': profile.email || '',
-          '{credit_amount}': `$${credit_amount.toFixed(2)}`,
-          '{new_balance}': `$${newBalance.toFixed(2)}`,
+          '{credit_hours}': hoursLabel,
+          '{credit_amount}': hoursLabel,
+          '{new_balance}': balanceLabel,
+          '{hour_balance}': balanceLabel,
           '{total_visits}': String(totalBookings),
           '{next_milestone}': String(totalBookings + visit_threshold),
         };
 
-        let subject = emailTemplate?.subject || `You've earned a $${credit_amount.toFixed(2)} Loyalty Credit! 🎉`;
+        let subject = emailTemplate?.subject || `You've earned ${hoursLabel} of FREE play! 🎉`;
         let htmlContent: string;
 
         if (emailTemplate?.html_content) {
           const bodyContent = replaceTemplateTags(emailTemplate.html_content, templateTags);
           subject = replaceTemplateTags(subject, templateTags);
-          htmlContent = await renderBrandedEmail(supabase, "Loyalty Credit Earned!", bodyContent, {
+          htmlContent = await renderBrandedEmail(supabase, "Loyalty Reward Earned!", bodyContent, {
             text: "Book Now",
             url: "https://hub.birdiesbayside.com.au/booking",
           });
         } else {
           const bodyContent = `
               <p style="margin:0 0 18px; font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">
-                Hi ${profile.first_name}, thanks for being a loyal visitor! You've completed <strong>${totalBookings} visits</strong> to Birdies Bayside and earned a loyalty credit.
+                Hi ${profile.first_name}, thanks for being a loyal visitor! You've completed <strong>${totalBookings} visits</strong> to Birdies Bayside and earned free bay time.
               </p>
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#1F4C25; border-radius:12px; margin:18px 0;">
                 <tr>
                   <td style="padding:30px; text-align:center;">
-                    <p style="margin:0 0 8px; font-family:Inter, Arial, sans-serif; font-size:14px; color:#FFF5E4; opacity:0.9;">Loyalty Credit</p>
-                    <p style="margin:0; font-family:Anton, Impact, Arial Black, sans-serif; font-size:52px; font-weight:bold; color:#EC622D;">$${credit_amount.toFixed(2)}</p>
+                    <p style="margin:0 0 8px; font-family:Inter, Arial, sans-serif; font-size:14px; color:#FFF5E4; opacity:0.9;">Loyalty Reward</p>
+                    <p style="margin:0; font-family:Anton, Impact, Arial Black, sans-serif; font-size:52px; font-weight:bold; color:#EC622D;">${hoursLabel.toUpperCase()}</p>
+                    <p style="margin:8px 0 0; font-family:Inter, Arial, sans-serif; font-size:14px; color:#FFF5E4; opacity:0.9;">of free bay time</p>
                   </td>
                 </tr>
               </table>
               <p style="margin:18px 0; font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">
-                Your credit has been automatically added to your account — your new balance is <strong>$${newBalance.toFixed(2)}</strong>. Use it on your next booking!
+                It's already on your account — you now have <strong>${balanceLabel}</strong> of free play banked. Just pick your bay and it'll be applied at checkout.
               </p>
               <p style="margin:12px 0 0; font-family:Inter, Arial, sans-serif; font-size:13px; line-height:1.5; color:#1F4C25; text-align:center; opacity:0.7;">
-                Your next loyalty credit will be earned at ${totalBookings + visit_threshold} visits. Keep it up! 💪
+                Your next loyalty reward will be earned at ${totalBookings + visit_threshold} visits. Keep it up! 💪
               </p>
           `;
 
-          htmlContent = await renderBrandedEmail(supabase, "Loyalty Credit Earned!", bodyContent, {
+          htmlContent = await renderBrandedEmail(supabase, "Loyalty Reward Earned!", bodyContent, {
             text: "Book Now",
             url: "https://hub.birdiesbayside.com.au/booking",
           });
@@ -227,8 +234,8 @@ serve(async (req: Request): Promise<Response> => {
       JSON.stringify({
         eligible: true,
         credited: true,
-        credit_amount,
-        new_balance: newBalance,
+        credit_hours,
+        new_hour_balance: newBalance,
         milestone_number: milestoneNumber,
         total_bookings: totalBookings,
       }),

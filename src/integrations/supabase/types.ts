@@ -1685,6 +1685,7 @@ export type Database = {
         Row: {
           created_at: string
           credit_amount: number
+          credit_hours: number
           id: string
           milestone_number: number
           reminder_14d_sent_at: string | null
@@ -1694,7 +1695,8 @@ export type Database = {
         }
         Insert: {
           created_at?: string
-          credit_amount: number
+          credit_amount?: number
+          credit_hours?: number
           id?: string
           milestone_number: number
           reminder_14d_sent_at?: string | null
@@ -1705,6 +1707,7 @@ export type Database = {
         Update: {
           created_at?: string
           credit_amount?: number
+          credit_hours?: number
           id?: string
           milestone_number?: number
           reminder_14d_sent_at?: string | null
@@ -1718,6 +1721,7 @@ export type Database = {
         Row: {
           created_at: string
           credit_amount: number
+          credit_hours: number
           enabled: boolean
           id: string
           updated_at: string
@@ -1726,6 +1730,7 @@ export type Database = {
         Insert: {
           created_at?: string
           credit_amount?: number
+          credit_hours?: number
           enabled?: boolean
           id?: string
           updated_at?: string
@@ -1734,6 +1739,7 @@ export type Database = {
         Update: {
           created_at?: string
           credit_amount?: number
+          credit_hours?: number
           enabled?: boolean
           id?: string
           updated_at?: string

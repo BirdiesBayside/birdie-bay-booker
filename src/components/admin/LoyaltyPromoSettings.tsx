@@ -13,7 +13,7 @@ import { Gift, Loader2 } from "lucide-react";
 interface LoyaltySettings {
   enabled: boolean;
   visit_threshold: number;
-  credit_amount: number;
+  credit_hours: number;
 }
 
 export function LoyaltyPromoSettings() {
@@ -21,7 +21,7 @@ export function LoyaltyPromoSettings() {
   const [settings, setSettings] = useState<LoyaltySettings>({
     enabled: false,
     visit_threshold: 5,
-    credit_amount: 35,
+    credit_hours: 1,
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -44,7 +44,7 @@ export function LoyaltyPromoSettings() {
       setSettings({
         enabled: data.enabled,
         visit_threshold: data.visit_threshold,
-        credit_amount: data.credit_amount,
+        credit_hours: Number(data.credit_hours ?? 1),
       });
     }
     setIsLoading(false);
@@ -58,10 +58,10 @@ export function LoyaltyPromoSettings() {
   };
 
   const saveSettings = async () => {
-    if (settings.visit_threshold < 1 || settings.credit_amount <= 0) {
+    if (settings.visit_threshold < 1 || settings.credit_hours <= 0) {
       toast({
         title: "Invalid settings",
-        description: "Visit threshold must be at least 1 and credit amount must be positive.",
+        description: "Visit threshold must be at least 1 and hours must be positive.",
         variant: "destructive",
       });
       return;
@@ -73,7 +73,7 @@ export function LoyaltyPromoSettings() {
       .update({
         enabled: settings.enabled,
         visit_threshold: settings.visit_threshold,
-        credit_amount: settings.credit_amount,
+        credit_hours: settings.credit_hours,
       })
       .eq("id", "global");
 
@@ -87,7 +87,7 @@ export function LoyaltyPromoSettings() {
       toast({
         title: "Loyalty settings saved",
         description: settings.enabled
-          ? `Visitors will earn $${settings.credit_amount.toFixed(2)} every ${settings.visit_threshold} visits.`
+          ? `Visitors will earn ${settings.credit_hours} free hour${settings.credit_hours === 1 ? "" : "s"} every ${settings.visit_threshold} visits.`
           : "Loyalty promo is disabled.",
       });
     }
@@ -108,7 +108,7 @@ export function LoyaltyPromoSettings() {
               Visitor Loyalty Promo
             </CardTitle>
             <CardDescription>
-              Reward visitors with credit after reaching a booking milestone
+              Reward visitors with free bay time after reaching a booking milestone
             </CardDescription>
           </div>
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
@@ -153,28 +153,28 @@ export function LoyaltyPromoSettings() {
             </p>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="credit-amount">Credit amount ($)</Label>
+            <Label htmlFor="credit-hours">Free hours awarded</Label>
             <Input
-              id="credit-amount"
+              id="credit-hours"
               type="number"
-              min="1"
-              step="0.01"
-              value={settings.credit_amount}
+              min="0.5"
+              step="0.5"
+              value={settings.credit_hours}
               onChange={(e) =>
                 setSettings((s) => ({
                   ...s,
-                  credit_amount: parseFloat(e.target.value) || 0,
+                  credit_hours: parseFloat(e.target.value) || 0,
                 }))
               }
             />
             <p className="text-xs text-muted-foreground">
-              Added to visitor's balance automatically
+              Added to visitor's hour credit balance automatically
             </p>
           </div>
         </div>
 
         <div className="p-3 bg-muted/30 rounded-lg border text-sm text-muted-foreground">
-          <strong className="text-foreground">How it works:</strong> When a visitor's total booking count reaches a multiple of {settings.visit_threshold} (e.g. {settings.visit_threshold}, {settings.visit_threshold * 2}, {settings.visit_threshold * 3}...), they automatically receive ${settings.credit_amount.toFixed(2)} credit and a notification email. Only visitors (non-members) are eligible.
+          <strong className="text-foreground">How it works:</strong> When a visitor's total booking count reaches a multiple of {settings.visit_threshold} (e.g. {settings.visit_threshold}, {settings.visit_threshold * 2}, {settings.visit_threshold * 3}...), they automatically receive {settings.credit_hours} free hour{settings.credit_hours === 1 ? "" : "s"} of bay time and a notification email. Only visitors (non-members) are eligible.
         </div>
 
         <Button onClick={saveSettings} disabled={isSaving} className="w-full">

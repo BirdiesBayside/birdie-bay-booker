@@ -51,21 +51,23 @@ const buildEmail = (heading: string, body: string) => `<!doctype html>
   </td></tr>
 </table></body></html>`;
 
+const hoursLabel = (n: number) => `${n} ${n === 1 ? "hour" : "hours"}`;
+
 const bodyFor = (firstName: string, balance: number, isFinal: boolean) => {
   const intro = isFinal
-    ? `Hey ${firstName || "there"}, last reminder — you've still got loyalty credit sitting on your Birdies Bayside account that you haven't used yet.`
-    : `Hey ${firstName || "there"}, just a heads up — you earned loyalty credit a couple of weeks ago and still haven't used it. Don't let it go to waste!`;
+    ? `Hey ${firstName || "there"}, last reminder — you've still got free bay time sitting on your Birdies Bayside account that you haven't used yet.`
+    : `Hey ${firstName || "there"}, just a heads up — you earned free bay time a couple of weeks ago and still haven't used it. Don't let it go to waste!`;
 
   const outro = isFinal
     ? `This is the final nudge from us. Book a session and we'll see you in a bay soon. 🏌️`
-    : `Pop in for a hit — your credit is ready to roll into your next booking.`;
+    : `Pop in for a hit — your free hours are ready to roll into your next booking.`;
 
   return `
     <p style="margin:0 0 18px;font-family:Inter,Arial,sans-serif;font-size:16px;line-height:1.6;color:#1F4C25;text-align:center;">${intro}</p>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#1F4C25;border-radius:12px;margin:18px 0;">
       <tr><td style="padding:30px;text-align:center;">
-        <p style="margin:0 0 8px;font-family:Inter,Arial,sans-serif;font-size:14px;color:#FFF5E4;opacity:0.9;">Your Credit Balance</p>
-        <p style="margin:0;font-family:Anton,Impact,Arial Black,sans-serif;font-size:52px;color:#EC622D;">$${balance.toFixed(2)}</p>
+        <p style="margin:0 0 8px;font-family:Inter,Arial,sans-serif;font-size:14px;color:#FFF5E4;opacity:0.9;">Your Free Play Balance</p>
+        <p style="margin:0;font-family:Anton,Impact,Arial Black,sans-serif;font-size:52px;color:#EC622D;">${hoursLabel(balance).toUpperCase()}</p>
       </td></tr>
     </table>
     <p style="margin:18px 0 0;font-family:Inter,Arial,sans-serif;font-size:16px;line-height:1.6;color:#1F4C25;text-align:center;">${outro}</p>
@@ -75,7 +77,7 @@ const bodyFor = (firstName: string, balance: number, isFinal: boolean) => {
 interface Candidate {
   id: string;
   user_id: string;
-  credit_amount: number;
+  credit_hours: number;
   created_at: string;
 }
 
@@ -100,7 +102,7 @@ serve(async (req: Request): Promise<Response> => {
     // ---------- 14-day reminders ----------
     const { data: due14 } = await supabase
       .from("loyalty_credits_issued")
-      .select("id, user_id, credit_amount, created_at")
+      .select("id, user_id, credit_hours, created_at")
       .is("reminder_14d_sent_at", null)
       .lte("created_at", fourteenDaysAgo)
       .gt("created_at", thirtyDaysAgo);
@@ -111,12 +113,12 @@ serve(async (req: Request): Promise<Response> => {
       try {
         const { data: profile } = await supabase
           .from("profiles")
-          .select("email, first_name, deposit_balance, marketing_opt_out")
+          .select("email, first_name, hour_credit_balance, marketing_opt_out")
           .eq("user_id", c.user_id)
           .maybeSingle();
 
         if (!profile?.email || profile.marketing_opt_out) continue;
-        if ((profile.deposit_balance || 0) <= 0) {
+        if (Number(profile.hour_credit_balance || 0) <= 0) {
           summary.skipped_spent++;
           await supabase.from("loyalty_credits_issued")
             .update({ reminder_14d_sent_at: new Date().toISOString() })
@@ -127,8 +129,8 @@ serve(async (req: Request): Promise<Response> => {
         await resend.emails.send({
           from: "Birdies Bayside <info@birdiesbayside.com.au>",
           to: [profile.email],
-          subject: `You've still got $${Number(profile.deposit_balance).toFixed(2)} waiting at Birdies 🎁`,
-          html: buildEmail("DON'T FORGET YOUR CREDIT", bodyFor(profile.first_name, Number(profile.deposit_balance), false)),
+          subject: `You've still got ${hoursLabel(Number(profile.hour_credit_balance))} of free play waiting at Birdies 🎁`,
+          html: buildEmail("DON'T FORGET YOUR FREE PLAY", bodyFor(profile.first_name, Number(profile.hour_credit_balance), false)),
         });
 
         await supabase.from("loyalty_credits_issued")
@@ -144,7 +146,7 @@ serve(async (req: Request): Promise<Response> => {
     // ---------- 30-day final reminders ----------
     const { data: due30 } = await supabase
       .from("loyalty_credits_issued")
-      .select("id, user_id, credit_amount, created_at")
+      .select("id, user_id, credit_hours, created_at")
       .is("reminder_30d_sent_at", null)
       .lte("created_at", thirtyDaysAgo);
 
@@ -154,12 +156,12 @@ serve(async (req: Request): Promise<Response> => {
       try {
         const { data: profile } = await supabase
           .from("profiles")
-          .select("email, first_name, deposit_balance, marketing_opt_out")
+          .select("email, first_name, hour_credit_balance, marketing_opt_out")
           .eq("user_id", c.user_id)
           .maybeSingle();
 
         if (!profile?.email || profile.marketing_opt_out) continue;
-        if ((profile.deposit_balance || 0) <= 0) {
+        if (Number(profile.hour_credit_balance || 0) <= 0) {
           summary.skipped_spent++;
           await supabase.from("loyalty_credits_issued")
             .update({ reminder_30d_sent_at: new Date().toISOString() })
@@ -170,8 +172,8 @@ serve(async (req: Request): Promise<Response> => {
         await resend.emails.send({
           from: "Birdies Bayside <info@birdiesbayside.com.au>",
           to: [profile.email],
-          subject: `Last call — $${Number(profile.deposit_balance).toFixed(2)} Birdies credit waiting for you`,
-          html: buildEmail("LAST REMINDER", bodyFor(profile.first_name, Number(profile.deposit_balance), true)),
+          subject: `Last call — ${hoursLabel(Number(profile.hour_credit_balance))} of free Birdies play waiting for you`,
+          html: buildEmail("LAST REMINDER", bodyFor(profile.first_name, Number(profile.hour_credit_balance), true)),
         });
 
         await supabase.from("loyalty_credits_issued")
