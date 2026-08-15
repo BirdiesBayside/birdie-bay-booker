@@ -16,7 +16,7 @@ import { toast } from "sonner";
 import MarketingLayout from "@/components/marketing/MarketingLayout";
 
 const PRESET_HOURS = [1, 2, 3, 5, 10];
-const HOUR_PRICE = 42;
+const HOUR_PRICE = 40;
 type DeliveryMethod = "email_recipient" | "print_to_sender" | "both";
 
 const isHubHost = () => {
