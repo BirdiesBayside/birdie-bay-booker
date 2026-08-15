@@ -62,7 +62,8 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    const { visit_threshold, credit_amount } = settings;
+    const visit_threshold = settings.visit_threshold;
+    const credit_hours = Number(settings.credit_hours ?? 1);
 
     // Get user profile
     const { data: profile, error: profileError } = await supabase
