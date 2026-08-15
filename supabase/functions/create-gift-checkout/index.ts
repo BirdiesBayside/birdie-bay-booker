@@ -33,7 +33,7 @@ interface Body {
   delivery_method: "email_recipient" | "print_to_sender" | "both";
 }
 
-const HOUR_PRICE = 42;
+const HOUR_PRICE = 40;
 
 serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -47,7 +47,7 @@ serve(async (req: Request): Promise<Response> => {
     if (hours > 0) {
       amount = hours * HOUR_PRICE;
     } else if (amount > 0) {
-      // Legacy dollar-based path still buys hours: 1 hour per $42 chunk.
+      // Legacy dollar-based path still buys hours: 1 hour per $40 chunk.
       // Keep the dollar amount as the checkout value and the whole hours as credit_hours.
       // Both are recorded, but the card is treated as a "hours pack" at redemption.
     }

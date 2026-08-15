@@ -27,7 +27,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Gift, Send, Loader2, CheckCircle2, Clock, XCircle } from "lucide-react";
 import { format } from "date-fns";
 
-const HOUR_PRICE = 42;
+const HOUR_PRICE = 40;
 
 interface GiftCard {
   id: string;
