@@ -3,8 +3,10 @@ import { cn } from "@/lib/utils";
 import { useSGTTournamentStandings } from "@/hooks/useSGTEmbedData";
 import { useActiveTourData } from "@/hooks/useActiveTourData";
 import birdiesLogo from "@/assets/birdies-b-orange.png";
+import { useSgtNicknames } from "@/hooks/useSgtNicknames";
 
 export default function EmbedTVLastWeek() {
+  const { displayName } = useSgtNicknames();
   const { previousTournament, isLoading: tourLoading } = useActiveTourData();
 
   const { standings, isLoading: standingsLoading, lastUpdated } = useSGTTournamentStandings({
@@ -110,7 +112,7 @@ export default function EmbedTVLastWeek() {
                 </div>
 
                 <div className="col-span-4">
-                  <p className="font-bold text-2xl text-[hsl(128,42%,21%)]">{result.playerName}</p>
+                  <p className="font-bold text-2xl text-[hsl(128,42%,21%)]">{displayName(result.playerName)}</p>
                 </div>
 
                 <div className="col-span-1 text-center text-xl text-[hsl(128,20%,40%)]">

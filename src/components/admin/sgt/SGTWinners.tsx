@@ -24,6 +24,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { useSgtNicknames } from "@/hooks/useSgtNicknames";
 
 interface WeeklyPrize {
   id: string;
@@ -161,6 +162,7 @@ const DEFAULT_MONTHLY_EMAIL_TEMPLATE = `<!doctype html>
 </html>`;
 
 export function SGTWinners() {
+  const { displayName } = useSgtNicknames();
   const queryClient = useQueryClient();
   
   // Weekly prize approval state
@@ -535,7 +537,7 @@ export function SGTWinners() {
                                 >
                                   <div className="flex items-center gap-2">
                                     <span className="font-mono text-muted-foreground w-6">#{idx + 1}</span>
-                                    <span className={player.isDNF ? "text-muted-foreground" : ""}>{player.player_name}</span>
+                                    <span className={player.isDNF ? "text-muted-foreground" : ""}>{displayName(player.player_name, player.player_id)}</span>
                                     {player.isDNF ? (
                                       <Badge variant="outline" className="text-xs text-destructive border-destructive/30">DNF</Badge>
                                     ) : (
@@ -666,7 +668,7 @@ export function SGTWinners() {
                           <SelectItem key={player.player_id} value={`${player.player_id}`}>
                             <div className="flex items-center gap-2">
                               <span className="font-mono text-muted-foreground w-6">#{player.net_position}</span>
-                              <span>{player.player_name}</span>
+                              <span>{displayName(player.player_name, player.player_id)}</span>
                               <span className="text-muted-foreground">
                                 ({formatScore(player.total_net_score)} / {player.tournaments_played} rounds)
                               </span>
@@ -777,7 +779,7 @@ export function SGTWinners() {
                       <Trophy className="h-5 w-5 text-yellow-600" />
                     </div>
                     <div className="min-w-0">
-                      <p className="font-medium truncate">{prize.player_name}</p>
+                      <p className="font-medium truncate">{displayName(prize.player_name, prize.player_id)}</p>
                       <p className="text-sm text-muted-foreground truncate">
                         {getTournamentName(prize.tournament_id)}
                       </p>
@@ -847,7 +849,7 @@ export function SGTWinners() {
                       <Award className="h-5 w-5 text-purple-600" />
                     </div>
                     <div className="min-w-0">
-                      <p className="font-medium truncate">{award.winner_player_name}</p>
+                      <p className="font-medium truncate">{displayName(award.winner_player_name, award.winner_player_id)}</p>
                       <div className="flex items-center flex-wrap gap-2 text-sm text-muted-foreground">
                         <Calendar className="h-3 w-3 shrink-0" />
                         {award.month}

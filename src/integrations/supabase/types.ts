@@ -2975,6 +2975,7 @@ export type Database = {
           custom_hcp: number | null
           hcp_index: number | null
           id: string
+          nickname: string | null
           onboarding_hcp: number | null
           tour_id: number
           updated_at: string
@@ -2986,6 +2987,7 @@ export type Database = {
           custom_hcp?: number | null
           hcp_index?: number | null
           id?: string
+          nickname?: string | null
           onboarding_hcp?: number | null
           tour_id: number
           updated_at?: string
@@ -2997,6 +2999,7 @@ export type Database = {
           custom_hcp?: number | null
           hcp_index?: number | null
           id?: string
+          nickname?: string | null
           onboarding_hcp?: number | null
           tour_id?: number
           updated_at?: string

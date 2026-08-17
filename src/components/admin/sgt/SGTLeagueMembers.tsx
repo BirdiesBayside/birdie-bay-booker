@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Users, Search, Pencil, Check, X, Loader2, Info, Lock } from "lucide-react";
+import { Users, Search, Pencil, Check, X, Loader2, Info, Lock, MoreHorizontal, Tag, UserMinus } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -23,10 +23,35 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface LeagueMember {
   user_id: number;
   user_name: string | null;
+  nickname: string | null;
   email: string | null;
   hcp_index: number | null;
   custom_hcp: number | null;
@@ -44,6 +69,10 @@ export function SGTLeagueMembers() {
   const [searchQuery, setSearchQuery] = useState("");
   const [editingMemberId, setEditingMemberId] = useState<number | null>(null);
   const [editHandicapValue, setEditHandicapValue] = useState<string>("");
+  const [nicknameMember, setNicknameMember] = useState<LeagueMember | null>(null);
+  const [nicknameValue, setNicknameValue] = useState("");
+  const [removeMember, setRemoveMember] = useState<LeagueMember | null>(null);
+
 
   // Global handicap settings
   const { data: settings } = useQuery({
@@ -86,7 +115,7 @@ export function SGTLeagueMembers() {
     queryFn: async () => {
       const { data: tourMembers, error: tmError } = await supabase
         .from("sgt_tour_members")
-        .select("user_id, user_name, hcp_index, custom_hcp, onboarding_hcp");
+        .select("user_id, user_name, nickname, hcp_index, custom_hcp, onboarding_hcp");
 
       if (tmError) throw tmError;
 
@@ -115,6 +144,7 @@ export function SGTLeagueMembers() {
           memberMap.set(tm.user_id, {
             user_id: tm.user_id,
             user_name: tm.user_name,
+            nickname: (tm as { nickname?: string | null }).nickname ?? null,
             email: sgtIdToEmail.get(tm.user_id) || null,
             hcp_index: tm.hcp_index,
             custom_hcp: tm.custom_hcp,
@@ -191,11 +221,73 @@ export function SGTLeagueMembers() {
     setEditHandicapValue("");
   };
 
+  const nicknameMutation = useMutation({
+    mutationFn: async ({ userId, nickname }: { userId: number; nickname: string | null }) => {
+      const { error } = await supabase
+        .from("sgt_tour_members")
+        .update({ nickname, updated_at: new Date().toISOString() } as never)
+        .eq("user_id", userId);
+      if (error) throw error;
+      return nickname;
+    },
+    onSuccess: (nickname) => {
+      queryClient.invalidateQueries({ queryKey: ["sgt-league-members"] });
+      queryClient.invalidateQueries({ queryKey: ["sgt-nicknames"] });
+      setNicknameMember(null);
+      setNicknameValue("");
+      toast({
+        title: nickname ? "Nickname saved" : "Nickname cleared",
+        description: nickname
+          ? `Birdies leaderboards will now show "${nickname}".`
+          : "This player will show their SGT username again.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Failed to save nickname",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const removeMemberMutation = useMutation({
+    mutationFn: async (userId: number) => {
+      const { data, error } = await supabase.functions.invoke("sgt-member-management", {
+        body: { action: "delete-member", userId },
+      });
+      if (error) throw error;
+      if ((data as { error?: string })?.error) throw new Error((data as { error: string }).error);
+
+      // Drop them from our local tour roster too so the list reflects reality.
+      await supabase.from("sgt_tour_members").delete().eq("user_id", userId);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sgt-league-members"] });
+      queryClient.invalidateQueries({ queryKey: ["sgt-members"] });
+      setRemoveMember(null);
+      toast({
+        title: "Removed from club",
+        description: "Player has been removed from the SGT club.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Failed to remove member",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    },
+  });
+
   const filteredMembers = members?.filter(m => {
     const query = searchQuery.toLowerCase();
     return m.user_name?.toLowerCase().includes(query) ||
+      m.nickname?.toLowerCase().includes(query) ||
       m.email?.toLowerCase().includes(query);
   });
+
 
   const formatHcp = (value: number | null) => {
     if (value === null) return ",";
@@ -294,7 +386,7 @@ export function SGTLeagueMembers() {
                     <TableHead className="text-center">Combo HCP</TableHead>
                     <TableHead className="text-center">Custom HCP</TableHead>
                     <TableHead className="text-center">Rounds</TableHead>
-                    <TableHead className="text-center w-24">Edit</TableHead>
+                    <TableHead className="text-center w-24">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -307,7 +399,14 @@ export function SGTLeagueMembers() {
                       <TableRow key={member.user_id}>
                         <TableCell>
                           <div>
-                            <p className="font-medium">{member.user_name || "Unknown"}</p>
+                            <p className="font-medium">
+                              {member.nickname || member.user_name || "Unknown"}
+                            </p>
+                            {member.nickname && (
+                              <p className="text-xs text-muted-foreground">
+                                SGT: {member.user_name || "Unknown"}
+                              </p>
+                            )}
                             {member.email && (
                               <p className="text-xs text-muted-foreground">{member.email}</p>
                             )}
@@ -394,13 +493,35 @@ export function SGTLeagueMembers() {
                               </Button>
                             </div>
                           ) : (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => startEditing(member)}
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button size="sm" variant="ghost" aria-label="Member actions">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-48 bg-popover z-50">
+                                <DropdownMenuItem onClick={() => startEditing(member)}>
+                                  <Pencil className="h-4 w-4 mr-2" />
+                                  Edit Handicap
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    setNicknameMember(member);
+                                    setNicknameValue(member.nickname ?? "");
+                                  }}
+                                >
+                                  <Tag className="h-4 w-4 mr-2" />
+                                  Nickname
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  className="text-destructive focus:text-destructive"
+                                  onClick={() => setRemoveMember(member)}
+                                >
+                                  <UserMinus className="h-4 w-4 mr-2" />
+                                  Remove from Club
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           )}
                         </TableCell>
                       </TableRow>
@@ -417,6 +538,91 @@ export function SGTLeagueMembers() {
           )}
         </CardContent>
       </Card>
+
+      {/* Nickname dialog */}
+      <Dialog
+        open={nicknameMember !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setNicknameMember(null);
+            setNicknameValue("");
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Birdies Nickname</DialogTitle>
+            <DialogDescription>
+              Shown on Birdies leaderboards, TV screens and highlights. Their SGT username
+              ({nicknameMember?.user_name || "Unknown"}) stays exactly the same so GSPro scoring keeps working.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="nickname-input">Nickname</Label>
+            <Input
+              id="nickname-input"
+              value={nicknameValue}
+              onChange={(e) => setNicknameValue(e.target.value)}
+              placeholder={nicknameMember?.user_name || "Display name"}
+              maxLength={40}
+              autoFocus
+            />
+            <p className="text-xs text-muted-foreground">Leave blank to go back to the SGT username.</p>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setNicknameMember(null);
+                setNicknameValue("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() =>
+                nicknameMember &&
+                nicknameMutation.mutate({
+                  userId: nicknameMember.user_id,
+                  nickname: nicknameValue.trim() === "" ? null : nicknameValue.trim(),
+                })
+              }
+              disabled={nicknameMutation.isPending}
+            >
+              {nicknameMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Remove from club confirmation */}
+      <AlertDialog open={removeMember !== null} onOpenChange={(open) => !open && setRemoveMember(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove from SGT club?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {removeMember?.nickname || removeMember?.user_name} will be removed from the club on SGT and
+              from the league members list. Their profile link is kept, so they can be re-added automatically
+              if their membership becomes active again.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={removeMemberMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={(e) => {
+                e.preventDefault();
+                if (removeMember) removeMemberMutation.mutate(removeMember.user_id);
+              }}
+              disabled={removeMemberMutation.isPending}
+            >
+              {removeMemberMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
