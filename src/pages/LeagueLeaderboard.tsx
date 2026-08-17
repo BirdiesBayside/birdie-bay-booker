@@ -55,7 +55,7 @@ interface MonthlyStanding {
 }
 
 export default function LeagueLeaderboard() {
-  const { displayName } = useSgtNicknames();
+  const { displayName: nickFor } = useSgtNicknames();
   const { user, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [displayName, setDisplayName] = useState<string>("");
@@ -289,14 +289,14 @@ export default function LeagueLeaderboard() {
                             ? "bg-secondary text-secondary-foreground"
                             : "bg-primary text-primary-foreground"
                         )}>
-                          {displayName(standing.player_name, standing.player_id).charAt(0).toUpperCase()}
+                          {nickFor(standing.player_name, standing.player_id).charAt(0).toUpperCase()}
                         </div>
                         <div>
                           <p className={cn(
                             "font-inter font-semibold",
                             isCurrentPlayer ? "text-secondary" : "text-foreground"
                           )}>
-                            {displayName(standing.player_name, standing.player_id)}
+                            {nickFor(standing.player_name, standing.player_id)}
                             {isCurrentPlayer && <span className="text-xs ml-2">(You)</span>}
                           </p>
                         </div>
