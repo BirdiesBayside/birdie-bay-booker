@@ -144,6 +144,7 @@ export function SGTLeagueMembers() {
           memberMap.set(tm.user_id, {
             user_id: tm.user_id,
             user_name: tm.user_name,
+            nickname: (tm as { nickname?: string | null }).nickname ?? null,
             email: sgtIdToEmail.get(tm.user_id) || null,
             hcp_index: tm.hcp_index,
             custom_hcp: tm.custom_hcp,
