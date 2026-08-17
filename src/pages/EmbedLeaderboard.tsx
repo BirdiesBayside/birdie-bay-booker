@@ -14,6 +14,7 @@ import { useActiveTourData } from "@/hooks/useActiveTourData";
 import { supabase } from "@/integrations/supabase/client";
 import birdiesB from "@/assets/birdies-b-icon.png";
 import { useIframeAutoResize } from "@/hooks/useIframeAutoResize";
+import { useSgtNicknames } from "@/hooks/useSgtNicknames";
 
 interface MonthlyStanding {
   id: string;
@@ -32,6 +33,7 @@ interface MonthlyStanding {
 }
 
 export default function EmbedLeaderboard() {
+  const { displayName } = useSgtNicknames();
   useIframeAutoResize();
   const { activeTour, currentTournament, tournaments, isLoading: dataLoading } = useActiveTourData();
   

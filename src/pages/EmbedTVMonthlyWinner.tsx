@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import birdiesLogo from "@/assets/birdies-b-orange.png";
 import { getCurrentBlockLabel } from "@/lib/league-block";
+import { useSgtNicknames } from "@/hooks/useSgtNicknames";
 
 interface MonthlyStanding {
   player_id: number;
@@ -18,6 +19,7 @@ interface MonthlyStanding {
 }
 
 export default function EmbedTVStandings() {
+  const { displayName } = useSgtNicknames();
   const [standings, setStandings] = useState<MonthlyStanding[]>([]);
   const [currentMonth, setCurrentMonth] = useState<string>("");
   const [tourName, setTourName] = useState<string>("Birdies Tour");

@@ -19,6 +19,7 @@ import { getCurrentBlockLabel } from "@/lib/league-block";
 import { TournamentStatsView } from "@/components/sgt/TournamentStatsView";
 import { useExemptPlayers, TRUE_HCP_ROUNDS } from "@/hooks/useExemptPlayers";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useSgtNicknames } from "@/hooks/useSgtNicknames";
 
 function ExemptBadge() {
   return (
@@ -54,6 +55,7 @@ interface MonthlyStanding {
 }
 
 export default function LeagueLeaderboard() {
+  const { displayName } = useSgtNicknames();
   const { user, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [displayName, setDisplayName] = useState<string>("");

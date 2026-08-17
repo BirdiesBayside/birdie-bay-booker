@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+import { useSgtNicknames } from "@/hooks/useSgtNicknames";
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
@@ -161,6 +162,7 @@ const DEFAULT_MONTHLY_EMAIL_TEMPLATE = `<!doctype html>
 </html>`;
 
 export function SGTWinners() {
+  const { displayName } = useSgtNicknames();
   const queryClient = useQueryClient();
   
   // Weekly prize approval state
