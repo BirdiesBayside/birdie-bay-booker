@@ -298,11 +298,14 @@ export function SGTPendingOnboarding() {
         <AlertCircle className="h-4 w-4" />
         <AlertTitle>How Onboarding Works</AlertTitle>
         <AlertDescription>
-          New league members appear here until you set their initial handicap. Once set,
-          they're automatically added to all active tours and registered for open tournaments.
-          Their onboarding handicap is locked for the first 6 rounds (~3 weeks), after which
-          the Birdies Custom HCP auto-recalculates weekly using the best 3 of their last 6 rounds.
+          New league members appear here until you set their initial handicap. Once set, they're
+          automatically added to all active tours and registered for open tournaments. They play
+          off that starting handicap until they've completed 3 rounds, at which point their true
+          Birdies Custom HCP is calculated and recalculates weekly. While provisional they're
+          marked exempt (E) — they can't win weeks 1 and 2 — and they start earning points from
+          their 4th round onwards.
         </AlertDescription>
+
       </Alert>
 
       {/* Pending Members */}
