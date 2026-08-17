@@ -164,7 +164,7 @@ serve(async (req) => {
   supabaseClient = createClient(supabaseUrl, supabaseKey);
 
   try {
-    const { sgt_user_id, force_email, skip_email, skip_recalc } = await req.json();
+    const { sgt_user_id, force_email, skip_email, skip_recalc, force_reregister } = await req.json();
 
     if (!sgt_user_id) {
       return new Response(
@@ -479,7 +479,7 @@ serve(async (req) => {
     }
 
     // Send league welcome email if registration was successful
-    if (totalTournamentRegistrations > 0) {
+    if (totalTournamentRegistrations > 0 && !skip_email) {
       try {
         console.log(`[SGT-AUTO-REG] Sending league welcome email for user ${sgt_user_id}...`);
 
