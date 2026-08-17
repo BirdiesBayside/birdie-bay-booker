@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Users, Search, Pencil, Check, X, Loader2, Info, Lock } from "lucide-react";
+import { Users, Search, Pencil, Check, X, Loader2, Info, Lock, MoreHorizontal, Tag, UserMinus } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -23,10 +23,35 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface LeagueMember {
   user_id: number;
   user_name: string | null;
+  nickname: string | null;
   email: string | null;
   hcp_index: number | null;
   custom_hcp: number | null;
@@ -44,6 +69,10 @@ export function SGTLeagueMembers() {
   const [searchQuery, setSearchQuery] = useState("");
   const [editingMemberId, setEditingMemberId] = useState<number | null>(null);
   const [editHandicapValue, setEditHandicapValue] = useState<string>("");
+  const [nicknameMember, setNicknameMember] = useState<LeagueMember | null>(null);
+  const [nicknameValue, setNicknameValue] = useState("");
+  const [removeMember, setRemoveMember] = useState<LeagueMember | null>(null);
+
 
   // Global handicap settings
   const { data: settings } = useQuery({
