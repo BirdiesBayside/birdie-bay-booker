@@ -370,6 +370,26 @@ serve(async (req) => {
       }
     }
 
+    // Strip the [COMP] tag if the new slot falls outside comp hours
+    // (comp = Wednesday, starting between 4pm and 8pm Brisbane time)
+    const newDow = new Date(`${new_date}T12:00:00+10:00`).getUTCDay();
+    const newStartMin =
+      parseInt(new_start_time.split(":")[0], 10) * 60 +
+      parseInt(new_start_time.split(":")[1] || "0", 10);
+    const isCompSlot =
+      newDow === 3 && newStartMin >= 16 * 60 && newStartMin < 20 * 60;
+
+    const notesUpdate: Record<string, string | null> = {};
+    const currentNotes: string = booking.notes ?? "";
+    if (!isCompSlot && currentNotes.includes("[COMP]")) {
+      const stripped = currentNotes
+        .replace(/\[COMP\][^\n]*/g, "")
+        .replace(/\n{2,}/g, "\n")
+        .trim();
+      notesUpdate.notes = stripped || null;
+      console.log("[RESCHEDULE] Stripped [COMP] tag (moved outside comp hours)");
+    }
+
     // Update the booking atomically
     const { data: updatedBooking, error: updateError } = await supabaseAdmin
       .from("bookings")
@@ -380,6 +400,7 @@ serve(async (req) => {
         bay_id: new_bay_id,
         hourly_rate: newHourlyRate,
         total_price: newTotalPrice,
+        ...notesUpdate,
         updated_at: new Date().toISOString(),
       })
       .eq("id", booking_id)
