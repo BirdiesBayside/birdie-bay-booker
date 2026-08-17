@@ -6,7 +6,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { UserPlus, Check, Loader2, AlertCircle } from "lucide-react";
+import { UserPlus, Check, Loader2, AlertCircle, X } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Table,
   TableBody,
@@ -42,6 +52,7 @@ export function SGTPendingOnboarding() {
   const queryClient = useQueryClient();
   const [onboardingMemberId, setOnboardingMemberId] = useState<number | null>(null);
   const [handicapValue, setHandicapValue] = useState<string>("");
+  const [dismissMember, setDismissMember] = useState<PendingMember | null>(null);
 
   // Fetch pending members (have sgt_user_id but NOT in any sgt_tour_members)
   const { data: pendingMembers, isLoading } = useQuery({
@@ -52,6 +63,7 @@ export function SGTPendingOnboarding() {
         .from("profiles")
         .select("user_id, sgt_user_id, first_name, last_name, email, display_name, created_at")
         .not("sgt_user_id", "is", null)
+        .is("sgt_onboarding_dismissed_at", null)
         .order("created_at", { ascending: false });
 
       if (profilesError) throw profilesError;
@@ -93,6 +105,36 @@ export function SGTPendingOnboarding() {
 
 
       return pending as PendingMember[];
+    },
+  });
+
+  // Dismiss someone from the pending list without touching their SGT account.
+  const dismissMutation = useMutation({
+    mutationFn: async (member: PendingMember) => {
+      const { data: auth } = await supabase.auth.getUser();
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          sgt_onboarding_dismissed_at: new Date().toISOString(),
+          sgt_onboarding_dismissed_by: auth?.user?.id ?? null,
+        } as never)
+        .eq("user_id", member.user_id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sgt-pending-members"] });
+      setDismissMember(null);
+      toast({
+        title: "Removed from pending",
+        description: "They'll reappear here only if you clear the dismissal.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Failed to remove from pending",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
     },
   });
 
@@ -297,16 +339,33 @@ export function SGTPendingOnboarding() {
                             </Tooltip>
                           </TooltipProvider>
                         ) : (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              setOnboardingMemberId(member.sgt_user_id);
-                              setHandicapValue("");
-                            }}
-                          >
-                            Set HCP
-                          </Button>
+                          <div className="flex items-center justify-center gap-1">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setOnboardingMemberId(member.sgt_user_id);
+                                setHandicapValue("");
+                              }}
+                            >
+                              Set HCP
+                            </Button>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    aria-label="Remove from pending"
+                                    onClick={() => setDismissMember(member)}
+                                  >
+                                    <X className="h-4 w-4 text-muted-foreground" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Remove from pending</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </div>
                         )}
                       </TableCell>
                     </TableRow>
@@ -323,6 +382,34 @@ export function SGTPendingOnboarding() {
           )}
         </CardContent>
       </Card>
+
+      <AlertDialog open={dismissMember !== null} onOpenChange={(open) => !open && setDismissMember(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove from pending?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {dismissMember?.display_name ||
+                `${dismissMember?.first_name ?? ""} ${dismissMember?.last_name ?? ""}`.trim()}{" "}
+              will be taken off the onboarding list. Nothing changes on SGT and their account is
+              untouched — if they later become a member again the sync will reinstate them to the
+              club with their previous handicap.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={dismissMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                if (dismissMember) dismissMutation.mutate(dismissMember);
+              }}
+              disabled={dismissMutation.isPending}
+            >
+              {dismissMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
