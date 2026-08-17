@@ -882,19 +882,35 @@ export default function AdminMarketing() {
                   </div>
 
                   <div className="space-y-1">
-                    <Label className="text-xs">Membership Tier</Label>
-                    <Select value={membershipFilter} onValueChange={setMembershipFilter}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {MEMBERSHIP_OPTIONS.map((opt) => (
-                          <SelectItem key={opt.value} value={opt.value}>
+                    <Label className="text-xs">Membership Tiers</Label>
+                    <div className="rounded-md border border-border bg-background p-2 space-y-1.5">
+                      {MEMBERSHIP_OPTIONS.filter((o) => o.value !== "all").map((opt) => {
+                        const checked = membershipTiers.includes(opt.value);
+                        return (
+                          <label
+                            key={opt.value}
+                            className="flex items-center gap-2 text-sm cursor-pointer"
+                          >
+                            <Checkbox
+                              checked={checked}
+                              onCheckedChange={(v) =>
+                                setMembershipTiers((prev) =>
+                                  v === true
+                                    ? [...prev, opt.value]
+                                    : prev.filter((t) => t !== opt.value)
+                                )
+                              }
+                            />
                             {opt.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                          </label>
+                        );
+                      })}
+                      <p className="text-xs text-muted-foreground pt-1">
+                        {membershipTiers.length === 0
+                          ? "All customers"
+                          : `${membershipTiers.length} tier${membershipTiers.length > 1 ? "s" : ""} selected`}
+                      </p>
+                    </div>
                   </div>
                   
                   <div className="space-y-1">
