@@ -849,7 +849,7 @@ export function SGTWinners() {
                       <Award className="h-5 w-5 text-purple-600" />
                     </div>
                     <div className="min-w-0">
-                      <p className="font-medium truncate">{award.winner_player_name}</p>
+                      <p className="font-medium truncate">{displayName(award.winner_player_name, award.winner_player_id)}</p>
                       <div className="flex items-center flex-wrap gap-2 text-sm text-muted-foreground">
                         <Calendar className="h-3 w-3 shrink-0" />
                         {award.month}
