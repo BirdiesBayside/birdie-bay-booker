@@ -169,7 +169,7 @@ export default function EmbedTVStandings() {
 
                   <div className="col-span-5">
                     <p className="font-bold text-2xl text-[hsl(128,42%,21%)]">
-                      {standing.player_name}
+                      {displayName(standing.player_name, standing.player_id)}
                     </p>
                   </div>
 

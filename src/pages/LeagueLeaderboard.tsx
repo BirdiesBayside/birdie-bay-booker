@@ -287,14 +287,14 @@ export default function LeagueLeaderboard() {
                             ? "bg-secondary text-secondary-foreground"
                             : "bg-primary text-primary-foreground"
                         )}>
-                          {standing.player_name.charAt(0).toUpperCase()}
+                          {displayName(standing.player_name, standing.player_id).charAt(0).toUpperCase()}
                         </div>
                         <div>
                           <p className={cn(
                             "font-inter font-semibold",
                             isCurrentPlayer ? "text-secondary" : "text-foreground"
                           )}>
-                            {standing.player_name}
+                            {displayName(standing.player_name, standing.player_id)}
                             {isCurrentPlayer && <span className="text-xs ml-2">(You)</span>}
                           </p>
                         </div>

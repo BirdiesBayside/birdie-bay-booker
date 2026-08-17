@@ -110,7 +110,7 @@ export default function EmbedTVLastWeek() {
                 </div>
 
                 <div className="col-span-4">
-                  <p className="font-bold text-2xl text-[hsl(128,42%,21%)]">{result.playerName}</p>
+                  <p className="font-bold text-2xl text-[hsl(128,42%,21%)]">{displayName(result.playerName)}</p>
                 </div>
 
                 <div className="col-span-1 text-center text-xl text-[hsl(128,20%,40%)]">

@@ -249,7 +249,7 @@ export default function EmbedLeaderboard() {
 
                       <div className="col-span-4">
                         <p className="font-semibold text-[hsl(128,42%,21%)] truncate">
-                          {standing.player_name}
+                          {displayName(standing.player_name, standing.player_id)}
                         </p>
                       </div>
 
