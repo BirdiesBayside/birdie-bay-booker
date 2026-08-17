@@ -164,7 +164,7 @@ serve(async (req) => {
   supabaseClient = createClient(supabaseUrl, supabaseKey);
 
   try {
-    const { sgt_user_id, force_email } = await req.json();
+    const { sgt_user_id, force_email, skip_email, skip_recalc } = await req.json();
 
     if (!sgt_user_id) {
       return new Response(
