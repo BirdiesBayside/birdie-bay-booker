@@ -221,11 +221,73 @@ export function SGTLeagueMembers() {
     setEditHandicapValue("");
   };
 
+  const nicknameMutation = useMutation({
+    mutationFn: async ({ userId, nickname }: { userId: number; nickname: string | null }) => {
+      const { error } = await supabase
+        .from("sgt_tour_members")
+        .update({ nickname, updated_at: new Date().toISOString() } as never)
+        .eq("user_id", userId);
+      if (error) throw error;
+      return nickname;
+    },
+    onSuccess: (nickname) => {
+      queryClient.invalidateQueries({ queryKey: ["sgt-league-members"] });
+      queryClient.invalidateQueries({ queryKey: ["sgt-nicknames"] });
+      setNicknameMember(null);
+      setNicknameValue("");
+      toast({
+        title: nickname ? "Nickname saved" : "Nickname cleared",
+        description: nickname
+          ? `Birdies leaderboards will now show "${nickname}".`
+          : "This player will show their SGT username again.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Failed to save nickname",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const removeMemberMutation = useMutation({
+    mutationFn: async (userId: number) => {
+      const { data, error } = await supabase.functions.invoke("sgt-member-management", {
+        body: { action: "delete-member", userId },
+      });
+      if (error) throw error;
+      if ((data as { error?: string })?.error) throw new Error((data as { error: string }).error);
+
+      // Drop them from our local tour roster too so the list reflects reality.
+      await supabase.from("sgt_tour_members").delete().eq("user_id", userId);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sgt-league-members"] });
+      queryClient.invalidateQueries({ queryKey: ["sgt-members"] });
+      setRemoveMember(null);
+      toast({
+        title: "Removed from club",
+        description: "Player has been removed from the SGT club.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Failed to remove member",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    },
+  });
+
   const filteredMembers = members?.filter(m => {
     const query = searchQuery.toLowerCase();
     return m.user_name?.toLowerCase().includes(query) ||
+      m.nickname?.toLowerCase().includes(query) ||
       m.email?.toLowerCase().includes(query);
   });
+
 
   const formatHcp = (value: number | null) => {
     if (value === null) return ",";
