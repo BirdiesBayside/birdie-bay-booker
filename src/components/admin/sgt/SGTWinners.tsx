@@ -20,11 +20,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-import { useSgtNicknames } from "@/hooks/useSgtNicknames";
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { useSgtNicknames } from "@/hooks/useSgtNicknames";
 
 interface WeeklyPrize {
   id: string;
