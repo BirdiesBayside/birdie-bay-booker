@@ -16,6 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Trophy, Target, Flag, Crosshair, TrendingUp } from "lucide-react";
+import { useSgtNicknames } from "@/hooks/useSgtNicknames";
 
 type PlayerRow = Record<string, unknown> & { user_name?: string; numrounds?: number };
 
@@ -86,7 +87,7 @@ function AwardCard({
           {label}
         </div>
         <p className="text-base font-bold truncate">
-          {winner ? String(winner) : "—"}
+          {winner ? displayName(String(winner)) : "—"}
         </p>
         <p className="text-sm text-muted-foreground">
           {value || (subtitle ?? "—")}
@@ -128,7 +129,7 @@ function StatTable({
         {rows.slice(0, limit).map((r, i) => (
           <TableRow key={`${r.user_name}-${i}`}>
             <TableCell className="text-muted-foreground">{i + 1}</TableCell>
-            <TableCell className="font-medium">{r.user_name}</TableCell>
+            <TableCell className="font-medium">{displayName(r.user_name ?? "")}</TableCell>
             <TableCell className="text-right text-muted-foreground">
               {r.numrounds ?? "-"}
             </TableCell>
@@ -251,7 +252,7 @@ export function TournamentStatsView({ tournamentId, isCompleted, enabled = true 
           <Card className="mb-3 border-primary/40">
             <CardContent className="pt-4">
               <p className="text-xs uppercase text-muted-foreground">Tournament NTP Winner</p>
-              <p className="text-lg font-bold">{overallCtp.user_name}</p>
+              <p className="text-lg font-bold">{displayName(overallCtp.user_name)}</p>
               <p className="text-sm text-muted-foreground">
                 {overallCtp.distance.toFixed(2)} ft · Round {overallCtp.round}, Hole {overallCtp.hole}
               </p>
@@ -277,7 +278,7 @@ export function TournamentStatsView({ tournamentId, isCompleted, enabled = true 
                           </div>
                           {winner && (
                             <p className="text-sm mb-2">
-                              🏆 <span className="font-medium">{winner.user_name}</span> ·{" "}
+                              🏆 <span className="font-medium">{displayName(winner.user_name)}</span> ·{" "}
                               {winner.distanceToPin.toFixed(2)} ft
                             </p>
                           )}
@@ -285,7 +286,7 @@ export function TournamentStatsView({ tournamentId, isCompleted, enabled = true 
                             {(info.ctps || []).slice(1, 5).map((c, i) => (
                               <div key={i} className="flex justify-between text-xs text-muted-foreground">
                                 <span>
-                                  {i + 2}. {c.user_name}
+                                  {i + 2}. {displayName(c.user_name)}
                                 </span>
                                 <span className="font-mono">{c.distanceToPin.toFixed(2)} ft</span>
                               </div>
