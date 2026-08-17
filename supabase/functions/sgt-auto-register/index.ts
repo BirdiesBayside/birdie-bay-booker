@@ -399,10 +399,11 @@ serve(async (req) => {
           
           const existingReg = registrations.find(r => r.user_id === sgt_user_id);
           
-          // If already registered AND we have a custom HCP to set, delete the old registration first
-          if (existingReg && useCustomCap && customHcp !== null) {
-            console.log(`[SGT-AUTO-REG] User already registered for ${tournament.name} - deleting to re-register with custom HCP ${customHcp}`);
-            
+          // If already registered AND we have a custom HCP to set (or an admin forced a
+          // re-registration after editing the handicap), delete the old registration first.
+          if (existingReg && ((useCustomCap && customHcp !== null) || force_reregister)) {
+            console.log(`[SGT-AUTO-REG] User already registered for ${tournament.name} - deleting to re-register${useCustomCap ? ` with custom HCP ${customHcp}` : " with Combo HCP"}`);
+
             // Delete the existing registration
             try {
               const deleteResult = await sgtPostRequest("/registrations/delete", {
@@ -420,6 +421,7 @@ serve(async (req) => {
             console.log(`[SGT-AUTO-REG] User already registered for tournament ${tournament.name} with combo HCP`);
             continue;
           }
+
 
           // Build registration - omit teeType so API uses tournament default tees
           const registrationItem: RegistrationItem = {
