@@ -828,6 +828,17 @@ export default function AdminMarketing() {
                 />
               </div>
 
+              {/* Body-only tip */}
+              <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-xs text-muted-foreground space-y-1">
+                <p className="font-medium text-foreground">Body content only</p>
+                <p>
+                  Just like email notifications, only the <strong>body</strong> of the email is required here.
+                  The branded header (logo) and footer (contact details, socials, unsubscribe) are added
+                  automatically when the email is sent.
+                </p>
+                <p>Edit the header &amp; footer in Settings → Notifications → Email Layout.</p>
+              </div>
+
               {/* HTML Content */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
@@ -988,6 +999,17 @@ export default function AdminMarketing() {
                 <p className="text-xs text-muted-foreground">
                   Available tags: {"{first_name}"}, {"{last_name}"}, {"{email}"}
                 </p>
+              </div>
+
+              {/* Body-only tip */}
+              <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-xs text-muted-foreground space-y-1">
+                <p className="font-medium text-foreground">Body content only</p>
+                <p>
+                  Just like email notifications, only the <strong>body</strong> of the email is required here.
+                  The branded header (logo) and footer (contact details, socials, unsubscribe) are added
+                  automatically when the email is sent.
+                </p>
+                <p>Edit the header &amp; footer in Settings → Notifications → Email Layout.</p>
               </div>
 
               {/* HTML Content */}
