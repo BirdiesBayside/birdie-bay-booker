@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import {
   Dialog,
@@ -113,7 +114,7 @@ export default function AdminMarketing() {
   const [campaignSubject, setCampaignSubject] = useState("");
   const [campaignHtml, setCampaignHtml] = useState("");
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
-  const [membershipFilter, setMembershipFilter] = useState("all");
+  const [membershipTiers, setMembershipTiers] = useState<string[]>([]);
   const [bookingFilter, setBookingFilter] = useState("all");
   const [segmentFilter, setSegmentFilter] = useState("all");
   const [recipientCount, setRecipientCount] = useState(0);
@@ -250,7 +251,7 @@ export default function AdminMarketing() {
     if (composerOpen) {
       countRecipients();
     }
-  }, [membershipFilter, bookingFilter, segmentFilter, composerOpen]);
+  }, [membershipTiers, bookingFilter, segmentFilter, composerOpen]);
 
   const fetchCampaigns = async () => {
     setIsLoading(true);
@@ -285,8 +286,8 @@ export default function AdminMarketing() {
       .select("id", { count: "exact", head: true })
       .eq("marketing_opt_out", false);
     
-    if (membershipFilter !== "all") {
-      query = query.eq("membership_tier", membershipFilter as "visitor" | "weekday" | "birdie" | "eagle");
+    if (membershipTiers.length > 0) {
+      query = query.in("membership_tier", membershipTiers as ("visitor" | "weekday" | "birdie" | "eagle")[]);
     }
 
     // Apply segment filter
@@ -330,7 +331,7 @@ export default function AdminMarketing() {
     setCampaignSubject(template?.subject || "");
     setCampaignHtml(template?.html_content || "");
     setSelectedTemplateId(template?.id || "");
-    setMembershipFilter("all");
+    setMembershipTiers([]);
     setBookingFilter("all");
     setSegmentFilter("all");
     setComposerOpen(true);
@@ -365,8 +366,8 @@ export default function AdminMarketing() {
     try {
       // Build filter for storing
       const recipientFilter: Record<string, string> = {};
-      if (membershipFilter !== "all") {
-        recipientFilter.membership_tier = membershipFilter;
+      if (membershipTiers.length > 0) {
+        recipientFilter.membership_tier = membershipTiers.join(",");
       }
       if (bookingFilter !== "all") {
         recipientFilter.booking_count = bookingFilter;
@@ -394,8 +395,8 @@ export default function AdminMarketing() {
         .select("email, first_name, last_name")
         .eq("marketing_opt_out", false);
       
-      if (membershipFilter !== "all") {
-        recipientQuery = recipientQuery.eq("membership_tier", membershipFilter as "visitor" | "weekday" | "birdie" | "eagle");
+      if (membershipTiers.length > 0) {
+        recipientQuery = recipientQuery.in("membership_tier", membershipTiers as ("visitor" | "weekday" | "birdie" | "eagle")[]);
       }
 
       // Apply segment filter
@@ -882,19 +883,35 @@ export default function AdminMarketing() {
                   </div>
 
                   <div className="space-y-1">
-                    <Label className="text-xs">Membership Tier</Label>
-                    <Select value={membershipFilter} onValueChange={setMembershipFilter}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {MEMBERSHIP_OPTIONS.map((opt) => (
-                          <SelectItem key={opt.value} value={opt.value}>
+                    <Label className="text-xs">Membership Tiers</Label>
+                    <div className="rounded-md border border-border bg-background p-2 space-y-1.5">
+                      {MEMBERSHIP_OPTIONS.filter((o) => o.value !== "all").map((opt) => {
+                        const checked = membershipTiers.includes(opt.value);
+                        return (
+                          <label
+                            key={opt.value}
+                            className="flex items-center gap-2 text-sm cursor-pointer"
+                          >
+                            <Checkbox
+                              checked={checked}
+                              onCheckedChange={(v) =>
+                                setMembershipTiers((prev) =>
+                                  v === true
+                                    ? [...prev, opt.value]
+                                    : prev.filter((t) => t !== opt.value)
+                                )
+                              }
+                            />
                             {opt.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                          </label>
+                        );
+                      })}
+                      <p className="text-xs text-muted-foreground pt-1">
+                        {membershipTiers.length === 0
+                          ? "All customers"
+                          : `${membershipTiers.length} tier${membershipTiers.length > 1 ? "s" : ""} selected`}
+                      </p>
+                    </div>
                   </div>
                   
                   <div className="space-y-1">
