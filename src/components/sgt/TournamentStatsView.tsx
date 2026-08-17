@@ -79,6 +79,7 @@ function AwardCard({
   value?: string;
   subtitle?: string;
 }) {
+  const { displayName } = useSgtNicknames();
   return (
     <Card>
       <CardContent className="pt-4">
@@ -112,6 +113,7 @@ function StatTable({
   suffix?: string;
   limit?: number;
 }) {
+  const { displayName } = useSgtNicknames();
   if (!rows || rows.length === 0) {
     return <p className="text-xs text-muted-foreground">No data yet.</p>;
   }
@@ -151,6 +153,7 @@ interface Props {
 }
 
 export function TournamentStatsView({ tournamentId, isCompleted, enabled = true }: Props) {
+  const { displayName } = useSgtNicknames();
   const { data, isLoading, error } = useQuery({
     queryKey: ["sgt-tournament-stats", tournamentId],
     queryFn: async () => {
