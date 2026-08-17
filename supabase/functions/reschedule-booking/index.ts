@@ -372,7 +372,7 @@ serve(async (req) => {
 
     // Strip the [COMP] tag if the new slot falls outside comp hours
     // (comp = Wednesday, starting between 4pm and 8pm Brisbane time)
-    const newDow = new Date(`${new_date}T00:00:00+10:00`).getUTCDay();
+    const newDow = new Date(`${new_date}T12:00:00+10:00`).getUTCDay();
     const newStartMin =
       parseInt(new_start_time.split(":")[0], 10) * 60 +
       parseInt(new_start_time.split(":")[1] || "0", 10);
