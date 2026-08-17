@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useActiveTourData } from "@/hooks/useActiveTourData";
 import type { StatsResponse } from "@/components/sgt/TournamentStatsView";
 import birdiesLogo from "@/assets/birdies-b-orange.png";
+import { useSgtNicknames } from "@/hooks/useSgtNicknames";
 
 type PlayerRow = Record<string, unknown> & { user_name?: string; numrounds?: number };
 
@@ -24,6 +25,7 @@ interface AwardProps {
 }
 
 function AwardBig({ icon: Icon, label, rows, valueKey, digits = 2, suffix = "", transform }: AwardProps) {
+  const { displayName } = useSgtNicknames();
   const winner = rows?.[0];
   const rawUnknown = winner?.[valueKey];
   const rawNum =
@@ -41,7 +43,7 @@ function AwardBig({ icon: Icon, label, rows, valueKey, digits = 2, suffix = "", 
         {label}
       </div>
       <p className="text-2xl font-bold text-[hsl(128,42%,21%)] truncate">
-        {winner?.user_name ? String(winner.user_name) : "—"}
+        {winner?.user_name ? displayName(String(winner.user_name)) : "—"}
       </p>
       <p className="text-3xl font-black text-[hsl(18,84%,55%)] mt-1 font-mono">
         {winner ? `${displayValue}${suffix}` : "—"}
@@ -65,6 +67,7 @@ function MiniTable({
   suffix?: string;
   transform?: (n: number) => number;
 }) {
+  const { displayName } = useSgtNicknames();
   const top = (rows ?? []).slice(0, 3);
   return (
     <div className="bg-white rounded-2xl border-2 border-[hsl(128,20%,85%)] shadow-sm overflow-hidden flex flex-col">
@@ -91,7 +94,7 @@ function MiniTable({
             >
               <div className="col-span-1 text-center font-bold text-[hsl(128,20%,40%)]">{i + 1}</div>
               <div className="col-span-7 font-semibold text-[hsl(128,42%,21%)] truncate">
-                {r.user_name}
+                {displayName(r.user_name)}
               </div>
               <div className="col-span-4 text-right font-mono font-bold text-[hsl(128,42%,21%)]">
                 {val}
@@ -108,6 +111,7 @@ function MiniTable({
 
 
 export default function EmbedTVStats({ variant }: { variant: "current" | "previous" }) {
+  const { displayName } = useSgtNicknames();
   const { currentTournament, previousTournament, isLoading: tourLoading } = useActiveTourData();
   const tournament = variant === "current" ? currentTournament : previousTournament;
   const tournamentId = tournament?.tournament_id ?? null;
@@ -230,7 +234,7 @@ export default function EmbedTVStats({ variant }: { variant: "current" | "previo
             Nearest to Pin
           </div>
           <p className="text-2xl font-bold text-[hsl(128,42%,21%)] truncate">
-            {overallCtp?.user_name || "—"}
+            {overallCtp?.user_name ? displayName(overallCtp.user_name) : "—"}
           </p>
           <p className="text-3xl font-black text-[hsl(18,84%,55%)] mt-1 font-mono">
             {overallCtp ? `${(overallCtp.distance * FEET_TO_M).toFixed(2)} m` : "—"}
