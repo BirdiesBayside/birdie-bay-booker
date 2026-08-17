@@ -442,6 +442,78 @@ export function SGTPendingOnboarding() {
         </CardContent>
       </Card>
 
+      {/* Removed from onboarding */}
+      {dismissedMembers && dismissedMembers.length > 0 && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <UserMinus className="h-5 w-5 text-muted-foreground" />
+                <CardTitle>Removed from Onboarding</CardTitle>
+              </div>
+              <Badge variant="secondary">{dismissedMembers.length}</Badge>
+            </div>
+            <CardDescription>
+              These players stay out of the SGT club (club seats are billed per player) until you
+              press Rejoin — even if their membership becomes active again.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Member</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead className="text-center">Membership</TableHead>
+                    <TableHead className="text-center">SGT ID</TableHead>
+                    <TableHead className="text-center w-28">Action</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {dismissedMembers.map((member) => {
+                    const isMember =
+                      member.membership_tier === "birdie" || member.membership_tier === "eagle";
+                    return (
+                      <TableRow key={member.user_id}>
+                        <TableCell className="font-medium">
+                          {member.display_name || `${member.first_name} ${member.last_name}`}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">{member.email}</TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant={isMember ? "default" : "outline"} className="capitalize">
+                            {member.membership_tier || "visitor"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant="outline">{member.sgt_user_id ?? "—"}</Badge>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Button
+                            size="sm"
+                            variant={isMember ? "default" : "outline"}
+                            onClick={() => rejoinMutation.mutate(member.user_id)}
+                            disabled={rejoinMutation.isPending}
+                          >
+                            {rejoinMutation.isPending ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              "Rejoin"
+                            )}
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+
+
       <AlertDialog open={dismissMember !== null} onOpenChange={(open) => !open && setDismissMember(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
