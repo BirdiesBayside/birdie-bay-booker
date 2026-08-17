@@ -185,6 +185,14 @@ serve(async (req) => {
     
     // We can't get user_id from standings, but we can use it to match names
 
+    // Admin-dismissed players stay out of the league (club seats cost money)
+    // until an admin explicitly presses "Rejoin" in the SGT Manager.
+    const { data: dismissedRows } = await supabase
+      .from("profiles")
+      .select("user_id")
+      .not("sgt_onboarding_dismissed_at", "is", null);
+    const dismissedUserIds = new Set((dismissedRows || []).map((r: { user_id: string }) => r.user_id));
+
     for (const member of payingMembers || []) {
       const email = member.email.toLowerCase();
       const name = `${member.first_name} ${member.last_name}`;
@@ -198,16 +206,14 @@ serve(async (req) => {
         tour_added: false,
       };
 
+      if (dismissedUserIds.has(member.user_id)) {
+        result.action = "dismissed_awaiting_rejoin";
+        results.push(result);
+        continue;
+      }
+
       try {
-        // A paying member is eligible again - clear any "removed from pending"
-        // flag so they can be onboarded if they still have no handicap.
-        if (!dryRun) {
-          await supabase
-            .from("profiles")
-            .update({ sgt_onboarding_dismissed_at: null, sgt_onboarding_dismissed_by: null })
-            .eq("user_id", member.user_id)
-            .not("sgt_onboarding_dismissed_at", "is", null);
-        }
+
 
         // Case 1: Member has sgt_user_id and is in club and tour - all good
         if (member.sgt_user_id && clubMembersByUserId.has(member.sgt_user_id) && tourMemberIds.has(member.sgt_user_id)) {
