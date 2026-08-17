@@ -382,7 +382,7 @@ export default function EmbedLeaderboard() {
 
                     <div className="col-span-3">
                       <p className="font-semibold text-[hsl(128,42%,21%)] text-xs sm:text-base truncate">
-                        {result.playerName}
+                        {displayName(result.playerName)}
                       </p>
                       <p className="hidden sm:block text-xs text-[hsl(128,20%,40%)]">
                         HCP: {result.hcp ?? "-"}

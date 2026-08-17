@@ -523,14 +523,14 @@ export default function LeagueLeaderboard() {
                             ? "bg-secondary text-secondary-foreground"
                             : "bg-primary text-primary-foreground"
                         )}>
-                          {result.playerName.charAt(0).toUpperCase()}
+                          {nickFor(result.playerName).charAt(0).toUpperCase()}
                         </div>
                         <div className="truncate">
                           <p className={cn(
                             "font-inter text-sm font-semibold truncate",
                             isCurrentPlayer ? "text-secondary" : "text-foreground"
                           )}>
-                            {result.playerName}
+                            {nickFor(result.playerName)}
                             {playerExempt && <ExemptBadge />}
                             {isCurrentPlayer && <span className="text-xs ml-1">(You)</span>}
                           </p>
@@ -591,14 +591,14 @@ export default function LeagueLeaderboard() {
                             ? "bg-secondary text-secondary-foreground"
                             : "bg-primary text-primary-foreground"
                         )}>
-                          {result.playerName.charAt(0).toUpperCase()}
+                          {nickFor(result.playerName).charAt(0).toUpperCase()}
                         </div>
                         <div>
                           <p className={cn(
                             "font-inter font-semibold",
                             isCurrentPlayer ? "text-secondary" : "text-foreground"
                           )}>
-                            {result.playerName}
+                            {nickFor(result.playerName)}
                             {playerExempt && <ExemptBadge />}
                             <span className="text-muted-foreground font-normal ml-1">
                               ({result.hcp ?? "-"})
