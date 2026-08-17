@@ -164,7 +164,7 @@ serve(async (req) => {
   supabaseClient = createClient(supabaseUrl, supabaseKey);
 
   try {
-    const { sgt_user_id, force_email } = await req.json();
+    const { sgt_user_id, force_email, skip_email, skip_recalc, force_reregister } = await req.json();
 
     if (!sgt_user_id) {
       return new Response(
@@ -255,17 +255,24 @@ serve(async (req) => {
     // Refresh custom handicaps FIRST so registration uses the latest best-3-of-6 average.
     // Otherwise, if the weekly recalc runs after auto-registration, players get registered
     // against a stale custom_hcp (this is why Jake Davies was off 33 instead of ~21).
-    try {
-      console.log("[SGT-AUTO-REG] Recalculating custom handicaps before registration...");
-      const recalcRes = await fetch(`${supabaseUrl}/functions/v1/sgt-recalc-handicaps`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${supabaseKey}` },
-      });
-      const recalcJson = await recalcRes.json().catch(() => ({}));
-      console.log("[SGT-AUTO-REG] Recalc result:", recalcJson?.success ?? recalcJson);
-    } catch (recalcErr) {
-      console.error("[SGT-AUTO-REG] Recalc failed (continuing with existing custom_hcp):", recalcErr);
+    // skip_recalc is used when an admin has just typed a handicap manually - recalcing
+    // would overwrite their value before we register it.
+    if (skip_recalc) {
+      console.log("[SGT-AUTO-REG] skip_recalc set - using the stored custom_hcp as-is");
+    } else {
+      try {
+        console.log("[SGT-AUTO-REG] Recalculating custom handicaps before registration...");
+        const recalcRes = await fetch(`${supabaseUrl}/functions/v1/sgt-recalc-handicaps`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${supabaseKey}` },
+        });
+        const recalcJson = await recalcRes.json().catch(() => ({}));
+        console.log("[SGT-AUTO-REG] Recalc result:", recalcJson?.success ?? recalcJson);
+      } catch (recalcErr) {
+        console.error("[SGT-AUTO-REG] Recalc failed (continuing with existing custom_hcp):", recalcErr);
+      }
     }
+
 
     // Check if this member has been onboarded (exists in sgt_tour_members)
     const { data: tourMemberRecords, error: tmError } = await supabaseClient
@@ -392,10 +399,11 @@ serve(async (req) => {
           
           const existingReg = registrations.find(r => r.user_id === sgt_user_id);
           
-          // If already registered AND we have a custom HCP to set, delete the old registration first
-          if (existingReg && useCustomCap && customHcp !== null) {
-            console.log(`[SGT-AUTO-REG] User already registered for ${tournament.name} - deleting to re-register with custom HCP ${customHcp}`);
-            
+          // If already registered AND we have a custom HCP to set (or an admin forced a
+          // re-registration after editing the handicap), delete the old registration first.
+          if (existingReg && ((useCustomCap && customHcp !== null) || force_reregister)) {
+            console.log(`[SGT-AUTO-REG] User already registered for ${tournament.name} - deleting to re-register${useCustomCap ? ` with custom HCP ${customHcp}` : " with Combo HCP"}`);
+
             // Delete the existing registration
             try {
               const deleteResult = await sgtPostRequest("/registrations/delete", {
@@ -413,6 +421,7 @@ serve(async (req) => {
             console.log(`[SGT-AUTO-REG] User already registered for tournament ${tournament.name} with combo HCP`);
             continue;
           }
+
 
           // Build registration - omit teeType so API uses tournament default tees
           const registrationItem: RegistrationItem = {
@@ -470,7 +479,7 @@ serve(async (req) => {
     }
 
     // Send league welcome email if registration was successful
-    if (totalTournamentRegistrations > 0) {
+    if (totalTournamentRegistrations > 0 && !skip_email) {
       try {
         console.log(`[SGT-AUTO-REG] Sending league welcome email for user ${sgt_user_id}...`);
 

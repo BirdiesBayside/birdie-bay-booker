@@ -171,17 +171,42 @@ export function SGTLeagueMembers() {
         .eq("user_id", userId);
 
       if (error) throw error;
-      return { userId, customHcp };
+
+      // Push the change through to SGT: deletes the existing registration for the
+      // current tournament and re-registers with the new handicap. skip_recalc keeps
+      // the manually entered value, skip_email avoids re-sending the welcome email.
+      const { data: regData, error: regError } = await supabase.functions.invoke(
+        "sgt-auto-register",
+        {
+          body: {
+            sgt_user_id: userId,
+            skip_recalc: true,
+            skip_email: true,
+            force_reregister: true,
+          },
+        }
+      );
+
+      return {
+        userId,
+        customHcp,
+        reregistered: !regError && (regData as { success?: boolean } | null)?.success !== false,
+        regError: regError?.message ?? null,
+      };
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["sgt-league-members"] });
       setEditingMemberId(null);
       setEditHandicapValue("");
+      const hcpText = data.customHcp !== null
+        ? `Custom handicap set to ${data.customHcp.toFixed(1)}`
+        : "Custom handicap cleared";
       toast({
         title: "Handicap updated",
-        description: data.customHcp !== null
-          ? `Custom handicap set to ${data.customHcp.toFixed(1)}`
-          : "Custom handicap cleared",
+        description: data.reregistered
+          ? `${hcpText} — re-registered for the current tournament.`
+          : `${hcpText}. SGT re-registration didn't complete${data.regError ? `: ${data.regError}` : ""}.`,
+        variant: data.reregistered ? undefined : "destructive",
       });
     },
     onError: (error) => {
@@ -192,6 +217,7 @@ export function SGTLeagueMembers() {
       });
     },
   });
+
 
   const handleSaveHcp = (userId: number) => {
     const value = editHandicapValue.trim();
