@@ -54,6 +54,7 @@ const getScoreTextColor = (s: string) => {
 
 export default function EmbedCompete({ hideHero = false }: { hideHero?: boolean } = {}) {
   useIframeAutoResize();
+  const { displayName } = useSgtNicknames();
   const { activeTour, currentTournament, previousTournament, isLoading: tourLoading } = useActiveTourData();
   const [scoreType, setScoreType] = useState<"gross" | "net">("net");
   const [weeklyOpen, setWeeklyOpen] = useState(false);
