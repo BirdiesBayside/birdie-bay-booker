@@ -115,7 +115,7 @@ export function SGTLeagueMembers() {
     queryFn: async () => {
       const { data: tourMembers, error: tmError } = await supabase
         .from("sgt_tour_members")
-        .select("user_id, user_name, hcp_index, custom_hcp, onboarding_hcp");
+        .select("user_id, user_name, nickname, hcp_index, custom_hcp, onboarding_hcp");
 
       if (tmError) throw tmError;
 
