@@ -145,6 +145,29 @@ serve(async (req) => {
 
     console.log(`[SGT-SYNC-ELIGIBLE] Found ${payingMembers?.length || 0} paying members (birdie/eagle)`);
 
+
+    // Returning players: pull the last handicap we ever held for them so a
+    // reinstated member keeps their Birdies HCP instead of landing back in the
+    // "Pending Onboarding" list with a blank handicap.
+    const priorHcpCache = new Map<number, { custom_hcp: number | null; onboarding_hcp: number | null }>();
+    async function priorHandicap(sgtUserId: number) {
+      if (priorHcpCache.has(sgtUserId)) return priorHcpCache.get(sgtUserId)!;
+      const { data } = await supabase
+        .from("sgt_tour_members")
+        .select("custom_hcp, onboarding_hcp, updated_at")
+        .eq("user_id", sgtUserId)
+        .not("custom_hcp", "is", null)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const prior = {
+        custom_hcp: (data?.custom_hcp as number | null) ?? null,
+        onboarding_hcp: (data?.onboarding_hcp as number | null) ?? null,
+      };
+      priorHcpCache.set(sgtUserId, prior);
+      return prior;
+    }
+
     const results: EligibleMemberResult[] = [];
     let addedToClub = 0;
     let addedToTour = 0;
@@ -176,6 +199,16 @@ serve(async (req) => {
       };
 
       try {
+        // A paying member is eligible again - clear any "removed from pending"
+        // flag so they can be onboarded if they still have no handicap.
+        if (!dryRun) {
+          await supabase
+            .from("profiles")
+            .update({ sgt_onboarding_dismissed_at: null, sgt_onboarding_dismissed_by: null })
+            .eq("user_id", member.user_id)
+            .not("sgt_onboarding_dismissed_at", "is", null);
+        }
+
         // Case 1: Member has sgt_user_id and is in club and tour - all good
         if (member.sgt_user_id && clubMembersByUserId.has(member.sgt_user_id) && tourMemberIds.has(member.sgt_user_id)) {
           result.action = "already_complete";
@@ -239,12 +272,19 @@ serve(async (req) => {
 
             // Also update local sgt_tour_members table
             if (result.tour_added) {
+              const prior = await priorHandicap(member.sgt_user_id);
               await supabase.from("sgt_tour_members").upsert({
                 tour_id: activeTour.tourId,
                 user_id: member.sgt_user_id,
                 user_name: name,
+                custom_hcp: prior.custom_hcp,
+                onboarding_hcp: prior.onboarding_hcp ?? prior.custom_hcp,
                 updated_at: new Date().toISOString(),
               }, { onConflict: 'tour_id,user_id' });
+              if (prior.custom_hcp !== null) {
+                result.action = result.action ? result.action + "_reinstated" : "reinstated_with_prior_hcp";
+                console.log(`[SGT-SYNC-ELIGIBLE] Reinstated ${name} with prior HCP ${prior.custom_hcp}`);
+              }
             }
           } else if (!inTour) {
             result.action = result.action ? result.action + "_and_tour" : "would_add_to_tour";
@@ -266,7 +306,7 @@ serve(async (req) => {
                 user_id: member.sgt_user_id,
                 user_name: name,
                 hcp_index: sgtRow?.hcp_index ?? null,
-                custom_hcp: sgtRow?.custom_hcp ?? null,
+                custom_hcp: sgtRow?.custom_hcp ?? (await priorHandicap(member.sgt_user_id)).custom_hcp,
                 updated_at: new Date().toISOString(),
               }, { onConflict: 'tour_id,user_id' });
               result.action = "restored_local_tour_row";
@@ -329,10 +369,13 @@ serve(async (req) => {
 
               // Update local sgt_tour_members
               if (result.tour_added) {
+                const prior = await priorHandicap(sgtMember.user_id);
                 await supabase.from("sgt_tour_members").upsert({
                   tour_id: activeTour.tourId,
                   user_id: sgtMember.user_id,
                   user_name: sgtMember.user_name,
+                  custom_hcp: prior.custom_hcp,
+                  onboarding_hcp: prior.onboarding_hcp ?? prior.custom_hcp,
                   updated_at: new Date().toISOString(),
                 }, { onConflict: 'tour_id,user_id' });
               }
