@@ -108,25 +108,50 @@ export function SGTPendingOnboarding() {
     },
   });
 
+  // Dismissed players: kept out of the league (club seats are paid per player)
+  // until an admin explicitly rejoins them.
+  const { data: dismissedMembers } = useQuery({
+    queryKey: ["sgt-dismissed-members"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select(
+          "user_id, sgt_user_id, first_name, last_name, email, display_name, created_at, membership_tier, sgt_onboarding_dismissed_at"
+        )
+        .not("sgt_onboarding_dismissed_at", "is", null)
+        .order("sgt_onboarding_dismissed_at", { ascending: false });
+      if (error) throw error;
+      return (data || []) as (PendingMember & {
+        membership_tier: string | null;
+        sgt_onboarding_dismissed_at: string;
+      })[];
+    },
+  });
+
   // Dismiss someone from the pending list without touching their SGT account.
   const dismissMutation = useMutation({
     mutationFn: async (member: PendingMember) => {
       const { data: auth } = await supabase.auth.getUser();
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("profiles")
         .update({
           sgt_onboarding_dismissed_at: new Date().toISOString(),
           sgt_onboarding_dismissed_by: auth?.user?.id ?? null,
         } as never)
-        .eq("user_id", member.user_id);
+        .eq("user_id", member.user_id)
+        .select("user_id");
       if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error("No profile row was updated — admin permissions may be missing.");
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["sgt-pending-members"] });
+      queryClient.invalidateQueries({ queryKey: ["sgt-dismissed-members"] });
       setDismissMember(null);
       toast({
-        title: "Removed from pending",
-        description: "They'll reappear here only if you clear the dismissal.",
+        title: "Removed from onboarding",
+        description: "They'll stay out of the league until you press Rejoin.",
       });
     },
     onError: (error) => {
@@ -137,6 +162,40 @@ export function SGTPendingOnboarding() {
       });
     },
   });
+
+  // Rejoin: clear the dismissal so they show in Awaiting Handicap again.
+  const rejoinMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .update({
+          sgt_onboarding_dismissed_at: null,
+          sgt_onboarding_dismissed_by: null,
+        } as never)
+        .eq("user_id", userId)
+        .select("user_id");
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error("No profile row was updated — admin permissions may be missing.");
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sgt-pending-members"] });
+      queryClient.invalidateQueries({ queryKey: ["sgt-dismissed-members"] });
+      toast({
+        title: "Rejoined onboarding",
+        description: "Set their handicap to add them back to the club and tour.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Failed to rejoin",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    },
+  });
+
 
   // Mutation to onboard a member (set HCP and trigger registration)
   const onboardMutation = useMutation({
