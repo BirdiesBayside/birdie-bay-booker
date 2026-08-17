@@ -538,6 +538,91 @@ export function SGTLeagueMembers() {
           )}
         </CardContent>
       </Card>
+
+      {/* Nickname dialog */}
+      <Dialog
+        open={nicknameMember !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setNicknameMember(null);
+            setNicknameValue("");
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Birdies Nickname</DialogTitle>
+            <DialogDescription>
+              Shown on Birdies leaderboards, TV screens and highlights. Their SGT username
+              ({nicknameMember?.user_name || "Unknown"}) stays exactly the same so GSPro scoring keeps working.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="nickname-input">Nickname</Label>
+            <Input
+              id="nickname-input"
+              value={nicknameValue}
+              onChange={(e) => setNicknameValue(e.target.value)}
+              placeholder={nicknameMember?.user_name || "Display name"}
+              maxLength={40}
+              autoFocus
+            />
+            <p className="text-xs text-muted-foreground">Leave blank to go back to the SGT username.</p>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setNicknameMember(null);
+                setNicknameValue("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() =>
+                nicknameMember &&
+                nicknameMutation.mutate({
+                  userId: nicknameMember.user_id,
+                  nickname: nicknameValue.trim() === "" ? null : nicknameValue.trim(),
+                })
+              }
+              disabled={nicknameMutation.isPending}
+            >
+              {nicknameMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Remove from club confirmation */}
+      <AlertDialog open={removeMember !== null} onOpenChange={(open) => !open && setRemoveMember(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove from SGT club?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {removeMember?.nickname || removeMember?.user_name} will be removed from the club on SGT and
+              from the league members list. Their profile link is kept, so they can be re-added automatically
+              if their membership becomes active again.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={removeMemberMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={(e) => {
+                e.preventDefault();
+                if (removeMember) removeMemberMutation.mutate(removeMember.user_id);
+              }}
+              disabled={removeMemberMutation.isPending}
+            >
+              {removeMemberMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
