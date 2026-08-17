@@ -9,6 +9,7 @@ import { format } from "date-fns";
 import birdiesB from "@/assets/birdies-b-orange.png";
 import { useIframeAutoResize } from "@/hooks/useIframeAutoResize";
 import { TournamentStatsView } from "@/components/sgt/TournamentStatsView";
+import { useSgtNicknames } from "@/hooks/useSgtNicknames";
 
 
 // Brand tokens (locked to iframe so it renders consistently inside Shopify)
@@ -330,7 +331,7 @@ export default function EmbedCompete({ hideHero = false }: { hideHero?: boolean 
                           </div>
                           <div className="col-span-5 sm:col-span-4 min-w-0">
                             <p className="font-semibold text-sm sm:text-base truncate" style={{ color: GREEN }}>
-                              {r.playerName}
+                              {displayName(r.playerName)}
                             </p>
                             <p className="text-[11px]" style={{ color: MUTED }}>HCP {r.hcp ?? "-"}</p>
                           </div>
@@ -424,7 +425,7 @@ export default function EmbedCompete({ hideHero = false }: { hideHero?: boolean 
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="font-semibold text-sm truncate" style={{ color: GREEN }}>
-                              {s.player_name}
+                              {displayName(s.player_name, (s as { player_id?: number }).player_id)}
                             </p>
                             <p className="text-[11px]" style={{ color: MUTED }}>{s.tournaments_played} played</p>
                           </div>
