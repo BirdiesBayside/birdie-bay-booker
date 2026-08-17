@@ -399,7 +399,14 @@ export function SGTLeagueMembers() {
                       <TableRow key={member.user_id}>
                         <TableCell>
                           <div>
-                            <p className="font-medium">{member.user_name || "Unknown"}</p>
+                            <p className="font-medium">
+                              {member.nickname || member.user_name || "Unknown"}
+                            </p>
+                            {member.nickname && (
+                              <p className="text-xs text-muted-foreground">
+                                SGT: {member.user_name || "Unknown"}
+                              </p>
+                            )}
                             {member.email && (
                               <p className="text-xs text-muted-foreground">{member.email}</p>
                             )}
