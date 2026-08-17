@@ -331,7 +331,7 @@ export default function AdminMarketing() {
     setCampaignSubject(template?.subject || "");
     setCampaignHtml(template?.html_content || "");
     setSelectedTemplateId(template?.id || "");
-    setMembershipFilter("all");
+    setMembershipTiers([]);
     setBookingFilter("all");
     setSegmentFilter("all");
     setComposerOpen(true);
