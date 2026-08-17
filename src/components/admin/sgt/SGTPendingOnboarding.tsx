@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { UserPlus, Check, Loader2, AlertCircle, X } from "lucide-react";
+import { UserPlus, UserMinus, Check, Loader2, AlertCircle, X } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -108,25 +108,50 @@ export function SGTPendingOnboarding() {
     },
   });
 
+  // Dismissed players: kept out of the league (club seats are paid per player)
+  // until an admin explicitly rejoins them.
+  const { data: dismissedMembers } = useQuery({
+    queryKey: ["sgt-dismissed-members"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select(
+          "user_id, sgt_user_id, first_name, last_name, email, display_name, created_at, membership_tier, sgt_onboarding_dismissed_at"
+        )
+        .not("sgt_onboarding_dismissed_at", "is", null)
+        .order("sgt_onboarding_dismissed_at", { ascending: false });
+      if (error) throw error;
+      return (data || []) as (PendingMember & {
+        membership_tier: string | null;
+        sgt_onboarding_dismissed_at: string;
+      })[];
+    },
+  });
+
   // Dismiss someone from the pending list without touching their SGT account.
   const dismissMutation = useMutation({
     mutationFn: async (member: PendingMember) => {
       const { data: auth } = await supabase.auth.getUser();
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("profiles")
         .update({
           sgt_onboarding_dismissed_at: new Date().toISOString(),
           sgt_onboarding_dismissed_by: auth?.user?.id ?? null,
         } as never)
-        .eq("user_id", member.user_id);
+        .eq("user_id", member.user_id)
+        .select("user_id");
       if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error("No profile row was updated — admin permissions may be missing.");
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["sgt-pending-members"] });
+      queryClient.invalidateQueries({ queryKey: ["sgt-dismissed-members"] });
       setDismissMember(null);
       toast({
-        title: "Removed from pending",
-        description: "They'll reappear here only if you clear the dismissal.",
+        title: "Removed from onboarding",
+        description: "They'll stay out of the league until you press Rejoin.",
       });
     },
     onError: (error) => {
@@ -137,6 +162,40 @@ export function SGTPendingOnboarding() {
       });
     },
   });
+
+  // Rejoin: clear the dismissal so they show in Awaiting Handicap again.
+  const rejoinMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .update({
+          sgt_onboarding_dismissed_at: null,
+          sgt_onboarding_dismissed_by: null,
+        } as never)
+        .eq("user_id", userId)
+        .select("user_id");
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error("No profile row was updated — admin permissions may be missing.");
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sgt-pending-members"] });
+      queryClient.invalidateQueries({ queryKey: ["sgt-dismissed-members"] });
+      toast({
+        title: "Rejoined onboarding",
+        description: "Set their handicap to add them back to the club and tour.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Failed to rejoin",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    },
+  });
+
 
   // Mutation to onboard a member (set HCP and trigger registration)
   const onboardMutation = useMutation({
@@ -382,6 +441,78 @@ export function SGTPendingOnboarding() {
           )}
         </CardContent>
       </Card>
+
+      {/* Removed from onboarding */}
+      {dismissedMembers && dismissedMembers.length > 0 && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <UserMinus className="h-5 w-5 text-muted-foreground" />
+                <CardTitle>Removed from Onboarding</CardTitle>
+              </div>
+              <Badge variant="secondary">{dismissedMembers.length}</Badge>
+            </div>
+            <CardDescription>
+              These players stay out of the SGT club (club seats are billed per player) until you
+              press Rejoin — even if their membership becomes active again.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Member</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead className="text-center">Membership</TableHead>
+                    <TableHead className="text-center">SGT ID</TableHead>
+                    <TableHead className="text-center w-28">Action</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {dismissedMembers.map((member) => {
+                    const isMember =
+                      member.membership_tier === "birdie" || member.membership_tier === "eagle";
+                    return (
+                      <TableRow key={member.user_id}>
+                        <TableCell className="font-medium">
+                          {member.display_name || `${member.first_name} ${member.last_name}`}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">{member.email}</TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant={isMember ? "default" : "outline"} className="capitalize">
+                            {member.membership_tier || "visitor"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant="outline">{member.sgt_user_id ?? "—"}</Badge>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Button
+                            size="sm"
+                            variant={isMember ? "default" : "outline"}
+                            onClick={() => rejoinMutation.mutate(member.user_id)}
+                            disabled={rejoinMutation.isPending}
+                          >
+                            {rejoinMutation.isPending ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              "Rejoin"
+                            )}
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+
 
       <AlertDialog open={dismissMember !== null} onOpenChange={(open) => !open && setDismissMember(null)}>
         <AlertDialogContent>
