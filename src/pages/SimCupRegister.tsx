@@ -198,7 +198,7 @@ const SimCupRegister = () => {
           </form>
         )}
 
-        <p className="mt-8 text-center font-bold text-primary-foreground">
+        <p className="mt-8 text-center font-bold text-primary">
           Let's take the cup home.
         </p>
       </main>
