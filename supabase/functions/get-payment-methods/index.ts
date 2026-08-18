@@ -52,8 +52,32 @@ serve(async (req) => {
       );
     }
 
-    const customerId = customers.data[0].id;
+    const customer = customers.data[0];
+    const customerId = customer.id;
     logStep("Found customer", { customerId });
+
+    // Determine the REAL default payment method (customer default, else active subscription default)
+    let defaultPaymentMethodId: string | null =
+      (typeof customer.invoice_settings?.default_payment_method === "string"
+        ? customer.invoice_settings.default_payment_method
+        : customer.invoice_settings?.default_payment_method?.id) || null;
+
+    const subscriptions = await stripe.subscriptions.list({
+      customer: customerId,
+      status: "active",
+      limit: 10,
+    });
+    const subscriptionPaymentMethodIds = subscriptions.data
+      .map((s) =>
+        typeof s.default_payment_method === "string"
+          ? s.default_payment_method
+          : s.default_payment_method?.id
+      )
+      .filter((id): id is string => !!id);
+
+    if (!defaultPaymentMethodId && subscriptionPaymentMethodIds.length > 0) {
+      defaultPaymentMethodId = subscriptionPaymentMethodIds[0];
+    }
 
     // Get all payment methods (cards and link)
     const cardMethods = await stripe.paymentMethods.list({
@@ -70,7 +94,9 @@ serve(async (req) => {
     logStep("Retrieved payment methods", { 
       cards: cardMethods.data.length, 
       link: linkMethods.data.length,
-      total: allMethods.length 
+      total: allMethods.length,
+      defaultPaymentMethodId,
+      hasActiveSubscription: subscriptions.data.length > 0,
     });
 
     const formattedMethods = allMethods.map((pm: Stripe.PaymentMethod) => {
