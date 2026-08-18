@@ -1066,6 +1066,7 @@ export default function AdminMarketing() {
                       <PopoverTrigger asChild>
                         <Button
                           variant="outline"
+                          disabled={manualOnly}
                           className="w-full justify-between font-normal"
                         >
                           <span className="truncate">
@@ -1117,7 +1118,7 @@ export default function AdminMarketing() {
                   
                   <div className="space-y-1">
                     <Label className="text-xs">Booking Count</Label>
-                    <Select value={bookingFilter} onValueChange={setBookingFilter}>
+                    <Select value={bookingFilter} onValueChange={setBookingFilter} disabled={manualOnly}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
