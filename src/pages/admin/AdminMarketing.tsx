@@ -1181,9 +1181,47 @@ export default function AdminMarketing() {
                           <span aria-hidden>×</span>
                         </button>
                       ))}
-                      <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => setSelectedCustomers([])}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 text-xs"
+                        onClick={() => {
+                          setSelectedCustomers([]);
+                          setManualOnly(false);
+                        }}
+                      >
                         Clear
                       </Button>
+                    </div>
+                  )}
+
+                  {selectedCustomers.length > 0 && (
+                    <div className="space-y-2 rounded-md border border-primary/30 bg-primary/5 p-2">
+                      <label className="flex items-center gap-2 text-xs cursor-pointer">
+                        <Checkbox
+                          checked={manualOnly}
+                          onCheckedChange={(v) => setManualOnly(v === true)}
+                        />
+                        Send only to the {selectedCustomers.length} selected customer
+                        {selectedCustomers.length === 1 ? "" : "s"} (ignore the filters above)
+                      </label>
+                      <div className="flex gap-2">
+                        <Input
+                          value={segmentName}
+                          onChange={(e) => setSegmentName(e.target.value)}
+                          placeholder="Segment name..."
+                          className="h-8 text-xs"
+                        />
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 text-xs whitespace-nowrap"
+                          disabled={isSavingSegment || !segmentName.trim()}
+                          onClick={handleSaveSegment}
+                        >
+                          {isSavingSegment ? "Saving..." : "Save as Segment"}
+                        </Button>
+                      </div>
                     </div>
                   )}
                 </div>
