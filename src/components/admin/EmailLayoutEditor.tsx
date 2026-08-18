@@ -141,6 +141,29 @@ export const EmailLayoutEditor = () => {
 
   const previewSrc = useMemo(() => buildPreview(header, footer), [header, footer]);
 
+  const [testEmail, setTestEmail] = useState("");
+  const [testUrl, setTestUrl] = useState("");
+
+  const makeUnsubscribeUrl = async (email: string) => {
+    const data = new TextEncoder().encode(email.toLowerCase() + "birdies-unsubscribe-salt");
+    const hash = await crypto.subtle.digest("SHA-256", data);
+    const token = Array.from(new Uint8Array(hash))
+      .slice(0, 8)
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+    return `${window.location.origin}/unsubscribe?email=${encodeURIComponent(email)}&token=${token}`;
+  };
+
+  const generateTestLink = async () => {
+    const email = testEmail.trim();
+    if (!email) {
+      toast({ title: "Enter an email", description: "Add an address to build the test link.", variant: "destructive" });
+      return;
+    }
+    const url = await makeUnsubscribeUrl(email);
+    setTestUrl(url);
+  };
+
   return (
     <Card>
       <CardContent className="space-y-4 pt-6">
