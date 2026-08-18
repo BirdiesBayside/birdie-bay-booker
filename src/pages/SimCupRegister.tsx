@@ -14,7 +14,7 @@ import {
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import Seo from "@/components/Seo";
-import birdiesLogo from "@/assets/birdies-logo.png";
+import birdiesLogo from "@/assets/birdies-green-logo.png";
 
 const SHIRT_SIZES = ["S", "M", "L", "XL", "2XL", "3XL"];
 
