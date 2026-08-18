@@ -1038,10 +1038,10 @@ export default function AdminMarketing() {
               <div className="space-y-3 p-4 bg-muted/50 rounded-lg">
                 <Label className="text-base font-medium">Recipients</Label>
                 
-                <div className="grid grid-cols-3 gap-3">
+                <div className={`grid grid-cols-3 gap-3 ${manualOnly ? "opacity-50" : ""}`}>
                   <div className="space-y-1">
                     <Label className="text-xs">Custom Segment</Label>
-                    <Select value={segmentFilter} onValueChange={setSegmentFilter}>
+                    <Select value={segmentFilter} onValueChange={handleSegmentChange}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
@@ -1049,6 +1049,11 @@ export default function AdminMarketing() {
                         {SEGMENT_OPTIONS.map((opt) => (
                           <SelectItem key={opt.value} value={opt.value}>
                             {opt.label}
+                          </SelectItem>
+                        ))}
+                        {savedSegments.map((s) => (
+                          <SelectItem key={s.id} value={`saved:${s.id}`}>
+                            {s.name} ({Array.isArray(s.emails) ? s.emails.length : 0})
                           </SelectItem>
                         ))}
                       </SelectContent>
