@@ -402,7 +402,13 @@ export default function AdminMarketing() {
   };
 
   const countRecipients = async () => {
+    if (manualOnly && selectedCustomers.length > 0) {
+      setRecipientCount(selectedCustomers.length);
+      setIsCountingRecipients(false);
+      return;
+    }
     setIsCountingRecipients(true);
+    
     
     const query = buildRecipientQuery("id", { count: "exact", head: true });
     
@@ -440,6 +446,8 @@ export default function AdminMarketing() {
     setBookingFilter("all");
     setSegmentFilter("all");
     setSelectedCustomers([]);
+    setManualOnly(false);
+    setSegmentName("");
     setCustomerSearch("");
     setCustomerResults([]);
     setComposerOpen(true);
@@ -567,16 +575,23 @@ export default function AdminMarketing() {
         recipientQuery = recipientQuery.gte("total_bookings", 11);
       }
 
-      const { data: filteredRecipients, error: recipientError } = await recipientQuery;
+      let recipients: any[];
 
-      if (recipientError) throw recipientError;
+      if (manualOnly && selectedCustomers.length > 0) {
+        // Manual mode: ONLY the hand-picked customers
+        recipients = selectedCustomers;
+      } else {
+        const { data: filteredRecipients, error: recipientError } = await recipientQuery;
 
-      // Merge in individually selected customers (deduped by email)
-      const seen = new Set((filteredRecipients || []).map((r: any) => String(r.email || "").toLowerCase()));
-      const recipients = [
-        ...(filteredRecipients || []),
-        ...selectedCustomers.filter((c) => !seen.has(c.email.toLowerCase())),
-      ];
+        if (recipientError) throw recipientError;
+
+        // Merge in individually selected customers (deduped by email)
+        const seen = new Set((filteredRecipients || []).map((r: any) => String(r.email || "").toLowerCase()));
+        recipients = [
+          ...(filteredRecipients || []),
+          ...selectedCustomers.filter((c) => !seen.has(c.email.toLowerCase())),
+        ];
+      }
 
       // Send emails via edge function
       const { error: sendError } = await supabase.functions.invoke("send-marketing-email", {
