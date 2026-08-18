@@ -349,6 +349,48 @@ export default function AdminMarketing() {
     setPreviewOpen(true);
   };
 
+  const handleSendTest = async () => {
+    const email = testEmail.trim();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast({
+        title: "Invalid email",
+        description: "Enter a valid email address to send the test to.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!campaignSubject || !campaignHtml) {
+      toast({
+        title: "Missing content",
+        description: "Add a subject and email content before sending a test.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSendingTest(true);
+    try {
+      const { error } = await supabase.functions.invoke("send-marketing-email", {
+        body: {
+          campaign_id: null,
+          subject: `[TEST] ${campaignSubject}`,
+          html_content: campaignHtml,
+          recipients: [{ email, first_name: "Test", last_name: "" }],
+        },
+      });
+      if (error) throw error;
+      toast({ title: "Test sent", description: `Test email sent to ${email}.` });
+    } catch (error: any) {
+      toast({
+        title: "Test send failed",
+        description: error.message || "Could not send the test email.",
+        variant: "destructive",
+      });
+    }
+    setIsSendingTest(false);
+  };
+
+
   const handleSendCampaign = async () => {
     if (!campaignName || !campaignSubject || !campaignHtml) {
       toast({
