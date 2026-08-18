@@ -1795,6 +1795,33 @@ export type Database = {
         }
         Relationships: []
       }
+      marketing_segments: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          emails: Json
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          emails?: Json
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          emails?: Json
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       marketing_templates: {
         Row: {
           category: string | null
