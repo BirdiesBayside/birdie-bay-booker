@@ -1073,10 +1073,32 @@ export default function AdminCustomers() {
 
           {activeTab === "customers" && (
             <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={() => navigate('/admin/customer-import')}>
-                <Upload className="h-4 w-4 mr-2" />
-                Import CSV
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline">
+                    <FileText className="h-4 w-4 mr-2" />
+                    Import / Export
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-60 bg-popover z-50">
+                  <DropdownMenuItem onClick={() => navigate('/admin/customer-import')}>
+                    <Upload className="h-4 w-4 mr-2" />
+                    Import customers (CSV)
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => exportCustomersCsv("filtered")}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Export current list ({filteredCustomers.length})
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => exportCustomersCsv("selected")}
+                    disabled={selectedCustomers.size === 0}
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Export selected ({selectedCustomers.size})
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Button onClick={() => setShowAddCustomerDialog(true)}>
                 <UserPlus className="h-4 w-4 mr-2" />
                 Add Customer
