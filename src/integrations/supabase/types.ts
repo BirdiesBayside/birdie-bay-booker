@@ -3272,6 +3272,36 @@ export type Database = {
         }
         Relationships: []
       }
+      sim_cup_registrations: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          name: string
+          notes: string | null
+          phone: string
+          shirt_size: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          name: string
+          notes?: string | null
+          phone: string
+          shirt_size: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          name?: string
+          notes?: string | null
+          phone?: string
+          shirt_size?: string
+        }
+        Relationships: []
+      }
       sms_templates: {
         Row: {
           created_at: string
