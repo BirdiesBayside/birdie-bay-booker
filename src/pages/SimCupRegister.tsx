@@ -46,9 +46,14 @@ const SimCupRegister = () => {
     }
 
     setSubmitting(true);
-    const { error } = await supabase
-      .from("sim_cup_registrations")
-      .insert(parsed.data);
+    const { error } = await supabase.from("sim_cup_registrations").insert([
+      {
+        name: name.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        shirt_size: shirtSize,
+      },
+    ]);
     setSubmitting(false);
 
     if (error) {
