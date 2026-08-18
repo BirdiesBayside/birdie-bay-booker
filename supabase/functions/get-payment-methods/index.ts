@@ -123,6 +123,9 @@ serve(async (req) => {
       JSON.stringify({
         paymentMethods: formattedMethods,
         hasPaymentMethod: formattedMethods.length > 0,
+        defaultPaymentMethodId,
+        subscriptionPaymentMethodIds,
+        hasActiveSubscription: subscriptions.data.length > 0,
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
