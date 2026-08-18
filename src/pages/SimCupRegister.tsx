@@ -78,7 +78,7 @@ const SimCupRegister = () => {
         <p className="text-xs font-black uppercase tracking-[0.25em] text-accent">
           You're invited
         </p>
-        <h1 className="mt-3 font-heading text-6xl uppercase leading-none tracking-wide text-primary-foreground sm:text-7xl">
+        <h1 className="mt-3 font-display text-6xl uppercase leading-none tracking-wide text-primary-foreground sm:text-7xl">
           The Sim Cup
         </h1>
         <div className="mt-4 h-[5px] w-16 bg-accent" />
@@ -114,7 +114,7 @@ const SimCupRegister = () => {
         {submitted ? (
           <section className="mt-8 rounded-lg bg-secondary p-8 text-center">
             <CheckCircle2 className="mx-auto mb-4 h-14 w-14 text-primary" />
-            <h2 className="font-heading text-3xl uppercase text-primary">You're in</h2>
+            <h2 className="font-display text-3xl uppercase text-primary">You're in</h2>
             <p className="mt-2 text-primary/75">
               Your spot is registered and your shirt size is locked in. We'll be in touch
               with the run sheet closer to the day.
@@ -128,7 +128,7 @@ const SimCupRegister = () => {
             onSubmit={handleSubmit}
             className="mt-8 space-y-5 rounded-lg bg-secondary p-6 sm:p-8"
           >
-            <h2 className="font-heading text-3xl uppercase text-primary">Register to play</h2>
+            <h2 className="font-display text-3xl uppercase text-primary">Register to play</h2>
 
             <div className="space-y-2">
               <Label htmlFor="name" className="text-primary">Full name</Label>
