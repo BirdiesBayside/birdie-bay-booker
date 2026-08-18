@@ -65,7 +65,7 @@ const SimCupRegister = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-primary">
       <Seo
         title="The Sim Cup Registration | Birdies Bayside"
         description="Register to represent Birdies at The Sim Cup on Saturday 26 September 2026. Birdies vs The Tee Lounge — $99 entry, team shirt included."
@@ -73,23 +73,28 @@ const SimCupRegister = () => {
       />
 
       <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col justify-center px-5 py-12">
-        <img src={birdiesLogo} alt="Birdies Bayside" className="mb-10 h-10 self-start" />
+        <img
+          src={birdiesLogo}
+          alt="Birdies Bayside"
+          className="mb-10 h-10 self-start brightness-0 invert"
+        />
 
         <p className="text-xs font-black uppercase tracking-[0.25em] text-accent">
           You're invited
         </p>
-        <h1 className="mt-3 font-display text-6xl uppercase leading-none tracking-wide text-primary sm:text-7xl">
+        <h1 className="mt-3 font-display text-6xl uppercase leading-none tracking-wide text-primary-foreground sm:text-7xl">
           The Sim Cup
         </h1>
         <div className="mt-4 h-[5px] w-16 bg-accent" />
 
-        <p className="mt-6 text-primary/85">
+        <p className="mt-6 text-primary-foreground/85">
           Birdies vs The Tee Lounge, right here on our turf. 18 spots. Multiple formats
           across the day — 2-man teams and individual head to head. Cash prizes and
           bragging rights on the line.
         </p>
 
-        <div className="mt-7 grid gap-5 rounded-lg bg-secondary p-6 sm:grid-cols-3">
+        <div className="mt-7 grid gap-5 rounded-lg bg-background p-6 sm:grid-cols-3">
+
           <div>
             <p className="text-[11px] font-black uppercase tracking-[0.18em] text-accent">When</p>
             <p className="mt-1 font-bold text-primary">Sat 26 Sep 2026</p>
@@ -112,7 +117,7 @@ const SimCupRegister = () => {
         </div>
 
         {submitted ? (
-          <section className="mt-8 rounded-lg bg-secondary p-8 text-center">
+          <section className="mt-8 rounded-lg bg-background p-8 text-center">
             <CheckCircle2 className="mx-auto mb-4 h-14 w-14 text-primary" />
             <h2 className="font-display text-3xl uppercase text-primary">You're in</h2>
             <p className="mt-2 text-primary/75">
@@ -126,8 +131,9 @@ const SimCupRegister = () => {
         ) : (
           <form
             onSubmit={handleSubmit}
-            className="mt-8 space-y-5 rounded-lg bg-secondary p-6 sm:p-8"
+            className="mt-8 space-y-5 rounded-lg bg-background p-6 sm:p-8"
           >
+
             <h2 className="font-display text-3xl uppercase text-primary">Register to play</h2>
 
             <div className="space-y-2">
@@ -198,7 +204,7 @@ const SimCupRegister = () => {
           </form>
         )}
 
-        <p className="mt-8 text-center font-bold text-primary">
+        <p className="mt-8 text-center font-bold text-primary-foreground">
           Let's take the cup home.
         </p>
       </main>
