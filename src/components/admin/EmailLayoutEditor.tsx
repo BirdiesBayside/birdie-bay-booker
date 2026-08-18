@@ -248,6 +248,39 @@ export const EmailLayoutEditor = () => {
                 <span className="text-xs text-muted-foreground">Unsaved changes</span>
               )}
             </div>
+
+            <div className="rounded-lg border p-3 space-y-2">
+              <Label className="text-sm font-medium">Unsubscribe link (marketing emails)</Label>
+              <p className="text-xs text-muted-foreground">
+                An "Unsubscribe from marketing emails" line is appended below this footer on
+                every marketing campaign automatically (shown in the preview). Clicking it
+                sets the customer's profile to opted out, and campaign sends skip anyone who
+                has unsubscribed. Transactional emails (bookings, membership, credits) are not
+                affected.
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <Input
+                  type="email"
+                  placeholder="test@example.com"
+                  value={testEmail}
+                  onChange={(e) => setTestEmail(e.target.value)}
+                  className="max-w-xs"
+                />
+                <Button variant="outline" size="sm" onClick={generateTestLink}>
+                  Generate test link
+                </Button>
+                {testUrl && (
+                  <Button asChild variant="ghost" size="sm">
+                    <a href={testUrl} target="_blank" rel="noreferrer">
+                      Open unsubscribe page
+                    </a>
+                  </Button>
+                )}
+              </div>
+              {testUrl && (
+                <p className="text-xs font-mono break-all text-muted-foreground">{testUrl}</p>
+              )}
+            </div>
           </>
         )}
 
