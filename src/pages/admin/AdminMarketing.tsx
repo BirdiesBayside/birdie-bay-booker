@@ -125,6 +125,10 @@ export default function AdminMarketing() {
   const [isSending, setIsSending] = useState(false);
   const [isCountingRecipients, setIsCountingRecipients] = useState(false);
   const [testEmail, setTestEmail] = useState("");
+  const [selectedCustomers, setSelectedCustomers] = useState<{ email: string; first_name: string | null; last_name: string | null }[]>([]);
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [customerResults, setCustomerResults] = useState<{ email: string; first_name: string | null; last_name: string | null }[]>([]);
+  const [isSearchingCustomers, setIsSearchingCustomers] = useState(false);
   const [isSendingTest, setIsSendingTest] = useState(false);
 
   
@@ -258,7 +262,35 @@ export default function AdminMarketing() {
     if (composerOpen) {
       countRecipients();
     }
-  }, [membershipTiers, bookingFilter, segmentFilter, composerOpen]);
+  }, [membershipTiers, bookingFilter, segmentFilter, composerOpen, selectedCustomers]);
+
+  // Individual customer search (debounced)
+  useEffect(() => {
+    const term = customerSearch.trim();
+    if (term.length < 2) {
+      setCustomerResults([]);
+      return;
+    }
+    const t = setTimeout(async () => {
+      setIsSearchingCustomers(true);
+      const { data } = await supabase
+        .from("profiles")
+        .select("email, first_name, last_name")
+        .or(`email.ilike.%${term}%,first_name.ilike.%${term}%,last_name.ilike.%${term}%`)
+        .limit(20);
+      setCustomerResults((data || []).filter((d: any) => !!d.email) as any);
+      setIsSearchingCustomers(false);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [customerSearch]);
+
+  const toggleCustomer = (c: { email: string; first_name: string | null; last_name: string | null }) => {
+    setSelectedCustomers((prev) =>
+      prev.some((p) => p.email.toLowerCase() === c.email.toLowerCase())
+        ? prev.filter((p) => p.email.toLowerCase() !== c.email.toLowerCase())
+        : [...prev, c]
+    );
+  };
 
   const fetchCampaigns = async () => {
     setIsLoading(true);
@@ -285,42 +317,51 @@ export default function AdminMarketing() {
     }
   };
 
+  // Shared filter builder for recipient queries
+  const buildRecipientQuery = (select: string, opts?: { head?: boolean; count?: "exact" }) => {
+    let q: any = supabase
+      .from("profiles")
+      .select(select, opts as any)
+      .eq("marketing_opt_out", false);
+
+    if (membershipTiers.length > 0) {
+      q = q.in("membership_tier", membershipTiers);
+    }
+    if (segmentFilter === "hub_launch_missed") {
+      q = q.eq("custom_segment", "hub_launch_missed");
+    } else if (segmentFilter === "none") {
+      q = q.is("custom_segment", null);
+    }
+    if (bookingFilter === "0") {
+      q = q.eq("total_bookings", 0);
+    } else if (bookingFilter === "1-5") {
+      q = q.gte("total_bookings", 1).lte("total_bookings", 5);
+    } else if (bookingFilter === "6-10") {
+      q = q.gte("total_bookings", 6).lte("total_bookings", 10);
+    } else if (bookingFilter === "10+") {
+      q = q.gte("total_bookings", 11);
+    }
+    return q;
+  };
+
   const countRecipients = async () => {
     setIsCountingRecipients(true);
     
-    let query = supabase
-      .from("profiles")
-      .select("id", { count: "exact", head: true })
-      .eq("marketing_opt_out", false);
-    
-    if (membershipTiers.length > 0) {
-      query = query.in("membership_tier", membershipTiers as ("visitor" | "weekday" | "birdie" | "eagle")[]);
-    }
-
-    // Apply segment filter
-    if (segmentFilter === "hub_launch_missed") {
-      query = query.eq("custom_segment", "hub_launch_missed");
-    } else if (segmentFilter === "none") {
-      query = query.is("custom_segment", null);
-    }
-
-    // Apply booking count filter using total_bookings column
-    if (bookingFilter === "0") {
-      query = query.eq("total_bookings", 0);
-    } else if (bookingFilter === "1-5") {
-      query = query.gte("total_bookings", 1).lte("total_bookings", 5);
-    } else if (bookingFilter === "6-10") {
-      query = query.gte("total_bookings", 6).lte("total_bookings", 10);
-    } else if (bookingFilter === "10+") {
-      query = query.gte("total_bookings", 11);
-    }
+    const query = buildRecipientQuery("id", { count: "exact", head: true });
     
     const { count, error } = await query;
-    
+
     if (!error) {
-      setRecipientCount(count || 0);
+      let total = count || 0;
+      if (selectedCustomers.length > 0) {
+        // Add manually picked customers that aren't already in the filtered set
+        const { data: filteredEmails } = await buildRecipientQuery("email").limit(5000);
+        const existing = new Set((filteredEmails || []).map((r: any) => String(r.email || "").toLowerCase()));
+        total += selectedCustomers.filter((c) => !existing.has(c.email.toLowerCase())).length;
+      }
+      setRecipientCount(total);
     }
-    
+
     setIsCountingRecipients(false);
   };
 
@@ -341,6 +382,9 @@ export default function AdminMarketing() {
     setMembershipTiers([]);
     setBookingFilter("all");
     setSegmentFilter("all");
+    setSelectedCustomers([]);
+    setCustomerSearch("");
+    setCustomerResults([]);
     setComposerOpen(true);
   };
 
@@ -466,9 +510,16 @@ export default function AdminMarketing() {
         recipientQuery = recipientQuery.gte("total_bookings", 11);
       }
 
-      const { data: recipients, error: recipientError } = await recipientQuery;
-      
+      const { data: filteredRecipients, error: recipientError } = await recipientQuery;
+
       if (recipientError) throw recipientError;
+
+      // Merge in individually selected customers (deduped by email)
+      const seen = new Set((filteredRecipients || []).map((r: any) => String(r.email || "").toLowerCase()));
+      const recipients = [
+        ...(filteredRecipients || []),
+        ...selectedCustomers.filter((c) => !seen.has(c.email.toLowerCase())),
+      ];
 
       // Send emails via edge function
       const { error: sendError } = await supabase.functions.invoke("send-marketing-email", {
@@ -1002,6 +1053,61 @@ export default function AdminMarketing() {
                       </SelectContent>
                     </Select>
                   </div>
+                </div>
+
+                {/* Individual customers */}
+                <div className="space-y-2 pt-1 border-t border-border/60">
+                  <Label className="text-xs">Add individual customers</Label>
+                  <Input
+                    value={customerSearch}
+                    onChange={(e) => setCustomerSearch(e.target.value)}
+                    placeholder="Search by name or email..."
+                  />
+                  {customerSearch.trim().length >= 2 && (
+                    <div className="max-h-44 overflow-y-auto rounded-md border border-border bg-background">
+                      {isSearchingCustomers ? (
+                        <p className="p-2 text-xs text-muted-foreground">Searching...</p>
+                      ) : customerResults.length === 0 ? (
+                        <p className="p-2 text-xs text-muted-foreground">No customers found.</p>
+                      ) : (
+                        customerResults.map((c) => {
+                          const checked = selectedCustomers.some(
+                            (p) => p.email.toLowerCase() === c.email.toLowerCase()
+                          );
+                          return (
+                            <label
+                              key={c.email}
+                              className="flex items-center gap-2 px-2 py-1.5 text-sm cursor-pointer hover:bg-muted"
+                            >
+                              <Checkbox checked={checked} onCheckedChange={() => toggleCustomer(c)} />
+                              <span className="truncate">
+                                {[c.first_name, c.last_name].filter(Boolean).join(" ") || "(no name)"}
+                                <span className="text-muted-foreground"> — {c.email}</span>
+                              </span>
+                            </label>
+                          );
+                        })
+                      )}
+                    </div>
+                  )}
+                  {selectedCustomers.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {selectedCustomers.map((c) => (
+                        <button
+                          key={c.email}
+                          type="button"
+                          onClick={() => toggleCustomer(c)}
+                          className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary hover:bg-primary/20"
+                        >
+                          {[c.first_name, c.last_name].filter(Boolean).join(" ") || c.email}
+                          <span aria-hidden>×</span>
+                        </button>
+                      ))}
+                      <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => setSelectedCustomers([])}>
+                        Clear
+                      </Button>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-2 text-sm">

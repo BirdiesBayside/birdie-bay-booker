@@ -206,7 +206,8 @@ async function sendEmailsInBackground(
         
         const footerWithUnsubscribe = injectUnsubscribeIntoFooter(layout.footer_html, unsubscribeUrl);
 
-        const brandedHtml = buildEmailTemplate(personalizedSubject, bodyContent, undefined, {
+        // Subject is NOT rendered in the body — admins add their own heading in the HTML
+        const brandedHtml = buildEmailTemplate("", bodyContent, undefined, {
           header_html: layout.header_html,
           footer_html: footerWithUnsubscribe,
         });
