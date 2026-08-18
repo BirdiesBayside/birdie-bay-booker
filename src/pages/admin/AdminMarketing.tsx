@@ -1052,6 +1052,61 @@ export default function AdminMarketing() {
                   </div>
                 </div>
 
+                {/* Individual customers */}
+                <div className="space-y-2 pt-1 border-t border-border/60">
+                  <Label className="text-xs">Add individual customers</Label>
+                  <Input
+                    value={customerSearch}
+                    onChange={(e) => setCustomerSearch(e.target.value)}
+                    placeholder="Search by name or email..."
+                  />
+                  {customerSearch.trim().length >= 2 && (
+                    <div className="max-h-44 overflow-y-auto rounded-md border border-border bg-background">
+                      {isSearchingCustomers ? (
+                        <p className="p-2 text-xs text-muted-foreground">Searching...</p>
+                      ) : customerResults.length === 0 ? (
+                        <p className="p-2 text-xs text-muted-foreground">No customers found.</p>
+                      ) : (
+                        customerResults.map((c) => {
+                          const checked = selectedCustomers.some(
+                            (p) => p.email.toLowerCase() === c.email.toLowerCase()
+                          );
+                          return (
+                            <label
+                              key={c.email}
+                              className="flex items-center gap-2 px-2 py-1.5 text-sm cursor-pointer hover:bg-muted"
+                            >
+                              <Checkbox checked={checked} onCheckedChange={() => toggleCustomer(c)} />
+                              <span className="truncate">
+                                {[c.first_name, c.last_name].filter(Boolean).join(" ") || "(no name)"}
+                                <span className="text-muted-foreground"> — {c.email}</span>
+                              </span>
+                            </label>
+                          );
+                        })
+                      )}
+                    </div>
+                  )}
+                  {selectedCustomers.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {selectedCustomers.map((c) => (
+                        <button
+                          key={c.email}
+                          type="button"
+                          onClick={() => toggleCustomer(c)}
+                          className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary hover:bg-primary/20"
+                        >
+                          {[c.first_name, c.last_name].filter(Boolean).join(" ") || c.email}
+                          <span aria-hidden>×</span>
+                        </button>
+                      ))}
+                      <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => setSelectedCustomers([])}>
+                        Clear
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
                 <div className="flex items-center gap-2 text-sm">
                   <Users className="h-4 w-4 text-muted-foreground" />
                   {isCountingRecipients ? (
