@@ -53,12 +53,28 @@ const DEFAULT_FOOTER_HTML = `<tr>
   </td>
 </tr>`;
 
-// Marketing emails automatically append this row under the footer at send time.
-export const buildUnsubscribeRow = (url: string) => `<tr>
-  <td align="center" style="background-color:#1F4C25; padding:0 22px 18px; font-family:Inter, Arial, sans-serif; font-size:11px; color:#FFFFFF; opacity:0.6;">
-    <a href="${url}" style="color:#FFFFFF; text-decoration:underline;">Unsubscribe from marketing emails</a>
-  </td>
-</tr>`;
+// Marketing emails inject this link INSIDE the green footer block at send time
+// (mirrors injectUnsubscribeIntoFooter in send-marketing-email).
+export const injectUnsubscribeIntoFooter = (footerHtml: string, url: string) => {
+  const linkRow = `
+      <tr>
+        <td align="center" style="padding-top:12px; font-family:Inter, Arial, sans-serif; font-size:11px; line-height:1.6; color:#FFFFFF;">
+          <a href="${url}" style="color:#FFFFFF; text-decoration:underline; opacity:0.7;">Unsubscribe from marketing emails</a>
+        </td>
+      </tr>
+`;
+  const idx = footerHtml.lastIndexOf("</table>");
+  if (idx === -1) {
+    const cellIdx = footerHtml.lastIndexOf("</td>");
+    if (cellIdx === -1) return footerHtml;
+    return (
+      footerHtml.slice(0, cellIdx) +
+      `<div style="text-align:center; padding-top:12px; font-family:Inter, Arial, sans-serif; font-size:11px; color:#FFFFFF;"><a href="${url}" style="color:#FFFFFF; text-decoration:underline; opacity:0.7;">Unsubscribe from marketing emails</a></div>` +
+      footerHtml.slice(cellIdx)
+    );
+  }
+  return footerHtml.slice(0, idx) + linkRow + footerHtml.slice(idx);
+};
 
 const buildPreview = (header: string, footer: string) => `<!doctype html>
 <html lang="en"><head><meta charset="utf-8" />
