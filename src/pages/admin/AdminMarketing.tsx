@@ -47,7 +47,11 @@ import {
   Meh,
   Smile,
   ClipboardList,
+  Trophy,
+  ChevronDown,
+  Download,
 } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ReviewApprovals } from "@/components/admin/ReviewApprovals";
 
 interface Campaign {
@@ -120,6 +124,9 @@ export default function AdminMarketing() {
   const [recipientCount, setRecipientCount] = useState(0);
   const [isSending, setIsSending] = useState(false);
   const [isCountingRecipients, setIsCountingRecipients] = useState(false);
+  const [testEmail, setTestEmail] = useState("");
+  const [isSendingTest, setIsSendingTest] = useState(false);
+
   
   // Preview state
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -341,6 +348,48 @@ export default function AdminMarketing() {
     setPreviewHtml(campaignHtml);
     setPreviewOpen(true);
   };
+
+  const handleSendTest = async () => {
+    const email = testEmail.trim();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast({
+        title: "Invalid email",
+        description: "Enter a valid email address to send the test to.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!campaignSubject || !campaignHtml) {
+      toast({
+        title: "Missing content",
+        description: "Add a subject and email content before sending a test.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSendingTest(true);
+    try {
+      const { error } = await supabase.functions.invoke("send-marketing-email", {
+        body: {
+          campaign_id: null,
+          subject: `[TEST] ${campaignSubject}`,
+          html_content: campaignHtml,
+          recipients: [{ email, first_name: "Test", last_name: "" }],
+        },
+      });
+      if (error) throw error;
+      toast({ title: "Test sent", description: `Test email sent to ${email}.` });
+    } catch (error: any) {
+      toast({
+        title: "Test send failed",
+        description: error.message || "Could not send the test email.",
+        variant: "destructive",
+      });
+    }
+    setIsSendingTest(false);
+  };
+
 
   const handleSendCampaign = async () => {
     if (!campaignName || !campaignSubject || !campaignHtml) {
@@ -578,10 +627,11 @@ export default function AdminMarketing() {
               <MessageSquare className="h-4 w-4" />
               Feedback
             </TabsTrigger>
-            <TabsTrigger value="comp-survey" className="flex items-center gap-2">
-              <ClipboardList className="h-4 w-4" />
-              Comp Survey
+            <TabsTrigger value="sim-cup" className="flex items-center gap-2">
+              <Trophy className="h-4 w-4" />
+              Sim Cup
             </TabsTrigger>
+
           </TabsList>
 
           {/* Campaigns Tab */}
@@ -775,8 +825,8 @@ export default function AdminMarketing() {
           {/* Feedback Tab Content */}
           <FeedbackTab activeTab={activeTab} />
 
-          {/* Comp Survey Tab */}
-          <CompSurveyTab activeTab={activeTab} />
+          {/* Sim Cup Registrations Tab */}
+          <SimCupTab activeTab={activeTab} />
         </Tabs>
 
         {/* Composer Dialog */}
@@ -884,35 +934,58 @@ export default function AdminMarketing() {
 
                   <div className="space-y-1">
                     <Label className="text-xs">Membership Tiers</Label>
-                    <div className="rounded-md border border-border bg-background p-2 space-y-1.5">
-                      {MEMBERSHIP_OPTIONS.filter((o) => o.value !== "all").map((opt) => {
-                        const checked = membershipTiers.includes(opt.value);
-                        return (
-                          <label
-                            key={opt.value}
-                            className="flex items-center gap-2 text-sm cursor-pointer"
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className="w-full justify-between font-normal"
+                        >
+                          <span className="truncate">
+                            {membershipTiers.length === 0
+                              ? "All Customers"
+                              : membershipTiers.length === 1
+                                ? MEMBERSHIP_OPTIONS.find((o) => o.value === membershipTiers[0])?.label
+                                : `${membershipTiers.length} tiers selected`}
+                          </span>
+                          <ChevronDown className="h-4 w-4 opacity-50 shrink-0" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent align="start" className="w-56 p-2 space-y-1">
+                        {MEMBERSHIP_OPTIONS.filter((o) => o.value !== "all").map((opt) => {
+                          const checked = membershipTiers.includes(opt.value);
+                          return (
+                            <label
+                              key={opt.value}
+                              className="flex items-center gap-2 text-sm cursor-pointer rounded px-2 py-1.5 hover:bg-muted"
+                            >
+                              <Checkbox
+                                checked={checked}
+                                onCheckedChange={(v) =>
+                                  setMembershipTiers((prev) =>
+                                    v === true
+                                      ? [...prev, opt.value]
+                                      : prev.filter((t) => t !== opt.value)
+                                  )
+                                }
+                              />
+                              {opt.label}
+                            </label>
+                          );
+                        })}
+                        {membershipTiers.length > 0 && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="w-full"
+                            onClick={() => setMembershipTiers([])}
                           >
-                            <Checkbox
-                              checked={checked}
-                              onCheckedChange={(v) =>
-                                setMembershipTiers((prev) =>
-                                  v === true
-                                    ? [...prev, opt.value]
-                                    : prev.filter((t) => t !== opt.value)
-                                )
-                              }
-                            />
-                            {opt.label}
-                          </label>
-                        );
-                      })}
-                      <p className="text-xs text-muted-foreground pt-1">
-                        {membershipTiers.length === 0
-                          ? "All customers"
-                          : `${membershipTiers.length} tier${membershipTiers.length > 1 ? "s" : ""} selected`}
-                      </p>
-                    </div>
+                            Clear selection
+                          </Button>
+                        )}
+                      </PopoverContent>
+                    </Popover>
                   </div>
+
                   
                   <div className="space-y-1">
                     <Label className="text-xs">Booking Count</Label>
@@ -942,8 +1015,35 @@ export default function AdminMarketing() {
                 </div>
               </div>
 
+              {/* Send Test Email */}
+              <div className="space-y-2 p-4 border border-border rounded-lg">
+                <Label className="text-sm font-medium">Send a test email</Label>
+                <p className="text-xs text-muted-foreground">
+                  Sends this exact email (with header &amp; footer) to one address only. Doesn't create a campaign.
+                </p>
+                <div className="flex gap-2">
+                  <Input
+                    type="email"
+                    value={testEmail}
+                    onChange={(e) => setTestEmail(e.target.value)}
+                    placeholder="you@example.com"
+                  />
+                  <Button variant="outline" onClick={handleSendTest} disabled={isSendingTest}>
+                    {isSendingTest ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <>
+                        <Mail className="h-4 w-4 mr-2" />
+                        Send Test
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+
               {/* Actions */}
               <div className="flex gap-2 pt-2">
+
                 <Button
                   variant="outline"
                   className="flex-1"
@@ -1268,149 +1368,162 @@ function FeedbackTab({ activeTab }: { activeTab: string }) {
   );
 }
 
-// ───── Comp Survey Tab Component ─────
-function CompSurveyTab({ activeTab }: { activeTab: string }) {
-  const [responses, setResponses] = useState<any[]>([]);
+// ───── Sim Cup Registrations Tab ─────
+interface SimCupRegistration {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  shirt_size: string;
+  notes: string | null;
+  created_at: string;
+}
+
+const SHIRT_ORDER = ["S", "M", "L", "XL", "2XL", "3XL"];
+
+function SimCupTab({ activeTab }: { activeTab: string }) {
+  const { toast } = useToast();
+  const [regs, setRegs] = useState<SimCupRegistration[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    if (activeTab === "comp-survey") {
-      fetchResponses();
-    }
+    if (activeTab === "sim-cup") fetchRegs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
-  const fetchResponses = async () => {
+  const fetchRegs = async () => {
     setIsLoading(true);
     const { data, error } = await supabase
-      .from("comp_survey_responses")
+      .from("sim_cup_registrations")
       .select("*")
       .order("created_at", { ascending: false });
-
-    if (!error && data) {
-      setResponses(data);
-    }
+    if (!error && data) setRegs(data as SimCupRegistration[]);
     setIsLoading(false);
   };
 
-  // Tally helpers
-  const tally = (field: string) => {
-    const counts: Record<string, number> = {};
-    responses.forEach((r: any) => {
-      const val = r[field];
-      if (val) counts[val] = (counts[val] || 0) + 1;
-    });
-    return Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  const handleDelete = async (id: string) => {
+    const { error } = await supabase.from("sim_cup_registrations").delete().eq("id", id);
+    if (error) {
+      toast({ title: "Delete failed", description: error.message, variant: "destructive" });
+      return;
+    }
+    setRegs((prev) => prev.filter((r) => r.id !== id));
+    toast({ title: "Registration removed" });
   };
 
-  const dayTally = tally("preferred_day");
-  const timeTally = tally("preferred_time");
-  const feeTally = tally("preferred_entry_fee");
+  const exportCsv = () => {
+    const rows = [
+      ["Name", "Email", "Phone", "Shirt Size", "Registered"],
+      ...regs.map((r) => [
+        r.name,
+        r.email,
+        r.phone,
+        r.shirt_size,
+        format(new Date(r.created_at), "yyyy-MM-dd HH:mm"),
+      ]),
+    ];
+    const csv = rows.map((r) => r.map((c) => `"${String(c ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `sim-cup-registrations-${format(new Date(), "yyyy-MM-dd")}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
-  if (activeTab !== "comp-survey") return null;
+  const sizeCounts = SHIRT_ORDER.map((size) => ({
+    size,
+    count: regs.filter((r) => r.shirt_size === size).length,
+  }));
+
+  if (activeTab !== "sim-cup") return null;
+
+  const SPOTS = 18;
 
   return (
-    <TabsContent value="comp-survey" className="mt-4 space-y-4" forceMount>
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Day Preferences */}
+    <TabsContent value="sim-cup" className="mt-4 space-y-4" forceMount>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Preferred Day</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Registrations</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
-            {dayTally.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No responses yet</p>
-            ) : dayTally.map(([day, count]) => (
-              <div key={day} className="flex items-center justify-between">
-                <span className="text-sm font-medium text-foreground">{day}</span>
-                <div className="flex items-center gap-2">
-                  <Progress value={(count / responses.length) * 100} className="w-20 h-2" />
-                  <span className="text-sm font-bold text-primary w-6 text-right">{count}</span>
-                </div>
-              </div>
-            ))}
+          <CardContent>
+            <div className="text-3xl font-bold text-foreground">
+              {regs.length}
+              <span className="text-base text-muted-foreground font-normal"> / {SPOTS} spots</span>
+            </div>
+            <Progress value={Math.min((regs.length / SPOTS) * 100, 100)} className="h-2 mt-3" />
+            <p className="text-xs text-muted-foreground mt-2">
+              Public form: <span className="font-mono">/sim-cup</span>
+            </p>
           </CardContent>
         </Card>
 
-        {/* Time Preferences */}
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Preferred Time</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Shirt Sizes</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
-            {timeTally.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No responses yet</p>
-            ) : timeTally.map(([time, count]) => (
-              <div key={time} className="flex items-center justify-between">
-                <span className="text-sm font-medium text-foreground">{time}</span>
-                <div className="flex items-center gap-2">
-                  <Progress value={(count / responses.length) * 100} className="w-20 h-2" />
-                  <span className="text-sm font-bold text-primary w-6 text-right">{count}</span>
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        {/* Fee Preferences */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Preferred Entry Fee</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {feeTally.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No responses yet</p>
-            ) : feeTally.map(([fee, count]) => (
-              <div key={fee} className="flex items-center justify-between">
-                <span className="text-sm font-medium text-foreground">{fee}</span>
-                <div className="flex items-center gap-2">
-                  <Progress value={(count / responses.length) * 100} className="w-20 h-2" />
-                  <span className="text-sm font-bold text-primary w-6 text-right">{count}</span>
-                </div>
-              </div>
+          <CardContent className="flex flex-wrap gap-2">
+            {sizeCounts.map(({ size, count }) => (
+              <Badge key={size} variant="outline" className="text-sm">
+                {size}: <span className="ml-1 font-bold text-primary">{count}</span>
+              </Badge>
             ))}
           </CardContent>
         </Card>
       </div>
 
-      {/* Total responses */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Individual Responses</CardTitle>
-          <CardDescription>
-            {responses.length} response{responses.length !== 1 ? "s" : ""} received
-          </CardDescription>
+        <CardHeader className="flex flex-row items-center justify-between gap-2">
+          <div>
+            <CardTitle className="text-lg">Sim Cup Registrations</CardTitle>
+            <CardDescription>
+              {regs.length} registration{regs.length !== 1 ? "s" : ""} received
+            </CardDescription>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={fetchRegs} disabled={isLoading}>
+              Refresh
+            </Button>
+            <Button variant="outline" size="sm" onClick={exportCsv} disabled={regs.length === 0}>
+              <Download className="h-4 w-4 mr-1" />
+              CSV
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
             <div className="flex items-center justify-center h-32">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
-          ) : responses.length === 0 ? (
+          ) : regs.length === 0 ? (
             <div className="text-center py-8">
-              <ClipboardList className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-              <p className="text-muted-foreground">No survey responses yet. Send the campaign!</p>
+              <Trophy className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+              <p className="text-muted-foreground">No registrations yet.</p>
             </div>
           ) : (
             <div className="space-y-2">
-              {responses.map((r: any) => (
+              {regs.map((r) => (
                 <div
                   key={r.id}
                   className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card text-sm"
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium text-foreground">{r.name || r.email || "Anonymous"}</span>
+                      <span className="font-medium text-foreground">{r.name}</span>
+                      <Badge variant="secondary">{r.shirt_size}</Badge>
                       <span className="text-xs text-muted-foreground">
                         {format(new Date(r.created_at), "MMM d, h:mm a")}
                       </span>
                     </div>
-                    <div className="flex gap-3 mt-1 text-muted-foreground text-xs">
-                      <span>📅 {r.preferred_day}</span>
-                      <span>🕐 {r.preferred_time}</span>
-                      <span>💰 {r.preferred_entry_fee}</span>
+                    <div className="flex gap-3 mt-1 text-muted-foreground text-xs flex-wrap">
+                      <span>{r.email}</span>
+                      <span>{r.phone}</span>
                     </div>
                   </div>
+                  <Button variant="ghost" size="sm" onClick={() => handleDelete(r.id)}>
+                    Remove
+                  </Button>
                 </div>
               ))}
             </div>
