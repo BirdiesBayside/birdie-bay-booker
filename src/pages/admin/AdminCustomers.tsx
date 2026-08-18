@@ -274,6 +274,52 @@ export default function AdminCustomers() {
     });
   }, [customers, searchQuery, tierFilter, bookingCountFilter]);
 
+  const exportCustomersCsv = (scope: "filtered" | "selected") => {
+    const rows = scope === "selected"
+      ? filteredCustomers.filter(c => selectedCustomers.has(c.id))
+      : filteredCustomers;
+
+    if (rows.length === 0) {
+      toast({ title: "Nothing to export", description: "No customers match the current selection.", variant: "destructive" });
+      return;
+    }
+
+    const headers = [
+      "First Name", "Last Name", "Email", "Phone", "Membership Tier",
+      "Bookings", "Deposit Balance", "Custom Hourly Rate", "Joined",
+    ];
+
+    const escape = (v: unknown) => {
+      const s = v === null || v === undefined ? "" : String(v);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+
+    const lines = [
+      headers.join(","),
+      ...rows.map(c => [
+        c.first_name ?? "",
+        c.last_name ?? "",
+        c.email ?? "",
+        c.phone ?? "",
+        c.membership_tier ?? "",
+        c.booking_count ?? 0,
+        (c.deposit_balance ?? 0).toFixed(2),
+        c.custom_hourly_rate ?? "",
+        c.created_at ? format(new Date(c.created_at), "yyyy-MM-dd") : "",
+      ].map(escape).join(",")),
+    ];
+
+    const blob = new Blob([`\uFEFF${lines.join("\n")}`], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `customers-${format(new Date(), "yyyy-MM-dd")}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+
+    toast({ title: "Export ready", description: `${rows.length} customer${rows.length === 1 ? "" : "s"} exported to CSV.` });
+  };
+
   const toggleCustomerSelection = (customerId: string) => {
     const newSelection = new Set(selectedCustomers);
     if (newSelection.has(customerId)) {
@@ -1027,10 +1073,32 @@ export default function AdminCustomers() {
 
           {activeTab === "customers" && (
             <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={() => navigate('/admin/customer-import')}>
-                <Upload className="h-4 w-4 mr-2" />
-                Import CSV
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline">
+                    <FileText className="h-4 w-4 mr-2" />
+                    Import / Export
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-60 bg-popover z-50">
+                  <DropdownMenuItem onClick={() => navigate('/admin/customer-import')}>
+                    <Upload className="h-4 w-4 mr-2" />
+                    Import customers (CSV)
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => exportCustomersCsv("filtered")}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Export current list ({filteredCustomers.length})
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => exportCustomersCsv("selected")}
+                    disabled={selectedCustomers.size === 0}
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Export selected ({selectedCustomers.size})
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Button onClick={() => setShowAddCustomerDialog(true)}>
                 <UserPlus className="h-4 w-4 mr-2" />
                 Add Customer
