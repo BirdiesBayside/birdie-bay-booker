@@ -159,8 +159,45 @@ export default function AdminMarketing() {
       fetchTemplates();
       fetchPromoEligibleCount();
       fetchPromoSuccessRate();
+      fetchSavedSegments();
     }
   }, [isAdmin]);
+
+  const fetchSavedSegments = async () => {
+    const { data } = await supabase
+      .from("marketing_segments")
+      .select("id, name, emails")
+      .order("name");
+    setSavedSegments((data as any) || []);
+  };
+
+  const handleSaveSegment = async () => {
+    const name = segmentName.trim();
+    if (!name || selectedCustomers.length === 0) {
+      toast({ title: "Nothing to save", description: "Pick customers and enter a segment name.", variant: "destructive" });
+      return;
+    }
+    setIsSavingSegment(true);
+    const { error } = await supabase.from("marketing_segments").insert([{ name, emails: selectedCustomers as any }]);
+    setIsSavingSegment(false);
+    if (error) {
+      toast({ title: "Couldn't save segment", description: error.message, variant: "destructive" });
+      return;
+    }
+    setSegmentName("");
+    await fetchSavedSegments();
+    toast({ title: "Segment saved", description: `"${name}" with ${selectedCustomers.length} customers.` });
+  };
+
+  const handleSegmentChange = (value: string) => {
+    setSegmentFilter(value);
+    if (value.startsWith("saved:")) {
+      const seg = savedSegments.find((s) => s.id === value.slice(6));
+      const people = Array.isArray(seg?.emails) ? (seg!.emails as any[]) : [];
+      setSelectedCustomers(people.filter((p) => p?.email));
+      setManualOnly(true);
+    }
+  };
 
   const fetchPromoSuccessRate = async () => {
     try {
