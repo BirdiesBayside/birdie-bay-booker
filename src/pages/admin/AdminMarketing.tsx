@@ -125,6 +125,10 @@ export default function AdminMarketing() {
   const [isSending, setIsSending] = useState(false);
   const [isCountingRecipients, setIsCountingRecipients] = useState(false);
   const [testEmail, setTestEmail] = useState("");
+  const [selectedCustomers, setSelectedCustomers] = useState<{ email: string; first_name: string | null; last_name: string | null }[]>([]);
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [customerResults, setCustomerResults] = useState<{ email: string; first_name: string | null; last_name: string | null }[]>([]);
+  const [isSearchingCustomers, setIsSearchingCustomers] = useState(false);
   const [isSendingTest, setIsSendingTest] = useState(false);
 
   
@@ -258,7 +262,35 @@ export default function AdminMarketing() {
     if (composerOpen) {
       countRecipients();
     }
-  }, [membershipTiers, bookingFilter, segmentFilter, composerOpen]);
+  }, [membershipTiers, bookingFilter, segmentFilter, composerOpen, selectedCustomers]);
+
+  // Individual customer search (debounced)
+  useEffect(() => {
+    const term = customerSearch.trim();
+    if (term.length < 2) {
+      setCustomerResults([]);
+      return;
+    }
+    const t = setTimeout(async () => {
+      setIsSearchingCustomers(true);
+      const { data } = await supabase
+        .from("profiles")
+        .select("email, first_name, last_name")
+        .or(`email.ilike.%${term}%,first_name.ilike.%${term}%,last_name.ilike.%${term}%`)
+        .limit(20);
+      setCustomerResults((data || []).filter((d: any) => !!d.email) as any);
+      setIsSearchingCustomers(false);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [customerSearch]);
+
+  const toggleCustomer = (c: { email: string; first_name: string | null; last_name: string | null }) => {
+    setSelectedCustomers((prev) =>
+      prev.some((p) => p.email.toLowerCase() === c.email.toLowerCase())
+        ? prev.filter((p) => p.email.toLowerCase() !== c.email.toLowerCase())
+        : [...prev, c]
+    );
+  };
 
   const fetchCampaigns = async () => {
     setIsLoading(true);
@@ -285,42 +317,48 @@ export default function AdminMarketing() {
     }
   };
 
+  // Shared filter builder for recipient queries
+  const buildRecipientQuery = () => {
+    let q: any = supabase.from("profiles").eq("marketing_opt_out", false);
+
+    if (membershipTiers.length > 0) {
+      q = q.in("membership_tier", membershipTiers);
+    }
+    if (segmentFilter === "hub_launch_missed") {
+      q = q.eq("custom_segment", "hub_launch_missed");
+    } else if (segmentFilter === "none") {
+      q = q.is("custom_segment", null);
+    }
+    if (bookingFilter === "0") {
+      q = q.eq("total_bookings", 0);
+    } else if (bookingFilter === "1-5") {
+      q = q.gte("total_bookings", 1).lte("total_bookings", 5);
+    } else if (bookingFilter === "6-10") {
+      q = q.gte("total_bookings", 6).lte("total_bookings", 10);
+    } else if (bookingFilter === "10+") {
+      q = q.gte("total_bookings", 11);
+    }
+    return q;
+  };
+
   const countRecipients = async () => {
     setIsCountingRecipients(true);
     
-    let query = supabase
-      .from("profiles")
-      .select("id", { count: "exact", head: true })
-      .eq("marketing_opt_out", false);
-    
-    if (membershipTiers.length > 0) {
-      query = query.in("membership_tier", membershipTiers as ("visitor" | "weekday" | "birdie" | "eagle")[]);
-    }
-
-    // Apply segment filter
-    if (segmentFilter === "hub_launch_missed") {
-      query = query.eq("custom_segment", "hub_launch_missed");
-    } else if (segmentFilter === "none") {
-      query = query.is("custom_segment", null);
-    }
-
-    // Apply booking count filter using total_bookings column
-    if (bookingFilter === "0") {
-      query = query.eq("total_bookings", 0);
-    } else if (bookingFilter === "1-5") {
-      query = query.gte("total_bookings", 1).lte("total_bookings", 5);
-    } else if (bookingFilter === "6-10") {
-      query = query.gte("total_bookings", 6).lte("total_bookings", 10);
-    } else if (bookingFilter === "10+") {
-      query = query.gte("total_bookings", 11);
-    }
+    const query = buildRecipientQuery().select("id", { count: "exact", head: true });
     
     const { count, error } = await query;
-    
+
     if (!error) {
-      setRecipientCount(count || 0);
+      let total = count || 0;
+      if (selectedCustomers.length > 0) {
+        // Add manually picked customers that aren't already in the filtered set
+        const { data: filteredEmails } = await buildRecipientQuery().select("email").limit(5000);
+        const existing = new Set((filteredEmails || []).map((r: any) => String(r.email || "").toLowerCase()));
+        total += selectedCustomers.filter((c) => !existing.has(c.email.toLowerCase())).length;
+      }
+      setRecipientCount(total);
     }
-    
+
     setIsCountingRecipients(false);
   };
 
@@ -341,6 +379,9 @@ export default function AdminMarketing() {
     setMembershipTiers([]);
     setBookingFilter("all");
     setSegmentFilter("all");
+    setSelectedCustomers([]);
+    setCustomerSearch("");
+    setCustomerResults([]);
     setComposerOpen(true);
   };
 
@@ -466,9 +507,16 @@ export default function AdminMarketing() {
         recipientQuery = recipientQuery.gte("total_bookings", 11);
       }
 
-      const { data: recipients, error: recipientError } = await recipientQuery;
-      
+      const { data: filteredRecipients, error: recipientError } = await recipientQuery;
+
       if (recipientError) throw recipientError;
+
+      // Merge in individually selected customers (deduped by email)
+      const seen = new Set((filteredRecipients || []).map((r: any) => String(r.email || "").toLowerCase()));
+      const recipients = [
+        ...(filteredRecipients || []),
+        ...selectedCustomers.filter((c) => !seen.has(c.email.toLowerCase())),
+      ];
 
       // Send emails via edge function
       const { error: sendError } = await supabase.functions.invoke("send-marketing-email", {
