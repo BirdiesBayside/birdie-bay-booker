@@ -65,7 +65,7 @@ const SimCupRegister = () => {
   };
 
   return (
-    <div className="min-h-screen bg-primary">
+    <div className="min-h-screen bg-background">
       <Seo
         title="The Sim Cup Registration | Birdies Bayside"
         description="Register to represent Birdies at The Sim Cup on Saturday 26 September 2026. Birdies vs The Tee Lounge — $99 entry, team shirt included."
@@ -78,12 +78,12 @@ const SimCupRegister = () => {
         <p className="text-xs font-black uppercase tracking-[0.25em] text-accent">
           You're invited
         </p>
-        <h1 className="mt-3 font-display text-6xl uppercase leading-none tracking-wide text-primary-foreground sm:text-7xl">
+        <h1 className="mt-3 font-display text-6xl uppercase leading-none tracking-wide text-primary sm:text-7xl">
           The Sim Cup
         </h1>
         <div className="mt-4 h-[5px] w-16 bg-accent" />
 
-        <p className="mt-6 text-primary-foreground/85">
+        <p className="mt-6 text-primary/85">
           Birdies vs The Tee Lounge, right here on our turf. 18 spots. Multiple formats
           across the day — 2-man teams and individual head to head. Cash prizes and
           bragging rights on the line.
