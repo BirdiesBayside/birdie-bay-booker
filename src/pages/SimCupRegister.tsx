@@ -74,12 +74,12 @@ const SimCupRegister = () => {
 
       <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col justify-center px-5 py-12">
         <img
-          src={birdiesLogo}
+          src={simCupLogoAsset.url}
           alt="Birdies Bayside"
-          className="mb-10 h-10 self-start brightness-0 invert"
+          className="mx-auto mb-8 h-20 w-auto object-contain"
         />
 
-        <p className="text-xs font-black uppercase tracking-[0.25em] text-accent">
+        <p className="text-center text-xs font-black uppercase tracking-[0.25em] text-accent">
           You're invited
         </p>
         <h1 className="mt-3 font-display text-6xl uppercase leading-none tracking-wide text-primary-foreground sm:text-7xl">
