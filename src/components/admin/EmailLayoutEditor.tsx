@@ -52,6 +52,13 @@ const DEFAULT_FOOTER_HTML = `<tr>
   </td>
 </tr>`;
 
+// Marketing emails automatically append this row under the footer at send time.
+export const buildUnsubscribeRow = (url: string) => `<tr>
+  <td align="center" style="background-color:#1F4C25; padding:0 22px 18px; font-family:Inter, Arial, sans-serif; font-size:11px; color:#FFFFFF; opacity:0.6;">
+    <a href="${url}" style="color:#FFFFFF; text-decoration:underline;">Unsubscribe from marketing emails</a>
+  </td>
+</tr>`;
+
 const buildPreview = (header: string, footer: string) => `<!doctype html>
 <html lang="en"><head><meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
