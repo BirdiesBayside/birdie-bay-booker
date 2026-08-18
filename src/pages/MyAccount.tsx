@@ -190,6 +190,7 @@ const MyAccount = () => {
       
       if (error) throw error;
       setPaymentMethods(data.paymentMethods || []);
+      setDefaultPaymentMethodId(data.defaultPaymentMethodId ?? null);
     } catch (error) {
       console.error("Error fetching payment methods:", error);
     } finally {
@@ -215,8 +216,9 @@ const MyAccount = () => {
   };
 
   const handleDeletePaymentMethod = async (paymentMethodId: string) => {
-    // Block deletion for members - they must contact us
-    if (profile?.membership_tier && profile.membership_tier !== "visitor") {
+    // Only block removal of the card that's actually funding the membership
+    const isMember = !!profile?.membership_tier && profile.membership_tier !== "visitor";
+    if (isMember && (paymentMethodId === defaultPaymentMethodId || paymentMethods.length <= 1)) {
       setShowMembershipBlockDialog(true);
       return;
     }
@@ -227,14 +229,19 @@ const MyAccount = () => {
         body: { paymentMethodId },
       });
       
-      if (error) throw error;
-      if (data.error) throw new Error(data.error);
+      if (error) {
+        // Edge function returns 400 with a friendly message for in-use cards
+        const message = (data as any)?.error;
+        if (message) throw new Error(message);
+        throw error;
+      }
+      if (data?.error) throw new Error(data.error);
       
       toast.success("Payment method removed successfully");
       fetchPaymentMethods();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error deleting payment method:", error);
-      toast.error("Failed to remove payment method");
+      toast.error(error?.message || "Failed to remove payment method");
     } finally {
       setDeletingPaymentMethodId(null);
     }
