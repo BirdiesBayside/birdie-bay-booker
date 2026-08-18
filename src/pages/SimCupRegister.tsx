@@ -61,6 +61,19 @@ const SimCupRegister = () => {
       toast.error("Something went wrong. Please try again.");
       return;
     }
+
+    // Notify the venue (best effort — never block the customer)
+    supabase.functions
+      .invoke("notify-sim-cup-registration", {
+        body: {
+          name: name.trim(),
+          email: email.trim(),
+          phone: phone.trim(),
+          shirt_size: shirtSize,
+        },
+      })
+      .catch((err) => console.error("Sim Cup notification failed:", err));
+
     setSubmitted(true);
   };
 
