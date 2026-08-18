@@ -337,11 +337,16 @@ export default function AdminMarketing() {
 
 
   const toggleCustomer = (c: { email: string; first_name: string | null; last_name: string | null }) => {
-    setSelectedCustomers((prev) =>
-      prev.some((p) => p.email.toLowerCase() === c.email.toLowerCase())
+    setSelectedCustomers((prev) => {
+      const exists = prev.some((p) => p.email.toLowerCase() === c.email.toLowerCase());
+      const next = exists
         ? prev.filter((p) => p.email.toLowerCase() !== c.email.toLowerCase())
-        : [...prev, c]
-    );
+        : [...prev, c];
+      // Picking people manually switches the composer into "selected only" mode
+      if (next.length > 0) setManualOnly(true);
+      else setManualOnly(false);
+      return next;
+    });
   };
 
   const fetchCampaigns = async () => {
