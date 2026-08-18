@@ -889,35 +889,58 @@ export default function AdminMarketing() {
 
                   <div className="space-y-1">
                     <Label className="text-xs">Membership Tiers</Label>
-                    <div className="rounded-md border border-border bg-background p-2 space-y-1.5">
-                      {MEMBERSHIP_OPTIONS.filter((o) => o.value !== "all").map((opt) => {
-                        const checked = membershipTiers.includes(opt.value);
-                        return (
-                          <label
-                            key={opt.value}
-                            className="flex items-center gap-2 text-sm cursor-pointer"
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className="w-full justify-between font-normal"
+                        >
+                          <span className="truncate">
+                            {membershipTiers.length === 0
+                              ? "All Customers"
+                              : membershipTiers.length === 1
+                                ? MEMBERSHIP_OPTIONS.find((o) => o.value === membershipTiers[0])?.label
+                                : `${membershipTiers.length} tiers selected`}
+                          </span>
+                          <ChevronDown className="h-4 w-4 opacity-50 shrink-0" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent align="start" className="w-56 p-2 space-y-1">
+                        {MEMBERSHIP_OPTIONS.filter((o) => o.value !== "all").map((opt) => {
+                          const checked = membershipTiers.includes(opt.value);
+                          return (
+                            <label
+                              key={opt.value}
+                              className="flex items-center gap-2 text-sm cursor-pointer rounded px-2 py-1.5 hover:bg-muted"
+                            >
+                              <Checkbox
+                                checked={checked}
+                                onCheckedChange={(v) =>
+                                  setMembershipTiers((prev) =>
+                                    v === true
+                                      ? [...prev, opt.value]
+                                      : prev.filter((t) => t !== opt.value)
+                                  )
+                                }
+                              />
+                              {opt.label}
+                            </label>
+                          );
+                        })}
+                        {membershipTiers.length > 0 && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="w-full"
+                            onClick={() => setMembershipTiers([])}
                           >
-                            <Checkbox
-                              checked={checked}
-                              onCheckedChange={(v) =>
-                                setMembershipTiers((prev) =>
-                                  v === true
-                                    ? [...prev, opt.value]
-                                    : prev.filter((t) => t !== opt.value)
-                                )
-                              }
-                            />
-                            {opt.label}
-                          </label>
-                        );
-                      })}
-                      <p className="text-xs text-muted-foreground pt-1">
-                        {membershipTiers.length === 0
-                          ? "All customers"
-                          : `${membershipTiers.length} tier${membershipTiers.length > 1 ? "s" : ""} selected`}
-                      </p>
-                    </div>
+                            Clear selection
+                          </Button>
+                        )}
+                      </PopoverContent>
+                    </Popover>
                   </div>
+
                   
                   <div className="space-y-1">
                     <Label className="text-xs">Booking Count</Label>
