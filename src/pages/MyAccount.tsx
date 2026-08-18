@@ -129,7 +129,7 @@ const MyAccount = () => {
     }
   }, [user]);
 
-  // Handle success/cancel from Stripe checkout
+  // Handle success/cancel from Stripe checkout + return from the billing portal
   useEffect(() => {
     const setup = searchParams.get("setup");
     if (setup === "success") {
@@ -140,6 +140,21 @@ const MyAccount = () => {
     } else if (setup === "cancelled") {
       toast.info("Payment method setup was cancelled.");
       navigate("/my-account", { replace: true });
+    }
+
+    // Returning from the Stripe billing portal: sync any card change to the subscription
+    if (searchParams.get("portal") === "1") {
+      navigate("/my-account", { replace: true });
+      (async () => {
+        try {
+          await supabase.functions.invoke("sync-subscription-payment-method");
+        } catch (e) {
+          console.error("Error syncing payment method after portal", e);
+        } finally {
+          fetchPaymentMethods();
+          fetchProfile();
+        }
+      })();
     }
   }, [searchParams, navigate]);
 
