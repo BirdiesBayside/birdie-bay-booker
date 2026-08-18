@@ -76,7 +76,7 @@ const SimCupRegister = () => {
         <img
           src={simCupLogoAsset.url}
           alt="Birdies Bayside"
-          className="mx-auto mb-8 h-20 w-auto object-contain"
+          className="mx-auto mb-8 h-16 w-auto max-w-xs object-contain"
         />
 
         <p className="text-center text-xs font-black uppercase tracking-[0.25em] text-accent">
