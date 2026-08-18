@@ -273,16 +273,27 @@ export default function AdminMarketing() {
     }
     const t = setTimeout(async () => {
       setIsSearchingCustomers(true);
+
+      const terms = term.split(/\s+/).filter(Boolean);
+      const perTerm = terms.map((t) => {
+        const escaped = t.replace(/"/g, '\\"');
+        return `or(first_name.ilike.%${escaped}%,last_name.ilike.%${escaped}%,email.ilike.%${escaped}%)`;
+      });
+      const queryString = perTerm.length === 1 ? perTerm[0] : `and(${perTerm.join(",")})`;
+
       const { data } = await supabase
         .from("profiles")
         .select("email, first_name, last_name")
-        .or(`email.ilike.%${term}%,first_name.ilike.%${term}%,last_name.ilike.%${term}%`)
+        .or(queryString)
         .limit(20);
+
       setCustomerResults((data || []).filter((d: any) => !!d.email) as any);
       setIsSearchingCustomers(false);
     }, 300);
     return () => clearTimeout(t);
   }, [customerSearch]);
+
+
 
   const toggleCustomer = (c: { email: string; first_name: string | null; last_name: string | null }) => {
     setSelectedCustomers((prev) =>
