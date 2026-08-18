@@ -48,14 +48,14 @@ serve(async (req) => {
       );
     }
 
-    const customerId = customers.data[0].id;
+    const customer = customers.data[0];
+    const customerId = customer.id;
     logStep("Found customer", { customerId });
 
-    // Get the customer's payment methods (most recent first)
+    // All cards on file (Stripe returns newest first)
     const paymentMethods = await stripe.paymentMethods.list({
       customer: customerId,
       type: "card",
-      limit: 1,
     });
 
     if (paymentMethods.data.length === 0) {
@@ -66,11 +66,21 @@ serve(async (req) => {
       );
     }
 
-    const latestPaymentMethod = paymentMethods.data[0];
-    logStep("Found latest payment method", { 
+    // Respect an explicitly chosen default (e.g. set in the billing portal),
+    // otherwise fall back to the most recently added card.
+    const explicitDefaultId =
+      typeof customer.invoice_settings?.default_payment_method === "string"
+        ? customer.invoice_settings.default_payment_method
+        : customer.invoice_settings?.default_payment_method?.id;
+
+    const latestPaymentMethod =
+      paymentMethods.data.find((pm) => pm.id === explicitDefaultId) ?? paymentMethods.data[0];
+
+    logStep("Selected payment method", { 
       paymentMethodId: latestPaymentMethod.id,
       brand: latestPaymentMethod.card?.brand,
-      last4: latestPaymentMethod.card?.last4
+      last4: latestPaymentMethod.card?.last4,
+      source: latestPaymentMethod.id === explicitDefaultId ? "customer_default" : "most_recent",
     });
 
     // Update customer's default payment method
