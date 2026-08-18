@@ -318,8 +318,11 @@ export default function AdminMarketing() {
   };
 
   // Shared filter builder for recipient queries
-  const buildRecipientQuery = () => {
-    let q: any = supabase.from("profiles").eq("marketing_opt_out", false);
+  const buildRecipientQuery = (select: string, opts?: { head?: boolean; count?: "exact" }) => {
+    let q: any = supabase
+      .from("profiles")
+      .select(select, opts as any)
+      .eq("marketing_opt_out", false);
 
     if (membershipTiers.length > 0) {
       q = q.in("membership_tier", membershipTiers);
@@ -344,7 +347,7 @@ export default function AdminMarketing() {
   const countRecipients = async () => {
     setIsCountingRecipients(true);
     
-    const query = buildRecipientQuery().select("id", { count: "exact", head: true });
+    const query = buildRecipientQuery("id", { count: "exact", head: true });
     
     const { count, error } = await query;
 
@@ -352,7 +355,7 @@ export default function AdminMarketing() {
       let total = count || 0;
       if (selectedCustomers.length > 0) {
         // Add manually picked customers that aren't already in the filtered set
-        const { data: filteredEmails } = await buildRecipientQuery().select("email").limit(5000);
+        const { data: filteredEmails } = await buildRecipientQuery("email").limit(5000);
         const existing = new Set((filteredEmails || []).map((r: any) => String(r.email || "").toLowerCase()));
         total += selectedCustomers.filter((c) => !existing.has(c.email.toLowerCase())).length;
       }
