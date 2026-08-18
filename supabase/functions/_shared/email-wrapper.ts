@@ -97,9 +97,7 @@ export function buildEmailTemplate(
           ${header}
           <tr>
             <td style="background-color:#FFF5E4; padding:26px 22px; border-left:1px solid rgba(31,76,37,0.12); border-right:1px solid rgba(31,76,37,0.12);">
-              <h1 style="margin:0 0 14px; font-family:Anton, Impact, Arial Black, sans-serif; font-size:34px; line-height:1.1; color:#1F4C25; text-align:center;">
-                ${heading}
-              </h1>
+              ${heading && heading.trim() ? `<h1 style="margin:0 0 14px; font-family:Anton, Impact, Arial Black, sans-serif; font-size:34px; line-height:1.1; color:#1F4C25; text-align:center;">${heading}</h1>` : ""}
               ${bodyContent}
               ${buttonHtml}
             </td>
