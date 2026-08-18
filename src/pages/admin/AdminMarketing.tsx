@@ -303,7 +303,7 @@ export default function AdminMarketing() {
     if (composerOpen) {
       countRecipients();
     }
-  }, [membershipTiers, bookingFilter, segmentFilter, composerOpen, selectedCustomers]);
+  }, [membershipTiers, bookingFilter, segmentFilter, composerOpen, selectedCustomers, manualOnly]);
 
   // Individual customer search (debounced)
   useEffect(() => {
