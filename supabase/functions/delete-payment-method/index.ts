@@ -48,13 +48,57 @@ serve(async (req) => {
       throw new Error("No customer found for this user");
     }
 
-    const customerId = customers.data[0].id;
+    const customer = customers.data[0];
+    const customerId = customer.id;
     logStep("Found customer", { customerId });
 
     // Get the payment method to verify ownership
     const paymentMethod = await stripe.paymentMethods.retrieve(paymentMethodId);
     if (paymentMethod.customer !== customerId) {
       throw new Error("Payment method does not belong to this customer");
+    }
+
+    // Server-side guard: never detach the card an active subscription depends on
+    const subscriptions = await stripe.subscriptions.list({
+      customer: customerId,
+      status: "active",
+      limit: 10,
+    });
+
+    if (subscriptions.data.length > 0) {
+      const customerDefault =
+        typeof customer.invoice_settings?.default_payment_method === "string"
+          ? customer.invoice_settings.default_payment_method
+          : customer.invoice_settings?.default_payment_method?.id;
+
+      const subDefaults = subscriptions.data.map((s) =>
+        typeof s.default_payment_method === "string"
+          ? s.default_payment_method
+          : s.default_payment_method?.id
+      );
+
+      const isInUse =
+        paymentMethodId === customerDefault || subDefaults.includes(paymentMethodId);
+
+      // Also block removing the last remaining card while a subscription is active
+      const remainingCards = await stripe.paymentMethods.list({
+        customer: customerId,
+        type: "card",
+      });
+      const isLastCard = remainingCards.data.length <= 1;
+
+      if (isInUse || isLastCard) {
+        logStep("Blocked deletion", { isInUse, isLastCard });
+        return new Response(
+          JSON.stringify({
+            error: isInUse
+              ? "This card is currently paying for your membership. Add another card and make it the default first, then remove this one."
+              : "This is the only card on your account and your membership needs one. Add another card first, then remove this one.",
+            code: isInUse ? "in_use_by_subscription" : "last_card",
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+        );
+      }
     }
 
     // Detach the payment method
