@@ -582,10 +582,11 @@ export default function AdminMarketing() {
               <MessageSquare className="h-4 w-4" />
               Feedback
             </TabsTrigger>
-            <TabsTrigger value="comp-survey" className="flex items-center gap-2">
-              <ClipboardList className="h-4 w-4" />
-              Comp Survey
+            <TabsTrigger value="sim-cup" className="flex items-center gap-2">
+              <Trophy className="h-4 w-4" />
+              Sim Cup
             </TabsTrigger>
+
           </TabsList>
 
           {/* Campaigns Tab */}
