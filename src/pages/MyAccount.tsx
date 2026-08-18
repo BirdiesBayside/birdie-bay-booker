@@ -805,7 +805,9 @@ const MyAccount = () => {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        {index === 0 && <Badge variant="secondary">Default</Badge>}
+                        {(defaultPaymentMethodId
+                          ? method.id === defaultPaymentMethodId
+                          : index === 0) && <Badge variant="secondary">Default</Badge>}
                         <Button
                           variant="ghost"
                           size="icon"
