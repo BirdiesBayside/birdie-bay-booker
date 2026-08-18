@@ -47,7 +47,11 @@ import {
   Meh,
   Smile,
   ClipboardList,
+  Trophy,
+  ChevronDown,
+  Download,
 } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ReviewApprovals } from "@/components/admin/ReviewApprovals";
 
 interface Campaign {
