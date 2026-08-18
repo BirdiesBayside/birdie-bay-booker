@@ -203,7 +203,11 @@ async function sendEmailsInBackground(
 
   console.log(`[BACKGROUND] Campaign ${campaign_id} completed. Success: ${successCount}, Failed: ${failCount}`);
 
-  // Update campaign status in database
+  // Update campaign status in database (skipped for test sends with no campaign)
+  if (!campaign_id) {
+    console.log(`[BACKGROUND] Test send complete (no campaign record).`);
+    return;
+  }
   try {
     await supabaseForUpdate
       .from("marketing_campaigns")
