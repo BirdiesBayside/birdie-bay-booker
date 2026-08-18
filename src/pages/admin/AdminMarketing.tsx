@@ -130,6 +130,10 @@ export default function AdminMarketing() {
   const [customerResults, setCustomerResults] = useState<{ email: string; first_name: string | null; last_name: string | null }[]>([]);
   const [isSearchingCustomers, setIsSearchingCustomers] = useState(false);
   const [isSendingTest, setIsSendingTest] = useState(false);
+  const [manualOnly, setManualOnly] = useState(false);
+  const [savedSegments, setSavedSegments] = useState<{ id: string; name: string; emails: any }[]>([]);
+  const [segmentName, setSegmentName] = useState("");
+  const [isSavingSegment, setIsSavingSegment] = useState(false);
 
   
   // Preview state
