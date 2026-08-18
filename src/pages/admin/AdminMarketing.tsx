@@ -780,8 +780,8 @@ export default function AdminMarketing() {
           {/* Feedback Tab Content */}
           <FeedbackTab activeTab={activeTab} />
 
-          {/* Comp Survey Tab */}
-          <CompSurveyTab activeTab={activeTab} />
+          {/* Sim Cup Registrations Tab */}
+          <SimCupTab activeTab={activeTab} />
         </Tabs>
 
         {/* Composer Dialog */}
