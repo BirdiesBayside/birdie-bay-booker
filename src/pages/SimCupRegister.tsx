@@ -117,7 +117,7 @@ const SimCupRegister = () => {
         </div>
 
         {submitted ? (
-          <section className="mt-8 rounded-lg bg-secondary p-8 text-center">
+          <section className="mt-8 rounded-lg bg-background p-8 text-center">
             <CheckCircle2 className="mx-auto mb-4 h-14 w-14 text-primary" />
             <h2 className="font-display text-3xl uppercase text-primary">You're in</h2>
             <p className="mt-2 text-primary/75">
@@ -131,8 +131,9 @@ const SimCupRegister = () => {
         ) : (
           <form
             onSubmit={handleSubmit}
-            className="mt-8 space-y-5 rounded-lg bg-secondary p-6 sm:p-8"
+            className="mt-8 space-y-5 rounded-lg bg-background p-6 sm:p-8"
           >
+
             <h2 className="font-display text-3xl uppercase text-primary">Register to play</h2>
 
             <div className="space-y-2">
