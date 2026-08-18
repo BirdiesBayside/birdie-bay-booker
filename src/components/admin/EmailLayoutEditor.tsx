@@ -90,8 +90,7 @@ const buildPreview = (header: string, footer: string) => `<!doctype html>
           <h1 style="margin:0 0 14px; font-family:Anton, Impact, Arial Black, sans-serif; font-size:34px; line-height:1.1; color:#1F4C25; text-align:center;">Sample Email Heading</h1>
           <p style="font-family:Inter,Arial,sans-serif;font-size:16px;line-height:1.6;color:#1F4C25;text-align:center;margin:0 0 12px;">This is where the body of each email template appears. The header above and footer below are shared across every customer email and can be edited here.</p>
         </td></tr>
-        ${footer}
-        ${buildUnsubscribeRow("#")}
+        ${injectUnsubscribeIntoFooter(footer, "#")}
       </table>
     </td></tr>
   </table>
