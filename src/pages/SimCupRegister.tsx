@@ -16,7 +16,7 @@ import { toast } from "sonner";
 import Seo from "@/components/Seo";
 import simCupLogoAsset from "@/assets/sim-cup-logo.png.asset.json";
 
-const SHIRT_SIZES = ["S", "M", "L", "XL", "2XL", "3XL"];
+const SHIRT_SIZES = ["S", "M", "L", "XL", "2XL", "3XL", "4XL"];
 
 const schema = z.object({
   name: z.string().trim().min(2, "Please enter your full name").max(100),
