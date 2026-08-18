@@ -1015,8 +1015,35 @@ export default function AdminMarketing() {
                 </div>
               </div>
 
+              {/* Send Test Email */}
+              <div className="space-y-2 p-4 border border-border rounded-lg">
+                <Label className="text-sm font-medium">Send a test email</Label>
+                <p className="text-xs text-muted-foreground">
+                  Sends this exact email (with header &amp; footer) to one address only. Doesn't create a campaign.
+                </p>
+                <div className="flex gap-2">
+                  <Input
+                    type="email"
+                    value={testEmail}
+                    onChange={(e) => setTestEmail(e.target.value)}
+                    placeholder="you@example.com"
+                  />
+                  <Button variant="outline" onClick={handleSendTest} disabled={isSendingTest}>
+                    {isSendingTest ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <>
+                        <Mail className="h-4 w-4 mr-2" />
+                        Send Test
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+
               {/* Actions */}
               <div className="flex gap-2 pt-2">
+
                 <Button
                   variant="outline"
                   className="flex-1"
