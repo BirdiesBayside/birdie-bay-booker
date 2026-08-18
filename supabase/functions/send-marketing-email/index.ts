@@ -180,12 +180,7 @@ async function sendEmailsInBackground(
             </div>
         `;
         
-        const footerWithUnsubscribe = `${layout.footer_html}
-<tr>
-  <td align="center" style="background-color:#1F4C25; padding:0 22px 18px; font-family:Inter, Arial, sans-serif; font-size:11px; color:#FFFFFF; opacity:0.6;">
-    <a href="${unsubscribeUrl}" style="color:#FFFFFF; text-decoration:underline;">Unsubscribe from marketing emails</a>
-  </td>
-</tr>`;
+        const footerWithUnsubscribe = injectUnsubscribeIntoFooter(layout.footer_html, unsubscribeUrl);
 
         const brandedHtml = buildEmailTemplate(personalizedSubject, bodyContent, undefined, {
           header_html: layout.header_html,
