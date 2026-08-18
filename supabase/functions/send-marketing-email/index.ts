@@ -31,6 +31,30 @@ function buildUnsubscribeUrl(email: string, token: string): string {
   return `${siteUrl}/unsubscribe?email=${encodeURIComponent(email)}&token=${token}`;
 }
 
+// Places the unsubscribe link INSIDE the green footer block (last row of the
+// footer's inner table) rather than appending a separate strip underneath.
+function injectUnsubscribeIntoFooter(footerHtml: string, unsubscribeUrl: string): string {
+  const linkRow = `
+      <tr>
+        <td align="center" style="padding-top:12px; font-family:Inter, Arial, sans-serif; font-size:11px; line-height:1.6; color:#FFFFFF;">
+          <a href="${unsubscribeUrl}" style="color:#FFFFFF; text-decoration:underline; opacity:0.7;">Unsubscribe from marketing emails</a>
+        </td>
+      </tr>
+`;
+  const idx = footerHtml.lastIndexOf("</table>");
+  if (idx === -1) {
+    // Fallback: append inside the footer cell if no inner table found
+    const cellIdx = footerHtml.lastIndexOf("</td>");
+    if (cellIdx === -1) return footerHtml;
+    return (
+      footerHtml.slice(0, cellIdx) +
+      `<div style="text-align:center; padding-top:12px; font-family:Inter, Arial, sans-serif; font-size:11px; color:#FFFFFF;"><a href="${unsubscribeUrl}" style="color:#FFFFFF; text-decoration:underline; opacity:0.7;">Unsubscribe from marketing emails</a></div>` +
+      footerHtml.slice(cellIdx)
+    );
+  }
+  return footerHtml.slice(0, idx) + linkRow + footerHtml.slice(idx);
+}
+
 interface MarketingEmailRequest {
   campaign_id: string;
   subject: string;
@@ -180,12 +204,7 @@ async function sendEmailsInBackground(
             </div>
         `;
         
-        const footerWithUnsubscribe = `${layout.footer_html}
-<tr>
-  <td align="center" style="background-color:#1F4C25; padding:0 22px 18px; font-family:Inter, Arial, sans-serif; font-size:11px; color:#FFFFFF; opacity:0.6;">
-    <a href="${unsubscribeUrl}" style="color:#FFFFFF; text-decoration:underline;">Unsubscribe from marketing emails</a>
-  </td>
-</tr>`;
+        const footerWithUnsubscribe = injectUnsubscribeIntoFooter(layout.footer_html, unsubscribeUrl);
 
         const brandedHtml = buildEmailTemplate(personalizedSubject, bodyContent, undefined, {
           header_html: layout.header_html,
