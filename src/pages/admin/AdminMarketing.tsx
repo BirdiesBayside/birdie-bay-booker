@@ -130,6 +130,10 @@ export default function AdminMarketing() {
   const [customerResults, setCustomerResults] = useState<{ email: string; first_name: string | null; last_name: string | null }[]>([]);
   const [isSearchingCustomers, setIsSearchingCustomers] = useState(false);
   const [isSendingTest, setIsSendingTest] = useState(false);
+  const [manualOnly, setManualOnly] = useState(false);
+  const [savedSegments, setSavedSegments] = useState<{ id: string; name: string; emails: any }[]>([]);
+  const [segmentName, setSegmentName] = useState("");
+  const [isSavingSegment, setIsSavingSegment] = useState(false);
 
   
   // Preview state
@@ -155,8 +159,45 @@ export default function AdminMarketing() {
       fetchTemplates();
       fetchPromoEligibleCount();
       fetchPromoSuccessRate();
+      fetchSavedSegments();
     }
   }, [isAdmin]);
+
+  const fetchSavedSegments = async () => {
+    const { data } = await supabase
+      .from("marketing_segments")
+      .select("id, name, emails")
+      .order("name");
+    setSavedSegments((data as any) || []);
+  };
+
+  const handleSaveSegment = async () => {
+    const name = segmentName.trim();
+    if (!name || selectedCustomers.length === 0) {
+      toast({ title: "Nothing to save", description: "Pick customers and enter a segment name.", variant: "destructive" });
+      return;
+    }
+    setIsSavingSegment(true);
+    const { error } = await supabase.from("marketing_segments").insert([{ name, emails: selectedCustomers as any }]);
+    setIsSavingSegment(false);
+    if (error) {
+      toast({ title: "Couldn't save segment", description: error.message, variant: "destructive" });
+      return;
+    }
+    setSegmentName("");
+    await fetchSavedSegments();
+    toast({ title: "Segment saved", description: `"${name}" with ${selectedCustomers.length} customers.` });
+  };
+
+  const handleSegmentChange = (value: string) => {
+    setSegmentFilter(value);
+    if (value.startsWith("saved:")) {
+      const seg = savedSegments.find((s) => s.id === value.slice(6));
+      const people = Array.isArray(seg?.emails) ? (seg!.emails as any[]) : [];
+      setSelectedCustomers(people.filter((p) => p?.email));
+      setManualOnly(true);
+    }
+  };
 
   const fetchPromoSuccessRate = async () => {
     try {
@@ -262,7 +303,7 @@ export default function AdminMarketing() {
     if (composerOpen) {
       countRecipients();
     }
-  }, [membershipTiers, bookingFilter, segmentFilter, composerOpen, selectedCustomers]);
+  }, [membershipTiers, bookingFilter, segmentFilter, composerOpen, selectedCustomers, manualOnly]);
 
   // Individual customer search (debounced)
   useEffect(() => {
@@ -296,11 +337,16 @@ export default function AdminMarketing() {
 
 
   const toggleCustomer = (c: { email: string; first_name: string | null; last_name: string | null }) => {
-    setSelectedCustomers((prev) =>
-      prev.some((p) => p.email.toLowerCase() === c.email.toLowerCase())
+    setSelectedCustomers((prev) => {
+      const exists = prev.some((p) => p.email.toLowerCase() === c.email.toLowerCase());
+      const next = exists
         ? prev.filter((p) => p.email.toLowerCase() !== c.email.toLowerCase())
-        : [...prev, c]
-    );
+        : [...prev, c];
+      // Picking people manually switches the composer into "selected only" mode
+      if (next.length > 0) setManualOnly(true);
+      else setManualOnly(false);
+      return next;
+    });
   };
 
   const fetchCampaigns = async () => {
@@ -356,7 +402,13 @@ export default function AdminMarketing() {
   };
 
   const countRecipients = async () => {
+    if (manualOnly && selectedCustomers.length > 0) {
+      setRecipientCount(selectedCustomers.length);
+      setIsCountingRecipients(false);
+      return;
+    }
     setIsCountingRecipients(true);
+    
     
     const query = buildRecipientQuery("id", { count: "exact", head: true });
     
@@ -394,6 +446,8 @@ export default function AdminMarketing() {
     setBookingFilter("all");
     setSegmentFilter("all");
     setSelectedCustomers([]);
+    setManualOnly(false);
+    setSegmentName("");
     setCustomerSearch("");
     setCustomerResults([]);
     setComposerOpen(true);
@@ -521,16 +575,23 @@ export default function AdminMarketing() {
         recipientQuery = recipientQuery.gte("total_bookings", 11);
       }
 
-      const { data: filteredRecipients, error: recipientError } = await recipientQuery;
+      let recipients: any[];
 
-      if (recipientError) throw recipientError;
+      if (manualOnly && selectedCustomers.length > 0) {
+        // Manual mode: ONLY the hand-picked customers
+        recipients = selectedCustomers;
+      } else {
+        const { data: filteredRecipients, error: recipientError } = await recipientQuery;
 
-      // Merge in individually selected customers (deduped by email)
-      const seen = new Set((filteredRecipients || []).map((r: any) => String(r.email || "").toLowerCase()));
-      const recipients = [
-        ...(filteredRecipients || []),
-        ...selectedCustomers.filter((c) => !seen.has(c.email.toLowerCase())),
-      ];
+        if (recipientError) throw recipientError;
+
+        // Merge in individually selected customers (deduped by email)
+        const seen = new Set((filteredRecipients || []).map((r: any) => String(r.email || "").toLowerCase()));
+        recipients = [
+          ...(filteredRecipients || []),
+          ...selectedCustomers.filter((c) => !seen.has(c.email.toLowerCase())),
+        ];
+      }
 
       // Send emails via edge function
       const { error: sendError } = await supabase.functions.invoke("send-marketing-email", {
@@ -977,10 +1038,10 @@ export default function AdminMarketing() {
               <div className="space-y-3 p-4 bg-muted/50 rounded-lg">
                 <Label className="text-base font-medium">Recipients</Label>
                 
-                <div className="grid grid-cols-3 gap-3">
+                <div className={`grid grid-cols-3 gap-3 ${manualOnly ? "opacity-50" : ""}`}>
                   <div className="space-y-1">
                     <Label className="text-xs">Custom Segment</Label>
-                    <Select value={segmentFilter} onValueChange={setSegmentFilter}>
+                    <Select value={segmentFilter} onValueChange={handleSegmentChange}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
@@ -988,6 +1049,11 @@ export default function AdminMarketing() {
                         {SEGMENT_OPTIONS.map((opt) => (
                           <SelectItem key={opt.value} value={opt.value}>
                             {opt.label}
+                          </SelectItem>
+                        ))}
+                        {savedSegments.map((s) => (
+                          <SelectItem key={s.id} value={`saved:${s.id}`}>
+                            {s.name} ({Array.isArray(s.emails) ? s.emails.length : 0})
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -1000,6 +1066,7 @@ export default function AdminMarketing() {
                       <PopoverTrigger asChild>
                         <Button
                           variant="outline"
+                          disabled={manualOnly}
                           className="w-full justify-between font-normal"
                         >
                           <span className="truncate">
@@ -1051,7 +1118,7 @@ export default function AdminMarketing() {
                   
                   <div className="space-y-1">
                     <Label className="text-xs">Booking Count</Label>
-                    <Select value={bookingFilter} onValueChange={setBookingFilter}>
+                    <Select value={bookingFilter} onValueChange={setBookingFilter} disabled={manualOnly}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
@@ -1114,9 +1181,47 @@ export default function AdminMarketing() {
                           <span aria-hidden>×</span>
                         </button>
                       ))}
-                      <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => setSelectedCustomers([])}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 text-xs"
+                        onClick={() => {
+                          setSelectedCustomers([]);
+                          setManualOnly(false);
+                        }}
+                      >
                         Clear
                       </Button>
+                    </div>
+                  )}
+
+                  {selectedCustomers.length > 0 && (
+                    <div className="space-y-2 rounded-md border border-primary/30 bg-primary/5 p-2">
+                      <label className="flex items-center gap-2 text-xs cursor-pointer">
+                        <Checkbox
+                          checked={manualOnly}
+                          onCheckedChange={(v) => setManualOnly(v === true)}
+                        />
+                        Send only to the {selectedCustomers.length} selected customer
+                        {selectedCustomers.length === 1 ? "" : "s"} (ignore the filters above)
+                      </label>
+                      <div className="flex gap-2">
+                        <Input
+                          value={segmentName}
+                          onChange={(e) => setSegmentName(e.target.value)}
+                          placeholder="Segment name..."
+                          className="h-8 text-xs"
+                        />
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 text-xs whitespace-nowrap"
+                          disabled={isSavingSegment || !segmentName.trim()}
+                          onClick={handleSaveSegment}
+                        >
+                          {isSavingSegment ? "Saving..." : "Save as Segment"}
+                        </Button>
+                      </div>
                     </div>
                   )}
                 </div>
