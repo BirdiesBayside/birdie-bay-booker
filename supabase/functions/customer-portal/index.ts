@@ -57,7 +57,7 @@ serve(async (req) => {
     // Note: Cancellation settings must be configured in Stripe Dashboard
     const portalSession = await stripe.billingPortal.sessions.create({
       customer: customerId,
-      return_url: `${origin}/account`,
+      return_url: `${origin}/my-account?portal=1`,
     });
     logStep("Customer portal session created", { sessionId: portalSession.id, url: portalSession.url });
 
