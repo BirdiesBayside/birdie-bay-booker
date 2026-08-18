@@ -112,6 +112,34 @@ async function sendEmailsInBackground(
   // Global header/footer come from the shared email layout (Admin -> Notifications)
   const layout = await fetchEmailLayout(supabaseForUpdate);
 
+  // --- Hard suppression: never send marketing to anyone who unsubscribed ---
+  try {
+    const suppressed = new Set<string>();
+
+    const { data: optedOut } = await supabaseForUpdate
+      .from("profiles")
+      .select("email")
+      .eq("marketing_opt_out", true);
+    (optedOut || []).forEach((p: any) => p?.email && suppressed.add(String(p.email).toLowerCase()));
+
+    const { data: unsubLog } = await supabaseForUpdate
+      .from("marketing_unsubscribes")
+      .select("email");
+    (unsubLog || []).forEach((u: any) => u?.email && suppressed.add(String(u.email).toLowerCase()));
+
+    const before = recipients.length;
+    recipients = recipients.filter((r) => !suppressed.has(String(r.email || "").toLowerCase()));
+    console.log(
+      `[BACKGROUND] Suppression list: ${suppressed.size} unsubscribed. Filtered ${before - recipients.length} recipient(s). Sending to ${recipients.length}.`,
+    );
+  } catch (err) {
+    console.error("[BACKGROUND] Failed to load suppression list:", err);
+  }
+
+  if (recipients.length === 0) {
+    console.log("[BACKGROUND] No eligible recipients after suppression — nothing sent.");
+  }
+
   let successCount = 0;
   let failCount = 0;
 

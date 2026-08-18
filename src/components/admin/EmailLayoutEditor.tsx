@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
@@ -52,6 +53,13 @@ const DEFAULT_FOOTER_HTML = `<tr>
   </td>
 </tr>`;
 
+// Marketing emails automatically append this row under the footer at send time.
+export const buildUnsubscribeRow = (url: string) => `<tr>
+  <td align="center" style="background-color:#1F4C25; padding:0 22px 18px; font-family:Inter, Arial, sans-serif; font-size:11px; color:#FFFFFF; opacity:0.6;">
+    <a href="${url}" style="color:#FFFFFF; text-decoration:underline;">Unsubscribe from marketing emails</a>
+  </td>
+</tr>`;
+
 const buildPreview = (header: string, footer: string) => `<!doctype html>
 <html lang="en"><head><meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
@@ -67,6 +75,7 @@ const buildPreview = (header: string, footer: string) => `<!doctype html>
           <p style="font-family:Inter,Arial,sans-serif;font-size:16px;line-height:1.6;color:#1F4C25;text-align:center;margin:0 0 12px;">This is where the body of each email template appears. The header above and footer below are shared across every customer email and can be edited here.</p>
         </td></tr>
         ${footer}
+        ${buildUnsubscribeRow("#")}
       </table>
     </td></tr>
   </table>
@@ -132,6 +141,29 @@ export const EmailLayoutEditor = () => {
   };
 
   const previewSrc = useMemo(() => buildPreview(header, footer), [header, footer]);
+
+  const [testEmail, setTestEmail] = useState("");
+  const [testUrl, setTestUrl] = useState("");
+
+  const makeUnsubscribeUrl = async (email: string) => {
+    const data = new TextEncoder().encode(email.toLowerCase() + "birdies-unsubscribe-salt");
+    const hash = await crypto.subtle.digest("SHA-256", data);
+    const token = Array.from(new Uint8Array(hash))
+      .slice(0, 8)
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+    return `${window.location.origin}/unsubscribe?email=${encodeURIComponent(email)}&token=${token}`;
+  };
+
+  const generateTestLink = async () => {
+    const email = testEmail.trim();
+    if (!email) {
+      toast({ title: "Enter an email", description: "Add an address to build the test link.", variant: "destructive" });
+      return;
+    }
+    const url = await makeUnsubscribeUrl(email);
+    setTestUrl(url);
+  };
 
   return (
     <Card>
@@ -215,6 +247,39 @@ export const EmailLayoutEditor = () => {
               </Button>
               {dirty && (
                 <span className="text-xs text-muted-foreground">Unsaved changes</span>
+              )}
+            </div>
+
+            <div className="rounded-lg border p-3 space-y-2">
+              <Label className="text-sm font-medium">Unsubscribe link (marketing emails)</Label>
+              <p className="text-xs text-muted-foreground">
+                An "Unsubscribe from marketing emails" line is appended below this footer on
+                every marketing campaign automatically (shown in the preview). Clicking it
+                sets the customer's profile to opted out, and campaign sends skip anyone who
+                has unsubscribed. Transactional emails (bookings, membership, credits) are not
+                affected.
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <Input
+                  type="email"
+                  placeholder="test@example.com"
+                  value={testEmail}
+                  onChange={(e) => setTestEmail(e.target.value)}
+                  className="max-w-xs"
+                />
+                <Button variant="outline" size="sm" onClick={generateTestLink}>
+                  Generate test link
+                </Button>
+                {testUrl && (
+                  <Button asChild variant="ghost" size="sm">
+                    <a href={testUrl} target="_blank" rel="noreferrer">
+                      Open unsubscribe page
+                    </a>
+                  </Button>
+                )}
+              </div>
+              {testUrl && (
+                <p className="text-xs font-mono break-all text-muted-foreground">{testUrl}</p>
               )}
             </div>
           </>
