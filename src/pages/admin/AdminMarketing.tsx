@@ -124,6 +124,9 @@ export default function AdminMarketing() {
   const [recipientCount, setRecipientCount] = useState(0);
   const [isSending, setIsSending] = useState(false);
   const [isCountingRecipients, setIsCountingRecipients] = useState(false);
+  const [testEmail, setTestEmail] = useState("");
+  const [isSendingTest, setIsSendingTest] = useState(false);
+
   
   // Preview state
   const [previewOpen, setPreviewOpen] = useState(false);
