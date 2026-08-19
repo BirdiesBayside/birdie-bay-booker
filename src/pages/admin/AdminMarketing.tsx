@@ -435,8 +435,8 @@ export default function AdminMarketing() {
       let total = count || 0;
       if (selectedCustomers.length > 0) {
         // Add manually picked customers that aren't already in the filtered set
-        const { data: filteredEmails } = await buildRecipientQuery("email").limit(5000);
-        const existing = new Set((filteredEmails || []).map((r: any) => String(r.email || "").toLowerCase()));
+        const filteredEmails = await fetchAllRecipients("email");
+        const existing = new Set(filteredEmails.map((r: any) => String(r.email || "").toLowerCase()));
         total += selectedCustomers.filter((c) => !existing.has(c.email.toLowerCase())).length;
       }
       setRecipientCount(total);
