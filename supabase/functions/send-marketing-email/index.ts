@@ -264,7 +264,7 @@ async function sendEmailsInBackground(
   // Update campaign status in database (skipped for test sends with no campaign)
   if (!campaign_id) {
     console.log(`[BACKGROUND] Test send complete (no campaign record).`);
-    return;
+    return { successCount, failCount };
   }
   try {
     await supabaseForUpdate
@@ -279,7 +279,10 @@ async function sendEmailsInBackground(
   } catch (error) {
     console.error(`[BACKGROUND] Failed to update campaign status:`, error);
   }
+
+  return { successCount, failCount };
 }
+
 
 const handler = async (req: Request): Promise<Response> => {
   // Handle CORS preflight requests
