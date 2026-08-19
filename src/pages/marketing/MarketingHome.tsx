@@ -112,6 +112,48 @@ const MarketingHome = () => {
         </div>
       </section>
 
+      {/* PROTEE VX TECH */}
+      <section className="bg-muted py-12 sm:py-24">
+        <div className="container mx-auto px-4 grid lg:grid-cols-2 gap-12 items-center">
+          <div className="relative rounded-2xl overflow-hidden shadow-xl aspect-video bg-black order-last lg:order-first">
+            <video
+              src={proteeVideo.url}
+              autoPlay
+              muted
+              loop
+              playsInline
+              preload="metadata"
+              className="w-full h-full object-cover"
+              aria-label="ProTee VX launch monitor in action"
+            />
+          </div>
+          <div>
+            <p className="text-accent font-display tracking-[0.2em] uppercase text-sm mb-3">The Tech</p>
+            <h2 className="font-display text-4xl sm:text-5xl text-primary leading-tight mb-6">
+              Tour-Accurate ProTee VX Launch Monitors.
+            </h2>
+            <p className="text-foreground/80 text-lg leading-relaxed mb-6">
+              Every bay at Birdies runs the ProTee VX — a high-speed camera based launch monitor built for serious
+              practice. Step in, swing, and get instant tour-level ball and club data with nothing stuck to your clubs.
+            </p>
+            <ul className="space-y-3 mb-8">
+              {proteePoints.map((p) => (
+                <li key={p} className="flex gap-3 text-foreground/85">
+                  <Check className="h-5 w-5 mt-0.5 text-accent shrink-0" />
+                  <span>{p}</span>
+                </li>
+              ))}
+            </ul>
+            <a
+              href="https://hub.birdiesbayside.com.au/"
+              className="inline-flex items-center gap-2 bg-accent hover:bg-accent/90 text-accent-foreground font-display tracking-wide uppercase px-7 py-3.5 rounded-md"
+            >
+              Book a Bay <ArrowRight className="h-4 w-4" />
+            </a>
+          </div>
+        </div>
+      </section>
+
       {/* FEATURES */}
       <section className="bg-primary text-primary-foreground py-12 sm:py-24">
         <div className="container mx-auto px-4">
