@@ -402,6 +402,22 @@ export default function AdminMarketing() {
     return q;
   };
 
+  // PostgREST caps responses at 1,000 rows — page through every match
+  const fetchAllRecipients = async (select: string) => {
+    const pageSize = 1000;
+    let from = 0;
+    const all: any[] = [];
+    while (true) {
+      const { data, error } = await buildRecipientQuery(select).range(from, from + pageSize - 1);
+      if (error) throw error;
+      const rows = (data || []) as any[];
+      all.push(...rows);
+      if (rows.length < pageSize) break;
+      from += pageSize;
+    }
+    return all;
+  };
+
   const countRecipients = async () => {
     if (manualOnly && selectedCustomers.length > 0) {
       setRecipientCount(selectedCustomers.length);
