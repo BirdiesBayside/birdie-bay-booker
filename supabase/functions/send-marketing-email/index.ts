@@ -288,17 +288,18 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { campaign_id, subject, html_content, recipients }: MarketingEmailRequest = await req.json();
+    const { campaign_id, subject, html_content, recipients, is_test }: MarketingEmailRequest = await req.json();
 
-    console.log(`[SEND-MARKETING-EMAIL] Starting campaign: ${campaign_id}`);
+    console.log(`[SEND-MARKETING-EMAIL] Starting campaign: ${campaign_id}${is_test ? " (test)" : ""}`);
     console.log(`[SEND-MARKETING-EMAIL] Recipients count: ${recipients.length}`);
 
-    // Use EdgeRuntime.waitUntil to process emails in background
-    // This allows us to return immediately while emails are sent
+    // Test sends run inline so the UI reports the real outcome
     // @ts-ignore - EdgeRuntime is available in Supabase Edge Functions
-    if (typeof EdgeRuntime !== "undefined" && EdgeRuntime.waitUntil) {
+    if (!is_test && typeof EdgeRuntime !== "undefined" && EdgeRuntime.waitUntil) {
       // @ts-ignore
-      EdgeRuntime.waitUntil(sendEmailsInBackground(campaign_id, subject, html_content, recipients));
+      EdgeRuntime.waitUntil(sendEmailsInBackground(campaign_id, subject, html_content, recipients, false));
+      
+
       
       console.log(`[SEND-MARKETING-EMAIL] Background task started, returning immediately`);
       
