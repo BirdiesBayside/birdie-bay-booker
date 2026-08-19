@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import MarketingLayout from "@/components/marketing/MarketingLayout";
 import { Check, Clock, DollarSign, Trophy, Target, ArrowRight, BarChart3, Crosshair, TrendingUp, Activity, Gauge } from "lucide-react";
 import heroVideo from "@/assets/hero-video.mp4.asset.json";
+import proteeVideo from "@/assets/protee-vx.mp4.asset.json";
 import heroPoster from "@/assets/hero-poster.jpg.asset.json";
 import simulatorBay from "@/assets/simulator-bay.png.asset.json";
 import swingLabBadge from "@/assets/swing-lab-badge.png.asset.json";
@@ -10,7 +11,7 @@ import googlePlayBadge from "@/assets/google-play-badge.svg";
 const COMMUNITY_IMG = "https://cdn.shopify.com/s/files/1/0758/7030/6550/files/Birdies_Golf.jpg?v=1751956878&width=3840";
 
 const features = [
-  { icon: Target, title: "High-Tech Simulators", body: "Tour-accurate launch data, 4K graphics and 2,300+ world-famous courses." },
+  { icon: Target, title: "Tour-Accurate ProTee VX Launch Monitors", body: "27 data points per shot, 4K graphics and 2,300+ world-famous courses." },
   { icon: Clock, title: "Flexible 5am - 11pm Access", body: "Six fully automated bays, book any time, play any time." },
   { icon: DollarSign, title: "Affordable Memberships", body: "Pay a simple weekly fee to unlock your member hourly rate." },
   { icon: Trophy, title: "Competitions & League", body: "Birdie & Eagle members get access to the Birdies League. Weekday members can still jump into our Wednesday local comp." },
@@ -23,6 +24,14 @@ const swingLabFeatures = [
   { icon: Activity, title: "Swing dynamics: path, face angle, attack angle and spin" },
   { icon: TrendingUp, title: "Progress tracking over 30, 90 and 180 days" },
   { icon: Gauge, title: "Tour and amateur benchmarking with focus cues" },
+];
+
+const proteePoints = [
+  "27 data points captured on every shot",
+  "No club stickers or markers required",
+  "Impact video replay to see exactly what happened",
+  "Full ball and club data: speed, spin, path, face and attack angle",
+  "Feeds straight into Swing Lab for long-term progress tracking",
 ];
 
 const MarketingHome = () => {
@@ -108,6 +117,48 @@ const MarketingHome = () => {
           </div>
           <div className="relative rounded-2xl overflow-hidden shadow-xl aspect-[4/3]">
             <img src={simulatorBay.url} alt="Birdies simulator bay" className="w-full h-full object-cover" />
+          </div>
+        </div>
+      </section>
+
+      {/* PROTEE VX TECH */}
+      <section className="bg-muted py-12 sm:py-24">
+        <div className="container mx-auto px-4 grid lg:grid-cols-2 gap-12 items-center">
+          <div className="relative rounded-2xl overflow-hidden shadow-xl aspect-video bg-black order-last lg:order-first">
+            <video
+              src={proteeVideo.url}
+              autoPlay
+              muted
+              loop
+              playsInline
+              preload="metadata"
+              className="w-full h-full object-cover"
+              aria-label="ProTee VX launch monitor in action"
+            />
+          </div>
+          <div>
+            <p className="text-accent font-display tracking-[0.2em] uppercase text-sm mb-3">The Tech</p>
+            <h2 className="font-display text-4xl sm:text-5xl text-primary leading-tight mb-6">
+              Tour-Accurate ProTee VX Launch Monitors.
+            </h2>
+            <p className="text-foreground/80 text-lg leading-relaxed mb-6">
+              Every bay at Birdies runs the ProTee VX — a high-speed camera based launch monitor built for serious
+              practice. Step in, swing, and get instant tour-level ball and club data with nothing stuck to your clubs.
+            </p>
+            <ul className="space-y-3 mb-8">
+              {proteePoints.map((p) => (
+                <li key={p} className="flex gap-3 text-foreground/85">
+                  <Check className="h-5 w-5 mt-0.5 text-accent shrink-0" />
+                  <span>{p}</span>
+                </li>
+              ))}
+            </ul>
+            <a
+              href="https://hub.birdiesbayside.com.au/"
+              className="inline-flex items-center gap-2 bg-accent hover:bg-accent/90 text-accent-foreground font-display tracking-wide uppercase px-7 py-3.5 rounded-md"
+            >
+              Book a Bay <ArrowRight className="h-4 w-4" />
+            </a>
           </div>
         </div>
       </section>
