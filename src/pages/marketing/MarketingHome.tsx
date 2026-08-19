@@ -142,7 +142,7 @@ const MarketingHome = () => {
               Tour-Accurate ProTee VX Launch Monitors.
             </h2>
             <p className="text-foreground/80 text-lg leading-relaxed mb-6">
-              Every bay at Birdies runs the ProTee VX — a high-speed camera based launch monitor built for serious
+              Every bay at Birdies runs the ProTee VX, a high-speed camera based launch monitor built for serious
               practice. Step in, swing, and get instant tour-level ball and club data with nothing stuck to your clubs.
             </p>
             <ul className="space-y-3 mb-8">
