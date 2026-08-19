@@ -26,6 +26,14 @@ const swingLabFeatures = [
   { icon: Gauge, title: "Tour and amateur benchmarking with focus cues" },
 ];
 
+const proteePoints = [
+  "27 data points captured on every shot",
+  "No club stickers or markers required",
+  "Impact video replay to see exactly what happened",
+  "Full ball and club data: speed, spin, path, face and attack angle",
+  "Feeds straight into Swing Lab for long-term progress tracking",
+];
+
 const MarketingHome = () => {
   return (
     <MarketingLayout>
