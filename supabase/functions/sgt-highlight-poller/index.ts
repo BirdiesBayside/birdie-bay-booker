@@ -380,6 +380,9 @@ Deno.serve(async (req) => {
   const streamRefreshed = await refreshStreamStatuses(supabase);
   if (streamRefreshed) console.log(`[poller] refreshed ${streamRefreshed} stream status(es)`);
 
+  const scorecardsFilled = await backfillScorecards(supabase);
+  if (scorecardsFilled) console.log(`[poller] backfilled ${scorecardsFilled} scorecard(s)`);
+
 
   // 1. Load orchestration config (global toggle)
   const { data: cfg } = await supabase
