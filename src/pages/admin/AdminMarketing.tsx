@@ -598,18 +598,19 @@ export default function AdminMarketing() {
 
       if (sendError) throw sendError;
 
-      // Update campaign status
+      // Update campaign status (store the real list size, not the pre-send estimate)
       await supabase
         .from("marketing_campaigns")
         .update({
           status: "sent",
           sent_at: new Date().toISOString(),
+          recipient_count: recipients.length,
         })
         .eq("id", campaign.id);
 
       toast({
         title: "Campaign sent!",
-        description: `Email sent to ${recipientCount} recipients.`,
+        description: `Email sent to ${recipients.length} recipients.`,
       });
 
       setComposerOpen(false);
