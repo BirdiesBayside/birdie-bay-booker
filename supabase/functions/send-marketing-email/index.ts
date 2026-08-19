@@ -318,14 +318,14 @@ const handler = async (req: Request): Promise<Response> => {
         }
       );
     } else {
-      // Fallback for environments without EdgeRuntime.waitUntil
-      console.log(`[SEND-MARKETING-EMAIL] EdgeRuntime.waitUntil not available, processing synchronously`);
-      await sendEmailsInBackground(campaign_id, subject, html_content, recipients);
-      
+      // Inline path (test sends, or environments without EdgeRuntime.waitUntil)
+      const result = await sendEmailsInBackground(campaign_id, subject, html_content, recipients, !!is_test);
+
       return new Response(
-        JSON.stringify({ 
-          success: true, 
-          sent: recipients.length
+        JSON.stringify({
+          success: (result?.successCount ?? 0) > 0,
+          sent: result?.successCount ?? 0,
+          failed: result?.failCount ?? 0,
         }),
         {
           status: 200,
@@ -333,6 +333,7 @@ const handler = async (req: Request): Promise<Response> => {
         }
       );
     }
+
   } catch (error: any) {
     console.error("[SEND-MARKETING-EMAIL] Error:", error);
     return new Response(
