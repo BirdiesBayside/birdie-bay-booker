@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
+import { sendWebPush, type WebPushSubscription } from "../_shared/webpush.ts";
 
 // Generate JWT for APNs authentication
 async function generateAPNsJWT(): Promise<string> {
@@ -251,7 +252,7 @@ serve(async (req) => {
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-    const { title, body, user_ids } = await req.json();
+    const { title, body, user_ids, url } = await req.json();
 
     if (!title || !body) {
       return new Response(
@@ -309,6 +310,35 @@ serve(async (req) => {
     const invalidTokens: string[] = [];
 
     for (const { token, platform } of tokens) {
+      // Browser / Web Push (includes iPhone home-screen installs)
+      if (platform === 'web') {
+        let subscription: WebPushSubscription | null = null;
+        try {
+          subscription = JSON.parse(token);
+        } catch (_e) {
+          console.error('[PUSH] Invalid web push subscription JSON, removing');
+          invalidTokens.push(token);
+          failCount++;
+          continue;
+        }
+
+        const result = await sendWebPush(subscription!, {
+          title,
+          body,
+          url: url || '/',
+          tag: 'announcement',
+        });
+
+        if (result.success) {
+          successCount++;
+        } else {
+          failCount++;
+          console.error('[PUSH] Web push failed:', result.error);
+          if (result.expired) invalidTokens.push(token);
+        }
+        continue;
+      }
+
       // Android / FCM
       if (platform === 'android') {
         if (!serviceAccount) {
