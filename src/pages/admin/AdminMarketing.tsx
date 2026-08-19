@@ -480,16 +480,21 @@ export default function AdminMarketing() {
 
     setIsSendingTest(true);
     try {
-      const { error } = await supabase.functions.invoke("send-marketing-email", {
+      const { data, error } = await supabase.functions.invoke("send-marketing-email", {
         body: {
           campaign_id: null,
           subject: `[TEST] ${campaignSubject}`,
           html_content: campaignHtml,
           recipients: [{ email, first_name: "Test", last_name: "" }],
+          is_test: true,
         },
       });
       if (error) throw error;
+      if (!data?.sent) {
+        throw new Error("The email provider did not accept the test send. Check the function logs.");
+      }
       toast({ title: "Test sent", description: `Test email sent to ${email}.` });
+
     } catch (error: any) {
       toast({
         title: "Test send failed",
