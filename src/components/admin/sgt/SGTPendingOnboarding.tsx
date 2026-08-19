@@ -213,12 +213,40 @@ export function SGTPendingOnboarding() {
         throw new Error("No active tours found");
       }
 
-      // Get member info from sgt_members
+      // Get member info from sgt_members. A player who just registered may not
+      // have been pulled into sgt_members by the sync yet, so fall back to any
+      // existing tour member row, then to their Hub display name — never write
+      // a null username (that's what showed as "Unknown").
       const { data: memberInfo } = await supabase
         .from("sgt_members")
         .select("user_name")
         .eq("user_id", sgtUserId)
         .maybeSingle();
+
+      let resolvedName: string | null = memberInfo?.user_name ?? null;
+
+      if (!resolvedName) {
+        const { data: existingTm } = await supabase
+          .from("sgt_tour_members")
+          .select("user_name")
+          .eq("user_id", sgtUserId)
+          .not("user_name", "is", null)
+          .limit(1)
+          .maybeSingle();
+        resolvedName = existingTm?.user_name ?? null;
+      }
+
+      if (!resolvedName) {
+        const { data: profileInfo } = await supabase
+          .from("profiles")
+          .select("display_name, first_name, last_name")
+          .eq("sgt_user_id", sgtUserId)
+          .maybeSingle();
+        resolvedName =
+          profileInfo?.display_name ||
+          [profileInfo?.first_name, profileInfo?.last_name].filter(Boolean).join(" ") ||
+          null;
+      }
 
       // Add member to all active tours with custom HCP in parallel
       // onboarding_hcp is the locked starting handicap used for first 6 rounds
@@ -229,7 +257,7 @@ export function SGTPendingOnboarding() {
             .upsert({
               user_id: sgtUserId,
               tour_id: tour.tour_id,
-              user_name: memberInfo?.user_name || null,
+              ...(resolvedName ? { user_name: resolvedName } : {}),
               custom_hcp: customHcp,
               onboarding_hcp: customHcp,
               updated_at: new Date().toISOString(),
@@ -239,6 +267,7 @@ export function SGTPendingOnboarding() {
             .then((res) => ({ tour, error: res.error }))
         )
       );
+
 
       const failed = upsertResults.find((r) => r.error);
       if (failed) {
