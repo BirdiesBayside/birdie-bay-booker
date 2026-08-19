@@ -426,7 +426,7 @@ export function SGTLeagueMembers() {
                         <TableCell>
                           <div>
                             <p className="font-medium">
-                              {member.nickname || member.user_name || "Unknown"}
+                              {member.nickname || member.user_name || member.email || "Unknown"}
                             </p>
                             {member.nickname && (
                               <p className="text-xs text-muted-foreground">
