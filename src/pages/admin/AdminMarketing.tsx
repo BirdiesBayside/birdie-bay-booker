@@ -569,48 +569,19 @@ export default function AdminMarketing() {
 
       if (campaignError) throw campaignError;
 
-      // Get recipients
-      let recipientQuery = supabase
-        .from("profiles")
-        .select("email, first_name, last_name")
-        .eq("marketing_opt_out", false);
-      
-      if (membershipTiers.length > 0) {
-        recipientQuery = recipientQuery.in("membership_tier", membershipTiers as ("visitor" | "weekday" | "birdie" | "eagle")[]);
-      }
-
-      // Apply segment filter
-      if (segmentFilter === "hub_launch_missed") {
-        recipientQuery = recipientQuery.eq("custom_segment", "hub_launch_missed");
-      } else if (segmentFilter === "none") {
-        recipientQuery = recipientQuery.is("custom_segment", null);
-      }
-
-      // Apply booking count filter
-      if (bookingFilter === "0") {
-        recipientQuery = recipientQuery.eq("total_bookings", 0);
-      } else if (bookingFilter === "1-5") {
-        recipientQuery = recipientQuery.gte("total_bookings", 1).lte("total_bookings", 5);
-      } else if (bookingFilter === "6-10") {
-        recipientQuery = recipientQuery.gte("total_bookings", 6).lte("total_bookings", 10);
-      } else if (bookingFilter === "10+") {
-        recipientQuery = recipientQuery.gte("total_bookings", 11);
-      }
-
       let recipients: any[];
 
       if (manualOnly && selectedCustomers.length > 0) {
         // Manual mode: ONLY the hand-picked customers
         recipients = selectedCustomers;
       } else {
-        const { data: filteredRecipients, error: recipientError } = await recipientQuery;
-
-        if (recipientError) throw recipientError;
+        // Paged fetch — never let PostgREST's 1,000-row cap silently truncate the list
+        const filteredRecipients = await fetchAllRecipients("email, first_name, last_name");
 
         // Merge in individually selected customers (deduped by email)
-        const seen = new Set((filteredRecipients || []).map((r: any) => String(r.email || "").toLowerCase()));
+        const seen = new Set(filteredRecipients.map((r: any) => String(r.email || "").toLowerCase()));
         recipients = [
-          ...(filteredRecipients || []),
+          ...filteredRecipients,
           ...selectedCustomers.filter((c) => !seen.has(c.email.toLowerCase())),
         ];
       }
