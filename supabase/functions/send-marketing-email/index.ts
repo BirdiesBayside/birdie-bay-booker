@@ -60,7 +60,9 @@ interface MarketingEmailRequest {
   subject: string;
   html_content: string;
   recipients: Recipient[];
+  is_test?: boolean;
 }
+
 
 // Replace template tags with actual values
 function replaceTemplateTags(html: string, recipient: Recipient, resetLink?: string): string {
@@ -108,9 +110,11 @@ async function sendEmailsInBackground(
   campaign_id: string,
   subject: string,
   html_content: string,
-  recipients: Recipient[]
+  recipients: Recipient[],
+  is_test = false
 ) {
-  console.log(`[BACKGROUND] Starting email send for campaign ${campaign_id} to ${recipients.length} recipients`);
+  console.log(`[BACKGROUND] Starting email send for campaign ${campaign_id} to ${recipients.length} recipients${is_test ? " (TEST — suppression bypassed)" : ""}`);
+
   
   // Check if the template contains {reset_link} - if so, we need to generate reset links
   const needsResetLink = html_content.includes('{reset_link}');
@@ -137,28 +141,34 @@ async function sendEmailsInBackground(
   const layout = await fetchEmailLayout(supabaseForUpdate);
 
   // --- Hard suppression: never send marketing to anyone who unsubscribed ---
-  try {
-    const suppressed = new Set<string>();
+  // Test sends bypass this so admins can always preview to their own address.
+  if (is_test) {
+    console.log("[BACKGROUND] Test send — suppression list not applied.");
+  } else {
+    try {
+      const suppressed = new Set<string>();
 
-    const { data: optedOut } = await supabaseForUpdate
-      .from("profiles")
-      .select("email")
-      .eq("marketing_opt_out", true);
-    (optedOut || []).forEach((p: any) => p?.email && suppressed.add(String(p.email).toLowerCase()));
+      const { data: optedOut } = await supabaseForUpdate
+        .from("profiles")
+        .select("email")
+        .eq("marketing_opt_out", true);
+      (optedOut || []).forEach((p: any) => p?.email && suppressed.add(String(p.email).toLowerCase()));
 
-    const { data: unsubLog } = await supabaseForUpdate
-      .from("marketing_unsubscribes")
-      .select("email");
-    (unsubLog || []).forEach((u: any) => u?.email && suppressed.add(String(u.email).toLowerCase()));
+      const { data: unsubLog } = await supabaseForUpdate
+        .from("marketing_unsubscribes")
+        .select("email");
+      (unsubLog || []).forEach((u: any) => u?.email && suppressed.add(String(u.email).toLowerCase()));
 
-    const before = recipients.length;
-    recipients = recipients.filter((r) => !suppressed.has(String(r.email || "").toLowerCase()));
-    console.log(
-      `[BACKGROUND] Suppression list: ${suppressed.size} unsubscribed. Filtered ${before - recipients.length} recipient(s). Sending to ${recipients.length}.`,
-    );
-  } catch (err) {
-    console.error("[BACKGROUND] Failed to load suppression list:", err);
+      const before = recipients.length;
+      recipients = recipients.filter((r) => !suppressed.has(String(r.email || "").toLowerCase()));
+      console.log(
+        `[BACKGROUND] Suppression list: ${suppressed.size} unsubscribed. Filtered ${before - recipients.length} recipient(s). Sending to ${recipients.length}.`,
+      );
+    } catch (err) {
+      console.error("[BACKGROUND] Failed to load suppression list:", err);
+    }
   }
+
 
   if (recipients.length === 0) {
     console.log("[BACKGROUND] No eligible recipients after suppression — nothing sent.");
@@ -254,7 +264,7 @@ async function sendEmailsInBackground(
   // Update campaign status in database (skipped for test sends with no campaign)
   if (!campaign_id) {
     console.log(`[BACKGROUND] Test send complete (no campaign record).`);
-    return;
+    return { successCount, failCount };
   }
   try {
     await supabaseForUpdate
@@ -269,7 +279,10 @@ async function sendEmailsInBackground(
   } catch (error) {
     console.error(`[BACKGROUND] Failed to update campaign status:`, error);
   }
+
+  return { successCount, failCount };
 }
+
 
 const handler = async (req: Request): Promise<Response> => {
   // Handle CORS preflight requests
@@ -278,17 +291,18 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { campaign_id, subject, html_content, recipients }: MarketingEmailRequest = await req.json();
+    const { campaign_id, subject, html_content, recipients, is_test }: MarketingEmailRequest = await req.json();
 
-    console.log(`[SEND-MARKETING-EMAIL] Starting campaign: ${campaign_id}`);
+    console.log(`[SEND-MARKETING-EMAIL] Starting campaign: ${campaign_id}${is_test ? " (test)" : ""}`);
     console.log(`[SEND-MARKETING-EMAIL] Recipients count: ${recipients.length}`);
 
-    // Use EdgeRuntime.waitUntil to process emails in background
-    // This allows us to return immediately while emails are sent
+    // Test sends run inline so the UI reports the real outcome
     // @ts-ignore - EdgeRuntime is available in Supabase Edge Functions
-    if (typeof EdgeRuntime !== "undefined" && EdgeRuntime.waitUntil) {
+    if (!is_test && typeof EdgeRuntime !== "undefined" && EdgeRuntime.waitUntil) {
       // @ts-ignore
-      EdgeRuntime.waitUntil(sendEmailsInBackground(campaign_id, subject, html_content, recipients));
+      EdgeRuntime.waitUntil(sendEmailsInBackground(campaign_id, subject, html_content, recipients, false));
+      
+
       
       console.log(`[SEND-MARKETING-EMAIL] Background task started, returning immediately`);
       
@@ -304,14 +318,14 @@ const handler = async (req: Request): Promise<Response> => {
         }
       );
     } else {
-      // Fallback for environments without EdgeRuntime.waitUntil
-      console.log(`[SEND-MARKETING-EMAIL] EdgeRuntime.waitUntil not available, processing synchronously`);
-      await sendEmailsInBackground(campaign_id, subject, html_content, recipients);
-      
+      // Inline path (test sends, or environments without EdgeRuntime.waitUntil)
+      const result = await sendEmailsInBackground(campaign_id, subject, html_content, recipients, !!is_test);
+
       return new Response(
-        JSON.stringify({ 
-          success: true, 
-          sent: recipients.length
+        JSON.stringify({
+          success: (result?.successCount ?? 0) > 0,
+          sent: result?.successCount ?? 0,
+          failed: result?.failCount ?? 0,
         }),
         {
           status: 200,
@@ -319,6 +333,7 @@ const handler = async (req: Request): Promise<Response> => {
         }
       );
     }
+
   } catch (error: any) {
     console.error("[SEND-MARKETING-EMAIL] Error:", error);
     return new Response(
