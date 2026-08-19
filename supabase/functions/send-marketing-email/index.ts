@@ -60,7 +60,9 @@ interface MarketingEmailRequest {
   subject: string;
   html_content: string;
   recipients: Recipient[];
+  is_test?: boolean;
 }
+
 
 // Replace template tags with actual values
 function replaceTemplateTags(html: string, recipient: Recipient, resetLink?: string): string {
