@@ -139,30 +139,34 @@ async function sendEmailsInBackground(
   const layout = await fetchEmailLayout(supabaseForUpdate);
 
   // --- Hard suppression: never send marketing to anyone who unsubscribed ---
-  try {
-    if (is_test) throw new Error("__skip_suppression__");
-    const suppressed = new Set<string>();
+  // Test sends bypass this so admins can always preview to their own address.
+  if (is_test) {
+    console.log("[BACKGROUND] Test send — suppression list not applied.");
+  } else {
+    try {
+      const suppressed = new Set<string>();
 
+      const { data: optedOut } = await supabaseForUpdate
+        .from("profiles")
+        .select("email")
+        .eq("marketing_opt_out", true);
+      (optedOut || []).forEach((p: any) => p?.email && suppressed.add(String(p.email).toLowerCase()));
 
-    const { data: optedOut } = await supabaseForUpdate
-      .from("profiles")
-      .select("email")
-      .eq("marketing_opt_out", true);
-    (optedOut || []).forEach((p: any) => p?.email && suppressed.add(String(p.email).toLowerCase()));
+      const { data: unsubLog } = await supabaseForUpdate
+        .from("marketing_unsubscribes")
+        .select("email");
+      (unsubLog || []).forEach((u: any) => u?.email && suppressed.add(String(u.email).toLowerCase()));
 
-    const { data: unsubLog } = await supabaseForUpdate
-      .from("marketing_unsubscribes")
-      .select("email");
-    (unsubLog || []).forEach((u: any) => u?.email && suppressed.add(String(u.email).toLowerCase()));
-
-    const before = recipients.length;
-    recipients = recipients.filter((r) => !suppressed.has(String(r.email || "").toLowerCase()));
-    console.log(
-      `[BACKGROUND] Suppression list: ${suppressed.size} unsubscribed. Filtered ${before - recipients.length} recipient(s). Sending to ${recipients.length}.`,
-    );
-  } catch (err) {
-    console.error("[BACKGROUND] Failed to load suppression list:", err);
+      const before = recipients.length;
+      recipients = recipients.filter((r) => !suppressed.has(String(r.email || "").toLowerCase()));
+      console.log(
+        `[BACKGROUND] Suppression list: ${suppressed.size} unsubscribed. Filtered ${before - recipients.length} recipient(s). Sending to ${recipients.length}.`,
+      );
+    } catch (err) {
+      console.error("[BACKGROUND] Failed to load suppression list:", err);
+    }
   }
+
 
   if (recipients.length === 0) {
     console.log("[BACKGROUND] No eligible recipients after suppression — nothing sent.");
