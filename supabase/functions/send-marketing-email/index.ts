@@ -108,9 +108,11 @@ async function sendEmailsInBackground(
   campaign_id: string,
   subject: string,
   html_content: string,
-  recipients: Recipient[]
+  recipients: Recipient[],
+  is_test = false
 ) {
-  console.log(`[BACKGROUND] Starting email send for campaign ${campaign_id} to ${recipients.length} recipients`);
+  console.log(`[BACKGROUND] Starting email send for campaign ${campaign_id} to ${recipients.length} recipients${is_test ? " (TEST — suppression bypassed)" : ""}`);
+
   
   // Check if the template contains {reset_link} - if so, we need to generate reset links
   const needsResetLink = html_content.includes('{reset_link}');
