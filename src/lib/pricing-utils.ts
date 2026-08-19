@@ -84,7 +84,7 @@ export function toLatestTierPricing(pricingConfig: PricingConfigRow[]): Record<s
  * Gets the appropriate hourly rate based on membership tier, date, and time.
  * 
  * Visitor rates:
- *   - Peak: $42/hr from 21 Aug 2026, $35/hr before that
+ *   - Peak: $40/hr from 21 Aug 2026, $35/hr before that
  *   - Off-peak: $30/hr
  * 
  * Weekday Member:
