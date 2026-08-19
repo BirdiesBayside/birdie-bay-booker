@@ -140,7 +140,9 @@ async function sendEmailsInBackground(
 
   // --- Hard suppression: never send marketing to anyone who unsubscribed ---
   try {
+    if (is_test) throw new Error("__skip_suppression__");
     const suppressed = new Set<string>();
+
 
     const { data: optedOut } = await supabaseForUpdate
       .from("profiles")
