@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Bell } from "lucide-react";
+import { Bell, BellOff, BellRing } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -17,6 +17,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
+import {
+  enableWebPush,
+  disableWebPush,
+  getExistingSubscription,
+  isWebPushSupported,
+  webPushPermission,
+} from "@/lib/web-push";
 
 interface Announcement {
   id: string;
@@ -35,6 +43,47 @@ export function NotificationBell() {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<Announcement | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [pushSupported, setPushSupported] = useState(false);
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
+
+  useEffect(() => {
+    const supported = isWebPushSupported();
+    setPushSupported(supported);
+    if (!supported) return;
+    getExistingSubscription().then((sub) => {
+      setPushEnabled(!!sub && webPushPermission() === "granted");
+    });
+  }, [user]);
+
+  const togglePush = async () => {
+    if (!user) return;
+    setPushBusy(true);
+    try {
+      if (pushEnabled) {
+        await disableWebPush(user.id);
+        setPushEnabled(false);
+        toast.success("Announcement notifications turned off");
+      } else {
+        const result = await enableWebPush(user.id);
+        if (result.ok) {
+          setPushEnabled(true);
+          toast.success("You'll now get a notification for new announcements");
+        } else if (result.reason === "denied") {
+          toast.error("Notifications are blocked in your browser settings");
+        } else if (result.reason === "unsupported") {
+          toast.error("This device can't receive notifications here. On iPhone, add Birdies Hub to your Home Screen first.");
+        } else {
+          toast.error("Couldn't turn on notifications. Please try again.");
+        }
+      }
+    } catch (err) {
+      console.error("[WEBPUSH] toggle failed", err);
+      toast.error("Couldn't update notification settings");
+    } finally {
+      setPushBusy(false);
+    }
+  };
 
   const unreadCount = announcements.filter((a) => !readIds.has(a.id)).length;
 
@@ -182,6 +231,29 @@ export function NotificationBell() {
               </div>
             )}
           </ScrollArea>
+          {pushSupported && user && (
+            <div className="border-t p-3">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full justify-start gap-2 text-xs"
+                disabled={pushBusy}
+                onClick={togglePush}
+              >
+                {pushEnabled ? (
+                  <>
+                    <BellRing className="h-4 w-4 text-accent" />
+                    Announcement alerts on — tap to turn off
+                  </>
+                ) : (
+                  <>
+                    <BellOff className="h-4 w-4" />
+                    Turn on announcement alerts
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
         </PopoverContent>
       </Popover>
 
