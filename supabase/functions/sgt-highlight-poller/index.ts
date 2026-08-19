@@ -184,6 +184,71 @@ function shapeScorecard(sc: Record<string, unknown>) {
   };
 }
 
+// ---------- Scorecard backfill ----------
+// Live capture only happens if the poller sees the embed flip to "finished"
+// while the session is still active. Rounds that stop on the booking-end
+// failsafe (or where SGT posts the card minutes later) would otherwise never
+// get a scorecard. This pass retries any recent SGT session missing one.
+async function backfillScorecards(supabase: any): Promise<number> {
+  const apiKey = await getSgtApiKey(supabase);
+  if (!apiKey) return 0;
+
+  const since = new Date(Date.now() - 7 * 24 * 60 * 60_000).toISOString();
+  const { data: rows } = await supabase
+    .from("recording_sessions")
+    .select("id, sgt_tournament_id, sgt_user_id, round_number")
+    .eq("trigger_source", "sgt")
+    .is("scorecard", null)
+    .neq("status", "purged")
+    .not("sgt_tournament_id", "is", null)
+    .not("sgt_user_id", "is", null)
+    .gte("started_at", since)
+    .limit(50);
+
+  if (!rows?.length) return 0;
+
+  // Fetch each tournament's scorecards once.
+  const byTournament = new Map<string, Record<string, unknown>[]>();
+  let filled = 0;
+
+  for (const row of rows) {
+    const tournId = String(row.sgt_tournament_id);
+    if (!byTournament.has(tournId)) {
+      const url = new URL(`${SGT_BASE_URL}/${SGT_CLUB}/tournaments/scorecards`);
+      url.searchParams.append("api-key", apiKey);
+      url.searchParams.append("tournamentId", tournId);
+      let list: Record<string, unknown>[] = [];
+      try {
+        const res = await fetch(url.toString());
+        if (res.ok) {
+          const payload = await res.json();
+          if (payload !== "INVALID API KEY") {
+            list = Array.isArray(payload) ? payload : (payload?.scorecards ?? payload?.results ?? []);
+          }
+        }
+      } catch (e) {
+        console.error("[poller] backfill fetch failed:", (e as Error).message);
+      }
+      byTournament.set(tournId, list);
+    }
+
+    const playerId = Number(row.sgt_user_id);
+    const round = Number(row.round_number ?? 1);
+    const raw = (byTournament.get(tournId) ?? []).find(
+      (sc) => Number(sc.playerId) === playerId && Number(sc.round ?? 1) === round,
+    );
+    if (!raw || !isFullEighteen(raw)) continue;
+
+    await supabase
+      .from("recording_sessions")
+      .update({ scorecard: shapeScorecard(raw), updated_at: new Date().toISOString() })
+      .eq("id", row.id);
+    filled++;
+    console.log(`[poller] backfilled scorecard for session ${row.id}`);
+  }
+  return filled;
+}
+
 // ---------- Cloudflare Stream status refresh ----------
 // Uploaded videos sit at stream_status='inprogress' until someone opens the
 // review page. Refresh them here so the Highlights list stops showing
@@ -314,6 +379,9 @@ Deno.serve(async (req) => {
 
   const streamRefreshed = await refreshStreamStatuses(supabase);
   if (streamRefreshed) console.log(`[poller] refreshed ${streamRefreshed} stream status(es)`);
+
+  const scorecardsFilled = await backfillScorecards(supabase);
+  if (scorecardsFilled) console.log(`[poller] backfilled ${scorecardsFilled} scorecard(s)`);
 
 
   // 1. Load orchestration config (global toggle)
