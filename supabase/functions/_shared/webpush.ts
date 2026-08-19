@@ -84,7 +84,7 @@ async function buildVapidHeader(endpoint: string): Promise<string> {
   return `vapid t=${unsigned}.${bytesToB64url(sig)}, k=${publicKey}`;
 }
 
-async function encryptPayload(sub: WebPushSubscription, plaintext: Uint8Array): Promise<Uint8Array> {
+export async function encryptPayload(sub: WebPushSubscription, plaintext: Uint8Array): Promise<Uint8Array> {
   const uaPublic = b64urlToBytes(sub.keys.p256dh);
   const authSecret = b64urlToBytes(sub.keys.auth);
 
