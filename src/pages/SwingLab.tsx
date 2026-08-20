@@ -1211,6 +1211,8 @@ function DispersionChart({ shots, dLbl, sessions }: { shots: Shot[]; dLbl: strin
             <YAxis
               type="number" dataKey="carry"
               domain={[bounds.yMin, bounds.yMax]}
+              ticks={carryTicks}
+              interval={0}
               tickFormatter={(v: number) => `${Math.round(v)}`}
               width={44}
               label={{ value: `Carry (${dLbl})`, angle: -90, position: "insideLeft", style: { textAnchor: "middle" } }}
