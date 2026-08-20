@@ -1055,6 +1055,21 @@ function DispersionChart({ shots, dLbl, sessions }: { shots: Shot[]; dLbl: strin
     return { xMin: -spread, xMax: spread, yMin, yMax };
   }, [clubData]);
 
+  // Fixed carry-axis increments so groupings are easy to read:
+  // 10-unit steps below 100, 25-unit steps at/above 100.
+  const carryTicks = useMemo(() => {
+    const ticks: number[] = [];
+    const step = (v: number) => (v < 100 ? 10 : 25);
+    let v = Math.floor(bounds.yMin / step(bounds.yMin)) * step(bounds.yMin);
+    if (v < bounds.yMin) v += step(v);
+    let guard = 0;
+    while (v <= bounds.yMax && guard++ < 200) {
+      ticks.push(v);
+      v += step(v);
+    }
+    return ticks;
+  }, [bounds]);
+
   const DATE_RANGES: { value: DateRange; label: string }[] = [
     { value: "all", label: "All time" },
     { value: "30", label: "Last 30 days" },
