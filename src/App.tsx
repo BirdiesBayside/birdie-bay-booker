@@ -14,6 +14,7 @@ import BrandLoader from "@/components/BrandLoader";
 
 // Lazy load all pages for code splitting
 const Index = lazy(() => import("./pages/Index"));
+const Training = lazy(() => import("./pages/Training"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Booking = lazy(() => import("./pages/Booking"));
 const BookingSuccess = lazy(() => import("./pages/BookingSuccess"));
@@ -237,6 +238,7 @@ const App = () => (
             <Route path="/bay-controller" element={<BayController />} />
             <Route path="/card-added" element={<CardAdded />} />
             <Route path="/welcome-preview" element={<WelcomePreview />} />
+            <Route path="/training" element={<Training />} />
             <Route path="/birdies-guide" element={<BirdiesGuide />} />
             <Route path="/unsubscribe" element={<Unsubscribe />} />
             <Route path="/privacy" element={<PrivacyPolicy />} />
