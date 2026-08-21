@@ -663,7 +663,7 @@ export default function Booking() {
                 </p>
                 <p className="text-sm text-muted-foreground mt-1">
                   Your last {MEMBERSHIP_DISPLAY[actualMembershipTier] || "Member"} payment
-                  didn't go through. You can still book at <strong>$35/hr visitor rate</strong>,
+                  didn't go through. You can still book at <strong>$40/hr visitor rate</strong>,
                   or retry your membership payment now to get member pricing back.
                 </p>
                 <Button
@@ -702,7 +702,7 @@ export default function Booking() {
             <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
             <div>
               <strong>Additional bay booking.</strong> You already have a bay booked at this time. 
-              Additional bays during peak hours are charged at visitor rates ($35/hr).
+              Additional bays during peak hours are charged at visitor rates ($40/hr).
             </div>
           </div>
         )}
@@ -713,7 +713,7 @@ export default function Booking() {
             <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
             <div>
               <strong>Peak time selected.</strong> As a Weekday member, you get $10/hr for Monday-Thursday before 4pm only. 
-              This booking will be charged at the visitor peak rate ($35/hr).
+              This booking will be charged at the visitor peak rate ($40/hr).
             </div>
           </div>
         )}
