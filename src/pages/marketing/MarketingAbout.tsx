@@ -19,7 +19,7 @@ const highlights = [
   {
     icon: BadgePercent,
     title: "Competitive Visitor Rates",
-    body: "Off-peak from $30/hr, peak from $35/hr per bay, up to 4 players.",
+    body: "Off-peak from $30/hr, peak from $40/hr per bay, up to 4 players.",
   },
   {
     icon: Trophy,

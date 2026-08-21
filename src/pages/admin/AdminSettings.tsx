@@ -36,7 +36,6 @@ import { ActivityLog } from "@/components/admin/ActivityLog";
 import { TableServiceSettings } from "@/components/admin/TableServiceSettings";
 import { DailyHoursEditor } from "@/components/admin/DailyHoursEditor";
 import { PublicHolidaysSection } from "@/components/admin/PublicHolidaysSection";
-import { PriceScheduleSection } from "@/components/admin/PriceScheduleSection";
 import { SmsTemplatesSection } from "@/components/admin/SmsTemplatesSection";
 import { CustomerAlertsSection } from "@/components/admin/CustomerAlertsSection";
 import { DoorAccessSection } from "@/components/admin/DoorAccessSection";
@@ -1131,10 +1130,6 @@ export default function AdminSettings() {
 
           {/* Pricing Settings */}
           <TabsContent value="pricing" className="space-y-4">
-            <CollapsibleSection title="Price Rollout Schedule" description="Scheduled and currently active rates — changes apply automatically from midnight Brisbane on their start date">
-              <PriceScheduleSection />
-            </CollapsibleSection>
-
             <CollapsibleSection title="Public Holidays" description="Manage public holiday dates for peak pricing">
               <PublicHolidaysSection />
             </CollapsibleSection>

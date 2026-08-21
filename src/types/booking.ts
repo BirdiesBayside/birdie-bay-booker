@@ -17,9 +17,9 @@ export const MEMBERSHIP_TIERS: Record<MembershipTier, MembershipPricing> = {
     tier: 'visitor',
     name: 'Visitor',
     weeklyFee: 0,
-    hourlyRate: 35, // Peak rate - off-peak is $25
+    hourlyRate: 40, // Peak rate - off-peak is $30
     description: 'Pay as you play',
-    features: ['No commitment', 'Peak: $35/hr, Off-Peak: $25/hr', 'Book up to 1 week ahead'],
+    features: ['No commitment', 'Peak: $40/hr, Off-Peak: $30/hr', 'Book up to 1 week ahead'],
   },
   weekday: {
     tier: 'weekday',

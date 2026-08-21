@@ -129,7 +129,7 @@ const MarketingMembership = () => (
             <div className="mb-5">
               <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold bg-accent/10 text-accent border border-accent/20">
                 <Clock className="h-3.5 w-3.5" />
-                $35/hr
+                $40/hr
               </span>
             </div>
             <p className="text-sm text-foreground/60 mb-2">Fri-Sun & Mon-Thu 4pm+</p>
