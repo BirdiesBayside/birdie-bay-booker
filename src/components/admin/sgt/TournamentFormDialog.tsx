@@ -588,8 +588,53 @@ export function TournamentFormDialog({
         description: data.feedback || `Tournament "${values.tournamentname}" has been ${isEditing ? "updated" : "created"} successfully.`,
       });
 
+      // If the tournament has already started (Brisbane time), register players immediately
+      // instead of waiting for the 6:00am cron.
+      const brisbaneToday = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Australia/Brisbane",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(new Date());
+      const startStr = values.startdate
+        ? new Intl.DateTimeFormat("en-CA", {
+            timeZone: "Australia/Brisbane",
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+          }).format(values.startdate)
+        : null;
+
+      if (startStr && startStr <= brisbaneToday) {
+        toast({
+          title: "Registering players...",
+          description: "Start date has already passed, running registration now.",
+        });
+        try {
+          // Sync first so the new tournament exists in our DB, then register.
+          await supabase.functions.invoke("sgt-sync", { body: {} });
+          const { data: regData, error: regError } = await supabase.functions.invoke(
+            "sgt-daily-tournament-register",
+            { body: {} }
+          );
+          if (regError) throw regError;
+          toast({
+            title: "Players registered",
+            description: `${regData?.registrations ?? 0} player(s) registered for active tournaments.`,
+          });
+        } catch (regErr) {
+          console.error("Immediate registration failed:", regErr);
+          toast({
+            title: "Auto-registration failed",
+            description: "Tournament saved, but registration didn't run. Trigger it manually.",
+            variant: "destructive",
+          });
+        }
+      }
+
       queryClient.invalidateQueries({ queryKey: ["sgt-tournaments"] });
       onOpenChange(false);
+
     } catch (error) {
       console.error("Tournament form error:", error);
       toast({
