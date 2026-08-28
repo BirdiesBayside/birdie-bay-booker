@@ -134,7 +134,10 @@ export function AddBookingDialog({
   const [isCreatingCustomer, setIsCreatingCustomer] = useState(false);
 
   // Pricing from database
-  const [tierRates, setTierRates] = useState<Record<string, number>>(FALLBACK_RATES);
+  const [pricingRows, setPricingRows] = useState<PricingConfigRow[]>(
+    Object.entries(FALLBACK_RATES).map(([tier, hourly_rate]) => ({ tier, hourly_rate }))
+  );
+
 
   // Selected customer details
   const selectedCustomer = customers.find(c => c.user_id === selectedCustomerId);
