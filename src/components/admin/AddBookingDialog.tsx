@@ -24,7 +24,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CalendarIcon, Plus, UserPlus, Ban, Check, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { calculateHourlyRate, isWeekdayMemberTime, getPricingLabel } from "@/lib/pricing-utils";
+import { calculateHourlyRate, isWeekdayMemberTime, getPricingLabel, type PricingConfigRow } from "@/lib/pricing-utils";
 
 interface Bay {
   id: string;
@@ -268,7 +268,7 @@ export function AddBookingDialog({
       selectedCustomer.membership_tier,
       bookingDate,
       startTime,
-      tierRates,
+      pricingRows,
       { segment: selectedCustomer.custom_segment }
     );
   };
