@@ -22,7 +22,7 @@ import { toast } from "sonner";
 import { CalendarIcon, Clock, MapPin, Loader2, ArrowUp, ArrowDown } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { calculateHourlyRate, isPeakTime, getPricingLabel } from "@/lib/pricing-utils";
+import { calculateHourlyRate, isPeakTime, getPricingLabel, type PricingConfigRow } from "@/lib/pricing-utils";
 
 interface Booking {
   id: string;
@@ -88,7 +88,7 @@ export const RescheduleDialog = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [pricingConfig, setPricingConfig] = useState<Record<string, number>>({});
+  const [pricingConfig, setPricingConfig] = useState<PricingConfigRow[]>([]);
 
   // Reset state when dialog opens
   useEffect(() => {
@@ -139,14 +139,16 @@ export const RescheduleDialog = ({
   const fetchPricing = async () => {
     const { data, error } = await supabase
       .from("pricing_config")
-      .select("tier, hourly_rate");
+      .select("tier, hourly_rate, effective_from");
 
     if (!error && data) {
-      const config: Record<string, number> = {};
-      data.forEach((row) => {
-        config[row.tier.toLowerCase()] = row.hourly_rate;
-      });
-      setPricingConfig(config);
+      setPricingConfig(
+        data.map((row: any) => ({
+          tier: String(row.tier).toLowerCase(),
+          hourly_rate: Number(row.hourly_rate),
+          effective_from: row.effective_from ?? undefined,
+        })),
+      );
     }
   };
 

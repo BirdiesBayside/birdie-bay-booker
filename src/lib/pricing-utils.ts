@@ -59,7 +59,7 @@ export function getVisitorPeakRateForDate(
   const rows = pricingConfig
     .filter((p) => p.tier === "visitor" && p.effective_from && p.effective_from <= dateStr)
     .sort((a, b) => (a.effective_from! > b.effective_from! ? -1 : 1));
-  return rows[0]?.hourly_rate ?? 35;
+  return rows[0]?.hourly_rate ?? 40;
 }
 
 /**

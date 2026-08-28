@@ -24,7 +24,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CalendarIcon, Plus, UserPlus, Ban, Check, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { calculateHourlyRate, isWeekdayMemberTime, getPricingLabel } from "@/lib/pricing-utils";
+import { calculateHourlyRate, isWeekdayMemberTime, getPricingLabel, type PricingConfigRow } from "@/lib/pricing-utils";
 
 interface Bay {
   id: string;
@@ -55,7 +55,7 @@ interface AddBookingDialogProps {
 
 // Fallback pricing - will be overridden by database values
 const FALLBACK_RATES: Record<string, number> = {
-  visitor: 30,
+  visitor: 40,
   weekday: 10,
   birdie: 10,
   eagle: 8,
@@ -134,28 +134,34 @@ export function AddBookingDialog({
   const [isCreatingCustomer, setIsCreatingCustomer] = useState(false);
 
   // Pricing from database
-  const [tierRates, setTierRates] = useState<Record<string, number>>(FALLBACK_RATES);
+  const [pricingRows, setPricingRows] = useState<PricingConfigRow[]>(
+    Object.entries(FALLBACK_RATES).map(([tier, hourly_rate]) => ({ tier, hourly_rate }))
+  );
+
 
   // Selected customer details
   const selectedCustomer = customers.find(c => c.user_id === selectedCustomerId);
 
-  // Fetch pricing on mount
+  // Fetch pricing on mount (keep effective_from so date-based rates resolve correctly)
   useEffect(() => {
     const fetchPricing = async () => {
       const { data, error } = await supabase
         .from("pricing_config")
-        .select("tier, hourly_rate");
+        .select("tier, hourly_rate, effective_from");
 
       if (!error && data) {
-        const rates: Record<string, number> = {};
-        data.forEach((p: { tier: string; hourly_rate: number }) => {
-          rates[p.tier] = Number(p.hourly_rate);
-        });
-        setTierRates(rates);
+        setPricingRows(
+          data.map((p: { tier: string; hourly_rate: number; effective_from: string | null }) => ({
+            tier: p.tier,
+            hourly_rate: Number(p.hourly_rate),
+            effective_from: p.effective_from ?? undefined,
+          }))
+        );
       }
     };
     fetchPricing();
   }, []);
+
 
   // Reset form when dialog opens/closes
   useEffect(() => {
@@ -262,7 +268,7 @@ export function AddBookingDialog({
       selectedCustomer.membership_tier,
       bookingDate,
       startTime,
-      tierRates,
+      pricingRows,
       { segment: selectedCustomer.custom_segment }
     );
   };
