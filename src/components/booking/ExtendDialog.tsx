@@ -49,7 +49,7 @@ const addHours = (time: string, hours: number) => {
 
 export const ExtendDialog = ({ booking, open, onOpenChange, onSuccess }: Props) => {
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [pricingConfig, setPricingConfig] = useState<Record<string, number>>({});
+  const [pricingConfig, setPricingConfig] = useState<PricingConfigRow[]>([]);
   const [nextBookingStart, setNextBookingStart] = useState<string | null>(null);
   const [closeTime, setCloseTime] = useState<string | null>(null);
   const [selectedHours, setSelectedHours] = useState<number>(1);
@@ -74,7 +74,7 @@ export const ExtendDialog = ({ booking, open, onOpenChange, onSuccess }: Props) 
           .select("membership_tier, custom_hourly_rate, deposit_balance, custom_segment")
           .eq("user_id", user.id)
           .single(),
-        supabase.from("pricing_config").select("tier, hourly_rate"),
+        supabase.from("pricing_config").select("tier, hourly_rate, effective_from"),
         supabase
           .from("bookings")
           .select("start_time")
@@ -94,9 +94,13 @@ export const ExtendDialog = ({ booking, open, onOpenChange, onSuccess }: Props) 
 
       if (profRes.data) setProfile(profRes.data as Profile);
       if (priceRes.data) {
-        const cfg: Record<string, number> = {};
-        priceRes.data.forEach((r: any) => { cfg[r.tier.toLowerCase()] = r.hourly_rate; });
-        setPricingConfig(cfg);
+        setPricingConfig(
+          priceRes.data.map((r: any) => ({
+            tier: String(r.tier).toLowerCase(),
+            hourly_rate: Number(r.hourly_rate),
+            effective_from: r.effective_from ?? undefined,
+          })),
+        );
       }
       setNextBookingStart(nextRes.data?.[0]?.start_time?.slice(0, 5) ?? null);
       setCloseTime(
