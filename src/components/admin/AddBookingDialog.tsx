@@ -55,7 +55,7 @@ interface AddBookingDialogProps {
 
 // Fallback pricing - will be overridden by database values
 const FALLBACK_RATES: Record<string, number> = {
-  visitor: 30,
+  visitor: 40,
   weekday: 10,
   birdie: 10,
   eagle: 8,

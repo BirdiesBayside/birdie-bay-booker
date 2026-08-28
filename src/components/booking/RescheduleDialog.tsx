@@ -22,7 +22,7 @@ import { toast } from "sonner";
 import { CalendarIcon, Clock, MapPin, Loader2, ArrowUp, ArrowDown } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { calculateHourlyRate, isPeakTime, getPricingLabel } from "@/lib/pricing-utils";
+import { calculateHourlyRate, isPeakTime, getPricingLabel, type PricingConfigRow } from "@/lib/pricing-utils";
 
 interface Booking {
   id: string;

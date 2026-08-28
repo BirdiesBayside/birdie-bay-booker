@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Loader2, Clock, Plus } from "lucide-react";
-import { calculateHourlyRate, isPeakTime } from "@/lib/pricing-utils";
+import { calculateHourlyRate, isPeakTime, type PricingConfigRow } from "@/lib/pricing-utils";
 
 interface Booking {
   id: string;
