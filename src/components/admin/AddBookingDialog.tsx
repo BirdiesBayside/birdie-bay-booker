@@ -139,23 +139,26 @@ export function AddBookingDialog({
   // Selected customer details
   const selectedCustomer = customers.find(c => c.user_id === selectedCustomerId);
 
-  // Fetch pricing on mount
+  // Fetch pricing on mount (keep effective_from so date-based rates resolve correctly)
   useEffect(() => {
     const fetchPricing = async () => {
       const { data, error } = await supabase
         .from("pricing_config")
-        .select("tier, hourly_rate");
+        .select("tier, hourly_rate, effective_from");
 
       if (!error && data) {
-        const rates: Record<string, number> = {};
-        data.forEach((p: { tier: string; hourly_rate: number }) => {
-          rates[p.tier] = Number(p.hourly_rate);
-        });
-        setTierRates(rates);
+        setPricingRows(
+          data.map((p: { tier: string; hourly_rate: number; effective_from: string | null }) => ({
+            tier: p.tier,
+            hourly_rate: Number(p.hourly_rate),
+            effective_from: p.effective_from ?? undefined,
+          }))
+        );
       }
     };
     fetchPricing();
   }, []);
+
 
   // Reset form when dialog opens/closes
   useEffect(() => {
