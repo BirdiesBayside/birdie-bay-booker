@@ -8,7 +8,7 @@ const corsHeaders = {
 };
 
 // Pricing constants (must match frontend)
-const VISITOR_PEAK_RATE = 35;
+const VISITOR_PEAK_RATE = 40; // fallback only; live rate comes from pricing_config
 const VISITOR_OFF_PEAK_RATE = 30;
 
 /**
@@ -49,6 +49,27 @@ function isWeekdayMemberTime(dateStr: string, startTime: string): boolean {
 /**
  * Calculate hourly rate based on tier and time
  */
+
+// Resolve the effective rate per tier for a given booking date.
+// pricing_config can hold multiple rows per tier (scheduled price changes);
+// the row with the latest effective_from <= the booking date wins.
+function resolvePricing(
+  rows: Array<{ tier: string; hourly_rate: number; effective_from?: string | null }> | null,
+  dateStr: string,
+): Record<string, number> {
+  const best: Record<string, string> = {};
+  const config: Record<string, number> = {};
+  for (const row of rows || []) {
+    const tier = String(row.tier).toLowerCase();
+    const eff = row.effective_from || "1970-01-01";
+    if (eff > dateStr) continue;
+    if (best[tier] && best[tier] >= eff) continue;
+    best[tier] = eff;
+    config[tier] = Number(row.hourly_rate);
+  }
+  return config;
+}
+
 function calculateHourlyRate(
   tier: string,
   dateStr: string,
@@ -65,14 +86,14 @@ function calculateHourlyRate(
   
   switch (tier.toLowerCase()) {
     case "visitor":
-      return isPeak ? VISITOR_PEAK_RATE : VISITOR_OFF_PEAK_RATE;
+      return isPeak ? (pricingConfig.visitor || VISITOR_PEAK_RATE) : VISITOR_OFF_PEAK_RATE;
     
     case "weekday":
       // Weekday members pay their rate for off-peak weekday slots
       // Otherwise they pay visitor peak rate
       return isWeekdayMemberTime(dateStr, startTime) 
         ? (pricingConfig.weekday || 10) 
-        : VISITOR_PEAK_RATE;
+        : (pricingConfig.visitor || VISITOR_PEAK_RATE);
     
     case "par":
       return pricingConfig.par || 12;
@@ -88,7 +109,7 @@ function calculateHourlyRate(
     
     default:
       // Unknown tier defaults to peak visitor rate
-      return VISITOR_PEAK_RATE;
+      return pricingConfig.visitor || VISITOR_PEAK_RATE;
   }
 }
 
@@ -187,14 +208,9 @@ serve(async (req) => {
     // Fetch pricing config
     const { data: pricingRows, error: pricingError } = await supabaseAdmin
       .from("pricing_config")
-      .select("tier, hourly_rate");
+      .select("tier, hourly_rate, effective_from");
 
-    const pricingConfig: Record<string, number> = {};
-    if (pricingRows) {
-      pricingRows.forEach((row: { tier: string; hourly_rate: number }) => {
-        pricingConfig[row.tier.toLowerCase()] = row.hourly_rate;
-      });
-    }
+    const pricingConfig = resolvePricing(pricingRows, new_date);
 
     console.log("[RESCHEDULE] Pricing config:", pricingConfig);
 

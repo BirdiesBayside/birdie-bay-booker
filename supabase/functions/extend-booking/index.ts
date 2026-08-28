@@ -7,7 +7,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const VISITOR_PEAK_RATE = 35;
+const VISITOR_PEAK_RATE = 40; // fallback only; live rate comes from pricing_config
 const VISITOR_OFF_PEAK_RATE = 30;
 const MAX_TOTAL_HOURS = 4;
 
@@ -27,6 +27,27 @@ function isWeekdayMemberTime(dateStr: string, startTime: string): boolean {
   return hour < 16;
 }
 
+
+// Resolve the effective rate per tier for a given booking date.
+// pricing_config can hold multiple rows per tier (scheduled price changes);
+// the row with the latest effective_from <= the booking date wins.
+function resolvePricing(
+  rows: Array<{ tier: string; hourly_rate: number; effective_from?: string | null }> | null,
+  dateStr: string,
+): Record<string, number> {
+  const best: Record<string, string> = {};
+  const config: Record<string, number> = {};
+  for (const row of rows || []) {
+    const tier = String(row.tier).toLowerCase();
+    const eff = row.effective_from || "1970-01-01";
+    if (eff > dateStr) continue;
+    if (best[tier] && best[tier] >= eff) continue;
+    best[tier] = eff;
+    config[tier] = Number(row.hourly_rate);
+  }
+  return config;
+}
+
 function calculateHourlyRate(
   tier: string,
   dateStr: string,
@@ -38,11 +59,11 @@ function calculateHourlyRate(
   const isPeak = isPeakTime(dateStr, startTime);
   switch (tier.toLowerCase()) {
     case "visitor":
-      return isPeak ? VISITOR_PEAK_RATE : VISITOR_OFF_PEAK_RATE;
+      return isPeak ? (pricingConfig.visitor || VISITOR_PEAK_RATE) : VISITOR_OFF_PEAK_RATE;
     case "weekday":
       return isWeekdayMemberTime(dateStr, startTime)
         ? (pricingConfig.weekday || 10)
-        : VISITOR_PEAK_RATE;
+        : (pricingConfig.visitor || VISITOR_PEAK_RATE);
     case "par":
       return pricingConfig.par || 12;
     case "birdie":
@@ -52,7 +73,7 @@ function calculateHourlyRate(
     case "albatross":
       return pricingConfig.albatross || 8;
     default:
-      return VISITOR_PEAK_RATE;
+      return pricingConfig.visitor || VISITOR_PEAK_RATE;
   }
 }
 
@@ -187,11 +208,8 @@ serve(async (req) => {
 
     const { data: pricingRows } = await supabaseAdmin
       .from("pricing_config")
-      .select("tier, hourly_rate");
-    const pricingConfig: Record<string, number> = {};
-    (pricingRows || []).forEach((r: any) => {
-      pricingConfig[r.tier.toLowerCase()] = r.hourly_rate;
-    });
+      .select("tier, hourly_rate, effective_from");
+    const pricingConfig = resolvePricing(pricingRows, booking.booking_date);
 
     const extensionCost = calculateExtensionCost(
       profile.membership_tier,
