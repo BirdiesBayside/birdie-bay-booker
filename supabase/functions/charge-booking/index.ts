@@ -392,7 +392,56 @@ serve(async (req) => {
       const friendlyMessage = declineMessages[error.code] || 
         error.message || 
         "Your card was declined. Please update your payment method.";
-      
+
+      // On-session fallback: an off-session charge was declined (very common for
+      // Apple Pay / wallet cards, which many issuers refuse without device auth).
+      // Offer Stripe Checkout so the customer can authorise the payment live.
+      if (ctx.bookingId && ctx.amount && ctx.customerId) {
+        try {
+          const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", { apiVersion: "2025-08-27.basil" });
+          const session = await stripe.checkout.sessions.create({
+            customer: ctx.customerId,
+            payment_method_types: ["card"],
+            payment_method_options: { card: { request_three_d_secure: "automatic" } },
+            line_items: [
+              {
+                price_data: {
+                  currency: "aud",
+                  product_data: {
+                    name: "Bay Booking",
+                    description: ctx.description || "Golf simulator bay booking",
+                  },
+                  unit_amount: Math.round(ctx.amount * 100),
+                },
+                quantity: 1,
+              },
+            ],
+            mode: "payment",
+            payment_intent_data: { setup_future_usage: "off_session" },
+            success_url: `${ctx.origin}/booking-success?booking_id=${ctx.bookingId}&session_id={CHECKOUT_SESSION_ID}`,
+            cancel_url: `${ctx.origin}/booking?booking_cancelled=true&booking_id=${ctx.bookingId}`,
+            metadata: { booking_id: ctx.bookingId, user_id: ctx.userId || "" },
+          });
+
+          logStep("Card declined off-session, falling back to Checkout", {
+            sessionId: session.id,
+            code: error.code,
+          });
+
+          return new Response(JSON.stringify({
+            requiresCheckout: true,
+            checkoutUrl: session.url,
+            declineMessage: friendlyMessage,
+            declineCode: error.code || "card_error",
+          }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            status: 200,
+          });
+        } catch (fallbackError) {
+          logStep("Checkout fallback failed", { error: String(fallbackError) });
+        }
+      }
+
       return new Response(JSON.stringify({ 
         error: friendlyMessage,
         code: error.code || "card_error"
@@ -401,6 +450,7 @@ serve(async (req) => {
         status: 400,
       });
     }
+
     
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
