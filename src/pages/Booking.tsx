@@ -412,12 +412,18 @@ export default function Booking() {
       });
 
       if (chargeError) {
-        throw new Error(chargeError.message || "Payment failed");
+        const parsed = await parseFunctionError(chargeError);
+        const err: any = new Error(parsed.message || "Payment failed");
+        err.code = parsed.code;
+        throw err;
       }
 
       if (chargeResult.error) {
-        throw new Error(chargeResult.error);
+        const err: any = new Error(chargeResult.error);
+        err.code = chargeResult.code;
+        throw err;
       }
+
 
       if (chargeResult.requiresCheckout) {
         // Redirect to Stripe checkout
