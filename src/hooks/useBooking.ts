@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import { calculateHourlyRate, isPeakTime, isWeekdayMemberTime, formatLocalDateKey, PricingConfigRow, getVisitorPeakRateForDate } from "@/lib/pricing-utils";
 import { Capacitor } from "@capacitor/core";
 import { QUERY_KEYS, STALE_TIMES } from "@/lib/query-keys";
+import { parseFunctionError } from "@/lib/function-error";
 export interface Bay {
   id: string;
   bay_number: number;
