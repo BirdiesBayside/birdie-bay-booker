@@ -248,6 +248,7 @@ serve(async (req) => {
       });
     }
 
+    ctx.customerId = customerId;
     logStep("Found Stripe customer", { customerId });
 
     // Check for saved payment methods
