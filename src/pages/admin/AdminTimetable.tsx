@@ -1061,12 +1061,15 @@ export default function AdminTimetable() {
                         ? "Card"
                         : selectedBooking.payment_method === "balance"
                         ? "Deposit Balance"
+                        : selectedBooking.payment_method === "hours"
+                        ? "Hour Credits"
                         : selectedBooking.payment_method === "cash"
                         ? "Cash"
                         : selectedBooking.payment_method === "pending"
                         ? "Pending"
                         : selectedBooking.payment_method || ","}
                     </p>
+
                   </div>
                 </div>
 
