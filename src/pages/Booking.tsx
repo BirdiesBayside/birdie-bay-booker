@@ -25,6 +25,8 @@ import { BayAvailabilityGrid } from "@/components/booking/BayAvailabilityGrid";
 import { toast } from "@/hooks/use-toast";
 import birdiesLogo from "@/assets/birdies-logo.png";
 import { MembershipPaymentIssueDialog } from "@/components/membership/MembershipPaymentIssueDialog";
+import { parseFunctionError, isCardError } from "@/lib/function-error";
+import { NoCardDialog } from "@/components/booking/NoCardDialog";
 
 const MEMBERSHIP_DISPLAY: Record<string, string> = {
   visitor: "Visitor",
