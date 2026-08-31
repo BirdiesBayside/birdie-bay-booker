@@ -1009,6 +1009,46 @@ export default function Booking() {
           if (selectedDate) fetchBookingsForDate(selectedDate);
         }}
       />
+
+      <Dialog open={!!declineMessage} onOpenChange={(o) => !o && setDeclineMessage(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-destructive" />
+              Payment declined
+            </DialogTitle>
+            <DialogDescription>
+              {declineMessage} Nothing has been charged and your booking wasn't created.
+              You can add or update your card and try again.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col gap-2 sm:flex-row">
+            <Button variant="outline" onClick={() => setDeclineMessage(null)} className="w-full sm:w-auto">
+              Close
+            </Button>
+            <Button
+              onClick={() => {
+                setDeclineMessage(null);
+                setShowCardSetupDialog(true);
+              }}
+              className="w-full sm:w-auto"
+            >
+              <CreditCard className="mr-2 h-4 w-4" />
+              Update card
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <NoCardDialog
+        open={showCardSetupDialog}
+        onClose={() => setShowCardSetupDialog(false)}
+        onCardAdded={() => {
+          setShowCardSetupDialog(false);
+          toast({ title: "Card updated", description: "You can now try your booking again." });
+        }}
+        returnPath="/booking"
+      />
     </div>
   );
 }
