@@ -77,6 +77,23 @@ export default function Booking() {
   const [pendingBookingId, setPendingBookingId] = useState<string | null>(null);
   const [playingComp, setPlayingComp] = useState(false);
   const [showMembershipIssueDialog, setShowMembershipIssueDialog] = useState(false);
+  const [declineMessage, setDeclineMessage] = useState<string | null>(null);
+  const [showCardSetupDialog, setShowCardSetupDialog] = useState(false);
+
+  // Payment failures come back from the edge function with a friendly message and
+  // a Stripe code. Card errors get an actionable dialog instead of a dead-end toast.
+  const handleBookingError = (error: any) => {
+    const code = error?.code;
+    if (code && isCardError({ message: error?.message, code })) {
+      setDeclineMessage(error.message || "Your card was declined.");
+      return;
+    }
+    toast({
+      title: "Booking failed",
+      description: error?.message || "Unable to complete booking. Please try again.",
+      variant: "destructive",
+    });
+  };
 
   const COMP_NOTE = "[COMP] Wednesday Ambrose";
 
