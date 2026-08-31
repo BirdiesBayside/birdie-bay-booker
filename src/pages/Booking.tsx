@@ -477,11 +477,7 @@ export default function Booking() {
       });
       navigate("/dashboard");
     } catch (error: any) {
-      toast({
-        title: "Booking failed",
-        description: error.message || "Unable to complete booking. Please try again.",
-        variant: "destructive",
-      });
+      handleBookingError(error);
       // Clean up the pending booking
       if (bookingId) {
         await supabase.from("bookings").delete().eq("id", bookingId).eq("status", "pending");
@@ -556,11 +552,7 @@ export default function Booking() {
 
       navigate("/dashboard");
     } catch (error: any) {
-      toast({
-        title: "Booking failed",
-        description: error.message || "Unable to complete booking. Please try again.",
-        variant: "destructive",
-      });
+      handleBookingError(error);
     } finally {
       setIsSubmitting(false);
     }
@@ -597,11 +589,7 @@ export default function Booking() {
 
       navigate("/dashboard");
     } catch (error: any) {
-      toast({
-        title: "Booking failed",
-        description: error.message || "Unable to complete booking. Please try again.",
-        variant: "destructive",
-      });
+      handleBookingError(error);
     } finally {
       setIsSubmitting(false);
     }
