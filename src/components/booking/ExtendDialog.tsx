@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
+import { parseFunctionError } from "@/lib/function-error";
 import { toast } from "sonner";
 import { Loader2, Clock, Plus } from "lucide-react";
 import { calculateHourlyRate, isPeakTime, type PricingConfigRow } from "@/lib/pricing-utils";
@@ -173,7 +174,10 @@ export const ExtendDialog = ({ booking, open, onOpenChange, onSuccess }: Props) 
       const { data, error } = await supabase.functions.invoke("extend-booking", {
         body: { booking_id: booking.id, additional_hours: selectedHours },
       });
-      if (error) throw error;
+      if (error) {
+        const parsed = await parseFunctionError(error);
+        throw new Error(parsed.message);
+      }
       if (data?.error) throw new Error(data.error);
       toast.dismiss(t);
       const p = data.payment || {};
