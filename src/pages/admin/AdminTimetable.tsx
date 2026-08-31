@@ -433,13 +433,15 @@ export default function AdminTimetable() {
   const isBookingPaid = (booking: Booking) => {
     // A booking is paid if:
     // 1. It has a stripe_payment_intent_id (paid via Stripe), OR
-    // 2. payment_method is 'card', 'balance', or 'cash'
+    // 2. payment_method is 'card', 'balance', 'hours', or 'cash'
     // Unpaid bookings have payment_method as 'pending' (phone bookings)
     return booking.stripe_payment_intent_id 
       || booking.payment_method === 'card'
       || booking.payment_method === 'balance'
+      || booking.payment_method === 'hours'
       || booking.payment_method === 'cash';
   };
+
 
   const openAddBookingDialog = (slot: TimeSlot, bayId: string) => {
     const timeStr = `${slot.hour.toString().padStart(2, "0")}:${slot.minute.toString().padStart(2, "0")}`;
