@@ -17,6 +17,17 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Kept outside the try so the catch block can offer an on-session Checkout
+  // fallback when an off-session charge is declined (common for Apple Pay cards).
+  const ctx: {
+    bookingId?: string;
+    amount?: number;
+    description?: string;
+    userId?: string;
+    customerId?: string;
+    origin?: string;
+  } = { origin: req.headers.get("origin") || "https://hub.birdiesbayside.com.au" };
+
   try {
     logStep("Function started");
 
@@ -41,7 +52,12 @@ serve(async (req) => {
 
     const { bookingId, amount, description, paymentMethodId, mode } = await req.json();
     if (!bookingId || !amount) throw new Error("Missing bookingId or amount");
+    ctx.bookingId = bookingId;
+    ctx.amount = amount;
+    ctx.description = description;
+    ctx.userId = user.id;
     logStep("Request parsed", { bookingId, amount, description, paymentMethodId, mode });
+
 
     // Fix B: guard against rapid duplicate bookings. If this user already has
     // ANOTHER confirmed booking created in the last 90s (different bookingId),
