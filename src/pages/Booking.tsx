@@ -25,6 +25,8 @@ import { BayAvailabilityGrid } from "@/components/booking/BayAvailabilityGrid";
 import { toast } from "@/hooks/use-toast";
 import birdiesLogo from "@/assets/birdies-logo.png";
 import { MembershipPaymentIssueDialog } from "@/components/membership/MembershipPaymentIssueDialog";
+import { parseFunctionError, isCardError } from "@/lib/function-error";
+import { NoCardDialog } from "@/components/booking/NoCardDialog";
 
 const MEMBERSHIP_DISPLAY: Record<string, string> = {
   visitor: "Visitor",
@@ -75,6 +77,23 @@ export default function Booking() {
   const [pendingBookingId, setPendingBookingId] = useState<string | null>(null);
   const [playingComp, setPlayingComp] = useState(false);
   const [showMembershipIssueDialog, setShowMembershipIssueDialog] = useState(false);
+  const [declineMessage, setDeclineMessage] = useState<string | null>(null);
+  const [showCardSetupDialog, setShowCardSetupDialog] = useState(false);
+
+  // Payment failures come back from the edge function with a friendly message and
+  // a Stripe code. Card errors get an actionable dialog instead of a dead-end toast.
+  const handleBookingError = (error: any) => {
+    const code = error?.code;
+    if (code && isCardError({ message: error?.message, code })) {
+      setDeclineMessage(error.message || "Your card was declined.");
+      return;
+    }
+    toast({
+      title: "Booking failed",
+      description: error?.message || "Unable to complete booking. Please try again.",
+      variant: "destructive",
+    });
+  };
 
   const COMP_NOTE = "[COMP] Wednesday Ambrose";
 
@@ -412,12 +431,18 @@ export default function Booking() {
       });
 
       if (chargeError) {
-        throw new Error(chargeError.message || "Payment failed");
+        const parsed = await parseFunctionError(chargeError);
+        const err: any = new Error(parsed.message || "Payment failed");
+        err.code = parsed.code;
+        throw err;
       }
 
       if (chargeResult.error) {
-        throw new Error(chargeResult.error);
+        const err: any = new Error(chargeResult.error);
+        err.code = chargeResult.code;
+        throw err;
       }
+
 
       if (chargeResult.requiresCheckout) {
         // Redirect to Stripe checkout
@@ -452,11 +477,7 @@ export default function Booking() {
       });
       navigate("/dashboard");
     } catch (error: any) {
-      toast({
-        title: "Booking failed",
-        description: error.message || "Unable to complete booking. Please try again.",
-        variant: "destructive",
-      });
+      handleBookingError(error);
       // Clean up the pending booking
       if (bookingId) {
         await supabase.from("bookings").delete().eq("id", bookingId).eq("status", "pending");
@@ -531,11 +552,7 @@ export default function Booking() {
 
       navigate("/dashboard");
     } catch (error: any) {
-      toast({
-        title: "Booking failed",
-        description: error.message || "Unable to complete booking. Please try again.",
-        variant: "destructive",
-      });
+      handleBookingError(error);
     } finally {
       setIsSubmitting(false);
     }
@@ -572,11 +589,7 @@ export default function Booking() {
 
       navigate("/dashboard");
     } catch (error: any) {
-      toast({
-        title: "Booking failed",
-        description: error.message || "Unable to complete booking. Please try again.",
-        variant: "destructive",
-      });
+      handleBookingError(error);
     } finally {
       setIsSubmitting(false);
     }
@@ -995,6 +1008,46 @@ export default function Booking() {
           // After successful retry, refresh availability so the user can try again
           if (selectedDate) fetchBookingsForDate(selectedDate);
         }}
+      />
+
+      <Dialog open={!!declineMessage} onOpenChange={(o) => !o && setDeclineMessage(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-destructive" />
+              Payment declined
+            </DialogTitle>
+            <DialogDescription>
+              {declineMessage} Nothing has been charged and your booking wasn't created.
+              You can add or update your card and try again.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col gap-2 sm:flex-row">
+            <Button variant="outline" onClick={() => setDeclineMessage(null)} className="w-full sm:w-auto">
+              Close
+            </Button>
+            <Button
+              onClick={() => {
+                setDeclineMessage(null);
+                setShowCardSetupDialog(true);
+              }}
+              className="w-full sm:w-auto"
+            >
+              <CreditCard className="mr-2 h-4 w-4" />
+              Update card
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <NoCardDialog
+        open={showCardSetupDialog}
+        onClose={() => setShowCardSetupDialog(false)}
+        onCardAdded={() => {
+          setShowCardSetupDialog(false);
+          toast({ title: "Card updated", description: "You can now try your booking again." });
+        }}
+        returnPath="/booking"
       />
     </div>
   );

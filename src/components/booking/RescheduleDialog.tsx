@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
+import { parseFunctionError } from "@/lib/function-error";
 import { toast } from "sonner";
 import { CalendarIcon, Clock, MapPin, Loader2, ArrowUp, ArrowDown } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -301,7 +302,10 @@ export const RescheduleDialog = ({
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        const parsed = await parseFunctionError(error);
+        throw new Error(parsed.message);
+      }
       if (data?.error) throw new Error(data.error);
 
       toast.dismiss(toastId);

@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import { calculateHourlyRate, isPeakTime, isWeekdayMemberTime, formatLocalDateKey, PricingConfigRow, getVisitorPeakRateForDate } from "@/lib/pricing-utils";
 import { Capacitor } from "@capacitor/core";
 import { QUERY_KEYS, STALE_TIMES } from "@/lib/query-keys";
+import { parseFunctionError } from "@/lib/function-error";
 export interface Bay {
   id: string;
   bay_number: number;
@@ -811,6 +812,7 @@ export function useBooking() {
       });
 
       if (chargeError) {
+        const parsed = await parseFunctionError(chargeError);
         // Restore balance if card payment fails
         if (balanceDeduction > 0) {
           await supabase
@@ -820,7 +822,9 @@ export function useBooking() {
           queryClient.invalidateQueries({ queryKey: QUERY_KEYS.USER_PROFILE() });
         }
         await supabase.from("bookings").delete().eq("id", bookingData.id);
-        throw new Error(chargeError.message || "Payment failed");
+        const err: any = new Error(parsed.message || "Payment failed");
+        err.code = parsed.code;
+        throw err;
       }
 
       if (chargeResult.error) {
@@ -833,7 +837,9 @@ export function useBooking() {
           queryClient.invalidateQueries({ queryKey: QUERY_KEYS.USER_PROFILE() });
         }
         await supabase.from("bookings").delete().eq("id", bookingData.id);
-        throw new Error(chargeResult.error);
+        const err: any = new Error(chargeResult.error);
+        err.code = chargeResult.code;
+        throw err;
       }
 
       if (chargeResult.requiresCheckout) {
@@ -843,6 +849,7 @@ export function useBooking() {
           checkoutUrl: chargeResult.checkoutUrl 
         };
       }
+
     }
 
     try {
