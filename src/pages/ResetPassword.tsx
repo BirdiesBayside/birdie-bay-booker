@@ -40,6 +40,17 @@ export default function ResetPassword() {
     setPendingTokens(null);
   };
 
+  // Keep the email from the link so a failed verification can resend instantly
+  // without the customer having to retype anything.
+  const captureEmailFromUrl = () => {
+    const queryParams = new URLSearchParams(window.location.search);
+    const hash = window.location.hash;
+    const hashParams = new URLSearchParams(hash.startsWith("#") ? hash.slice(1) : hash);
+    const email = queryParams.get("email") || hashParams.get("email");
+    if (email) setResetEmail(email);
+  };
+
+
   // STEP 1: On page load, just detect tokens in URL, do NOT consume them.
   // Email security scanners (Outlook Safe Links, Mimecast, etc.) pre-fetch
   // links in a real browser and would burn one-time tokens before the user
@@ -50,6 +61,7 @@ export default function ResetPassword() {
 
     const detect = async () => {
       try {
+        captureEmailFromUrl();
         const hash = window.location.hash;
         const search = window.location.search;
         const hashParams = new URLSearchParams(hash.startsWith("#") ? hash.slice(1) : hash);
@@ -172,7 +184,11 @@ export default function ResetPassword() {
       finishValidation(true);
     } catch (error: any) {
       console.error("[RESET] Confirm error:", error);
-      finishValidation(false, "Invalid or expired reset link. Please request a new one.");
+      captureEmailFromUrl();
+      finishValidation(
+        false,
+        "This reset link is no longer valid. If you requested more than one email, only the newest link works. Send yourself a fresh link below."
+      );
     } finally {
       setIsConfirming(false);
     }
@@ -333,6 +349,10 @@ export default function ResetPassword() {
               </div>
             ) : (
               <form onSubmit={handleRequestNewLink} className="space-y-4">
+                <p className="text-xs text-muted-foreground">
+                  Reset links can only be used once, and requesting a new email cancels
+                  any earlier ones. Always open the most recent email.
+                </p>
                 <div className="space-y-2">
                   <Label htmlFor="resetEmail">Email Address</Label>
                   <div className="relative">
