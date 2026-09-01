@@ -25,7 +25,8 @@ const groups = [
     section: "Membership",
     items: [
       { q: "What memberships are available?", a: "We offer three weekly plans: Weekday ($15), Birdie ($27) and Eagle ($35). All include discounted bay rates and no lock-in contracts." },
-      { q: "Can I cancel any time?", a: "Yes, all memberships can be cancelled at any time. We don't refund the most recent weekly payment." },
+      { q: "Can I cancel any time?", a: "Yes, memberships can be cancelled at any time by emailing or calling us. There's no self-serve cancellation in the Hub, so just get in touch and we'll sort it for you. We don't refund the most recent weekly payment." },
+      { q: "Is there a minimum membership period?", a: "Memberships are designed for players who use the centre regularly, and carry a 4-week minimum commitment expectation. They aren't intended for one-off cheap sessions. Going away for FIFO work or a holiday? Just contact us and we're happy to pause your membership and reactivate it as soon as you're back." },
       { q: "What's the difference between Birdie and Eagle?", a: "Eagle members get a lower hourly rate ($8 vs $10) and priority booking. Both tiers include access to the Birdies League." },
       { q: "Can Weekday members join competitions?", a: "Yes, Weekday members can join our Wednesday local comp. The full Birdies League season is a perk reserved for Birdie and Eagle members." },
     ],
