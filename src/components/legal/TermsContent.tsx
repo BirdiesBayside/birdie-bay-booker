@@ -125,9 +125,9 @@ export function TermsContent() {
       </div>
 
       <div>
-        <h3 className="font-semibold text-foreground">14. Amendments to Terms</h3>
-        <p>14.1. Birdies reserves the right to amend these Terms at any time.</p>
-        <p>14.2. Updated terms will be posted on our website and it is the customer's responsibility to review them periodically.</p>
+        <h3 className="font-semibold text-foreground">15. Amendments to Terms</h3>
+        <p>15.1. Birdies reserves the right to amend these Terms at any time.</p>
+        <p>15.2. Updated terms will be posted on our website and it is the customer's responsibility to review them periodically.</p>
       </div>
 
       <p className="font-semibold text-foreground pt-4">
