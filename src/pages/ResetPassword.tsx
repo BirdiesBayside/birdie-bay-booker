@@ -40,6 +40,17 @@ export default function ResetPassword() {
     setPendingTokens(null);
   };
 
+  // Keep the email from the link so a failed verification can resend instantly
+  // without the customer having to retype anything.
+  const captureEmailFromUrl = () => {
+    const queryParams = new URLSearchParams(window.location.search);
+    const hash = window.location.hash;
+    const hashParams = new URLSearchParams(hash.startsWith("#") ? hash.slice(1) : hash);
+    const email = queryParams.get("email") || hashParams.get("email");
+    if (email) setResetEmail(email);
+  };
+
+
   // STEP 1: On page load, just detect tokens in URL, do NOT consume them.
   // Email security scanners (Outlook Safe Links, Mimecast, etc.) pre-fetch
   // links in a real browser and would burn one-time tokens before the user
