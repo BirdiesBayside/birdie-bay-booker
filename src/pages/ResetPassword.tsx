@@ -349,6 +349,10 @@ export default function ResetPassword() {
               </div>
             ) : (
               <form onSubmit={handleRequestNewLink} className="space-y-4">
+                <p className="text-xs text-muted-foreground">
+                  Reset links can only be used once, and requesting a new email cancels
+                  any earlier ones. Always open the most recent email.
+                </p>
                 <div className="space-y-2">
                   <Label htmlFor="resetEmail">Email Address</Label>
                   <div className="relative">
