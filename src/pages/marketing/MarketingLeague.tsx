@@ -24,7 +24,7 @@ const faqs = [
     section: "Registration & Setup",
     items: [
       { q: "How do I join?", a: "You can join the league by scanning the QR code at Birdies. This will take you to the SGT Club registration where you can create your own account for future round tracking." },
-      { q: "How do I play?", a: "Once you've created an SGT login, your name will be automatically synced to every bay at Birdies. Just hit ONLINE MATCH and choose your name from the dropdown to load your weekly rounds." },
+      { q: "How do I play?", a: "Book a bay, then once you're in the bay open the Birdies Hub app (or hub.birdiesbayside.com.au on your phone) and go to My Account. You'll see your SGT Username and SGT UID. Add a new player in GSPRO (or edit Guest 1), entering your Username and UID exactly as shown. Your details are saved to your account, so next time you play at Birdies you'll already be logged in." },
       { q: "What if I can't make a certain day?", a: "There are no set tournament days at Birdies. You're free to play your 2 weekly rounds any time and your leaderboard status will update automatically." },
       { q: "What if I want to cancel?", a: "Just email us and we'll cancel your membership within 24 working hours. Your most recent weekly payment will not be refunded." },
     ],
