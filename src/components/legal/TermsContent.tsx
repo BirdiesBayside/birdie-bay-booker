@@ -115,7 +115,7 @@ export function TermsContent() {
       </div>
 
       <div>
-        <h3 className="font-semibold text-foreground">13. Recording, Filming and Media Consent</h3>
+        <h3 className="font-semibold text-foreground">14. Recording, Filming and Media Consent</h3>
         <p>13.1. Bays may be video and/or audio recorded, and gameplay, shot data and screen content may be captured, including automatically during league rounds, competitions and events.</p>
         <p>13.2. By using the facility, you consent to being photographed, filmed and recorded while on the premises, and to Birdies capturing your gameplay and performance data.</p>
         <p>13.3. You grant Birdies a non-exclusive, royalty-free, perpetual licence to use, edit and publish this footage, images and data (including your name, username, scores and handicap) for promotional, marketing, social media, leaderboard, broadcast and internal training purposes, without payment or further notice to you.</p>
