@@ -138,7 +138,7 @@ serve(async (req) => {
                 </tr>
               </table>
               <p style="font-family:Inter, Arial, sans-serif; font-size:13px; line-height:1.5; color:#999999; margin:24px 0 0; text-align:center;">
-                This link will expire in 24 hours. If you didn't request this email, you can safely ignore it.
+                This link can only be used once. If you request another reset email, any earlier link stops working — always use the most recent email. If you didn't request this, you can safely ignore it.
               </p>
             </td>
           </tr>

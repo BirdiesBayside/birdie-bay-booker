@@ -104,7 +104,8 @@ export function AuthForm({ defaultToSignUp = false }: AuthFormProps) {
       } else {
         toast({
           title: "Check your email",
-          description: "We've sent you a password reset link.",
+          description:
+            "We've sent you a password reset link. Open the most recent email — requesting another one cancels earlier links.",
         });
         setIsForgotPassword(false);
       }
@@ -255,7 +256,7 @@ export function AuthForm({ defaultToSignUp = false }: AuthFormProps) {
             RESET PASSWORD
           </CardTitle>
           <CardDescription>
-            Enter your email and we'll send you a reset link
+            Enter your email and we'll send you a reset link. Links are single-use, so always open the newest email.
           </CardDescription>
         </CardHeader>
 
