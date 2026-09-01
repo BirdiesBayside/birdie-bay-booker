@@ -35,7 +35,7 @@ const groups = [
     section: "Birdies League",
     items: [
       { q: "What is the Birdies League?", a: "A members-only golf sim league with weekly tournament rounds, leaderboards, competitions and prizes. Access is included with Birdie and Eagle memberships." },
-      { q: "How do I play?", a: "Once you've created an SGT account, your name is synced to every bay. Hit ONLINE MATCH, choose your name, and play your weekly rounds whenever suits you." },
+      { q: "How do I play?", a: "Book a bay, then once you're in the bay open the Birdies Hub app (or hub.birdiesbayside.com.au on your phone) and go to My Account. You'll see your SGT Username and SGT UID. Add a new player in GSPRO (or edit Guest 1), entering your Username and UID exactly as shown. Your details are saved to your account, so next time you play at Birdies you'll already be logged in." },
       { q: "Are there prizes?", a: "Yes, we work with local businesses and run a monthly medal prize alongside ad-hoc giveaways." },
     ],
   },
