@@ -61,6 +61,7 @@ export default function ResetPassword() {
 
     const detect = async () => {
       try {
+        captureEmailFromUrl();
         const hash = window.location.hash;
         const search = window.location.search;
         const hashParams = new URLSearchParams(hash.startsWith("#") ? hash.slice(1) : hash);
@@ -183,7 +184,11 @@ export default function ResetPassword() {
       finishValidation(true);
     } catch (error: any) {
       console.error("[RESET] Confirm error:", error);
-      finishValidation(false, "Invalid or expired reset link. Please request a new one.");
+      captureEmailFromUrl();
+      finishValidation(
+        false,
+        "This reset link is no longer valid. If you requested more than one email, only the newest link works. Send yourself a fresh link below."
+      );
     } finally {
       setIsConfirming(false);
     }
