@@ -15,7 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Plus, Trash2, Check, DollarSign, ShoppingCart, Search, RefreshCw } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { cn, formatLocalHcp } from "@/lib/utils";
+import { cn, formatLocalHcp, combinedAmbroseHcp, AMBROSE_GAP_THRESHOLD } from "@/lib/utils";
 import { useFirstTimerFlags } from "@/hooks/useFirstTimerFlags";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { AlertTriangle, Sparkles } from "lucide-react";
@@ -153,7 +153,13 @@ export function ScoreEntry() {
   const combinedHcpPreview = useMemo(() => {
     const h1 = parseFloat(p1Hcp) || 0;
     const h2 = parseFloat(p2Hcp) || 0;
-    return (h1 + h2) / 4;
+    return combinedAmbroseHcp(h1, h2);
+  }, [p1Hcp, p2Hcp]);
+
+  const gapRuleAppliesPreview = useMemo(() => {
+    const h1 = parseFloat(p1Hcp) || 0;
+    const h2 = parseFloat(p2Hcp) || 0;
+    return Math.abs(h1 - h2) > AMBROSE_GAP_THRESHOLD;
   }, [p1Hcp, p2Hcp]);
 
   const autoTeamName = useMemo(() => {
@@ -170,7 +176,7 @@ export function ScoreEntry() {
     mutationFn: async () => {
       const h1 = parseFloat(p1Hcp) || 0;
       const h2 = parseFloat(p2Hcp) || 0;
-      const combined = (h1 + h2) / 4;
+      const combined = combinedAmbroseHcp(h1, h2);
       const { error } = await supabase.from("local_comp_teams").insert({
         competition_id: selectedCompId,
         team_name: autoTeamName,
@@ -205,7 +211,7 @@ export function ScoreEntry() {
       // Always sync handicaps from the players table (single source of truth).
       const p1Hcp = getPlayerHcp(team.player1_name);
       const p2Hcp = getPlayerHcp(team.player2_name);
-      const combined = (p1Hcp + p2Hcp) / 4;
+      const combined = combinedAmbroseHcp(p1Hcp, p2Hcp);
 
       const netScore = grossScore !== null ? grossScore - Math.floor(combined) : null;
 
@@ -302,7 +308,7 @@ export function ScoreEntry() {
         }
         const p1Local = lookup(team.player1_name);
         const p2Local = lookup(team.player2_name);
-        const combined = (p1Local + p2Local) / 4;
+        const combined = combinedAmbroseHcp(p1Local, p2Local);
         const netScore = team.gross_score !== null ? team.gross_score - Math.floor(combined) : null;
         const { error } = await supabase
           .from("local_comp_teams")
@@ -454,6 +460,9 @@ export function ScoreEntry() {
                     <CardContent className="p-3 text-sm">
                       <p>Combined HCP: ({p1Hcp || "0"} + {p2Hcp || "0"}) ÷ 4 = <strong>{combinedHcpPreview.toFixed(1)}</strong></p>
                       <p className="text-muted-foreground">Strokes applied: {Math.floor(combinedHcpPreview)}</p>
+                      {gapRuleAppliesPreview && (
+                        <p className="text-xs text-primary">Gap rule applied: gap &gt; {AMBROSE_GAP_THRESHOLD} → extra −1 stroke</p>
+                      )}
                     </CardContent>
                   </Card>
                   <Button
