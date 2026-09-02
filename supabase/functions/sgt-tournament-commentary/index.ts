@@ -83,8 +83,24 @@ Deno.serve(async (req) => {
     const aces: string[] = [];
     const eaglesPlus: string[] = [];
 
+    // A round only counts as complete if all 18 holes were played (DNF otherwise)
+    const isFull18 = (c: any): boolean => {
+      const hd = c.hole_data as Record<string, unknown> | null;
+      if (hd && typeof hd === "object") {
+        let played = 0;
+        for (let i = 1; i <= 18; i++) {
+          const g = Number(hd[`hole${i}_gross`]);
+          if (Number.isFinite(g) && g > 0) played++;
+        }
+        return played === 18;
+      }
+      return Number(c.out_gross) > 0 && Number(c.in_gross) > 0;
+    };
+
     for (const c of cards) {
       const hs = holes(c.hole_data as any);
+      const full18 = isFull18(c);
+      const holesPlayed = hs.length > 0 ? hs.length : (Number(c.out_gross) > 0 && Number(c.in_gross) > 0 ? 18 : Number(c.out_gross) > 0 || Number(c.in_gross) > 0 ? 9 : 0);
       for (const h of hs) {
         if (!holeStats.has(h.num)) holeStats.set(h.num, { par: h.par, scores: [] });
         holeStats.get(h.num)!.scores.push(h.gross);
