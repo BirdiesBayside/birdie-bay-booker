@@ -10,7 +10,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, Users, User, ChevronDown } from "lucide-react";
 import { HandicapMismatches } from "./HandicapMismatches";
-import { formatLocalHcp } from "@/lib/utils";
+import { formatLocalHcp, combinedAmbroseHcp, AMBROSE_GAP_THRESHOLD } from "@/lib/utils";
 
 interface Player {
   id: string;
@@ -280,7 +280,9 @@ export function SavedTeams() {
                     const p1Hcp = playerHcpMap.get(norm(team.player1_name));
                     const p2Hcp = playerHcpMap.get(norm(team.player2_name));
                     const combined =
-                      p1Hcp !== undefined && p2Hcp !== undefined ? (p1Hcp + p2Hcp) / 4 : null;
+                      p1Hcp !== undefined && p2Hcp !== undefined ? combinedAmbroseHcp(p1Hcp, p2Hcp) : null;
+                    const gapRuleApplies =
+                      p1Hcp !== undefined && p2Hcp !== undefined && Math.abs(p1Hcp - p2Hcp) > AMBROSE_GAP_THRESHOLD;
                     return (
                       <Card key={team.id}>
                         <CardContent className="p-4 space-y-2">
@@ -318,6 +320,9 @@ export function SavedTeams() {
                             {combined !== null && (
                               <p className="text-xs font-medium pt-1">
                                 Combined: {combined.toFixed(2)}
+                                {gapRuleApplies && (
+                                  <span className="text-primary"> (incl. −1 gap rule)</span>
+                                )}
                               </p>
                             )}
                           </div>
