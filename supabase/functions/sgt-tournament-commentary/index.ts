@@ -247,7 +247,7 @@ Structure loosely: open on the winner and their score, then anyone who moved up 
           { role: "system", content: systemPrompt },
           {
             role: "user",
-            content: `Write this week's wrap. Numbers below (net to par: negative is under par, lower wins; improvement_vs_recent_form is strokes better than that player's recent average, positive = improved).\n\n${JSON.stringify(payload)}`,
+            content: `Write this week's wrap. Numbers below (net to par: negative is under par, lower wins; improvement_vs_recent_form is strokes better than that player's recent average, positive = improved). Only the "leaderboard" players completed both 18-hole rounds and can win — anyone in "dnf_players" did not finish and must never be named winner or given a placing.\n\n${JSON.stringify(payload)}`,
           },
         ],
       }),
