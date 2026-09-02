@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Trophy, Medal, Award, Loader2 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, formatLocalHcp } from "@/lib/utils";
 import {
   Select,
   SelectContent,

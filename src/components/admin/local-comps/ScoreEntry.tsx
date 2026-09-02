@@ -15,7 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Plus, Trash2, Check, DollarSign, ShoppingCart, Search, RefreshCw } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import { cn, formatLocalHcp } from "@/lib/utils";
 import { useFirstTimerFlags } from "@/hooks/useFirstTimerFlags";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { AlertTriangle, Sparkles } from "lucide-react";
