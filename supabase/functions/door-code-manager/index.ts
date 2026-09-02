@@ -1,5 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
-import { TTLockClient, getTTLockCredentials } from "../_shared/ttlock.ts";
+import { TTLockClient, getTTLockCredentials, registerTTLockUser } from "../_shared/ttlock.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -74,7 +74,7 @@ function bookingWindow(booking: any, s: Settings) {
 
 /** Numeric code that doesn't clash with any other live code or the fixed code. */
 async function generateUniqueCode(s: Settings): Promise<string> {
-  // HARD RULE: this keypad only ever accepts 6-digit codes. Tuya's cloud returns
+  // HARD RULE: this keypad only ever accepts 6-digit codes. The cloud returns
   // success for other lengths but the device never takes them (stuck at delivery
   // phase 11, no slot assigned), so any other length is a silently dead code.
   const len = 6;
@@ -200,10 +200,10 @@ async function issueTestCode(opts: {
 
 /**
  * Named staff / contractor code.
- * Tuya has no true "permanent" temp-password API — the only permanent code is
- * the one programmed on the keypad itself. So a permanent code here is a temp
- * password with the expiry pushed 10 years out, which behaves identically and
- * can still be revoked instantly.
+ * TTLock has no true "permanent" passcode via the cloud API here — the only
+ * permanent code is the one programmed on the lock itself. So a permanent code
+ * here is a period passcode with the expiry pushed 10 years out, which behaves
+ * identically and can still be revoked instantly.
  */
 async function issueNamedCode(opts: {
   label: string;
@@ -371,7 +371,7 @@ async function capacityProbe(opts: { count?: number; hours?: number; sample_ever
       firstFailure = { index, error: msg };
       break;
     }
-    // gentle pacing so Tuya doesn't rate-limit us
+    // gentle pacing so TTLock doesn't rate-limit us
     await new Promise((r) => setTimeout(r, 200));
   }
 
