@@ -200,8 +200,9 @@ Deno.serve(async (req) => {
       field_size: players.length,
       total_rounds: cards.length,
       leaderboard: leaderboard.slice(0, 20),
+      dnf_players: dnfPlayers,
       lowest_gross_rounds: cards
-        .filter((c) => c.total_gross != null)
+        .filter((c) => c.total_gross != null && isFull18(c))
         .sort((a, b) => (a.to_par_gross ?? 0) - (b.to_par_gross ?? 0))
         .slice(0, 5)
         .map((c) => ({
