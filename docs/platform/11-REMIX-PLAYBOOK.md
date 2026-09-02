@@ -12,7 +12,7 @@ client → **Client Hub**. Improvements only ever flow downward.
 
 - [ ] `docs/platform/` is complete and current (00–11 + `memory/CORE-RULES.md`).
 - [ ] Latest work is committed / the project builds cleanly.
-- [ ] Note that **secrets do not travel**: Stripe, Resend, Tuya, Cloudflare, SGT, push
+- [ ] Note that **secrets do not travel**: Stripe, Resend, TTLock, Cloudflare, SGT, push
       credentials must be re-added in each new project.
 - [ ] Note that **project memory and chat history do not travel**. The repo does.
 
@@ -86,7 +86,7 @@ real data.
 > - Venue: `<venue name>`, `<suburb, state>`, timezone `<IANA timezone>`.
 > - Booking domain `<domain>`, hub domain `<hub domain>`.
 > - Bays: `<n>`. Staffed hours: `<yes/no + hours>`.
-> - Integrations in use: `<Stripe / Resend / Tuya / Tapo / Cloudflare / SGT / push>`.
+> - Integrations in use: `<Stripe / Resend / TTLock / Tapo / Cloudflare / SGT / push>`.
 >
 > Then run through `10-ONBOARDING-RUNBOOK.md` and tell me which items you can do yourself
 > and which need something from me. Do not change any code yet.
