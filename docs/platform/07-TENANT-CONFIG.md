@@ -46,12 +46,12 @@ Everything in this file is venue-specific. Use it as the checklist when de-brand
 ## Secrets to (re)create per project
 
 `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `RESEND_API_KEY`, SMS provider credentials,
-Cloudflare Stream account id + token, Tuya client id/secret + device id, Tapo account
+Cloudflare Stream account id + token, TTLock client id/secret + account username/password, Tapo account
 credentials (stored on the bay PCs), SGT username/password, Noke credentials if the venue
 has a gate.
 
 ## Third-party accounts to create per client
 
-Stripe, Resend (with verified domain), SMS provider, Cloudflare (Stream), Tuya IoT Cloud,
+Stripe, Resend (with verified domain), SMS provider, Cloudflare (Stream), TTLock Open Platform,
 Tapo, Simulator Golf Tour club, Google Cloud/Firebase (push + OAuth), GitHub repo for the
 Bay Controller releases, Google Play / Apple developer accounts if shipping mobile apps.
