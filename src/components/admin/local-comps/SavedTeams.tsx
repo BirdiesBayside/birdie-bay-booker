@@ -446,6 +446,9 @@ export function SavedTeams() {
                 value={playerHcp}
                 onChange={(e) => setPlayerHcp(e.target.value)}
               />
+              <p className="text-xs text-muted-foreground">
+                Plus handicappers (better than scratch): enter as a negative, e.g. +1 = -1
+              </p>
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={closePlayerDialog}>
