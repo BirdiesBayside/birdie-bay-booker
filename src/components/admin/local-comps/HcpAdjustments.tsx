@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { History, TrendingDown, TrendingUp } from "lucide-react";
 import { format } from "date-fns";
+import { formatLocalHcp } from "@/lib/utils";
 
 interface Adjustment {
   id: string;
