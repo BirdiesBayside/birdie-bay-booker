@@ -138,19 +138,26 @@ Deno.serve(async (req) => {
     }
 
     const players = [...byPlayer.values()].map((p) => {
-      const completed = p.rounds.filter((r: any) => r.net != null);
-      const netSum = completed.reduce((s: number, r: any) => s + (r.to_par_net ?? 0), 0);
-      const grossSum = completed.reduce((s: number, r: any) => s + (r.to_par_gross ?? 0), 0);
+      const fullRounds = p.rounds.filter((r: any) => r.net != null && r.full_18);
+      const dnfRounds = p.rounds.filter((r: any) => !r.full_18);
+      const netSum = fullRounds.reduce((s: number, r: any) => s + (r.to_par_net ?? 0), 0);
+      const grossSum = fullRounds.reduce((s: number, r: any) => s + (r.to_par_gross ?? 0), 0);
       const priorNets = prior
         .filter((x) => x.player_name === p.player && x.to_par_net != null)
         .map((x) => x.to_par_net as number);
       const priorAvg = priorNets.length
         ? +(priorNets.reduce((a, b) => a + b, 0) / priorNets.length).toFixed(1)
         : null;
-      const thisAvg = completed.length ? +(netSum / completed.length).toFixed(1) : null;
+      const thisAvg = fullRounds.length ? +(netSum / fullRounds.length).toFixed(1) : null;
+      // The weekly league is two 18-hole rounds: a player must complete BOTH
+      // full rounds to be eligible for the win. Anything less is a DNF.
+      const eligible = fullRounds.length >= 2 && dnfRounds.length === 0;
       return {
         ...p,
-        rounds_played: completed.length,
+        rounds_completed_full_18: fullRounds.length,
+        dnf_rounds: dnfRounds.map((r: any) => ({ round: r.round, holes_played: r.holes_played })),
+        eligible_for_win: eligible,
+        dnf: !eligible,
         total_to_par_net: netSum,
         total_to_par_gross: grossSum,
         avg_to_par_net: thisAvg,
@@ -161,8 +168,18 @@ Deno.serve(async (req) => {
     });
 
     const leaderboard = players
-      .filter((p) => p.rounds_played > 0)
+      .filter((p) => p.eligible_for_win)
       .sort((a, b) => a.total_to_par_net - b.total_to_par_net);
+
+    const dnfPlayers = players
+      .filter((p) => !p.eligible_for_win)
+      .map((p) => ({
+        player: p.player,
+        full_rounds_completed: p.rounds_completed_full_18,
+        dnf_rounds: p.dnf_rounds,
+        total_to_par_net: p.total_to_par_net,
+        note: "DNF — did not complete both 18-hole rounds; NOT eligible for the win",
+      }));
 
     const hardestHoles = [...holeStats.entries()]
       .map(([num, h]) => ({
