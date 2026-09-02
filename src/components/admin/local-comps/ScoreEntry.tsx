@@ -15,7 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Plus, Trash2, Check, DollarSign, ShoppingCart, Search, RefreshCw } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import { cn, formatLocalHcp } from "@/lib/utils";
 import { useFirstTimerFlags } from "@/hooks/useFirstTimerFlags";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { AlertTriangle, Sparkles } from "lucide-react";
@@ -560,11 +560,11 @@ export function ScoreEntry() {
                           </div>
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
-                          {team.player1_name} ({team.player1_handicap}) & {team.player2_name} ({team.player2_handicap})
+                          {team.player1_name} ({formatLocalHcp(team.player1_handicap)}) & {team.player2_name} ({formatLocalHcp(team.player2_handicap)})
                         </TableCell>
                         <TableCell className="text-center">
                           <Badge variant="outline" className="font-mono">
-                            {team.combined_handicap.toFixed(1)}
+                            {formatLocalHcp(team.combined_handicap)}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-center">

@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { History, TrendingDown, TrendingUp } from "lucide-react";
 import { format } from "date-fns";
+import { formatLocalHcp } from "@/lib/utils";
 
 interface Adjustment {
   id: string;
@@ -79,7 +80,7 @@ export function HcpAdjustments() {
                         {adj.delta > 0 ? "+" : ""}{adj.delta.toFixed(1)}
                       </Badge>
                       <p className="text-xs text-muted-foreground mt-1">
-                        {adj.hcp_before?.toFixed(1) ?? "?"} → <span className="font-semibold text-foreground">{adj.hcp_after?.toFixed(1) ?? "?"}</span>
+                        {formatLocalHcp(adj.hcp_before)} → <span className="font-semibold text-foreground">{formatLocalHcp(adj.hcp_after)}</span>
                       </p>
                     </div>
                     <p className="text-xs text-muted-foreground hidden sm:block w-24 text-right">

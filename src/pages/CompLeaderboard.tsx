@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Trophy, Medal, Award, Loader2, ArrowLeft, AlertTriangle } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, formatLocalHcp } from "@/lib/utils";
 import { useFirstTimerFlags } from "@/hooks/useFirstTimerFlags";
 import {
   Select,
@@ -206,7 +206,7 @@ export default function CompLeaderboard() {
                     </div>
 
                     <div className="col-span-2 text-center text-sm text-muted-foreground">
-                      {team.combined_handicap.toFixed(1)}
+                      {formatLocalHcp(team.combined_handicap)}
                     </div>
 
                     <div className="col-span-2 text-center text-sm text-muted-foreground">

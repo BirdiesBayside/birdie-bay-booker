@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Trophy, Medal, Award, Loader2 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, formatLocalHcp } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -231,7 +231,7 @@ export default function EmbedLocalCompLeaderboard() {
                   </div>
 
                   <div className="col-span-2 sm:col-span-1 text-center text-xs sm:text-sm text-[hsl(128,20%,40%)]">
-                    {team.combined_handicap.toFixed(1)}
+                    {formatLocalHcp(team.combined_handicap)}
                   </div>
 
                   <div className="col-span-2 text-center text-xs sm:text-sm text-[hsl(128,20%,40%)]">

@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Trophy } from "lucide-react";
 import { format } from "date-fns";
+import { formatLocalHcp } from "@/lib/utils";
 
 export function CompResults() {
   const [selectedCompId, setSelectedCompId] = useState<string>("");
@@ -128,7 +129,7 @@ export function CompResults() {
                         {team.player1_name} & {team.player2_name}
                       </TableCell>
                       <TableCell className="text-center">
-                        <Badge variant="outline" className="font-mono">{team.combined_handicap.toFixed(1)}</Badge>
+                        <Badge variant="outline" className="font-mono">{formatLocalHcp(team.combined_handicap)}</Badge>
                       </TableCell>
                       <TableCell className="text-center">{team.gross_score ?? "-"}</TableCell>
                       <TableCell className="text-center font-bold">{team.net_score ?? "-"}</TableCell>
