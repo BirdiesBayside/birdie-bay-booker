@@ -775,26 +775,27 @@ Deno.serve(async (req) => {
 
       case "test": {
         const s = await getSettings();
-        const creds = getTuyaCredentials();
+        const creds = getTTLockCredentials();
         if (!creds) {
-          result = { success: false, error: "TUYA_ACCESS_ID / TUYA_ACCESS_SECRET not configured" };
+          result = {
+            success: false,
+            error:
+              "TTLOCK_CLIENT_ID / TTLOCK_CLIENT_SECRET / TTLOCK_USERNAME / TTLOCK_PASSWORD not configured",
+          };
           break;
         }
-        if (!s.tuya_device_id) {
-          result = { success: false, error: "No Tuya device ID saved in settings" };
-          break;
-        }
-        const client = new TuyaClient({
-          accessId: creds.accessId,
-          accessSecret: creds.accessSecret,
-          region: s.tuya_region || "us",
-          deviceId: s.tuya_device_id,
+        const client = new TTLockClient({
+          ...creds,
+          region: s.ttlock_region || "eu",
+          lockId: s.ttlock_lock_id,
         });
-        const [device, specs] = await Promise.all([
-          client.getDevice().catch((e) => ({ error: (e as Error).message })),
-          client.getSpecifications().catch((e) => ({ error: (e as Error).message })),
-        ]);
-        result = { success: true, capabilities: { device, specifications: specs } };
+        const locks = await client
+          .listLocks()
+          .catch((e) => ({ error: (e as Error).message }));
+        const detail = s.ttlock_lock_id
+          ? await client.getLock().catch((e) => ({ error: (e as Error).message }))
+          : { error: "No lock ID saved in settings" };
+        result = { success: true, capabilities: { locks, lock: detail } };
         break;
       }
       case "device_passwords": {
@@ -804,20 +805,46 @@ Deno.serve(async (req) => {
           result = { success: false, error: "TTLock credentials or lock ID missing" };
           break;
         }
-        const list = await tuya
+        const list = await lock
           .listTempPasswords()
           .catch((e) => ({ error: (e as Error).message }));
         result = { success: true, passwords: list };
+        break;
+      }
+      case "register_user": {
+        const creds = getTTLockCredentials();
+        if (!creds) {
+          result = { success: false, error: "TTLOCK_CLIENT_ID / TTLOCK_CLIENT_SECRET not configured" };
+          break;
+        }
+        if (!body.username || !body.password) {
+          result = { success: false, error: "username and password are required" };
+          break;
+        }
+        const s = await getSettings();
+        try {
+          const reg = await registerTTLockUser({
+            clientId: creds.clientId,
+            clientSecret: creds.clientSecret,
+            username: String(body.username).replace(/[^a-zA-Z0-9]/g, ""),
+            password: String(body.password),
+            region: s.ttlock_region || "eu",
+          });
+          await logEvent(null, null, "ttlock_user_registered", { username: reg.username });
+          result = { success: true, ...reg };
+        } catch (e) {
+          result = { success: false, error: (e as Error).message };
+        }
         break;
       }
       case "unlock": {
         const s = await getSettings();
         const lock = await getTTLock(s);
         if (!lock) {
-          result = { success: false, error: "Tuya provider not enabled/configured" };
+          result = { success: false, error: "TTLock provider not enabled/configured" };
           break;
         }
-        await tuya.unlockNow();
+        await lock.unlockNow();
         await logEvent(null, null, "remote_unlock", {});
         result = { success: true };
         break;
