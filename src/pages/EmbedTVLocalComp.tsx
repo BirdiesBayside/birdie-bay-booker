@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Trophy } from "lucide-react";
 import { format } from "date-fns";
+import { formatLocalHcp } from "@/lib/utils";
 import birdiesLogo from "@/assets/birdies-b-orange.png";
 
 export default function EmbedTVLocalComp() {
@@ -158,7 +159,7 @@ export default function EmbedTVLocalComp() {
                   {team.player1_name} & {team.player2_name}
                 </div>
                 <div className="col-span-1 text-center text-[hsl(128,20%,40%)]">
-                  {team.combined_handicap.toFixed(1)}
+                  {formatLocalHcp(team.combined_handicap)}
                 </div>
                 <div className="col-span-1 text-center text-lg text-[hsl(128,42%,21%)]">
                   {team.gross_score ?? "-"}

@@ -206,7 +206,7 @@ export default function CompLeaderboard() {
                     </div>
 
                     <div className="col-span-2 text-center text-sm text-muted-foreground">
-                      {team.combined_handicap.toFixed(1)}
+                      {formatLocalHcp(team.combined_handicap)}
                     </div>
 
                     <div className="col-span-2 text-center text-sm text-muted-foreground">

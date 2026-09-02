@@ -560,11 +560,11 @@ export function ScoreEntry() {
                           </div>
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
-                          {team.player1_name} ({team.player1_handicap}) & {team.player2_name} ({team.player2_handicap})
+                          {team.player1_name} ({formatLocalHcp(team.player1_handicap)}) & {team.player2_name} ({formatLocalHcp(team.player2_handicap)})
                         </TableCell>
                         <TableCell className="text-center">
                           <Badge variant="outline" className="font-mono">
-                            {team.combined_handicap.toFixed(1)}
+                            {formatLocalHcp(team.combined_handicap)}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-center">

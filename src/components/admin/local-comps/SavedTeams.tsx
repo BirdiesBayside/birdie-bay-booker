@@ -10,6 +10,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, Users, User, ChevronDown } from "lucide-react";
 import { HandicapMismatches } from "./HandicapMismatches";
+import { formatLocalHcp } from "@/lib/utils";
 
 interface Player {
   id: string;
@@ -384,7 +385,7 @@ export function SavedTeams() {
                       <div>
                         <p className="font-medium text-foreground">{p.name}</p>
                         <p className="text-xs text-muted-foreground">
-                          HCP <span className="font-semibold text-foreground">{p.handicap.toFixed(1)}</span>
+                          HCP <span className="font-semibold text-foreground">{formatLocalHcp(p.handicap)}</span>
                         </p>
                       </div>
                       <div className="flex gap-1">
