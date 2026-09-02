@@ -83,8 +83,24 @@ Deno.serve(async (req) => {
     const aces: string[] = [];
     const eaglesPlus: string[] = [];
 
+    // A round only counts as complete if all 18 holes were played (DNF otherwise)
+    const isFull18 = (c: any): boolean => {
+      const hd = c.hole_data as Record<string, unknown> | null;
+      if (hd && typeof hd === "object") {
+        let played = 0;
+        for (let i = 1; i <= 18; i++) {
+          const g = Number(hd[`hole${i}_gross`]);
+          if (Number.isFinite(g) && g > 0) played++;
+        }
+        return played === 18;
+      }
+      return Number(c.out_gross) > 0 && Number(c.in_gross) > 0;
+    };
+
     for (const c of cards) {
       const hs = holes(c.hole_data as any);
+      const full18 = isFull18(c);
+      const holesPlayed = hs.length > 0 ? hs.length : (Number(c.out_gross) > 0 && Number(c.in_gross) > 0 ? 18 : Number(c.out_gross) > 0 || Number(c.in_gross) > 0 ? 9 : 0);
       for (const h of hs) {
         if (!holeStats.has(h.num)) holeStats.set(h.num, { par: h.par, scores: [] });
         holeStats.get(h.num)!.scores.push(h.gross);
@@ -110,6 +126,9 @@ Deno.serve(async (req) => {
         to_par_net: c.to_par_net,
         front9_gross: c.out_gross,
         back9_gross: c.in_gross,
+        full_18: full18,
+        holes_played: holesPlayed,
+        dnf: !full18,
         birdies,
         pars,
         double_or_worse: doublePlus,
@@ -119,19 +138,26 @@ Deno.serve(async (req) => {
     }
 
     const players = [...byPlayer.values()].map((p) => {
-      const completed = p.rounds.filter((r: any) => r.net != null);
-      const netSum = completed.reduce((s: number, r: any) => s + (r.to_par_net ?? 0), 0);
-      const grossSum = completed.reduce((s: number, r: any) => s + (r.to_par_gross ?? 0), 0);
+      const fullRounds = p.rounds.filter((r: any) => r.net != null && r.full_18);
+      const dnfRounds = p.rounds.filter((r: any) => !r.full_18);
+      const netSum = fullRounds.reduce((s: number, r: any) => s + (r.to_par_net ?? 0), 0);
+      const grossSum = fullRounds.reduce((s: number, r: any) => s + (r.to_par_gross ?? 0), 0);
       const priorNets = prior
         .filter((x) => x.player_name === p.player && x.to_par_net != null)
         .map((x) => x.to_par_net as number);
       const priorAvg = priorNets.length
         ? +(priorNets.reduce((a, b) => a + b, 0) / priorNets.length).toFixed(1)
         : null;
-      const thisAvg = completed.length ? +(netSum / completed.length).toFixed(1) : null;
+      const thisAvg = fullRounds.length ? +(netSum / fullRounds.length).toFixed(1) : null;
+      // The weekly league is two 18-hole rounds: a player must complete BOTH
+      // full rounds to be eligible for the win. Anything less is a DNF.
+      const eligible = fullRounds.length >= 2 && dnfRounds.length === 0;
       return {
         ...p,
-        rounds_played: completed.length,
+        rounds_completed_full_18: fullRounds.length,
+        dnf_rounds: dnfRounds.map((r: any) => ({ round: r.round, holes_played: r.holes_played })),
+        eligible_for_win: eligible,
+        dnf: !eligible,
         total_to_par_net: netSum,
         total_to_par_gross: grossSum,
         avg_to_par_net: thisAvg,
@@ -142,8 +168,18 @@ Deno.serve(async (req) => {
     });
 
     const leaderboard = players
-      .filter((p) => p.rounds_played > 0)
+      .filter((p) => p.eligible_for_win)
       .sort((a, b) => a.total_to_par_net - b.total_to_par_net);
+
+    const dnfPlayers = players
+      .filter((p) => !p.eligible_for_win)
+      .map((p) => ({
+        player: p.player,
+        full_rounds_completed: p.rounds_completed_full_18,
+        dnf_rounds: p.dnf_rounds,
+        total_to_par_net: p.total_to_par_net,
+        note: "DNF — did not complete both 18-hole rounds; NOT eligible for the win",
+      }));
 
     const hardestHoles = [...holeStats.entries()]
       .map(([num, h]) => ({
@@ -164,8 +200,9 @@ Deno.serve(async (req) => {
       field_size: players.length,
       total_rounds: cards.length,
       leaderboard: leaderboard.slice(0, 20),
+      dnf_players: dnfPlayers,
       lowest_gross_rounds: cards
-        .filter((c) => c.total_gross != null)
+        .filter((c) => c.total_gross != null && isFull18(c))
         .sort((a, b) => (a.to_par_gross ?? 0) - (b.to_par_gross ?? 0))
         .slice(0, 5)
         .map((c) => ({
@@ -192,6 +229,7 @@ Hard rules:
 - No emoji, no hashtags, no corporate filler, no "Ladies and gentlemen", no "buckle up", no rhetorical question openers.
 - Only state facts present in the supplied numbers. Never invent shots, weather, quotes or drama that isn't in the data.
 - Handicaps are in play: results are decided on net score to par (lower is better). Mention gross when it's genuinely impressive.
+- DNF rules (critical): the tournament is two 18-hole rounds. A player who did not complete BOTH full 18-hole rounds is a DNF (did not finish) and CANNOT win or be placed — no matter how good their partial score looks. Only players in "leaderboard" (all have eligible_for_win: true) can be called the winner or given a finishing position. Players in "dnf_players" may get at most one brief, plain sentence noting they didn't finish (e.g. "X only got through nine holes of round two, so no result"), and only if it's genuinely noteworthy. NEVER present a DNF player's score as a win, podium, or ranking.
 - 180–280 words. Plain text with short paragraphs, no markdown headings, no bullet lists.
 
 Structure loosely: open on the winner and their score, then anyone who moved up or improved on their recent form, call out any hole-in-one or eagle (a hole-in-one leads if there is one), note the hole that played hardest, and finish with a plain line about next week.`;
@@ -209,7 +247,7 @@ Structure loosely: open on the winner and their score, then anyone who moved up 
           { role: "system", content: systemPrompt },
           {
             role: "user",
-            content: `Write this week's wrap. Numbers below (net to par: negative is under par, lower wins; improvement_vs_recent_form is strokes better than that player's recent average, positive = improved).\n\n${JSON.stringify(payload)}`,
+            content: `Write this week's wrap. Numbers below (net to par: negative is under par, lower wins; improvement_vs_recent_form is strokes better than that player's recent average, positive = improved). Only the "leaderboard" players completed both 18-hole rounds and can win — anyone in "dnf_players" did not finish and must never be named winner or given a placing.\n\n${JSON.stringify(payload)}`,
           },
         ],
       }),
