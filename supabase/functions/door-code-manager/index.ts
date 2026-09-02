@@ -97,15 +97,14 @@ async function generateUniqueCode(s: Settings): Promise<string> {
   throw new Error("Could not generate a unique door code");
 }
 
-async function getTuya(s: Settings, force = false): Promise<TuyaClient | null> {
-  if (!force && (s.provider !== "tuya" || !s.enabled)) return null;
-  const creds = getTuyaCredentials();
-  if (!creds || !s.tuya_device_id) return null;
-  return new TuyaClient({
-    accessId: creds.accessId,
-    accessSecret: creds.accessSecret,
-    region: s.tuya_region || "us",
-    deviceId: s.tuya_device_id,
+async function getTTLock(s: Settings, force = false): Promise<TTLockClient | null> {
+  if (!force && (s.provider !== "ttlock" || !s.enabled)) return null;
+  const creds = getTTLockCredentials();
+  if (!creds || !s.ttlock_lock_id) return null;
+  return new TTLockClient({
+    ...creds,
+    region: s.ttlock_region || "eu",
+    lockId: s.ttlock_lock_id,
   });
 }
 
