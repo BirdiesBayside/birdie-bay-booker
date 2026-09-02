@@ -74,7 +74,7 @@ Hard stop for recordings is T−120s. Watchdog restarts the app every 30s if clo
 
 ## Door access
 
-Tuya keypad codes must be exactly **6 digits** — other lengths silently never reach the
+TTLock keypad codes must be exactly **6 digits** — other lengths silently never reach the
 device. Permanent named codes use a 10-year expiry and can be revoked individually.
 
 ## Bookings

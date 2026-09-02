@@ -39,7 +39,7 @@ before.
     OBS (if recording), and the Bay Controller (see `09-BAY-CONTROLLER-BUILD.md`).
 17. Tapo plugs: pair to venue WiFi, assign to bays by device id.
 18. Capture and upload the shared **baseline** simulator settings files.
-19. Door keypad: create the Tuya IoT Cloud project, link the Smart Life app account,
+19. Door keypad: create the TTLock Open Platform application (or add the venue under ours), pair the lock and gateway in the TTLock app,
     add secrets, configure lead time/expiry, test a 6-digit code end to end.
 20. Boom gate (Noke) if applicable.
 

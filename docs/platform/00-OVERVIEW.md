@@ -12,7 +12,7 @@ venue. It covers:
   leaderboards, prizes and auto-recorded video highlights
 - A weekly in-person 2-man Ambrose competition
 - Point of sale, bar tabs and table service
-- Door access via a Tuya smart keypad
+- Door access via a TTLock smart lock
 - Admin back-office: timetable, customers, analytics, marketing, settings
 
 ## Two domains, one codebase
@@ -43,7 +43,7 @@ through the `has_role(uuid, app_role)` security-definer function.
 - React 18 + Vite 5 + TypeScript + Tailwind + shadcn/ui
 - Supabase (Lovable Cloud): Postgres, Auth, Storage, Edge Functions, Realtime
 - Electron (Bay Controller, Windows), Capacitor (Android/iOS Hub app)
-- Stripe, Resend, Cloudflare Stream, Tuya, TP-Link Tapo, Simulator Golf Tour API
+- Stripe, Resend, Cloudflare Stream, TTLock, TP-Link Tapo, Simulator Golf Tour API
 
 Roughly 230 front-end TS/TSX files, 90 edge functions, 180 migrations, 100+ tables.
 

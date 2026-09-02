@@ -37,20 +37,31 @@ be in international format.
 - `stream-upload`, `stream-clip`, `league-highlights-signed-url`, `clip-download-proxy`,
   `purge-old-recordings`, `session-download-url`.
 
-## Tuya IoT Cloud — door keypad
+## TTLock — door lock / keypad
 
 - Tables: `door_access_settings`, `door_codes`, `door_code_events`.
-- Function: `door-code-manager`. Helper: a `TuyaClient` with HMAC request signing and
-  ticket-encrypted temporary passwords.
+- Function: `door-code-manager`. Helper: `_shared/ttlock.ts` (`TTLockClient`).
+- Secrets: `TTLOCK_CLIENT_ID`, `TTLOCK_CLIENT_SECRET`, `TTLOCK_USERNAME`, `TTLOCK_PASSWORD`.
+  Passwords are MD5-hashed (lowercase 32 hex) before being sent; OAuth2 tokens last 90 days
+  and are cached in the function.
+- Cloud API: form-encoded POSTs to `https://euapi.ttlock.com` (EU/International) or
+  `https://api.ttlock.com` (China); every call carries `date` as epoch milliseconds.
+- Passcodes are pushed remotely through the gateway / WiFi lock (`addType: 2`) as period
+  codes (`keyboardPwdType: 3`), so no phone or Bluetooth is involved.
 - **Codes must be exactly 6 digits.** Any other length is accepted by the API but never
   reaches the device.
+- Max 250 passcodes per lock (`errcode -3009` when exceeded).
 - Per-booking codes are issued with configurable pre-booking lead time and expiry.
   Named permanent codes (staff, contractors) use `label` + `is_permanent` with a 10-year
   expiry, and can be revoked individually.
-- The Tuya **Trial** licence is sufficient: usage sits far below the monthly API call
-  allowance. "Trial" refers to missing enterprise-scale features, not to a time limit.
-- Setup: create a Tuya IoT Cloud project, then link the Smart Life mobile app account via
-  "Link Tuya App Account" → QR code, so the cloud project can see the device.
+- Remote unlock (`/v3/lock/unlock`) requires the lock's "Remote unlock" toggle to be on in
+  the TTLock app, otherwise `errcode -4043`.
+- Onboarding a new venue: either take the venue's own TTLock app credentials, or create a
+  cloud-only account under our developer application with
+  `{ action: "register_user", username, password }` — TTLock returns a namespaced username
+  (`<appPrefix>_<yours>`) which must be stored and used verbatim for every future login.
+  Either way the account must have the lock (or an eKey for it) in the TTLock app before
+  passcode and unlock calls will work.
 
 ## TP-Link Tapo — smart plugs
 

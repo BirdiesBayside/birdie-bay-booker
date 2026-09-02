@@ -1,5 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
-import { TuyaClient, getTuyaCredentials } from "../_shared/tuya.ts";
+import { TTLockClient, getTTLockCredentials, registerTTLockUser } from "../_shared/ttlock.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -21,9 +21,9 @@ interface Settings {
   append_hash: boolean;
   valid_from_minutes_before: number;
   valid_until_minutes_after: number;
-  provider: "manual" | "tuya";
-  tuya_device_id: string | null;
-  tuya_region: string;
+  provider: "manual" | "ttlock";
+  ttlock_lock_id: string | null;
+  ttlock_region: string;
   enabled: boolean;
 }
 
@@ -41,8 +41,8 @@ async function getSettings(): Promise<Settings> {
     valid_from_minutes_before: 20,
     valid_until_minutes_after: 1,
     provider: "manual",
-    tuya_device_id: null,
-    tuya_region: "us",
+    ttlock_lock_id: null,
+    ttlock_region: "eu",
     enabled: false,
   }) as Settings;
 }
@@ -74,7 +74,7 @@ function bookingWindow(booking: any, s: Settings) {
 
 /** Numeric code that doesn't clash with any other live code or the fixed code. */
 async function generateUniqueCode(s: Settings): Promise<string> {
-  // HARD RULE: this keypad only ever accepts 6-digit codes. Tuya's cloud returns
+  // HARD RULE: this keypad only ever accepts 6-digit codes. The cloud returns
   // success for other lengths but the device never takes them (stuck at delivery
   // phase 11, no slot assigned), so any other length is a silently dead code.
   const len = 6;
@@ -97,15 +97,14 @@ async function generateUniqueCode(s: Settings): Promise<string> {
   throw new Error("Could not generate a unique door code");
 }
 
-async function getTuya(s: Settings, force = false): Promise<TuyaClient | null> {
-  if (!force && (s.provider !== "tuya" || !s.enabled)) return null;
-  const creds = getTuyaCredentials();
-  if (!creds || !s.tuya_device_id) return null;
-  return new TuyaClient({
-    accessId: creds.accessId,
-    accessSecret: creds.accessSecret,
-    region: s.tuya_region || "us",
-    deviceId: s.tuya_device_id,
+async function getTTLock(s: Settings, force = false): Promise<TTLockClient | null> {
+  if (!force && (s.provider !== "ttlock" || !s.enabled)) return null;
+  const creds = getTTLockCredentials();
+  if (!creds || !s.ttlock_lock_id) return null;
+  return new TTLockClient({
+    ...creds,
+    region: s.ttlock_region || "eu",
+    lockId: s.ttlock_lock_id,
   });
 }
 
@@ -150,24 +149,24 @@ async function issueTestCode(opts: {
       valid_from: validFrom.toISOString(),
       valid_until: validUntil.toISOString(),
       status: "pending",
-      provider: "tuya",
+      provider: "ttlock",
     })
     .select()
     .single();
   if (error) return { success: false, error: error.message };
 
-  const tuya = await getTuya(s, true);
-  if (!tuya) {
+  const lock = await getTTLock(s, true);
+  if (!lock) {
     await supabase
       .from("door_codes")
-      .update({ status: "failed", last_error: "Tuya credentials or device ID missing" })
+      .update({ status: "failed", last_error: "TTLock credentials or lock ID missing" })
       .eq("id", inserted.id);
-    return { success: false, error: "Tuya credentials or device ID missing", code };
+    return { success: false, error: "TTLock credentials or lock ID missing", code };
   }
 
   const startedAt = Date.now();
   try {
-    const { ref, via } = await tuya.issueTempPassword({
+    const { ref, via } = await lock.issueTempPassword({
       code,
       name: label.slice(0, 30),
       effectiveTime: validFrom,
@@ -201,10 +200,10 @@ async function issueTestCode(opts: {
 
 /**
  * Named staff / contractor code.
- * Tuya has no true "permanent" temp-password API — the only permanent code is
- * the one programmed on the keypad itself. So a permanent code here is a temp
- * password with the expiry pushed 10 years out, which behaves identically and
- * can still be revoked instantly.
+ * TTLock has no true "permanent" passcode via the cloud API here — the only
+ * permanent code is the one programmed on the lock itself. So a permanent code
+ * here is a period passcode with the expiry pushed 10 years out, which behaves
+ * identically and can still be revoked instantly.
  */
 async function issueNamedCode(opts: {
   label: string;
@@ -248,23 +247,23 @@ async function issueNamedCode(opts: {
       valid_from: validFrom.toISOString(),
       valid_until: validUntil.toISOString(),
       status: "pending",
-      provider: "tuya",
+      provider: "ttlock",
     })
     .select()
     .single();
   if (error) return { success: false, error: error.message };
 
-  const tuya = await getTuya(s, true);
-  if (!tuya) {
+  const lock = await getTTLock(s, true);
+  if (!lock) {
     await supabase
       .from("door_codes")
-      .update({ status: "failed", last_error: "Tuya credentials or device ID missing" })
+      .update({ status: "failed", last_error: "TTLock credentials or lock ID missing" })
       .eq("id", inserted.id);
-    return { success: false, error: "Tuya credentials or device ID missing", code };
+    return { success: false, error: "TTLock credentials or lock ID missing", code };
   }
 
   try {
-    const { ref, via } = await tuya.issueTempPassword({
+    const { ref, via } = await lock.issueTempPassword({
       code,
       name: label.slice(0, 30),
       effectiveTime: validFrom,
@@ -309,8 +308,8 @@ async function capacityProbe(opts: { count?: number; hours?: number; sample_ever
   const hours = Math.min(Math.max(opts.hours ?? 48, 1), 24 * 30);
   const sampleEvery = opts.sample_every ?? 10;
 
-  const tuya = await getTuya(s, true);
-  if (!tuya) return { success: false, error: "Tuya credentials or device ID missing" };
+  const lock = await getTTLock(s, true);
+  if (!lock) return { success: false, error: "TTLock credentials or lock ID missing" };
 
   // Continue numbering from any probe codes already live
   const { count: existing } = await supabase
@@ -340,7 +339,7 @@ async function capacityProbe(opts: { count?: number; hours?: number; sample_ever
         valid_from: validFrom.toISOString(),
         valid_until: validUntil.toISOString(),
         status: "pending",
-        provider: "tuya",
+        provider: "ttlock",
       })
       .select()
       .single();
@@ -350,7 +349,7 @@ async function capacityProbe(opts: { count?: number; hours?: number; sample_ever
     }
 
     try {
-      const { ref } = await tuya.issueTempPassword({
+      const { ref } = await lock.issueTempPassword({
         code,
         name: label,
         effectiveTime: validFrom,
@@ -372,7 +371,7 @@ async function capacityProbe(opts: { count?: number; hours?: number; sample_ever
       firstFailure = { index, error: msg };
       break;
     }
-    // gentle pacing so Tuya doesn't rate-limit us
+    // gentle pacing so TTLock doesn't rate-limit us
     await new Promise((r) => setTimeout(r, 200));
   }
 
@@ -397,7 +396,7 @@ async function capacityProbe(opts: { count?: number; hours?: number; sample_ever
 /** Wipes every probe code from the keypad and marks them revoked. */
 async function capacityProbeCleanup() {
   const s = await getSettings();
-  const tuya = await getTuya(s, true);
+  const lock = await getTTLock(s, true);
   const { data: rows } = await supabase
     .from("door_codes")
     .select("*")
@@ -407,9 +406,9 @@ async function capacityProbeCleanup() {
   let removed = 0;
   const errors: string[] = [];
   for (const row of rows || []) {
-    if (tuya && row.provider_ref) {
+    if (lock && row.provider_ref) {
       try {
-        await tuya.deleteTempPassword(row.provider_ref);
+        await lock.deleteTempPassword(row.provider_ref);
         removed++;
       } catch (e) {
         errors.push(`${row.code}: ${(e as Error).message}`);
@@ -444,8 +443,8 @@ async function shouldIssueForBooking(booking: any, s: Settings): Promise<boolean
 }
 
 async function pushToProvider(codeRow: any, s: Settings, bookingLabel: string) {
-  const tuya = await getTuya(s);
-  if (!tuya) {
+  const lock = await getTTLock(s);
+  if (!lock) {
     await supabase
       .from("door_codes")
       .update({ status: "active", provider: "manual", last_error: null })
@@ -454,7 +453,7 @@ async function pushToProvider(codeRow: any, s: Settings, bookingLabel: string) {
     return { pushed: false };
   }
   try {
-    const { ref, via } = await tuya.issueTempPassword({
+    const { ref, via } = await lock.issueTempPassword({
       code: codeRow.code,
       name: bookingLabel.slice(0, 30),
       effectiveTime: new Date(codeRow.valid_from),
@@ -462,9 +461,9 @@ async function pushToProvider(codeRow: any, s: Settings, bookingLabel: string) {
     });
     await supabase
       .from("door_codes")
-      .update({ status: "active", provider: "tuya", provider_ref: ref, last_error: null })
+      .update({ status: "active", provider: "ttlock", provider_ref: ref, last_error: null })
       .eq("id", codeRow.id);
-    await logEvent(codeRow.id, codeRow.booking_id, "issued_tuya", { ref, via });
+    await logEvent(codeRow.id, codeRow.booking_id, "issued_ttlock", { ref, via });
     return { pushed: true, ref };
   } catch (e) {
     const msg = (e as Error).message;
@@ -478,12 +477,12 @@ async function pushToProvider(codeRow: any, s: Settings, bookingLabel: string) {
 }
 
 async function revokeCode(codeRow: any, s: Settings, reason: string) {
-  const tuya = await getTuya(s, codeRow.scope === "test" || codeRow.scope === "staff");
+  const lock = await getTTLock(s, codeRow.scope === "test" || codeRow.scope === "staff");
 
   let removalError: string | null = null;
-  if (tuya && codeRow.provider === "tuya" && codeRow.provider_ref) {
+  if (lock && codeRow.provider === "ttlock" && codeRow.provider_ref) {
     try {
-      await tuya.deleteTempPassword(codeRow.provider_ref);
+      await lock.deleteTempPassword(codeRow.provider_ref);
     } catch (e) {
       removalError = (e as Error).message;
       await logEvent(codeRow.id, codeRow.booking_id, "revoke_failed", { error: removalError });
@@ -540,10 +539,10 @@ async function issueForBooking(bookingId: string, force = false) {
         valid_until: validUntil.toISOString(),
       });
       // Re-push so the keypad matches the new window (same code, new expiry)
-      const tuya = await getTuya(s);
-      if (tuya && existing.provider_ref) {
+      const lock = await getTTLock(s);
+      if (lock && existing.provider_ref) {
         try {
-          await tuya.deleteTempPassword(existing.provider_ref);
+          await lock.deleteTempPassword(existing.provider_ref);
         } catch { /* best effort */ }
       }
       const refreshed = { ...existing, valid_from: validFrom.toISOString(), valid_until: validUntil.toISOString() };
@@ -604,10 +603,10 @@ async function syncAll() {
     .in("status", ["pending", "active"])
     .lt("valid_until", now.toISOString());
   for (const row of past || []) {
-    const tuya = await getTuya(s, row.scope === "test" || row.scope === "staff");
+    const lock = await getTTLock(s, row.scope === "test" || row.scope === "staff");
 
-    if (tuya && row.provider_ref) {
-      try { await tuya.deleteTempPassword(row.provider_ref); } catch { /* best effort */ }
+    if (lock && row.provider_ref) {
+      try { await lock.deleteTempPassword(row.provider_ref); } catch { /* best effort */ }
     }
     await supabase.from("door_codes").update({ status: "expired" }).eq("id", row.id);
     await logEvent(row.id, row.booking_id, "expired", {});
@@ -647,9 +646,9 @@ async function syncAll() {
       await logEvent(row.id, row.booking_id, "window_corrected", {
         valid_until: validUntil.toISOString(),
       });
-      const tuya = await getTuya(s);
-      if (tuya && row.provider_ref) {
-        try { await tuya.deleteTempPassword(row.provider_ref); } catch { /* best effort */ }
+      const lock = await getTTLock(s);
+      if (lock && row.provider_ref) {
+        try { await lock.deleteTempPassword(row.provider_ref); } catch { /* best effort */ }
       }
       await pushToProvider(
         { ...row, valid_from: validFrom.toISOString(), valid_until: validUntil.toISOString() },
@@ -660,7 +659,7 @@ async function syncAll() {
       continue;
     }
 
-    if (row.status === "pending" && s.provider === "tuya" && s.enabled) {
+    if (row.status === "pending" && s.provider === "ttlock" && s.enabled) {
       await pushToProvider(row, s, `Booking ${booking.booking_date}`);
       retried++;
     }
@@ -677,10 +676,10 @@ async function syncAll() {
     .not("last_error", "is", null)
     .gte("valid_until", now.toISOString());
   for (const row of stuckRevoked || []) {
-    const tuya = await getTuya(s, row.scope === "test" || row.scope === "staff");
-    if (!tuya) break;
+    const lock = await getTTLock(s, row.scope === "test" || row.scope === "staff");
+    if (!lock) break;
     try {
-      await tuya.deleteTempPassword(row.provider_ref);
+      await lock.deleteTempPassword(row.provider_ref);
       await supabase.from("door_codes").update({ last_error: null }).eq("id", row.id);
       await logEvent(row.id, row.booking_id, "revoke_retry_succeeded", {});
       reRevoked++;
@@ -776,49 +775,76 @@ Deno.serve(async (req) => {
 
       case "test": {
         const s = await getSettings();
-        const creds = getTuyaCredentials();
+        const creds = getTTLockCredentials();
         if (!creds) {
-          result = { success: false, error: "TUYA_ACCESS_ID / TUYA_ACCESS_SECRET not configured" };
+          result = {
+            success: false,
+            error:
+              "TTLOCK_CLIENT_ID / TTLOCK_CLIENT_SECRET / TTLOCK_USERNAME / TTLOCK_PASSWORD not configured",
+          };
           break;
         }
-        if (!s.tuya_device_id) {
-          result = { success: false, error: "No Tuya device ID saved in settings" };
-          break;
-        }
-        const client = new TuyaClient({
-          accessId: creds.accessId,
-          accessSecret: creds.accessSecret,
-          region: s.tuya_region || "us",
-          deviceId: s.tuya_device_id,
+        const client = new TTLockClient({
+          ...creds,
+          region: s.ttlock_region || "eu",
+          lockId: s.ttlock_lock_id,
         });
-        const [device, specs] = await Promise.all([
-          client.getDevice().catch((e) => ({ error: (e as Error).message })),
-          client.getSpecifications().catch((e) => ({ error: (e as Error).message })),
-        ]);
-        result = { success: true, capabilities: { device, specifications: specs } };
+        const locks = await client
+          .listLocks()
+          .catch((e) => ({ error: (e as Error).message }));
+        const detail = s.ttlock_lock_id
+          ? await client.getLock().catch((e) => ({ error: (e as Error).message }))
+          : { error: "No lock ID saved in settings" };
+        result = { success: true, capabilities: { locks, lock: detail } };
         break;
       }
       case "device_passwords": {
         const s = await getSettings();
-        const tuya = await getTuya(s, true);
-        if (!tuya) {
-          result = { success: false, error: "Tuya credentials or device ID missing" };
+        const lock = await getTTLock(s, true);
+        if (!lock) {
+          result = { success: false, error: "TTLock credentials or lock ID missing" };
           break;
         }
-        const list = await tuya
+        const list = await lock
           .listTempPasswords()
           .catch((e) => ({ error: (e as Error).message }));
         result = { success: true, passwords: list };
         break;
       }
-      case "unlock": {
-        const s = await getSettings();
-        const tuya = await getTuya(s);
-        if (!tuya) {
-          result = { success: false, error: "Tuya provider not enabled/configured" };
+      case "register_user": {
+        const creds = getTTLockCredentials();
+        if (!creds) {
+          result = { success: false, error: "TTLOCK_CLIENT_ID / TTLOCK_CLIENT_SECRET not configured" };
           break;
         }
-        await tuya.unlockNow();
+        if (!body.username || !body.password) {
+          result = { success: false, error: "username and password are required" };
+          break;
+        }
+        const s = await getSettings();
+        try {
+          const reg = await registerTTLockUser({
+            clientId: creds.clientId,
+            clientSecret: creds.clientSecret,
+            username: String(body.username).replace(/[^a-zA-Z0-9]/g, ""),
+            password: String(body.password),
+            region: s.ttlock_region || "eu",
+          });
+          await logEvent(null, null, "ttlock_user_registered", { username: reg.username });
+          result = { success: true, ...reg };
+        } catch (e) {
+          result = { success: false, error: (e as Error).message };
+        }
+        break;
+      }
+      case "unlock": {
+        const s = await getSettings();
+        const lock = await getTTLock(s);
+        if (!lock) {
+          result = { success: false, error: "TTLock provider not enabled/configured" };
+          break;
+        }
+        await lock.unlockNow();
         await logEvent(null, null, "remote_unlock", {});
         result = { success: true };
         break;

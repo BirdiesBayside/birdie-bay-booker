@@ -26,9 +26,9 @@ interface DoorAccessSettings {
   append_hash: boolean;
   valid_from_minutes_before: number;
   valid_until_minutes_after: number;
-  provider: "manual" | "tuya";
-  tuya_device_id: string | null;
-  tuya_region: string;
+  provider: "manual" | "ttlock";
+  ttlock_lock_id: string | null;
+  ttlock_region: string;
   enabled: boolean;
 }
 
@@ -94,6 +94,45 @@ export function DoorAccessSection() {
   const [namedPermanent, setNamedPermanent] = useState(true);
   const [namedExpiry, setNamedExpiry] = useState(() => bneLocalInput(60 * 24 * 30));
   const [issuingNamed, setIssuingNamed] = useState(false);
+
+  // TTLock connection test
+  const [testingConn, setTestingConn] = useState(false);
+  const [connResult, setConnResult] = useState<string | null>(null);
+
+  const testConnection = async () => {
+    setTestingConn(true);
+    setConnResult(null);
+    const { data, error } = await supabase.functions.invoke("door-code-manager", {
+      body: { action: "test" },
+    });
+    setTestingConn(false);
+    if (error || !data?.success) {
+      const msg = error?.message || data?.error || "Unknown error";
+      setConnResult(`❌ ${msg}`);
+      return;
+    }
+    const locks = data.capabilities?.locks;
+    const summary = Array.isArray(locks)
+      ? locks.map((l: any) => `#${l.lockId} — ${l.lockAlias || l.lockName} (battery ${l.electricQuantity}%, gateway ${l.hasGateway ? "yes" : "no"})`).join("\n")
+      : JSON.stringify(locks);
+    setConnResult(`✅ Connected to TTLock.\nLocks on this account:\n${summary}`);
+  };
+
+  const remoteUnlock = async () => {
+    const { data, error } = await supabase.functions.invoke("door-code-manager", {
+      body: { action: "unlock" },
+    });
+    if (error || !data?.success) {
+      toast({
+        title: "Unlock failed",
+        description: error?.message || data?.error || "Unknown error",
+        variant: "destructive",
+        duration: 5000,
+      });
+      return;
+    }
+    toast({ title: "Door unlocked", duration: 3000 });
+  };
 
   const load = async () => {
     setIsLoading(true);
@@ -305,6 +344,59 @@ export function DoorAccessSection() {
             </Label>
           </div>
 
+          <div className="grid gap-4 sm:grid-cols-3 max-w-3xl">
+            <div className="space-y-2">
+              <Label>Lock provider</Label>
+              <Select
+                value={draft.provider}
+                onValueChange={(v) => set("provider", v as DoorAccessSettings["provider"])}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="manual">Manual (no smart lock)</SelectItem>
+                  <SelectItem value="ttlock">TTLock</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>TTLock lock ID</Label>
+              <Input
+                value={draft.ttlock_lock_id ?? ""}
+                onChange={(e) => set("ttlock_lock_id", e.target.value)}
+                placeholder="e.g. 12345678"
+                inputMode="numeric"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>TTLock region</Label>
+              <Select value={draft.ttlock_region} onValueChange={(v) => set("ttlock_region", v)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="eu">EU / International</SelectItem>
+                  <SelectItem value="cn">China</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" onClick={testConnection} disabled={testingConn}>
+              {testingConn ? "Checking..." : "Test TTLock connection"}
+            </Button>
+            <Button variant="outline" onClick={remoteUnlock}>
+              Remote unlock
+            </Button>
+          </div>
+          {connResult && (
+            <pre className="bg-muted/40 rounded p-3 text-xs whitespace-pre-wrap max-h-64 overflow-auto">
+              {connResult}
+            </pre>
+          )}
+
           <div className="flex items-center gap-3">
             <Switch id="dc_enabled" checked={draft.enabled} onCheckedChange={(v) => set("enabled", v)} />
             <Label htmlFor="dc_enabled" className="text-sm">
@@ -330,9 +422,9 @@ export function DoorAccessSection() {
           </CardTitle>
           <CardDescription>
             Assign a code to a person — staff, cleaner, contractor — and revoke it instantly when
-            they no longer need access. Tuya has no separate "permanent code" API, so a permanent
+            they no longer need access. TTLock has no separate "permanent code" API, so a permanent
             code is issued with a 10-year expiry; it behaves exactly like a fixed code and can be
-            removed from the keypad at any time.
+            removed from the lock at any time.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

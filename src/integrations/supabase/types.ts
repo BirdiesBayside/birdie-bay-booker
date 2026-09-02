@@ -884,8 +884,8 @@ export type Database = {
           id: string
           mode: string
           provider: string
-          tuya_device_id: string | null
-          tuya_region: string
+          ttlock_lock_id: string | null
+          ttlock_region: string
           updated_at: string
           valid_from_minutes_before: number
           valid_until_minutes_after: number
@@ -899,8 +899,8 @@ export type Database = {
           id?: string
           mode?: string
           provider?: string
-          tuya_device_id?: string | null
-          tuya_region?: string
+          ttlock_lock_id?: string | null
+          ttlock_region?: string
           updated_at?: string
           valid_from_minutes_before?: number
           valid_until_minutes_after?: number
@@ -914,8 +914,8 @@ export type Database = {
           id?: string
           mode?: string
           provider?: string
-          tuya_device_id?: string | null
-          tuya_region?: string
+          ttlock_lock_id?: string | null
+          ttlock_region?: string
           updated_at?: string
           valid_from_minutes_before?: number
           valid_until_minutes_after?: number

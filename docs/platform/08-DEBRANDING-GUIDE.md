@@ -193,7 +193,7 @@ usable immediately:
 
 Add Admin → Setup Status: a red/green checklist covering venue details, pricing tiers,
 bays, operating hours, email domain, Stripe keys, SMS, SGT (optional), Cloudflare
-(optional), Tuya (optional), and push. Each row links to the section that fixes it. This
+(optional), TTLock (optional), and push. Each row links to the section that fixes it. This
 is what makes a client project launchable without institutional memory.
 
 ## Step 9 — Documentation carry-over
