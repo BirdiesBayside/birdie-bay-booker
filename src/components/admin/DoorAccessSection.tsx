@@ -175,7 +175,9 @@ export function DoorAccessSection() {
   const save = async () => {
     if (!draft) return;
     setSaving(true);
-    const { id, ...payload } = draft;
+    // Codes are stored without '#'; the append_hash toggle adds it in comms
+    const normalized = { ...draft, fixed_code: (draft.fixed_code || "").replace(/#+$/, "") };
+    const { id, ...payload } = normalized;
     const { error } = await supabase
       .from("door_access_settings")
       .update(payload as any)
