@@ -85,6 +85,7 @@ export function DoorAccessSection() {
   const [testStart, setTestStart] = useState(() => bneLocalInput(2));
   const [testEnd, setTestEnd] = useState(() => bneLocalInput(32));
   const [testCodeInput, setTestCodeInput] = useState("");
+  const [pushingFixed, setPushingFixed] = useState(false);
   const [issuingTest, setIssuingTest] = useState(false);
   const [testResult, setTestResult] = useState<string | null>(null);
   const [unlocking, setUnlocking] = useState(false);
@@ -188,6 +189,21 @@ export function DoorAccessSection() {
     await supabase.from("system_settings").update({ door_code: draft.fixed_code } as any).eq("id", "global");
     setSettings(draft);
     toast({ title: "Door access settings saved", duration: 3000 });
+  };
+
+  const pushFixedCode = async () => {
+    setPushingFixed(true);
+    const { data, error } = await supabase.functions.invoke("door-code-manager", {
+      body: { action: "push_fixed_code" },
+    });
+    setPushingFixed(false);
+    if (error || !data?.success) {
+      const msg = error?.message || data?.error || "Unknown error";
+      toast({ title: "Could not push fixed code", description: msg, variant: "destructive", duration: 6000 });
+      return;
+    }
+    toast({ title: `Fixed code ${data.code} is now live on the keypad`, duration: 5000 });
+    load();
   };
 
   const issueTestCode = async () => {
@@ -336,7 +352,22 @@ export function DoorAccessSection() {
             />
             <p className="text-xs text-muted-foreground">
               Used in fixed mode, and as the fallback whenever a booking has no code of its own.
+              Editing it here only changes what emails/SMS show — press "Push to lock" to make the
+              keypad actually accept it.
             </p>
+            {draft.provider === "ttlock" && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={pushFixedCode}
+                disabled={pushingFixed || dirty}
+              >
+                {pushingFixed ? "Pushing…" : "Push to lock"}
+              </Button>
+            )}
+            {dirty && draft.provider === "ttlock" && (
+              <p className="text-xs text-muted-foreground">Save your changes first.</p>
+            )}
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2 max-w-2xl">
