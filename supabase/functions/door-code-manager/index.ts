@@ -295,6 +295,37 @@ async function issueNamedCode(opts: {
 }
 
 /**
+ * Push the settings "fixed code" to the keypad as a long-lived passcode.
+ * Without this the fixed code is only ever *displayed* in emails/SMS — it never
+ * reaches the lock, so customers get a code the keypad has never heard of.
+ */
+async function pushFixedCode() {
+  const s = await getSettings();
+  const digits = (s.fixed_code || "").replace(/\D/g, "");
+  if (digits.length !== 6) {
+    return {
+      success: false,
+      error: `Fixed code must be exactly 6 digits (got ${digits.length}) — this keypad ignores any other length.`,
+    };
+  }
+
+  const LABEL = "Fixed door code";
+
+  // Remove any previous fixed code from the lock (different digits, or a stale push)
+  const { data: existing } = await supabase
+    .from("door_codes")
+    .select("*")
+    .eq("scope", "staff")
+    .eq("label", LABEL)
+    .in("status", ["pending", "active"]);
+  for (const row of existing || []) {
+    await revokeCode(row, s, "fixed code replaced");
+  }
+
+  return await issueNamedCode({ label: LABEL, code: digits, permanent: true });
+}
+
+/**
  * BACK-END ONLY capacity probe.
  * Pushes a batch of real 6-digit codes to the keypad so we can find out how
  * many the device will actually hold at once. Deliberately not exposed in the
@@ -756,6 +787,10 @@ Deno.serve(async (req) => {
           valid_from: body.valid_from,
           valid_until: body.valid_until,
         });
+        break;
+
+      case "push_fixed_code":
+        result = await pushFixedCode();
         break;
 
       case "capacity_probe":
