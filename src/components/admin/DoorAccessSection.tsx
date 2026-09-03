@@ -284,6 +284,27 @@ export function DoorAccessSection() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
+          {draft.provider === "ttlock" && draft.enabled && (
+            <div className="rounded-lg border border-orange-500/30 bg-orange-500/10 p-4 space-y-3">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h3 className="font-semibold text-sm">Remote unlock</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Unlocks the door once from here. The lock re-latches automatically.
+                  </p>
+                </div>
+                <Button
+                  size="lg"
+                  onClick={remoteUnlock}
+                  disabled={unlocking}
+                  className="min-w-[140px]"
+                >
+                  {unlocking ? "Unlocking…" : "Unlock Door"}
+                </Button>
+              </div>
+            </div>
+          )}
+
           <div className="max-w-md space-y-2">
             <Label>Code mode</Label>
             <Select value={draft.mode} onValueChange={(v) => set("mode", v as DoorAccessSettings["mode"])}>
