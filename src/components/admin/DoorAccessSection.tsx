@@ -87,6 +87,7 @@ export function DoorAccessSection() {
   const [testCodeInput, setTestCodeInput] = useState("");
   const [issuingTest, setIssuingTest] = useState(false);
   const [testResult, setTestResult] = useState<string | null>(null);
+  const [unlocking, setUnlocking] = useState(false);
 
   // Named staff / contractor codes
   const [namedLabel, setNamedLabel] = useState("");
