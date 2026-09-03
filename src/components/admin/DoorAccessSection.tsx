@@ -120,9 +120,11 @@ export function DoorAccessSection() {
   };
 
   const remoteUnlock = async () => {
+    setUnlocking(true);
     const { data, error } = await supabase.functions.invoke("door-code-manager", {
       body: { action: "unlock" },
     });
+    setUnlocking(false);
     if (error || !data?.success) {
       toast({
         title: "Unlock failed",
