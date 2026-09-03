@@ -411,9 +411,6 @@ export function DoorAccessSection() {
             <Button variant="outline" onClick={testConnection} disabled={testingConn}>
               {testingConn ? "Checking..." : "Test TTLock connection"}
             </Button>
-            <Button variant="outline" onClick={remoteUnlock}>
-              Remote unlock
-            </Button>
           </div>
           {connResult && (
             <pre className="bg-muted/40 rounded p-3 text-xs whitespace-pre-wrap max-h-64 overflow-auto">
