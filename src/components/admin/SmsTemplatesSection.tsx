@@ -88,8 +88,8 @@ export function SmsTemplatesSection() {
   const { toast } = useToast();
   const [templates, setTemplates] = useState<SmsTemplate[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [doorCode, setDoorCode] = useState("7675#");
-  const [doorCodeInput, setDoorCodeInput] = useState("7675#");
+  const [doorCode, setDoorCode] = useState("007675#");
+  const [doorCodeInput, setDoorCodeInput] = useState("007675#");
   const [savingDoorCode, setSavingDoorCode] = useState(false);
 
   const [editing, setEditing] = useState<SmsTemplate | null>(null);
@@ -104,7 +104,7 @@ export function SmsTemplatesSection() {
       supabase.from("system_settings").select("door_code").eq("id", "global").maybeSingle(),
     ]);
     if (tpls) setTemplates(tpls as SmsTemplate[]);
-    const dc = (sys as any)?.door_code || "7675#";
+    const dc = (sys as any)?.door_code || "007675#";
     setDoorCode(dc);
     setDoorCodeInput(dc);
     setIsLoading(false);

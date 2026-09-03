@@ -327,7 +327,7 @@ export function DoorAccessSection() {
             <Input
               value={draft.fixed_code}
               onChange={(e) => set("fixed_code", e.target.value)}
-              placeholder="e.g. 7675#"
+              placeholder="e.g. 007675#"
             />
             <p className="text-xs text-muted-foreground">
               Used in fixed mode, and as the fallback whenever a booking has no code of its own.
