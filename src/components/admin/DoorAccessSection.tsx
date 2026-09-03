@@ -116,7 +116,12 @@ export function DoorAccessSection() {
     const summary = Array.isArray(locks)
       ? locks.map((l: any) => `#${l.lockId} — ${l.lockAlias || l.lockName} (battery ${l.electricQuantity}%, gateway ${l.hasGateway ? "yes" : "no"})`).join("\n")
       : JSON.stringify(locks);
-    setConnResult(`✅ Connected to TTLock.\nLocks on this account:\n${summary}`);
+    let note = "";
+    if (Array.isArray(locks) && locks.length === 1 && String(locks[0].lockId) !== (draft.ttlock_lock_id ?? "")) {
+      set("ttlock_lock_id", String(locks[0].lockId));
+      note = `\n\nℹ️ Lock ID set to ${locks[0].lockId} — press "Save settings" to keep it.`;
+    }
+    setConnResult(`✅ Connected to TTLock.\nLocks on this account:\n${summary}${note}`);
   };
 
   const remoteUnlock = async () => {
