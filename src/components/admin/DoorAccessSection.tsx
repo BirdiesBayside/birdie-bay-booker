@@ -188,8 +188,9 @@ export function DoorAccessSection() {
       return;
     }
     // Keep the legacy system_settings.door_code in sync so existing templates keep working
-    await supabase.from("system_settings").update({ door_code: draft.fixed_code } as any).eq("id", "global");
-    setSettings(draft);
+    await supabase.from("system_settings").update({ door_code: normalized.fixed_code } as any).eq("id", "global");
+    setSettings(normalized);
+    setDraft(normalized);
     toast({ title: "Door access settings saved", duration: 3000 });
   };
 
