@@ -35,7 +35,7 @@ async function getSettings(): Promise<Settings> {
     .maybeSingle();
   return (data || {
     mode: "fixed",
-    fixed_code: "7675#",
+    fixed_code: "007675#",
     code_length: 6,
     append_hash: true,
     valid_from_minutes_before: 20,

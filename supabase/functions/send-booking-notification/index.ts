@@ -332,7 +332,7 @@ serve(async (req) => {
     // Resolve the door code for this booking.
     // Per-booking mode issues a unique temporary code; everything else falls
     // back to the shared fixed code.
-    let doorCode = "7675#";
+    let doorCode = "007675#";
     const { data: doorSettings } = await supabaseClient
       .from("door_access_settings")
       .select("mode, fixed_code, append_hash")
@@ -534,7 +534,7 @@ serve(async (req) => {
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#1F4C25; border-radius:12px; margin:18px 0;">
                 <tr>
                   <td style="padding:20px; font-family:Inter, Arial, sans-serif; font-size:15px; color:#FFF5E4; text-align:center;">
-                    <p style="margin:0 0 10px 0;"><strong>Door Access Code:</strong> 7675#</p>
+                    <p style="margin:0 0 10px 0;"><strong>Door Access Code:</strong> ${doorCode}</p>
                     ${needsBoomGate ? `
                     <p style="margin:0; font-size:14px;">
                       <strong>IMPORTANT:</strong> You will require Boom gate access for your booking time.<br/>
