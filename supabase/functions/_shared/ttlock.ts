@@ -133,6 +133,13 @@ export class TTLockClient {
     let json = await call(await this.getAccessToken());
     if (json?.errcode === 10004) json = await call(await this.getAccessToken(true));
 
+    // -3037 = "lock is busy": the gateway is mid-conversation with the lock.
+    // Back off and retry a few times before giving up.
+    for (let i = 0; i < 3 && json?.errcode === -3037; i++) {
+      await new Promise((r) => setTimeout(r, 2500 * (i + 1)));
+      json = await call(await this.getAccessToken());
+    }
+
     if (json?.errcode && json.errcode !== 0) {
       let hint = "";
       if (json.errcode === 1 && path.includes("keyboardPwd")) {
