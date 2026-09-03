@@ -175,7 +175,9 @@ export function DoorAccessSection() {
   const save = async () => {
     if (!draft) return;
     setSaving(true);
-    const { id, ...payload } = draft;
+    // Codes are stored without '#'; the append_hash toggle adds it in comms
+    const normalized = { ...draft, fixed_code: (draft.fixed_code || "").replace(/#+$/, "") };
+    const { id, ...payload } = normalized;
     const { error } = await supabase
       .from("door_access_settings")
       .update(payload as any)
@@ -186,8 +188,9 @@ export function DoorAccessSection() {
       return;
     }
     // Keep the legacy system_settings.door_code in sync so existing templates keep working
-    await supabase.from("system_settings").update({ door_code: draft.fixed_code } as any).eq("id", "global");
-    setSettings(draft);
+    await supabase.from("system_settings").update({ door_code: normalized.fixed_code } as any).eq("id", "global");
+    setSettings(normalized);
+    setDraft(normalized);
     toast({ title: "Door access settings saved", duration: 3000 });
   };
 
@@ -348,7 +351,7 @@ export function DoorAccessSection() {
             <Input
               value={draft.fixed_code}
               onChange={(e) => set("fixed_code", e.target.value)}
-              placeholder="e.g. 007675#"
+              placeholder="e.g. 007675"
             />
             <p className="text-xs text-muted-foreground">
               Used in fixed mode, and as the fallback whenever a booking has no code of its own.

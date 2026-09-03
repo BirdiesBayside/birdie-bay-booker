@@ -332,7 +332,7 @@ serve(async (req) => {
     // Resolve the door code for this booking.
     // Per-booking mode issues a unique temporary code; everything else falls
     // back to the shared fixed code.
-    let doorCode = "007675#";
+    let doorCode = "007675";
     const { data: doorSettings } = await supabaseClient
       .from("door_access_settings")
       .select("mode, fixed_code, append_hash")
@@ -366,14 +366,17 @@ serve(async (req) => {
           .in("status", ["pending", "active"])
           .maybeSingle();
         if ((issued as any)?.code) {
-          doorCode = (doorSettings as any)?.append_hash
-            ? `${(issued as any).code}#`
-            : (issued as any).code;
+          doorCode = (issued as any).code;
         }
       } catch (e) {
         console.error("[NOTIFY] Door code issue failed, using fallback:", e);
       }
     }
+
+    // Codes are stored without '#'; the append_hash toggle appends it for
+    // customer comms only (the keypad's confirm key).
+    doorCode = doorCode.replace(/#+$/, "");
+    if ((doorSettings as any)?.append_hash) doorCode = `${doorCode}#`;
 
 
     // SMS-specific short date / 24h times (used by cancellation template)
