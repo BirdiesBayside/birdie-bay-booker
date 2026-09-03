@@ -57,7 +57,7 @@ const TEMPLATE_TAGS: Record<string, { tag: string; description: string }[]> = {
     { tag: "{bay_name}", description: "Bay name (e.g. Bay 3)" },
     { tag: "{player_count}", description: "Number of players" },
     { tag: "{total_price}", description: "Total booking price (e.g. $60.00)" },
-    { tag: "{door_code}", description: "Door access code (7675#)" },
+    { tag: "{door_code}", description: "Door access code (007675#)" },
     { tag: "{staffed_status}", description: "Staffed hours / Unstaffed hours indicator" },
   ],
   booking_confirmation_first_unstaffed: [
