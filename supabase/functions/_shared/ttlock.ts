@@ -19,6 +19,9 @@ const REGION_HOSTS: Record<string, string> = {
   cn: "https://api.ttlock.com",
 };
 
+/** TTLock only honours whole-minute timestamps; sub-minute values fail with errcode 1. */
+export const toMinute = (d: Date) => Math.floor(d.getTime() / 60000) * 60000;
+
 export const md5 = (s: string) => createHash("md5").update(s).digest("hex").toLowerCase();
 
 export interface TTLockCredentials {
@@ -130,9 +133,21 @@ export class TTLockClient {
     let json = await call(await this.getAccessToken());
     if (json?.errcode === 10004) json = await call(await this.getAccessToken(true));
 
+    // -3037 = "lock is busy": the gateway is mid-conversation with the lock.
+    // Back off and retry a few times before giving up.
+    for (let i = 0; i < 3 && json?.errcode === -3037; i++) {
+      await new Promise((r) => setTimeout(r, 2500 * (i + 1)));
+      json = await call(await this.getAccessToken());
+    }
+
     if (json?.errcode && json.errcode !== 0) {
+      let hint = "";
+      if (json.errcode === 1 && path.includes("keyboardPwd")) {
+        hint =
+          " (the lock rejected the passcode — usually it duplicates an existing code, the window is too short/in the past, or the gateway is offline)";
+      }
       throw new Error(
-        `TTLock ${path} error ${json.errcode}: ${json.errmsg || json.description || "unknown"}`,
+        `TTLock ${path} error ${json.errcode}: ${json.errmsg || json.description || "unknown"}${hint}`,
       );
     }
     return json;
@@ -171,8 +186,8 @@ export class TTLockClient {
       keyboardPwd: opts.code,
       keyboardPwdName: opts.name.slice(0, 30),
       keyboardPwdType: 3,
-      startDate: opts.effectiveTime.getTime(),
-      endDate: opts.invalidTime.getTime(),
+      startDate: toMinute(opts.effectiveTime),
+      endDate: toMinute(opts.invalidTime),
       addType: 2,
     });
     if (!json?.keyboardPwdId) {
@@ -201,8 +216,8 @@ export class TTLockClient {
       keyboardPwdId: Number(ref),
       newKeyboardPwd: opts.code,
       keyboardPwdName: opts.name?.slice(0, 30),
-      startDate: opts.effectiveTime.getTime(),
-      endDate: opts.invalidTime.getTime(),
+      startDate: toMinute(opts.effectiveTime),
+      endDate: toMinute(opts.invalidTime),
       changeType: 2,
     });
     return true;
