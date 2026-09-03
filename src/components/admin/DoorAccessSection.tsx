@@ -87,6 +87,7 @@ export function DoorAccessSection() {
   const [testCodeInput, setTestCodeInput] = useState("");
   const [issuingTest, setIssuingTest] = useState(false);
   const [testResult, setTestResult] = useState<string | null>(null);
+  const [unlocking, setUnlocking] = useState(false);
 
   // Named staff / contractor codes
   const [namedLabel, setNamedLabel] = useState("");
@@ -119,9 +120,11 @@ export function DoorAccessSection() {
   };
 
   const remoteUnlock = async () => {
+    setUnlocking(true);
     const { data, error } = await supabase.functions.invoke("door-code-manager", {
       body: { action: "unlock" },
     });
+    setUnlocking(false);
     if (error || !data?.success) {
       toast({
         title: "Unlock failed",
@@ -281,6 +284,27 @@ export function DoorAccessSection() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
+          {draft.provider === "ttlock" && draft.enabled && (
+            <div className="rounded-lg border border-accent/30 bg-accent/10 p-4 space-y-3">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h3 className="font-semibold text-sm">Remote unlock</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Unlocks the door once from here. The lock re-latches automatically.
+                  </p>
+                </div>
+                <Button
+                  size="lg"
+                  onClick={remoteUnlock}
+                  disabled={unlocking}
+                  className="min-w-[140px]"
+                >
+                  {unlocking ? "Unlocking…" : "Unlock Door"}
+                </Button>
+              </div>
+            </div>
+          )}
+
           <div className="max-w-md space-y-2">
             <Label>Code mode</Label>
             <Select value={draft.mode} onValueChange={(v) => set("mode", v as DoorAccessSettings["mode"])}>
@@ -386,9 +410,6 @@ export function DoorAccessSection() {
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" onClick={testConnection} disabled={testingConn}>
               {testingConn ? "Checking..." : "Test TTLock connection"}
-            </Button>
-            <Button variant="outline" onClick={remoteUnlock}>
-              Remote unlock
             </Button>
           </div>
           {connResult && (
