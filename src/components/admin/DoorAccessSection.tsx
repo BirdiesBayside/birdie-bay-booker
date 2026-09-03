@@ -285,7 +285,7 @@ export function DoorAccessSection() {
         </CardHeader>
         <CardContent className="space-y-5">
           {draft.provider === "ttlock" && draft.enabled && (
-            <div className="rounded-lg border border-orange-500/30 bg-orange-500/10 p-4 space-y-3">
+            <div className="rounded-lg border border-accent/30 bg-accent/10 p-4 space-y-3">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <h3 className="font-semibold text-sm">Remote unlock</h3>
