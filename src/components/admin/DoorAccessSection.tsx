@@ -81,13 +81,7 @@ export function DoorAccessSection() {
   const [isLoading, setIsLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // Staff test-code panel
-  const [testStart, setTestStart] = useState(() => bneLocalInput(2));
-  const [testEnd, setTestEnd] = useState(() => bneLocalInput(32));
-  const [testCodeInput, setTestCodeInput] = useState("");
   const [pushingFixed, setPushingFixed] = useState(false);
-  const [issuingTest, setIssuingTest] = useState(false);
-  const [testResult, setTestResult] = useState<string | null>(null);
   const [unlocking, setUnlocking] = useState(false);
 
   // Named staff / contractor codes
