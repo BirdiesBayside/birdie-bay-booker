@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { KeyRound, RefreshCw } from "lucide-react";
+import { KeyRound } from "lucide-react";
 import { formatBrisbane } from "@/lib/brisbane-time";
 
 interface DoorAccessSettings {
