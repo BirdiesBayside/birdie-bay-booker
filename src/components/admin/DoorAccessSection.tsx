@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { KeyRound, RefreshCw } from "lucide-react";
+import { KeyRound } from "lucide-react";
 import { formatBrisbane } from "@/lib/brisbane-time";
 
 interface DoorAccessSettings {
@@ -81,13 +81,7 @@ export function DoorAccessSection() {
   const [isLoading, setIsLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // Staff test-code panel
-  const [testStart, setTestStart] = useState(() => bneLocalInput(2));
-  const [testEnd, setTestEnd] = useState(() => bneLocalInput(32));
-  const [testCodeInput, setTestCodeInput] = useState("");
   const [pushingFixed, setPushingFixed] = useState(false);
-  const [issuingTest, setIssuingTest] = useState(false);
-  const [testResult, setTestResult] = useState<string | null>(null);
   const [unlocking, setUnlocking] = useState(false);
 
   // Named staff / contractor codes
@@ -209,36 +203,6 @@ export function DoorAccessSection() {
     load();
   };
 
-  const issueTestCode = async () => {
-    setIssuingTest(true);
-    setTestResult(null);
-    const startedAt = Date.now();
-    const { data, error } = await supabase.functions.invoke("door-code-manager", {
-      body: {
-        action: "issue_test",
-        valid_from: bneInputToIso(testStart),
-        valid_until: bneInputToIso(testEnd),
-        code: testCodeInput.replace(/\D/g, "") || undefined,
-        label: "Staff test",
-      },
-    });
-    const roundTrip = Date.now() - startedAt;
-    setIssuingTest(false);
-    if (error || !data?.success) {
-      const msg = error?.message || data?.error || "Unknown error";
-      setTestResult(`❌ ${msg}`);
-      toast({ title: "Test code failed", description: msg, variant: "destructive", duration: 6000 });
-      load();
-      return;
-    }
-    setTestResult(
-      `✅ Code ${data.code} pushed via ${data.via} in ${data.push_ms}ms (round trip ${roundTrip}ms).\n` +
-        `Valid ${formatBrisbane(data.valid_from)} → ${formatBrisbane(data.valid_until)} (Brisbane).`,
-    );
-    toast({ title: `Test code ${data.code} issued`, duration: 5000 });
-    load();
-  };
-
   const issueNamed = async () => {
     if (!namedLabel.trim()) {
       toast({ title: "Add a name first", variant: "destructive", duration: 3000 });
@@ -290,7 +254,6 @@ export function DoorAccessSection() {
     setDraft((d) => (d ? { ...d, [key]: value } : d));
 
   const staffCodes = codes.filter((c) => c.scope === "staff");
-  const otherCodes = codes.filter((c) => c.scope !== "staff");
 
 
   return (
@@ -566,136 +529,6 @@ export function DoorAccessSection() {
               ))
             )}
           </div>
-        </CardContent>
-      </Card>
-
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <KeyRound className="h-4 w-4" />
-            Staff Test Code
-          </CardTitle>
-          <CardDescription>
-            Pushes a real temporary code to the keypad for a window you choose (Brisbane time),
-            without touching customer bookings. Works even while "Push codes to the keypad" is off,
-            so the permanent code and live confirmations are unaffected.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-3 max-w-3xl">
-            <div className="space-y-2">
-              <Label>Valid from (Brisbane)</Label>
-              <Input
-                type="datetime-local"
-                value={testStart}
-                onChange={(e) => setTestStart(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Valid until (Brisbane)</Label>
-              <Input
-                type="datetime-local"
-                value={testEnd}
-                onChange={(e) => setTestEnd(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Code (optional)</Label>
-              <Input
-                value={testCodeInput}
-                onChange={(e) => setTestCodeInput(e.target.value)}
-                placeholder="Auto-generated"
-                inputMode="numeric"
-              />
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <Button onClick={issueTestCode} disabled={issuingTest}>
-              {issuingTest ? "Pushing to keypad..." : "Issue test code"}
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setTestStart(bneLocalInput(2));
-                setTestEnd(bneLocalInput(32));
-              }}
-            >
-              Now + 30 min
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setTestStart(bneLocalInput(60));
-                setTestEnd(bneLocalInput(75));
-              }}
-            >
-              In 1 hour, 15 min window
-            </Button>
-          </div>
-
-          {testResult && (
-            <pre className="bg-muted/40 rounded p-3 text-xs whitespace-pre-wrap">{testResult}</pre>
-          )}
-
-          <p className="text-xs text-muted-foreground">
-            Test the three things that matter: the code works from its start time, it is rejected
-            before it starts, and it is rejected after it expires. Revoke it below at any point to
-            check that removal is instant too.
-          </p>
-        </CardContent>
-      </Card>
-
-
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle>Active Codes</CardTitle>
-            <CardDescription>Codes currently issued or scheduled.</CardDescription>
-          </div>
-          <Button variant="ghost" size="icon" onClick={load}>
-            <RefreshCw className="h-4 w-4" />
-          </Button>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          {otherCodes.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No active codes.</p>
-          ) : (
-            otherCodes.map((c) => (
-              <div
-                key={c.id}
-                className="flex flex-wrap items-center justify-between gap-3 border rounded-lg p-3 text-sm"
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-mono font-semibold">{c.code}</span>
-                    <Badge variant={c.status === "active" ? "default" : "secondary"} className="text-xs">
-                      {c.status}
-                    </Badge>
-                    <Badge variant="outline" className="text-xs">
-                      {c.provider}
-                    </Badge>
-                    {c.scope === "test" && (
-                      <Badge variant="outline" className="text-xs">
-                        staff test
-                      </Badge>
-                    )}
-
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1 break-words">
-                    {formatBrisbane(c.valid_from)} → {formatBrisbane(c.valid_until)}
-                  </p>
-                  {c.last_error && (
-                    <p className="text-xs text-destructive mt-1 break-words">{c.last_error}</p>
-                  )}
-                </div>
-                <Button variant="outline" size="sm" onClick={() => revoke(c.id)}>
-                  Revoke
-                </Button>
-              </div>
-            ))
-          )}
         </CardContent>
       </Card>
     </div>
