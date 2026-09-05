@@ -61,8 +61,9 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    // Calculate total amounts
-    const totalAmount = giftCards.reduce((sum, gc) => sum + Number(gc.amount), 0);
+    // Hour packs (credit_hours > 0) grant hour credits only — their dollar
+    // amount is the purchase price, not spendable balance.
+    const totalAmount = giftCards.reduce((sum, gc) => sum + (Number(gc.credit_hours || 0) > 0 ? 0 : Number(gc.amount)), 0);
     const totalHours = giftCards.reduce((sum, gc) => sum + Number(gc.credit_hours || 0), 0);
 
     console.log(`[redeem-gift-card] Found ${giftCards.length} gift cards totaling $${totalAmount} and ${totalHours} hours`);
