@@ -75,14 +75,16 @@ serve(async (req: Request): Promise<Response> => {
     // If recipient has an account AND delivery includes them → auto-apply credit (hours preferred, then dollars)
     let autoApplied = false;
     if (recipientHasAccount && deliveryMethod !== "print_to_sender") {
+      // Hour packs grant hours only; their dollar amount is the purchase price.
+      const grantDollars = creditHours > 0 ? 0 : amount;
       const updates: Record<string, number> = {};
       const hourBefore = Number(recipientProfile.hour_credit_balance ?? 0);
       const hourAfter = hourBefore + creditHours;
       if (creditHours > 0) updates.hour_credit_balance = hourAfter;
 
       const dollarBefore = Number(recipientProfile.deposit_balance ?? 0);
-      const dollarAfter = dollarBefore + amount;
-      if (amount > 0) updates.deposit_balance = dollarAfter;
+      const dollarAfter = dollarBefore + grantDollars;
+      if (grantDollars > 0) updates.deposit_balance = dollarAfter;
 
       if (Object.keys(updates).length > 0) {
         await supabase
@@ -103,10 +105,10 @@ serve(async (req: Request): Promise<Response> => {
         });
       }
 
-      if (amount > 0) {
+      if (grantDollars > 0) {
         await supabase.from("deposit_transactions").insert({
           user_id: recipientProfile.user_id,
-          amount,
+          amount: grantDollars,
           balance_before: dollarBefore,
           balance_after: dollarAfter,
           transaction_type: "gift_card",
@@ -127,7 +129,7 @@ serve(async (req: Request): Promise<Response> => {
 
       autoApplied = true;
       console.log(
-        `[issue-gift-card] Auto-applied ${creditHours} hours + $${amount} to existing user ${recipientProfile.user_id}`
+        `[issue-gift-card] Auto-applied ${creditHours} hours + $${grantDollars} to existing user ${recipientProfile.user_id}`
       );
     }
 

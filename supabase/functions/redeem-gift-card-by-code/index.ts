@@ -39,17 +39,32 @@ serve(async (req: Request): Promise<Response> => {
     if (card.status === "cancelled") throw new Error("This gift card has been cancelled");
     if (card.status === "pending_payment") throw new Error("Payment not yet confirmed");
 
-    // Credit balance
+    // Hour packs (credit_hours > 0) grant hour credits only — the dollar
+    // amount on the row is the purchase price, not spendable balance.
+    const creditHours = Number(card.credit_hours || 0);
+
     const { data: profile } = await supabase
       .from("profiles")
-      .select("deposit_balance")
+      .select("deposit_balance, hour_credit_balance")
       .eq("user_id", user.id)
       .single();
 
-    const before = Number(profile?.deposit_balance ?? 0);
-    const after = before + Number(card.amount);
+    let resultAmount = 0;
+    let resultHours = 0;
+    let newBalance: number | undefined;
+    let newHourBalance: number | undefined;
 
-    await supabase.from("profiles").update({ deposit_balance: after }).eq("user_id", user.id);
+    if (creditHours > 0) {
+      const hourBefore = Number(profile?.hour_credit_balance ?? 0);
+      newHourBalance = hourBefore + creditHours;
+      await supabase.from("profiles").update({ hour_credit_balance: newHourBalance }).eq("user_id", user.id);
+      resultHours = creditHours;
+    } else {
+      const before = Number(profile?.deposit_balance ?? 0);
+      newBalance = before + Number(card.amount);
+      await supabase.from("profiles").update({ deposit_balance: newBalance }).eq("user_id", user.id);
+      resultAmount = Number(card.amount);
+    }
 
     await supabase
       .from("gift_cards")
@@ -60,18 +75,30 @@ serve(async (req: Request): Promise<Response> => {
       })
       .eq("id", card.id);
 
-    await supabase.from("deposit_transactions").insert({
-      user_id: user.id,
-      amount: Number(card.amount),
-      balance_before: before,
-      balance_after: after,
-      transaction_type: "gift_card",
-      description: `Gift card redeemed via code (from ${card.sender_name || "anonymous"})`,
-      related_gift_card_id: card.id,
-    });
+    if (resultHours > 0) {
+      await supabase.from("hour_credit_transactions").insert({
+        user_id: user.id,
+        amount: resultHours,
+        balance_before: newHourBalance! - resultHours,
+        balance_after: newHourBalance,
+        transaction_type: "gift_card",
+        description: `Gift card redeemed via code — ${resultHours} hour${resultHours === 1 ? "" : "s"}`,
+        related_gift_card_id: card.id,
+      });
+    } else {
+      await supabase.from("deposit_transactions").insert({
+        user_id: user.id,
+        amount: resultAmount,
+        balance_before: newBalance! - resultAmount,
+        balance_after: newBalance,
+        transaction_type: "gift_card",
+        description: `Gift card redeemed via code (from ${card.sender_name || "anonymous"})`,
+        related_gift_card_id: card.id,
+      });
+    }
 
     return new Response(
-      JSON.stringify({ success: true, amount: Number(card.amount), newBalance: after }),
+      JSON.stringify({ success: true, amount: resultAmount, hours: resultHours, newBalance, newHourBalance }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err: any) {
