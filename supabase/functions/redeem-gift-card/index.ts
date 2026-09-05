@@ -112,9 +112,9 @@ serve(async (req: Request): Promise<Response> => {
       throw redeemError;
     }
 
-    // Log dollar transactions
+    // Log transactions
     for (const gc of giftCards) {
-      if (gc.amount > 0) {
+      if (gc.amount > 0 && !(Number(gc.credit_hours || 0) > 0)) {
         await supabase.from("deposit_transactions").insert({
           user_id,
           amount: gc.amount,
