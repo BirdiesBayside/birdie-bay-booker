@@ -1,0 +1,1 @@
+ALTER TABLE public.sgt_handicap_settings ADD COLUMN IF NOT EXISTS auto_onboard boolean NOT NULL DEFAULT false;

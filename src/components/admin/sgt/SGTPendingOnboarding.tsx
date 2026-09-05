@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { UserPlus, UserMinus, Check, Loader2, AlertCircle, X } from "lucide-react";
 import {
@@ -320,6 +322,99 @@ export function SGTPendingOnboarding() {
     onboardMutation.mutate({ sgtUserId, customHcp: hcp });
   };
 
+  // ---- Auto-Onboard -------------------------------------------------------
+  // When on, anyone waiting on a handicap who has posted a full 18-hole round
+  // is enrolled automatically on (gross - par) from their most recent round.
+  // They're still exempt (E) until 3 rounds, so a rough starting number is safe.
+  const { data: autoOnboard } = useQuery({
+    queryKey: ["sgt-auto-onboard-setting"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("sgt_handicap_settings")
+        .select("*")
+        .eq("id", "global")
+        .maybeSingle();
+      if (error) throw error;
+      return Boolean((data as Record<string, unknown> | null)?.auto_onboard);
+    },
+  });
+
+  const toggleAutoOnboard = useMutation({
+    mutationFn: async (enabled: boolean) => {
+      const { error } = await supabase
+        .from("sgt_handicap_settings")
+        .update({ auto_onboard: enabled } as never)
+        .eq("id", "global");
+      if (error) throw error;
+      return enabled;
+    },
+    onSuccess: (enabled) => {
+      queryClient.invalidateQueries({ queryKey: ["sgt-auto-onboard-setting"] });
+      toast({
+        title: enabled ? "Auto-Onboard on" : "Auto-Onboard off",
+        description: enabled
+          ? "New players are enrolled automatically off their first 18-hole score."
+          : "You'll set every starting handicap manually again.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Couldn't save that setting",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const autoRunRef = useRef<Set<number>>(new Set());
+
+  useEffect(() => {
+    if (!autoOnboard || !pendingMembers || pendingMembers.length === 0) return;
+
+    const run = async () => {
+      for (const member of pendingMembers) {
+        if (autoRunRef.current.has(member.sgt_user_id)) continue;
+
+        const { data: cards } = await supabase
+          .from("sgt_scorecards")
+          .select("total_gross, to_par_gross, in_gross, out_gross, hole_data, created_at")
+          .eq("player_id", member.sgt_user_id)
+          .not("total_gross", "is", null)
+          .order("created_at", { ascending: false })
+          .limit(10);
+
+        const full = (cards || []).find((sc) => {
+          const holes = sc.hole_data as Record<string, unknown> | null;
+          if (holes && typeof holes === "object") {
+            let scored = 0;
+            for (let h = 1; h <= 18; h++) {
+              const v = Number((holes as Record<string, unknown>)[`hole${h}_gross`]);
+              if (Number.isFinite(v) && v > 0) scored++;
+            }
+            return scored === 18;
+          }
+          return Number(sc.in_gross) > 0 && Number(sc.out_gross) > 0;
+        });
+
+        if (!full) continue;
+
+        const raw =
+          full.to_par_gross !== null && full.to_par_gross !== undefined
+            ? Number(full.to_par_gross)
+            : Number(full.total_gross) - 72;
+        if (!Number.isFinite(raw)) continue;
+
+        const hcp = Math.max(-36, Math.min(36, Math.round(raw * 10) / 10));
+        autoRunRef.current.add(member.sgt_user_id);
+        onboardMutation.mutate({ sgtUserId: member.sgt_user_id, customHcp: hcp });
+      }
+    };
+
+    void run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoOnboard, pendingMembers]);
+
+
   return (
     <div className="space-y-6">
       {/* Info Alert */}
@@ -354,6 +449,24 @@ export function SGTPendingOnboarding() {
           <CardDescription>
             Set an initial handicap to activate these members in the league
           </CardDescription>
+          <div className="mt-3 flex items-start gap-3 rounded-md border p-3">
+            <Switch
+              id="auto-onboard"
+              checked={!!autoOnboard}
+              disabled={toggleAutoOnboard.isPending}
+              onCheckedChange={(v) => toggleAutoOnboard.mutate(v)}
+            />
+            <div className="space-y-0.5">
+              <Label htmlFor="auto-onboard" className="cursor-pointer">
+                Auto-Onboard
+              </Label>
+              <p className="text-sm text-muted-foreground">
+                Enrols anyone waiting here as soon as they post a full 18-hole round, using
+                their score to par as the starting handicap. They stay exempt (E) until they
+                have three rounds, so they can't win off it.
+              </p>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
