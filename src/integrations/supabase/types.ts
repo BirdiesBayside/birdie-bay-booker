@@ -2732,6 +2732,7 @@ export type Database = {
       }
       sgt_handicap_settings: {
         Row: {
+          auto_onboard: boolean
           best_rounds_count: number
           created_at: string
           id: string
@@ -2740,6 +2741,7 @@ export type Database = {
           use_custom_hcp: boolean
         }
         Insert: {
+          auto_onboard?: boolean
           best_rounds_count?: number
           created_at?: string
           id?: string
@@ -2748,6 +2750,7 @@ export type Database = {
           use_custom_hcp?: boolean
         }
         Update: {
+          auto_onboard?: boolean
           best_rounds_count?: number
           created_at?: string
           id?: string
