@@ -449,6 +449,24 @@ export function SGTPendingOnboarding() {
           <CardDescription>
             Set an initial handicap to activate these members in the league
           </CardDescription>
+          <div className="mt-3 flex items-start gap-3 rounded-md border p-3">
+            <Switch
+              id="auto-onboard"
+              checked={!!autoOnboard}
+              disabled={toggleAutoOnboard.isPending}
+              onCheckedChange={(v) => toggleAutoOnboard.mutate(v)}
+            />
+            <div className="space-y-0.5">
+              <Label htmlFor="auto-onboard" className="cursor-pointer">
+                Auto-Onboard
+              </Label>
+              <p className="text-sm text-muted-foreground">
+                Enrols anyone waiting here as soon as they post a full 18-hole round, using
+                their score to par as the starting handicap. They stay exempt (E) until they
+                have three rounds, so they can't win off it.
+              </p>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
