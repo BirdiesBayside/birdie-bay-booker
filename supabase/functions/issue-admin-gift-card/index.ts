@@ -44,10 +44,13 @@ serve(async (req: Request): Promise<Response> => {
     }
 
     const amount = Number(card.amount);
+    const creditHours = Number(card.credit_hours || 0);
     const recipientEmail = String(card.recipient_email).toLowerCase().trim();
     const recipientName = card.recipient_name || "there";
 
-    const subject = `You've been issued a $${amount.toFixed(2)} Birdies gift card`;
+    const subject = creditHours > 0
+      ? `You've been issued ${creditHours} hour${creditHours === 1 ? "" : "s"} of Birdies bay time`
+      : `You've been issued a $${amount.toFixed(2)} Birdies gift card`;
     const heading = "You've Been Issued a Gift Card";
 
     const amountBlock = `
@@ -55,7 +58,7 @@ serve(async (req: Request): Promise<Response> => {
         <tr>
           <td style="padding:30px; text-align:center;">
             <p style="margin:0 0 8px; font-family:Inter, Arial, sans-serif; font-size:14px; color:#FFF5E4; opacity:0.9; letter-spacing:1px; text-transform:uppercase;">Gift Card Value</p>
-            <p style="margin:0; font-family:Anton, Impact, Arial Black, sans-serif; font-size:56px; color:#EC622D;">$${amount.toFixed(2)}</p>
+            <p style="margin:0; font-family:Anton, Impact, Arial Black, sans-serif; font-size:56px; color:#EC622D;">${creditHours > 0 ? `${creditHours} HOUR${creditHours === 1 ? "" : "S"}` : `$${amount.toFixed(2)}`}</p>
           </td>
         </tr>
       </table>
@@ -63,7 +66,7 @@ serve(async (req: Request): Promise<Response> => {
 
     const intro = `<p style="margin:0 0 14px; font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">Hi ${escapeHtml(recipientName)}, Birdies Bayside has issued you a gift card to enjoy a session with us.</p>`;
 
-    const footer = `<p style="margin:18px 0 0; font-family:Inter, Arial, sans-serif; font-size:15px; line-height:1.6; color:#1F4C25; text-align:center;">Create your free account using <strong>this email address</strong> and your credit applies automatically at checkout.</p>`;
+    const footer = `<p style="margin:18px 0 0; font-family:Inter, Arial, sans-serif; font-size:15px; line-height:1.6; color:#1F4C25; text-align:center;">Create your free account using <strong>this email address</strong> and your ${creditHours > 0 ? "hour credits" : "credit"} applies automatically at checkout.</p>`;
 
     const html = await renderBrandedEmail(supabase, heading, intro + amountBlock + footer, {
       text: "Activate Your Gift",
