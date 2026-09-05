@@ -105,10 +105,10 @@ serve(async (req: Request): Promise<Response> => {
         });
       }
 
-      if (amount > 0) {
+      if (grantDollars > 0) {
         await supabase.from("deposit_transactions").insert({
           user_id: recipientProfile.user_id,
-          amount,
+          amount: grantDollars,
           balance_before: dollarBefore,
           balance_after: dollarAfter,
           transaction_type: "gift_card",
@@ -129,7 +129,7 @@ serve(async (req: Request): Promise<Response> => {
 
       autoApplied = true;
       console.log(
-        `[issue-gift-card] Auto-applied ${creditHours} hours + $${amount} to existing user ${recipientProfile.user_id}`
+        `[issue-gift-card] Auto-applied ${creditHours} hours + $${grantDollars} to existing user ${recipientProfile.user_id}`
       );
     }
 
