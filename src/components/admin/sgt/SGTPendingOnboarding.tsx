@@ -443,9 +443,9 @@ export function SGTPendingOnboarding() {
                 Auto-Onboard
               </Label>
               <p className="text-sm text-muted-foreground">
-                Enrols anyone waiting here as soon as they post a full 18-hole round, using
-                their score to par as the starting handicap. They stay exempt (E) until they
-                have three rounds, so they can't win off it.
+                Enrols anyone waiting here automatically, using the typical 18-hole score they
+                entered at league registration (score − 72) as the starting handicap. They stay
+                exempt (E) until they have three rounds, so they can't win off it.
               </p>
             </div>
           </div>
@@ -499,6 +499,15 @@ export function SGTPendingOnboarding() {
                               }
                             }}
                           />
+                        ) : member.sgt_typical_score ? (
+                          <span className="text-xs text-muted-foreground">
+                            "{member.sgt_typical_score}"
+                            {hcpFromTypicalScore(member.sgt_typical_score) !== null && (
+                              <span className="block font-semibold text-primary">
+                                → {hcpFromTypicalScore(member.sgt_typical_score)!.toFixed(1)}
+                              </span>
+                            )}
+                          </span>
                         ) : (
                           <span className="text-muted-foreground">,</span>
                         )}
@@ -529,10 +538,11 @@ export function SGTPendingOnboarding() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => {
-                                setOnboardingMemberId(member.sgt_user_id);
-                                setHandicapValue("");
-                              }}
+                               onClick={() => {
+                                 setOnboardingMemberId(member.sgt_user_id);
+                                 const suggested = hcpFromTypicalScore(member.sgt_typical_score);
+                                 setHandicapValue(suggested !== null ? suggested.toFixed(1) : "");
+                               }}
                             >
                               Set HCP
                             </Button>
