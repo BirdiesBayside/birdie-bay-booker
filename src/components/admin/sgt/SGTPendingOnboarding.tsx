@@ -366,7 +366,7 @@ export function SGTPendingOnboarding() {
       toast({
         title: enabled ? "Auto-Onboard on" : "Auto-Onboard off",
         description: enabled
-          ? "New players are enrolled automatically off their first 18-hole score."
+          ? "New players are enrolled automatically off the score they entered at registration."
           : "You'll set every starting handicap manually again.",
       });
     },
