@@ -76,7 +76,7 @@ export function SGTPendingOnboarding() {
       // Get all profiles with sgt_user_id
       const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
-        .select("user_id, sgt_user_id, first_name, last_name, email, display_name, created_at")
+        .select("user_id, sgt_user_id, first_name, last_name, email, display_name, created_at, sgt_typical_score")
         .not("sgt_user_id", "is", null)
         .is("sgt_onboarding_dismissed_at", null)
         .order("created_at", { ascending: false });
@@ -384,46 +384,15 @@ export function SGTPendingOnboarding() {
   useEffect(() => {
     if (!autoOnboard || !pendingMembers || pendingMembers.length === 0) return;
 
-    const run = async () => {
-      for (const member of pendingMembers) {
-        if (autoRunRef.current.has(member.sgt_user_id)) continue;
+    for (const member of pendingMembers) {
+      if (autoRunRef.current.has(member.sgt_user_id)) continue;
 
-        const { data: cards } = await supabase
-          .from("sgt_scorecards")
-          .select("total_gross, to_par_gross, in_gross, out_gross, hole_data, created_at")
-          .eq("player_id", member.sgt_user_id)
-          .not("total_gross", "is", null)
-          .order("created_at", { ascending: false })
-          .limit(10);
+      const hcp = hcpFromTypicalScore(member.sgt_typical_score);
+      if (hcp === null) continue; // no usable registration score — leave for manual
 
-        const full = (cards || []).find((sc) => {
-          const holes = sc.hole_data as Record<string, unknown> | null;
-          if (holes && typeof holes === "object") {
-            let scored = 0;
-            for (let h = 1; h <= 18; h++) {
-              const v = Number((holes as Record<string, unknown>)[`hole${h}_gross`]);
-              if (Number.isFinite(v) && v > 0) scored++;
-            }
-            return scored === 18;
-          }
-          return Number(sc.in_gross) > 0 && Number(sc.out_gross) > 0;
-        });
-
-        if (!full) continue;
-
-        const raw =
-          full.to_par_gross !== null && full.to_par_gross !== undefined
-            ? Number(full.to_par_gross)
-            : Number(full.total_gross) - 72;
-        if (!Number.isFinite(raw)) continue;
-
-        const hcp = Math.max(-36, Math.min(36, Math.round(raw * 10) / 10));
-        autoRunRef.current.add(member.sgt_user_id);
-        onboardMutation.mutate({ sgtUserId: member.sgt_user_id, customHcp: hcp });
-      }
-    };
-
-    void run();
+      autoRunRef.current.add(member.sgt_user_id);
+      onboardMutation.mutate({ sgtUserId: member.sgt_user_id, customHcp: hcp });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoOnboard, pendingMembers]);
 
