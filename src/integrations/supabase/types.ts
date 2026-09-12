@@ -2112,6 +2112,7 @@ export type Database = {
           referral_source: string | null
           sgt_onboarding_dismissed_at: string | null
           sgt_onboarding_dismissed_by: string | null
+          sgt_typical_score: string | null
           sgt_user_id: number | null
           terms_accepted_at: string | null
           terms_version_accepted: string | null
@@ -2141,6 +2142,7 @@ export type Database = {
           referral_source?: string | null
           sgt_onboarding_dismissed_at?: string | null
           sgt_onboarding_dismissed_by?: string | null
+          sgt_typical_score?: string | null
           sgt_user_id?: number | null
           terms_accepted_at?: string | null
           terms_version_accepted?: string | null
@@ -2170,6 +2172,7 @@ export type Database = {
           referral_source?: string | null
           sgt_onboarding_dismissed_at?: string | null
           sgt_onboarding_dismissed_by?: string | null
+          sgt_typical_score?: string | null
           sgt_user_id?: number | null
           terms_accepted_at?: string | null
           terms_version_accepted?: string | null

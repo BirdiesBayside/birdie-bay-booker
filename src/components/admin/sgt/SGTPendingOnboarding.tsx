@@ -47,6 +47,19 @@ interface PendingMember {
   email: string;
   display_name: string | null;
   created_at: string;
+  sgt_typical_score: string | null;
+}
+
+// Pull the first number out of whatever they typed at registration
+// ("85", "about 90", "mid 80s") and convert it to a starting handicap
+// against par 72. Returns null when nothing parseable was entered.
+function hcpFromTypicalScore(raw: string | null | undefined): number | null {
+  if (!raw) return null;
+  const match = raw.match(/-?\d+(?:\.\d+)?/);
+  if (!match) return null;
+  const score = Number(match[0]);
+  if (!Number.isFinite(score) || score < 50 || score > 160) return null;
+  return Math.max(-36, Math.min(36, Math.round((score - 72) * 10) / 10));
 }
 
 export function SGTPendingOnboarding() {
@@ -63,7 +76,7 @@ export function SGTPendingOnboarding() {
       // Get all profiles with sgt_user_id
       const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
-        .select("user_id, sgt_user_id, first_name, last_name, email, display_name, created_at")
+        .select("user_id, sgt_user_id, first_name, last_name, email, display_name, created_at, sgt_typical_score")
         .not("sgt_user_id", "is", null)
         .is("sgt_onboarding_dismissed_at", null)
         .order("created_at", { ascending: false });
@@ -323,8 +336,8 @@ export function SGTPendingOnboarding() {
   };
 
   // ---- Auto-Onboard -------------------------------------------------------
-  // When on, anyone waiting on a handicap who has posted a full 18-hole round
-  // is enrolled automatically on (gross - par) from their most recent round.
+  // When on, anyone waiting on a handicap is enrolled automatically using the
+  // typical 18-hole score they entered at league registration (score - 72).
   // They're still exempt (E) until 3 rounds, so a rough starting number is safe.
   const { data: autoOnboard } = useQuery({
     queryKey: ["sgt-auto-onboard-setting"],
@@ -353,7 +366,7 @@ export function SGTPendingOnboarding() {
       toast({
         title: enabled ? "Auto-Onboard on" : "Auto-Onboard off",
         description: enabled
-          ? "New players are enrolled automatically off their first 18-hole score."
+          ? "New players are enrolled automatically off the score they entered at registration."
           : "You'll set every starting handicap manually again.",
       });
     },
@@ -371,46 +384,15 @@ export function SGTPendingOnboarding() {
   useEffect(() => {
     if (!autoOnboard || !pendingMembers || pendingMembers.length === 0) return;
 
-    const run = async () => {
-      for (const member of pendingMembers) {
-        if (autoRunRef.current.has(member.sgt_user_id)) continue;
+    for (const member of pendingMembers) {
+      if (autoRunRef.current.has(member.sgt_user_id)) continue;
 
-        const { data: cards } = await supabase
-          .from("sgt_scorecards")
-          .select("total_gross, to_par_gross, in_gross, out_gross, hole_data, created_at")
-          .eq("player_id", member.sgt_user_id)
-          .not("total_gross", "is", null)
-          .order("created_at", { ascending: false })
-          .limit(10);
+      const hcp = hcpFromTypicalScore(member.sgt_typical_score);
+      if (hcp === null) continue; // no usable registration score — leave for manual
 
-        const full = (cards || []).find((sc) => {
-          const holes = sc.hole_data as Record<string, unknown> | null;
-          if (holes && typeof holes === "object") {
-            let scored = 0;
-            for (let h = 1; h <= 18; h++) {
-              const v = Number((holes as Record<string, unknown>)[`hole${h}_gross`]);
-              if (Number.isFinite(v) && v > 0) scored++;
-            }
-            return scored === 18;
-          }
-          return Number(sc.in_gross) > 0 && Number(sc.out_gross) > 0;
-        });
-
-        if (!full) continue;
-
-        const raw =
-          full.to_par_gross !== null && full.to_par_gross !== undefined
-            ? Number(full.to_par_gross)
-            : Number(full.total_gross) - 72;
-        if (!Number.isFinite(raw)) continue;
-
-        const hcp = Math.max(-36, Math.min(36, Math.round(raw * 10) / 10));
-        autoRunRef.current.add(member.sgt_user_id);
-        onboardMutation.mutate({ sgtUserId: member.sgt_user_id, customHcp: hcp });
-      }
-    };
-
-    void run();
+      autoRunRef.current.add(member.sgt_user_id);
+      onboardMutation.mutate({ sgtUserId: member.sgt_user_id, customHcp: hcp });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoOnboard, pendingMembers]);
 
@@ -461,9 +443,9 @@ export function SGTPendingOnboarding() {
                 Auto-Onboard
               </Label>
               <p className="text-sm text-muted-foreground">
-                Enrols anyone waiting here as soon as they post a full 18-hole round, using
-                their score to par as the starting handicap. They stay exempt (E) until they
-                have three rounds, so they can't win off it.
+                Enrols anyone waiting here automatically, using the typical 18-hole score they
+                entered at league registration (score − 72) as the starting handicap. They stay
+                exempt (E) until they have three rounds, so they can't win off it.
               </p>
             </div>
           </div>
@@ -517,6 +499,15 @@ export function SGTPendingOnboarding() {
                               }
                             }}
                           />
+                        ) : member.sgt_typical_score ? (
+                          <span className="text-xs text-muted-foreground">
+                            "{member.sgt_typical_score}"
+                            {hcpFromTypicalScore(member.sgt_typical_score) !== null && (
+                              <span className="block font-semibold text-primary">
+                                → {hcpFromTypicalScore(member.sgt_typical_score)!.toFixed(1)}
+                              </span>
+                            )}
+                          </span>
                         ) : (
                           <span className="text-muted-foreground">,</span>
                         )}
@@ -547,10 +538,11 @@ export function SGTPendingOnboarding() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => {
-                                setOnboardingMemberId(member.sgt_user_id);
-                                setHandicapValue("");
-                              }}
+                               onClick={() => {
+                                 setOnboardingMemberId(member.sgt_user_id);
+                                 const suggested = hcpFromTypicalScore(member.sgt_typical_score);
+                                 setHandicapValue(suggested !== null ? suggested.toFixed(1) : "");
+                               }}
                             >
                               Set HCP
                             </Button>

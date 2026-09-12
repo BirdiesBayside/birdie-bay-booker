@@ -576,7 +576,14 @@ serve(async (req) => {
       // This will trigger the auto-registration for tours/tournaments
       const { error: updateError } = await adminClient
         .from("profiles")
-        .update({ sgt_user_id: sgtUserId })
+        .update({
+          sgt_user_id: sgtUserId,
+          // Keep the score they typed at registration — the Auto-Onboard
+          // toggle in SGT Manager derives their starting handicap from it.
+          ...(typeof typicalScore === "string" && typicalScore.trim()
+            ? { sgt_typical_score: typicalScore.trim().slice(0, 20) }
+            : {}),
+        })
         .eq("user_id", user.id);
 
       if (updateError) {
