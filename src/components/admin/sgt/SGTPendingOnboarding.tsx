@@ -47,6 +47,19 @@ interface PendingMember {
   email: string;
   display_name: string | null;
   created_at: string;
+  sgt_typical_score: string | null;
+}
+
+// Pull the first number out of whatever they typed at registration
+// ("85", "about 90", "mid 80s") and convert it to a starting handicap
+// against par 72. Returns null when nothing parseable was entered.
+function hcpFromTypicalScore(raw: string | null | undefined): number | null {
+  if (!raw) return null;
+  const match = raw.match(/-?\d+(?:\.\d+)?/);
+  if (!match) return null;
+  const score = Number(match[0]);
+  if (!Number.isFinite(score) || score < 50 || score > 160) return null;
+  return Math.max(-36, Math.min(36, Math.round((score - 72) * 10) / 10));
 }
 
 export function SGTPendingOnboarding() {
@@ -323,8 +336,8 @@ export function SGTPendingOnboarding() {
   };
 
   // ---- Auto-Onboard -------------------------------------------------------
-  // When on, anyone waiting on a handicap who has posted a full 18-hole round
-  // is enrolled automatically on (gross - par) from their most recent round.
+  // When on, anyone waiting on a handicap is enrolled automatically using the
+  // typical 18-hole score they entered at league registration (score - 72).
   // They're still exempt (E) until 3 rounds, so a rough starting number is safe.
   const { data: autoOnboard } = useQuery({
     queryKey: ["sgt-auto-onboard-setting"],
