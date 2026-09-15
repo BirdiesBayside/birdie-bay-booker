@@ -55,10 +55,10 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ReviewApprovals } from "@/components/admin/ReviewApprovals";
 import { MarketingSegments } from "@/components/admin/MarketingSegments";
 import {
-  DEFAULT_FOOTER_HTML,
-  DEFAULT_HEADER_HTML,
-  injectUnsubscribeIntoFooter,
-} from "@/components/admin/EmailLayoutEditor";
+  DEFAULT_EMAIL_FOOTER_HTML,
+  DEFAULT_EMAIL_HEADER_HTML,
+  injectPreviewUnsubscribe,
+} from "@/lib/email-preview";
 
 const buildMarketingPreview = (bodyHtml: string, headerHtml: string, footerHtml: string) => `<!doctype html>
 <html lang="en">
@@ -81,7 +81,7 @@ const buildMarketingPreview = (bodyHtml: string, headerHtml: string, footerHtml:
             </div>
           </td>
         </tr>
-        ${injectUnsubscribeIntoFooter(footerHtml, "#")}
+        ${injectPreviewUnsubscribe(footerHtml, "#")}
       </table>
     </td></tr>
   </table>
@@ -174,8 +174,8 @@ export default function AdminMarketing() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewHtml, setPreviewHtml] = useState("");
   const [emailLayout, setEmailLayout] = useState({
-    header: DEFAULT_HEADER_HTML,
-    footer: DEFAULT_FOOTER_HTML,
+    header: DEFAULT_EMAIL_HEADER_HTML,
+    footer: DEFAULT_EMAIL_FOOTER_HTML,
   });
 
   // Template editor state
@@ -210,8 +210,8 @@ export default function AdminMarketing() {
       .maybeSingle();
 
     setEmailLayout({
-      header: data?.header_html || DEFAULT_HEADER_HTML,
-      footer: data?.footer_html || DEFAULT_FOOTER_HTML,
+      header: data?.header_html || DEFAULT_EMAIL_HEADER_HTML,
+      footer: data?.footer_html || DEFAULT_EMAIL_FOOTER_HTML,
     });
   };
 
