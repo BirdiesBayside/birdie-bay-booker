@@ -54,6 +54,39 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ReviewApprovals } from "@/components/admin/ReviewApprovals";
 import { MarketingSegments } from "@/components/admin/MarketingSegments";
+import {
+  DEFAULT_FOOTER_HTML,
+  DEFAULT_HEADER_HTML,
+  injectUnsubscribeIntoFooter,
+} from "@/components/admin/EmailLayoutEditor";
+
+const buildMarketingPreview = (bodyHtml: string, headerHtml: string, footerHtml: string) => `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="x-apple-disable-message-reformatting" />
+  <title>Birdies Email Preview</title>
+  <style>@import url("https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;600&display=swap");</style>
+</head>
+<body style="margin:0; padding:0; background-color:#FFF5E4;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#FFF5E4;">
+    <tr><td align="center" style="padding:24px 12px;">
+      <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="max-width:600px; width:100%;">
+        ${headerHtml}
+        <tr>
+          <td style="background-color:#FFF5E4; padding:26px 22px; border-left:1px solid rgba(31,76,37,0.12); border-right:1px solid rgba(31,76,37,0.12);">
+            <div style="font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25;">
+              ${bodyHtml}
+            </div>
+          </td>
+        </tr>
+        ${injectUnsubscribeIntoFooter(footerHtml, "#")}
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
 
 interface Campaign {
   id: string;
@@ -140,6 +173,10 @@ export default function AdminMarketing() {
   // Preview state
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewHtml, setPreviewHtml] = useState("");
+  const [emailLayout, setEmailLayout] = useState({
+    header: DEFAULT_HEADER_HTML,
+    footer: DEFAULT_FOOTER_HTML,
+  });
 
   // Template editor state
   const [editingTemplate, setEditingTemplate] = useState<Template | null>(null);
@@ -161,8 +198,27 @@ export default function AdminMarketing() {
       fetchPromoEligibleCount();
       fetchPromoSuccessRate();
       fetchSavedSegments();
+      fetchEmailLayout();
     }
   }, [isAdmin]);
+
+  const fetchEmailLayout = async () => {
+    const { data } = await supabase
+      .from("email_layout")
+      .select("header_html, footer_html")
+      .eq("id", "global")
+      .maybeSingle();
+
+    setEmailLayout({
+      header: data?.header_html || DEFAULT_HEADER_HTML,
+      footer: data?.footer_html || DEFAULT_FOOTER_HTML,
+    });
+  };
+
+  const showPreview = (bodyHtml: string) => {
+    setPreviewHtml(buildMarketingPreview(bodyHtml, emailLayout.header, emailLayout.footer));
+    setPreviewOpen(true);
+  };
 
   const fetchSavedSegments = async () => {
     const { data } = await supabase
@@ -471,8 +527,7 @@ export default function AdminMarketing() {
   };
 
   const handlePreview = () => {
-    setPreviewHtml(campaignHtml);
-    setPreviewOpen(true);
+    showPreview(campaignHtml);
   };
 
   const handleSendTest = async () => {
@@ -794,8 +849,7 @@ export default function AdminMarketing() {
                           variant="ghost"
                           size="sm"
                           onClick={() => {
-                            setPreviewHtml(campaign.html_content);
-                            setPreviewOpen(true);
+                            showPreview(campaign.html_content);
                           }}
                         >
                           <Eye className="h-4 w-4" />
@@ -907,8 +961,7 @@ export default function AdminMarketing() {
                           variant="outline"
                           size="sm"
                           onClick={() => {
-                            setPreviewHtml(template.html_content);
-                            setPreviewOpen(true);
+                            showPreview(template.html_content);
                           }}
                         >
                           <Eye className="h-4 w-4 mr-1" />
@@ -1019,7 +1072,7 @@ export default function AdminMarketing() {
               {/* HTML Content */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label>Email Content (HTML)</Label>
+                  <Label>Email Content (HTML — body only, header and footer will be added from Notification Settings)</Label>
                   <Button variant="ghost" size="sm" onClick={handlePreview}>
                     <Eye className="h-4 w-4 mr-1" />
                     Preview
@@ -1357,13 +1410,12 @@ export default function AdminMarketing() {
               {/* HTML Content */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="edit-html">HTML Content</Label>
+                  <Label htmlFor="edit-html">Email Content (HTML — body only, header and footer will be added from Notification Settings)</Label>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => {
-                      setPreviewHtml(editHtml);
-                      setPreviewOpen(true);
+                      showPreview(editHtml);
                     }}
                   >
                     <Eye className="h-4 w-4 mr-1" />

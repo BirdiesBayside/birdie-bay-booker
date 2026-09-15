@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dialog";
 
 // Kept in sync with supabase/functions/_shared/email-wrapper.ts DEFAULTS.
-const DEFAULT_HEADER_HTML = `<tr>
+export const DEFAULT_HEADER_HTML = `<tr>
   <td align="center" style="background-color:#1F4C25; padding:18px; border-radius:16px 16px 0 0;">
     <img
       src="https://cdn.shopify.com/s/files/1/0758/7030/6550/files/NO-BG_BIRDIES-LOGOS_WORK-DOC_AMENDED-9.7.25-01.png?v=1761536603"
@@ -28,7 +28,7 @@ const DEFAULT_HEADER_HTML = `<tr>
   </td>
 </tr>`;
 
-const DEFAULT_FOOTER_HTML = `<tr>
+export const DEFAULT_FOOTER_HTML = `<tr>
   <td style="background-color:#1F4C25; padding:22px; border-radius:0 0 16px 16px;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
       <tr>
