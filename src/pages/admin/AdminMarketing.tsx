@@ -60,6 +60,16 @@ import {
   injectPreviewUnsubscribe,
 } from "@/lib/email-preview";
 
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const parseExcludedEmails = (value: string) =>
+  new Set(
+    value
+      .split(/[\n,]+/)
+      .map((email) => email.trim().toLowerCase())
+      .filter((email) => EMAIL_PATTERN.test(email)),
+  );
+
 const buildMarketingPreview = (bodyHtml: string, headerHtml: string, footerHtml: string) => `<!doctype html>
 <html lang="en">
 <head>
@@ -165,6 +175,7 @@ export default function AdminMarketing() {
   const [isSearchingCustomers, setIsSearchingCustomers] = useState(false);
   const [isSendingTest, setIsSendingTest] = useState(false);
   const [manualOnly, setManualOnly] = useState(false);
+  const [excludedEmailsInput, setExcludedEmailsInput] = useState("");
   const [savedSegments, setSavedSegments] = useState<{ id: string; name: string; emails: any }[]>([]);
   const [segmentName, setSegmentName] = useState("");
   const [isSavingSegment, setIsSavingSegment] = useState(false);
@@ -360,7 +371,7 @@ export default function AdminMarketing() {
     if (composerOpen) {
       countRecipients();
     }
-  }, [membershipTiers, bookingFilter, segmentFilter, composerOpen, selectedCustomers, manualOnly]);
+  }, [membershipTiers, bookingFilter, segmentFilter, composerOpen, selectedCustomers, manualOnly, excludedEmailsInput]);
 
   // Individual customer search (debounced)
   useEffect(() => {
@@ -475,27 +486,31 @@ export default function AdminMarketing() {
   };
 
   const countRecipients = async () => {
+    const excludedEmails = parseExcludedEmails(excludedEmailsInput);
+
     if (manualOnly && selectedCustomers.length > 0) {
-      setRecipientCount(selectedCustomers.length);
+      setRecipientCount(
+        selectedCustomers.filter((customer) => !excludedEmails.has(customer.email.toLowerCase())).length,
+      );
       setIsCountingRecipients(false);
       return;
     }
     setIsCountingRecipients(true);
     
     
-    const query = buildRecipientQuery("id", { count: "exact", head: true });
-    
-    const { count, error } = await query;
+    try {
+      const filteredRecipients = await fetchAllRecipients("email");
+      const recipientEmails = new Set(
+        filteredRecipients
+          .map((recipient: any) => String(recipient.email || "").toLowerCase())
+          .filter(Boolean),
+      );
 
-    if (!error) {
-      let total = count || 0;
-      if (selectedCustomers.length > 0) {
-        // Add manually picked customers that aren't already in the filtered set
-        const filteredEmails = await fetchAllRecipients("email");
-        const existing = new Set(filteredEmails.map((r: any) => String(r.email || "").toLowerCase()));
-        total += selectedCustomers.filter((c) => !existing.has(c.email.toLowerCase())).length;
-      }
-      setRecipientCount(total);
+      selectedCustomers.forEach((customer) => recipientEmails.add(customer.email.toLowerCase()));
+      excludedEmails.forEach((email) => recipientEmails.delete(email));
+      setRecipientCount(recipientEmails.size);
+    } catch (error) {
+      console.error("Error counting campaign recipients:", error);
     }
 
     setIsCountingRecipients(false);
@@ -640,6 +655,11 @@ export default function AdminMarketing() {
           ...selectedCustomers.filter((c) => !seen.has(c.email.toLowerCase())),
         ];
       }
+
+      const excludedEmails = parseExcludedEmails(excludedEmailsInput);
+      recipients = recipients.filter(
+        (recipient) => !excludedEmails.has(String(recipient.email || "").toLowerCase()),
+      );
 
       // Send emails via edge function
       const { error: sendError } = await supabase.functions.invoke("send-marketing-email", {
@@ -1280,6 +1300,25 @@ export default function AdminMarketing() {
                       </div>
                     </div>
                   )}
+                </div>
+
+                <div className="space-y-2 border-t border-border/60 pt-3">
+                  <Label htmlFor="campaign-exclusions" className="text-xs">
+                    Remove from Campaign
+                  </Label>
+                  <Textarea
+                    id="campaign-exclusions"
+                    value={excludedEmailsInput}
+                    onChange={(event) => setExcludedEmailsInput(event.target.value)}
+                    placeholder={"email@example.com\nsecond@example.com, third@example.com"}
+                    rows={4}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Enter email addresses separated by a new line or comma.
+                    {parseExcludedEmails(excludedEmailsInput).size > 0 && (
+                      <> {parseExcludedEmails(excludedEmailsInput).size} valid exclusion{parseExcludedEmails(excludedEmailsInput).size === 1 ? "" : "s"} applied.</>
+                    )}
+                  </p>
                 </div>
 
                 <div className="flex items-center gap-2 text-sm">
