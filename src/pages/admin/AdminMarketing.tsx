@@ -535,6 +535,7 @@ export default function AdminMarketing() {
     setSegmentFilter("all");
     setSelectedCustomers([]);
     setManualOnly(false);
+    setExcludedEmailsInput("");
     setSegmentName("");
     setCustomerSearch("");
     setCustomerResults([]);
