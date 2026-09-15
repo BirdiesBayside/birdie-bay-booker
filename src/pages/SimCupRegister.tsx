@@ -124,7 +124,7 @@ const SimCupRegister = () => {
             <p className="text-[11px] font-black uppercase tracking-[0.18em] text-accent">
               Lock it in by
             </p>
-            <p className="mt-1 font-bold text-primary">1 September 2026</p>
+            <p className="mt-1 font-bold text-primary">18th September 2026</p>
             <p className="text-sm text-primary/70">First in, best dressed.</p>
           </div>
         </div>
