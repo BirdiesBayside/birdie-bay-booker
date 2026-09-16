@@ -181,6 +181,9 @@ interface BayDevice {
   obs_ws_url: string | null;
   obs_ws_password: string | null;
   cf_stream_key: string | null;
+  cf_live_input_uid: string | null;
+  cf_rtmps_url: string | null;
+  stream_enabled: boolean | null;
   is_online: boolean;
   last_seen: string | null;
   app_version: string | null;
@@ -420,7 +423,7 @@ export default function AdminSettings() {
       // Fetch bay devices for all bays in one query
       const { data: devices } = await supabase
         .from("bay_devices")
-        .select("id, bay_id, obs_ws_url, obs_ws_password, cf_stream_key, is_online, last_seen, app_version");
+        .select("id, bay_id, obs_ws_url, obs_ws_password, cf_stream_key, cf_live_input_uid, cf_rtmps_url, stream_enabled, is_online, last_seen, app_version");
       
       const devicesMap: Record<string, BayDevice> = {};
       for (const device of (devices || [])) {
