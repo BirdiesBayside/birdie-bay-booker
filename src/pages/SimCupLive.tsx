@@ -164,13 +164,6 @@ const SimCupLive = () => {
     return () => clearInterval(id);
   }, [load]);
 
-  const active = useMemo(
-    () => displayedBays.find((b) => b.bay_number === selectedBay) ?? null,
-    [displayedBays, selectedBay],
-  );
-  const anyLive = displayedBays.some((b) => b.is_live);
-  const previewSample = replays[0]?.preview ?? null;
-
   const displayedBays = useMemo(() => {
     const byNumber = new Map(bays.map((bay) => [bay.bay_number, bay]));
     return Array.from({ length: 6 }, (_, index): LiveBay => {
@@ -187,6 +180,13 @@ const SimCupLive = () => {
       };
     });
   }, [bays]);
+
+  const active = useMemo(
+    () => displayedBays.find((b) => b.bay_number === selectedBay) ?? null,
+    [displayedBays, selectedBay],
+  );
+  const anyLive = displayedBays.some((b) => b.is_live);
+  const previewSample = replays[0]?.preview ?? null;
 
   return (
     <div className="min-h-screen bg-primary">
