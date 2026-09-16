@@ -581,6 +581,55 @@ export default function AdminSettings() {
     setSavingBayDevice(null);
   };
 
+  // Turn live streaming on/off for a single bay
+  const toggleBayStreaming = async (bayId: string, enabled: boolean) => {
+    const device = bayDevices[bayId];
+    const { error } = device?.id
+      ? await supabase.from("bay_devices").update({ stream_enabled: enabled }).eq("id", device.id)
+      : await supabase.from("bay_devices").insert({ bay_id: bayId, stream_enabled: enabled });
+    if (error) {
+      toast({ title: "Couldn't update streaming", description: error.message, variant: "destructive" });
+      return;
+    }
+    fetchBays();
+  };
+
+  // Create (or refresh) the Cloudflare live inputs and pull the stream keys back in
+  const provisionLiveInputs = async () => {
+    setProvisioningStreams(true);
+    const { data, error } = await supabase.functions.invoke("cf-live-inputs", {
+      body: { action: "provision" },
+    });
+    setProvisioningStreams(false);
+    if (error || data?.error) {
+      toast({
+        title: "Couldn't set up streaming",
+        description: data?.error ?? error?.message ?? "Unknown error",
+        variant: "destructive",
+        duration: 6000,
+      });
+      return;
+    }
+    toast({
+      title: "Streaming set up",
+      description: `${data?.results?.length ?? 0} bays ready to broadcast.`,
+      duration: 4000,
+    });
+    fetchBays();
+  };
+
+  const saveSimCupLive = async (enabled: boolean) => {
+    setSimCupLiveEnabled(enabled);
+    const { error } = await supabase
+      .from("system_settings")
+      .update({ sim_cup_live_enabled: enabled })
+      .eq("id", "global");
+    if (error) {
+      setSimCupLiveEnabled(!enabled);
+      toast({ title: "Couldn't update Sim Cup Live", description: error.message, variant: "destructive" });
+    }
+  };
+
   useEffect(() => {
     if (isAdmin) {
       fetchBays();
