@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import Seo from "@/components/Seo";
 import { Button } from "@/components/ui/button";
 import { Loader2, Play, X } from "lucide-react";
+import simCupLogoAsset from "@/assets/sim-cup-logo.png.asset.json";
 import birdiesBLogo from "@/assets/birdies-b-orange.png";
 import { cn } from "@/lib/utils";
 
@@ -129,7 +130,7 @@ function VenueModel({ bays, onSelect }: { bays: LiveBay[]; onSelect: (bayNumber:
 
         <div className="relative z-30 bg-venue-panel">
           <img
-            src={birdiesBLogo.url}
+            src={birdiesBLogo}
             alt="Birdies Bayside"
             className="absolute left-1/2 top-1/2 h-[80%] w-auto max-w-[60%] -translate-x-1/2 -translate-y-1/2 object-contain opacity-90"
           />
