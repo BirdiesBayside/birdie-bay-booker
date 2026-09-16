@@ -890,7 +890,12 @@ export default function AdminMarketing() {
                         )}
                         <div className="flex items-center gap-1">
                           <BarChart3 className="h-4 w-4" />
-                          <span>{campaign.opens} opens</span>
+                          <span>
+                            {campaign.opens} opens
+                            {campaign.recipient_count > 0 && campaign.opens > 0
+                              ? ` (${Math.round((campaign.opens / campaign.recipient_count) * 100)}%)`
+                              : ""}
+                          </span>
                         </div>
                       </div>
                     </CardContent>
