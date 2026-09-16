@@ -65,6 +65,13 @@
     --birdies-cream: 37 100% 95%;
     --birdies-green-light: 128 30% 35%;
     --birdies-orange-light: 18 84% 65%;
+
+    /* Sim Cup venue model */
+    --venue-panel: 0 0% 5%;
+    --venue-panel-light: 0 0% 13%;
+    --venue-turf: 128 38% 16%;
+    --venue-turf-light: 128 32% 25%;
+    --venue-floor: 120 8% 72%;
     
     /* League Hub - Premium Gold/Amber theme */
     --league-primary: 45 93% 47%;

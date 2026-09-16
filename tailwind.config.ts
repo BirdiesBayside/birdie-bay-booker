@@ -71,6 +71,13 @@ export default {
           "orange-light": "hsl(var(--birdies-orange-light))",
           cream: "hsl(var(--birdies-cream))",
         },
+        venue: {
+          panel: "hsl(var(--venue-panel))",
+          "panel-light": "hsl(var(--venue-panel-light))",
+          turf: "hsl(var(--venue-turf))",
+          "turf-light": "hsl(var(--venue-turf-light))",
+          floor: "hsl(var(--venue-floor))",
+        },
         // League Hub premium colors
         league: {
           primary: "hsl(var(--league-primary))",

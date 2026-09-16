@@ -57,8 +57,10 @@ export const usePushNotifications = () => {
 
   // Initialize push notifications on native platform
   useEffect(() => {
+    const isNative = Capacitor.isNativePlatform();
+
     const initPushNotifications = async () => {
-      if (!Capacitor.isNativePlatform()) {
+      if (!isNative) {
         console.log('[PUSH] Not on native platform, skipping push setup');
         return;
       }
@@ -113,7 +115,9 @@ export const usePushNotifications = () => {
     initPushNotifications();
 
     return () => {
-      PushNotifications.removeAllListeners();
+      if (isNative) {
+        void PushNotifications.removeAllListeners();
+      }
     };
   }, []);
 

@@ -4,6 +4,7 @@ import Seo from "@/components/Seo";
 import { Button } from "@/components/ui/button";
 import { Loader2, Play, X } from "lucide-react";
 import simCupLogoAsset from "@/assets/sim-cup-logo.png.asset.json";
+import { cn } from "@/lib/utils";
 
 interface LiveBay {
   bay_number: number;
@@ -38,6 +39,106 @@ function iframeUrlFrom(previewOrUid: string | null | undefined, uid: string) {
     }
   }
   return `https://customer-9v2ogtnrxaf2pk8p.cloudflarestream.com/${uid}/iframe?autoplay=true&muted=true`;
+}
+
+interface BayStallProps {
+  bay: LiveBay;
+  rear?: boolean;
+  onSelect: (bayNumber: number) => void;
+}
+
+function BayStall({ bay, rear = false, onSelect }: BayStallProps) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      onClick={() => onSelect(bay.bay_number)}
+      aria-label={`Watch Bay ${bay.bay_number}${bay.is_live ? ", live now" : ", off air"}`}
+      className={cn(
+        "group relative h-full min-h-0 w-full overflow-visible rounded-none border-0 p-0 transition-transform duration-300 hover:bg-transparent focus-visible:ring-accent",
+        rear ? "origin-bottom hover:-translate-y-1" : "origin-top hover:translate-y-1",
+      )}
+    >
+      <span className="absolute inset-x-1 bottom-0 top-0 overflow-hidden bg-venue-turf shadow-[inset_0_0_25px_hsl(var(--venue-panel)/0.38)]">
+        <span className="absolute inset-x-0 top-1/2 h-px bg-primary-foreground/10" />
+        <span className="absolute bottom-[9%] left-1/2 h-[15%] w-[25%] -translate-x-1/2 bg-primary-foreground/20 shadow-sm" />
+      </span>
+
+      <span className="absolute inset-y-[-3%] left-0 z-20 w-[5%] bg-venue-panel shadow-lg" />
+      <span className="absolute inset-y-[-3%] right-0 z-20 w-[5%] bg-venue-panel shadow-lg" />
+
+      <span
+        className={cn(
+          "absolute inset-x-[4%] z-10 h-[24%] overflow-hidden border border-primary-foreground/10 bg-venue-panel",
+          rear ? "bottom-0" : "top-0",
+        )}
+      >
+        {bay.is_live && bay.thumbnail ? (
+          <img
+            src={bay.thumbnail}
+            alt={`Live view from Bay ${bay.bay_number}`}
+            className="h-full w-full object-cover opacity-80 transition-opacity group-hover:opacity-100"
+          />
+        ) : (
+          <span className="absolute inset-0 bg-gradient-to-br from-venue-panel-light to-venue-panel" />
+        )}
+      </span>
+
+      <span
+        className={cn(
+          "absolute left-1/2 z-30 -translate-x-1/2 whitespace-nowrap rounded-sm px-2 py-1 text-[9px] font-black uppercase tracking-wider shadow-lg sm:text-[10px]",
+          rear ? "top-[12%]" : "bottom-[12%]",
+          bay.is_live
+            ? "bg-accent text-accent-foreground"
+            : "bg-venue-panel-light text-primary-foreground/70",
+        )}
+      >
+        {bay.is_live && <span className="mr-1.5 inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-current" />}
+        Bay {bay.bay_number} · {bay.is_live ? "Live" : "Off air"}
+      </span>
+
+      {bay.player_name && (
+        <span
+          className={cn(
+            "absolute left-1/2 z-30 max-w-[88%] -translate-x-1/2 truncate text-[9px] font-semibold text-primary-foreground drop-shadow-md sm:text-xs",
+            rear ? "top-[31%]" : "bottom-[31%]",
+          )}
+        >
+          {bay.player_name}
+        </span>
+      )}
+    </Button>
+  );
+}
+
+function VenueModel({ bays, onSelect }: { bays: LiveBay[]; onSelect: (bayNumber: number) => void }) {
+  const ordered = [...bays].sort((a, b) => a.bay_number - b.bay_number);
+  const front = ordered.slice(0, 3);
+  const rear = ordered.slice(3, 6);
+
+  return (
+    <div className="relative mx-auto aspect-[1.45/1] w-full max-w-5xl overflow-hidden sm:aspect-[1.75/1]" style={{ perspective: "1100px" }}>
+      <div
+        className="absolute inset-[7%] grid grid-rows-[1fr_14%_1fr] bg-venue-floor shadow-2xl"
+        style={{ transform: "rotateX(52deg) rotateZ(-2deg)", transformStyle: "preserve-3d" }}
+      >
+        <div className="grid grid-cols-3">
+          {rear.map((bay) => <BayStall key={bay.bay_number} bay={bay} rear onSelect={onSelect} />)}
+        </div>
+
+        <div className="relative z-30 border-y border-primary-foreground/10 bg-venue-panel shadow-2xl">
+          <div className="absolute inset-x-[8%] top-1/2 h-px bg-primary-foreground/15" />
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap font-display text-[clamp(0.7rem,2vw,1.4rem)] uppercase tracking-wide text-primary-foreground/35">
+            Birdies Bayside
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3">
+          {front.map((bay) => <BayStall key={bay.bay_number} bay={bay} onSelect={onSelect} />)}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 const SimCupLive = () => {
@@ -75,7 +176,7 @@ const SimCupLive = () => {
     <div className="min-h-screen bg-primary">
       <Seo
         title="Sim Cup Live | Watch Every Bay | Birdies Bayside"
-        description="Watch The Sim Cup live from Birdies Bayside — every bay streaming, pick a bay from the floor plan and rewatch finished rounds."
+        description="Watch The Sim Cup live from Birdies Bayside — choose a bay from the interactive venue view and rewatch finished rounds."
         path="/sim-cup-live"
       />
 
@@ -95,8 +196,7 @@ const SimCupLive = () => {
           </h1>
           <div className="mx-auto mt-4 h-[5px] w-16 bg-accent" />
           <p className="mx-auto mt-5 max-w-xl text-primary-foreground/80">
-            A bird's-eye view of the floor. Tap any bay to drop into that stream, then hop
-            between bays as the matches swing.
+            Pick a bay to watch live, then hop between streams as the matches swing.
           </p>
         </div>
 
@@ -157,10 +257,10 @@ const SimCupLive = () => {
           </section>
         )}
 
-        {/* ---------- Overhead floor plan ---------- */}
+        {/* ---------- 3D venue model ---------- */}
         <section className="mt-9 rounded-xl border-2 border-primary-foreground/15 bg-primary-foreground/[0.04] p-4 sm:p-7">
           <p className="mb-5 text-center text-[11px] font-black uppercase tracking-[0.3em] text-primary-foreground/50">
-            Birdies Bayside — floor plan
+            Choose a bay
           </p>
 
           {loading ? (
@@ -172,71 +272,7 @@ const SimCupLive = () => {
               Streams go live on the day of the Sim Cup. Check back then.
             </p>
           ) : (
-            <>
-              {/* hitting line */}
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-                {bays.map((bay) => (
-                  <button
-                    key={bay.bay_number}
-                    type="button"
-                    onClick={() => setSelectedBay(bay.bay_number)}
-                    className={`group relative overflow-hidden rounded-lg border text-left transition-all ${
-                      bay.is_live
-                        ? "border-accent/70 bg-black hover:-translate-y-1"
-                        : "border-primary-foreground/15 bg-primary-foreground/[0.06]"
-                    }`}
-                  >
-                    <div className="aspect-[3/4] w-full">
-                      {bay.is_live && bay.thumbnail ? (
-                        <img
-                          src={bay.thumbnail}
-                          alt={`Bay ${bay.bay_number} live`}
-                          className="h-full w-full object-cover opacity-90 transition-opacity group-hover:opacity-100"
-                        />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center">
-                          <span className="font-display text-4xl uppercase text-primary-foreground/25">
-                            {bay.bay_number}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="absolute inset-x-0 top-0 flex items-center justify-between p-2">
-                      <span className="font-display text-sm uppercase tracking-wide text-primary-foreground">
-                        Bay {bay.bay_number}
-                      </span>
-                      {bay.is_live ? (
-                        <span className="flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-accent-foreground">
-                          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current" />
-                          Live
-                        </span>
-                      ) : (
-                        <span className="rounded-full bg-primary-foreground/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary-foreground/50">
-                          Off air
-                        </span>
-                      )}
-                    </div>
-
-                    {bay.player_name && (
-                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent p-2">
-                        <p className="truncate text-xs font-bold text-white">{bay.player_name}</p>
-                      </div>
-                    )}
-                  </button>
-                ))}
-              </div>
-
-              {/* room furniture, purely to place the bays in the venue */}
-              <div className="mt-4 grid grid-cols-2 gap-3 text-center">
-                <div className="rounded-lg border border-dashed border-primary-foreground/15 py-5 text-[11px] font-black uppercase tracking-[0.25em] text-primary-foreground/35">
-                  Lounge
-                </div>
-                <div className="rounded-lg border border-dashed border-primary-foreground/15 py-5 text-[11px] font-black uppercase tracking-[0.25em] text-primary-foreground/35">
-                  Bar
-                </div>
-              </div>
-            </>
+            <VenueModel bays={bays} onSelect={setSelectedBay} />
           )}
         </section>
 
@@ -247,11 +283,12 @@ const SimCupLive = () => {
             <div className="mt-2 h-[4px] w-12 bg-accent" />
             <div className="mt-5 grid gap-3 sm:grid-cols-3 lg:grid-cols-4">
               {replays.map((r) => (
-                <button
+                <Button
                   key={r.uid}
                   type="button"
+                  variant="ghost"
                   onClick={() => setSelectedReplay(r)}
-                  className="group overflow-hidden rounded-lg border border-primary-foreground/15 bg-black text-left"
+                  className="group h-auto overflow-hidden rounded-lg border border-primary-foreground/15 bg-venue-panel p-0 text-left hover:bg-venue-panel-light"
                 >
                   <div className="relative aspect-video w-full">
                     {r.thumbnail ? (
@@ -277,7 +314,7 @@ const SimCupLive = () => {
                       </p>
                     )}
                   </div>
-                </button>
+                </Button>
               ))}
             </div>
           </section>
