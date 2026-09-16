@@ -3307,31 +3307,52 @@ export type Database = {
       }
       sim_cup_registrations: {
         Row: {
+          amount_paid: number | null
+          assigned_timeslot: string | null
           created_at: string
           email: string
           id: string
           name: string
           notes: string | null
-          phone: string
-          shirt_size: string
+          paid_at: string | null
+          payment_method: string | null
+          payment_status: string
+          phone: string | null
+          preferred_timeslot: string | null
+          shirt_size: string | null
+          stripe_session_id: string | null
         }
         Insert: {
+          amount_paid?: number | null
+          assigned_timeslot?: string | null
           created_at?: string
           email: string
           id?: string
           name: string
           notes?: string | null
-          phone: string
-          shirt_size: string
+          paid_at?: string | null
+          payment_method?: string | null
+          payment_status?: string
+          phone?: string | null
+          preferred_timeslot?: string | null
+          shirt_size?: string | null
+          stripe_session_id?: string | null
         }
         Update: {
+          amount_paid?: number | null
+          assigned_timeslot?: string | null
           created_at?: string
           email?: string
           id?: string
           name?: string
           notes?: string | null
-          phone?: string
-          shirt_size?: string
+          paid_at?: string | null
+          payment_method?: string | null
+          payment_status?: string
+          phone?: string | null
+          preferred_timeslot?: string | null
+          shirt_size?: string | null
+          stripe_session_id?: string | null
         }
         Relationships: []
       }
