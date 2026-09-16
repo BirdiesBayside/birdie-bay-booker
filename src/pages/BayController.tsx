@@ -510,7 +510,71 @@ export default function BayController() {
     }
   }, [addLog, selectedBay]);
 
+  // =====================================================
+  // SIM CUP LIVE STREAMING
+  // =====================================================
+  // Independent of recording: while the venue-wide "Sim Cup Live" switch is on,
+  // this bay has streaming enabled and a booking is running, OBS streams to the
+  // bay's Cloudflare live input. Scenes/resolution/bitrate are never touched.
+  const streamingRef = useRef(false);
+  useEffect(() => {
+    if (!selectedBay) return;
+    let cancelled = false;
 
+    const tick = async () => {
+      const electronApi: any = (window as any).electronAPI;
+      if (!electronApi?.obsStartStream) return;
+      try {
+        const { data: settings } = await supabase
+          .from('system_settings')
+          .select('sim_cup_live_enabled')
+          .eq('id', 'global')
+          .maybeSingle() as { data: { sim_cup_live_enabled?: boolean } | null };
+        const { data: bayRow } = await supabase
+          .from('bays').select('id').eq('bay_number', selectedBay).maybeSingle();
+        const { data: dev } = await supabase
+          .from('bay_devices')
+          .select('obs_ws_url, obs_ws_password, cf_stream_key, cf_rtmps_url, stream_enabled')
+          .eq('bay_id', bayRow?.id ?? '')
+          .maybeSingle() as {
+            data: {
+              obs_ws_url?: string | null; obs_ws_password?: string | null;
+              cf_stream_key?: string | null; cf_rtmps_url?: string | null; stream_enabled?: boolean | null;
+            } | null
+          };
+        if (cancelled) return;
+
+        const obsUrl = dev?.obs_ws_url || 'ws://127.0.0.1:4455';
+        const obsPass = dev?.obs_ws_password || '';
+        const shouldStream = Boolean(
+          settings?.sim_cup_live_enabled &&
+          dev?.stream_enabled &&
+          dev?.cf_stream_key &&
+          activeBookingRef.current,
+        );
+
+        if (shouldStream && !streamingRef.current) {
+          const res = await electronApi.obsStartStream(
+            obsUrl, obsPass, dev?.cf_rtmps_url || 'rtmps://live.cloudflare.com:443/live/', dev?.cf_stream_key,
+          );
+          streamingRef.current = Boolean(res?.success);
+          addLog(res?.success ? '[Live] Stream started' : `[Live] Stream start failed: ${res?.error}`,
+            res?.success ? 'success' : 'error');
+        } else if (!shouldStream && streamingRef.current) {
+          const res = await electronApi.obsStopStream?.(obsUrl, obsPass);
+          streamingRef.current = false;
+          addLog(res?.success ? '[Live] Stream stopped' : `[Live] Stream stop failed: ${res?.error}`,
+            res?.success ? 'info' : 'error');
+        }
+      } catch (e) {
+        console.error('[Live] stream tick failed:', e);
+      }
+    };
+
+    tick();
+    const id = setInterval(tick, 30_000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [selectedBay, addLog]);
 
   // Track active booking changes for logging
   const previousActiveBookingRef = useRef<Booking | null>(null);
