@@ -59,7 +59,6 @@ function BayStall({ bay, rear = false, onSelect }: BayStallProps) {
       )}
     >
       <span className="absolute inset-x-1 bottom-0 top-0 overflow-hidden bg-venue-turf shadow-[inset_0_0_25px_hsl(var(--venue-panel)/0.38)]">
-        <span className="absolute inset-x-0 top-1/2 h-px bg-primary-foreground/10" />
         {/* darker green hitting mat between the screen and the back of the bay */}
         <span
           className={cn(
@@ -67,20 +66,14 @@ function BayStall({ bay, rear = false, onSelect }: BayStallProps) {
             rear ? "bottom-[30%]" : "top-[30%]",
           )}
         />
-        <span
-          className={cn(
-            "absolute left-1/2 h-[7%] w-[22%] -translate-x-1/2 bg-primary-foreground/15 shadow-sm",
-            rear ? "bottom-[39%]" : "top-[39%]",
-          )}
-        />
       </span>
 
-      <span className="absolute inset-y-[-3%] left-0 z-20 w-[5%] bg-venue-panel shadow-lg" />
-      <span className="absolute inset-y-[-3%] right-0 z-20 w-[5%] bg-venue-panel shadow-lg" />
+      <span className="absolute inset-y-[-3%] left-0 z-20 w-[5%] bg-venue-panel" />
+      <span className="absolute inset-y-[-3%] right-0 z-20 w-[5%] bg-venue-panel" />
 
       <span
         className={cn(
-          "absolute inset-x-[4%] z-10 h-[24%] overflow-hidden border border-primary-foreground/10 bg-venue-panel",
+          "absolute inset-x-[4%] z-10 h-[24%] overflow-hidden bg-venue-panel",
           rear ? "bottom-0" : "top-0",
         )}
       >
@@ -91,7 +84,7 @@ function BayStall({ bay, rear = false, onSelect }: BayStallProps) {
             className="h-full w-full object-cover opacity-80 transition-opacity group-hover:opacity-100"
           />
         ) : (
-          <span className="absolute inset-0 bg-gradient-to-br from-venue-panel-light to-venue-panel" />
+          <span className="absolute inset-0 bg-venue-panel" />
         )}
       </span>
 
@@ -134,8 +127,7 @@ function VenueModel({ bays, onSelect }: { bays: LiveBay[]; onSelect: (bayNumber:
           {rear.map((bay) => <BayStall key={bay.bay_number} bay={bay} rear onSelect={onSelect} />)}
         </div>
 
-        <div className="relative z-30 border-y border-primary-foreground/10 bg-venue-panel shadow-2xl">
-          <div className="absolute inset-x-[8%] top-1/2 h-px bg-primary-foreground/15" />
+        <div className="relative z-30 bg-venue-panel">
           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap font-display text-[clamp(0.7rem,2vw,1.4rem)] uppercase tracking-wide text-primary-foreground/35">
             Birdies Bayside
           </div>
