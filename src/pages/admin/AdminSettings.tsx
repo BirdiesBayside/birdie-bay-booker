@@ -923,7 +923,7 @@ export default function AdminSettings() {
                         const isToggling = togglingBay === bay.id;
                         const device = bayDevices[bay.id];
                         const isExpanded = expandedBayDevice === bay.id;
-                        const form = bayDeviceForm[bay.id] || { obs_ws_url: "ws://127.0.0.1:4455", obs_ws_password: "" };
+                        const form = bayDeviceForm[bay.id] || { obs_ws_url: "ws://127.0.0.1:4455", obs_ws_password: "", cf_stream_key: "" };
 
                         return (
                           <div
@@ -1027,6 +1027,24 @@ export default function AdminSettings() {
                                       }
                                       placeholder="Paste OBS WebSocket password"
                                     />
+                                  </div>
+                                  <div className="space-y-2 sm:col-span-2">
+                                    <Label htmlFor={`stream-key-${bay.id}`}>Cloudflare Stream Key (live streaming)</Label>
+                                    <Input
+                                      id={`stream-key-${bay.id}`}
+                                      type="password"
+                                      value={form.cf_stream_key}
+                                      onChange={(e) =>
+                                        setBayDeviceForm((prev) => ({
+                                          ...prev,
+                                          [bay.id]: { ...form, cf_stream_key: e.target.value },
+                                        }))
+                                      }
+                                      placeholder="Paste this bay's Cloudflare Stream live-input key"
+                                    />
+                                    <p className="text-xs text-muted-foreground">
+                                      Only needed for live events (e.g. Sim Cup). Leave blank for normal recording-only operation.
+                                    </p>
                                   </div>
                                   <div className="sm:col-span-2 flex justify-end">
                                     <Button
