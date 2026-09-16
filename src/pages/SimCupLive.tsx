@@ -73,7 +73,7 @@ function BayStall({ bay, rear = false, onSelect }: BayStallProps) {
 
       <span
         className={cn(
-          "absolute inset-x-[4%] z-10 h-[24%] overflow-hidden border border-primary-foreground/10 bg-venue-panel",
+          "absolute inset-x-[4%] z-10 h-[24%] overflow-hidden bg-venue-panel",
           rear ? "bottom-0" : "top-0",
         )}
       >
@@ -84,7 +84,7 @@ function BayStall({ bay, rear = false, onSelect }: BayStallProps) {
             className="h-full w-full object-cover opacity-80 transition-opacity group-hover:opacity-100"
           />
         ) : (
-          <span className="absolute inset-0 bg-gradient-to-br from-venue-panel-light to-venue-panel" />
+          <span className="absolute inset-0 bg-venue-panel" />
         )}
       </span>
 
