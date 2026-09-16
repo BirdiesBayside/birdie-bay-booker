@@ -152,3 +152,6 @@ verify_jwt = false
 
 [functions.notify-sim-cup-registration]
 verify_jwt = false
+
+[functions.sim-cup-confirm]
+verify_jwt = false
