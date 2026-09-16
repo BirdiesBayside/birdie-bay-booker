@@ -75,6 +75,7 @@ export default {
           panel: "hsl(var(--venue-panel))",
           "panel-light": "hsl(var(--venue-panel-light))",
           turf: "hsl(var(--venue-turf))",
+          "turf-dark": "hsl(var(--venue-turf-dark))",
           "turf-light": "hsl(var(--venue-turf-light))",
           floor: "hsl(var(--venue-floor))",
         },

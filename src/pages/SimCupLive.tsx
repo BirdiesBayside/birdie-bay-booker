@@ -60,7 +60,19 @@ function BayStall({ bay, rear = false, onSelect }: BayStallProps) {
     >
       <span className="absolute inset-x-1 bottom-0 top-0 overflow-hidden bg-venue-turf shadow-[inset_0_0_25px_hsl(var(--venue-panel)/0.38)]">
         <span className="absolute inset-x-0 top-1/2 h-px bg-primary-foreground/10" />
-        <span className="absolute bottom-[9%] left-1/2 h-[15%] w-[25%] -translate-x-1/2 bg-primary-foreground/20 shadow-sm" />
+        {/* darker green hitting mat between the screen and the back of the bay */}
+        <span
+          className={cn(
+            "absolute left-1/2 h-[26%] w-[58%] -translate-x-1/2 rounded-[2px] bg-venue-turf-dark shadow-[inset_0_1px_3px_hsl(var(--venue-panel)/0.6)]",
+            rear ? "bottom-[30%]" : "top-[30%]",
+          )}
+        />
+        <span
+          className={cn(
+            "absolute left-1/2 h-[7%] w-[22%] -translate-x-1/2 bg-primary-foreground/15 shadow-sm",
+            rear ? "bottom-[39%]" : "top-[39%]",
+          )}
+        />
       </span>
 
       <span className="absolute inset-y-[-3%] left-0 z-20 w-[5%] bg-venue-panel shadow-lg" />
