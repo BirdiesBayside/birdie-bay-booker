@@ -56,6 +56,7 @@ const SwingLab = lazy(() => import("./pages/SwingLab"));
 const SwingLabProgress = lazy(() => import("./pages/SwingLabProgress"));
 const SimCupRegister = lazy(() => import("./pages/SimCupRegister"));
 const SimCupConfirm = lazy(() => import("./pages/SimCupConfirm"));
+const SimCupLive = lazy(() => import("./pages/SimCupLive"));
 
 
 // Public marketing site pages
@@ -259,6 +260,7 @@ const App = () => (
             <Route path="/gift" element={<Gift />} />
             <Route path="/sim-cup" element={<SimCupRegister />} />
             <Route path="/sim-cup-confirm" element={<SimCupConfirm />} />
+            <Route path="/sim-cup-live" element={<SimCupLive />} />
             <Route path="/swing-lab" element={<SwingLab />} />
             <Route path="/swing-lab/progress" element={<SwingLabProgress />} />
 
