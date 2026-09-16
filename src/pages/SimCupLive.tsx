@@ -4,7 +4,7 @@ import Seo from "@/components/Seo";
 import { Button } from "@/components/ui/button";
 import { Loader2, Play, X } from "lucide-react";
 import simCupLogoAsset from "@/assets/sim-cup-logo.png.asset.json";
-import birdiesBLogo from "@/assets/birdies-b-orange.png";
+
 import { cn } from "@/lib/utils";
 
 interface LiveBay {
