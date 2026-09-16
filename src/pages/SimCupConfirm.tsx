@@ -18,6 +18,7 @@ import Seo from "@/components/Seo";
 import simCupLogoAsset from "@/assets/sim-cup-logo.png.asset.json";
 
 const TIMESLOTS = ["8-11am", "11am-2pm", "2-5pm"];
+const FULLY_BOOKED_SLOTS = new Set(["8-11am"]);
 
 const schema = z.object({
   name: z.string().trim().min(2, "Please enter your full name").max(100),
@@ -163,11 +164,14 @@ const SimCupConfirm = () => {
                   <SelectValue placeholder="Select your preferred timeslot" />
                 </SelectTrigger>
                 <SelectContent>
-                  {TIMESLOTS.map((slot) => (
-                    <SelectItem key={slot} value={slot}>
-                      {slot}
-                    </SelectItem>
-                  ))}
+                  {TIMESLOTS.map((slot) => {
+                    const full = FULLY_BOOKED_SLOTS.has(slot);
+                    return (
+                      <SelectItem key={slot} value={slot} disabled={full}>
+                        {full ? `${slot} — Fully booked` : slot}
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
               <p className="text-xs text-primary/70">
