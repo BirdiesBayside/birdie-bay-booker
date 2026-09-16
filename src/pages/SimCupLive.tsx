@@ -117,10 +117,9 @@ function VenueModel({ bays, onSelect }: { bays: LiveBay[]; onSelect: (bayNumber:
   const rear = ordered.slice(3, 6);
 
   return (
-    <div className="relative mx-auto aspect-[1.45/1] w-full max-w-5xl overflow-hidden sm:aspect-[1.75/1]" style={{ perspective: "1100px" }}>
+    <div className="relative mx-auto aspect-[1.45/1] w-full max-w-5xl overflow-hidden [perspective:1100px] sm:aspect-[1.75/1]">
       <div
-        className="absolute inset-[7%] grid grid-rows-[1fr_14%_1fr] bg-venue-floor shadow-2xl"
-        style={{ transform: "rotateX(52deg) rotateZ(-2deg)", transformStyle: "preserve-3d" }}
+        className="absolute inset-[7%] grid grid-rows-[1fr_14%_1fr] bg-venue-floor shadow-2xl [transform-style:preserve-3d] [transform:rotateX(52deg)_rotateZ(-2deg)]"
       >
         <div className="grid grid-cols-3">
           {rear.map((bay) => <BayStall key={bay.bay_number} bay={bay} rear onSelect={onSelect} />)}
