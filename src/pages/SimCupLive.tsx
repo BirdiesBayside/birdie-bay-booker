@@ -56,10 +56,10 @@ function BayStall({ bay, rear = false, onSelect }: BayStallProps) {
       onClick={() => onSelect(bay.bay_number)}
       aria-label={`Watch Bay ${bay.bay_number}${bay.is_live ? ", live now" : ", off air"}`}
       className={cn(
-        "group relative z-0 h-full min-h-0 w-full overflow-visible rounded-sm border-0 p-0 transition-all duration-300 hover:z-40 hover:-translate-y-1 hover:bg-transparent hover:shadow-[0_0_28px_hsl(var(--accent)/0.72)] focus-visible:z-40 focus-visible:ring-accent motion-reduce:hover:translate-y-0",
+        "group relative z-0 h-full min-h-0 w-full overflow-visible rounded-none border-0 p-0 ring-0 ring-offset-0 transition-all duration-300 hover:z-40 hover:bg-transparent hover:shadow-[0_0_28px_hsl(var(--accent)/0.72)] focus-visible:z-40 focus-visible:shadow-[0_0_28px_hsl(var(--accent)/0.72)] focus-visible:ring-0 focus-visible:ring-offset-0",
       )}
     >
-      <span className="absolute inset-x-1 bottom-0 top-0 overflow-hidden bg-venue-turf shadow-[inset_0_0_25px_hsl(var(--venue-panel)/0.38)]">
+      <span className="absolute inset-x-[5%] bottom-0 top-0 overflow-hidden bg-venue-turf shadow-[inset_0_0_25px_hsl(var(--venue-panel)/0.38)]">
         {/* darker green hitting mat between the screen and the back of the bay */}
         <span
           className={cn(
@@ -69,12 +69,12 @@ function BayStall({ bay, rear = false, onSelect }: BayStallProps) {
         />
       </span>
 
-      <span className="absolute inset-y-[-3%] left-0 z-20 w-[5%] bg-venue-panel" />
-      <span className="absolute inset-y-[-3%] right-0 z-20 w-[5%] bg-venue-panel" />
+      <span className="absolute inset-y-0 left-0 z-20 w-[5%] bg-venue-panel" />
+      <span className="absolute inset-y-0 right-0 z-20 w-[5%] bg-venue-panel" />
 
       <span
         className={cn(
-          "absolute inset-x-[4%] z-10 h-[24%] overflow-hidden bg-venue-panel",
+          "absolute inset-x-[5%] z-10 h-[24%] overflow-hidden bg-venue-panel",
           rear ? "bottom-0" : "top-0",
         )}
       >
@@ -149,7 +149,6 @@ function VenueModel({ bays, onSelect }: { bays: LiveBay[]; onSelect: (bayNumber:
 
 const SimCupLive = () => {
   const [loading, setLoading] = useState(true);
-  const [eventLive, setEventLive] = useState(false);
   const [bays, setBays] = useState<LiveBay[]>([]);
   const [replays, setReplays] = useState<Replay[]>([]);
   const [selectedBay, setSelectedBay] = useState<number | null>(null);
@@ -158,7 +157,6 @@ const SimCupLive = () => {
   const load = useCallback(async () => {
     const { data, error } = await supabase.functions.invoke("sim-cup-live", { body: {} });
     if (!error && data) {
-      setEventLive(Boolean(data.event_live));
       setBays(Array.isArray(data.bays) ? data.bays : []);
       setReplays(Array.isArray(data.replays) ? data.replays : []);
     }
@@ -339,11 +337,6 @@ const SimCupLive = () => {
           </section>
         )}
 
-        <p className="mt-10 text-center text-xs text-primary-foreground/50">
-          Sim Cup sessions are streamed publicly. Outside of event days, bays are recorded
-          only — never broadcast.
-          {!eventLive && " Streaming is currently switched off."}
-        </p>
       </main>
 
       {/* replay lightbox */}
