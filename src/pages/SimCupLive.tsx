@@ -55,8 +55,7 @@ function BayStall({ bay, rear = false, onSelect }: BayStallProps) {
       onClick={() => onSelect(bay.bay_number)}
       aria-label={`Watch Bay ${bay.bay_number}${bay.is_live ? ", live now" : ", off air"}`}
       className={cn(
-        "group relative h-full min-h-0 w-full overflow-visible rounded-none border-0 p-0 transition-transform duration-300 hover:bg-transparent focus-visible:ring-accent",
-        rear ? "origin-bottom hover:-translate-y-1" : "origin-top hover:translate-y-1",
+        "group relative z-0 h-full min-h-0 w-full overflow-visible rounded-sm border-0 p-0 transition-all duration-300 hover:z-40 hover:-translate-y-1 hover:bg-transparent hover:shadow-[0_0_28px_hsl(var(--accent)/0.72)] focus-visible:z-40 focus-visible:ring-accent motion-reduce:hover:translate-y-0",
       )}
     >
       <span className="absolute inset-x-1 bottom-0 top-0 overflow-hidden bg-venue-turf shadow-[inset_0_0_25px_hsl(var(--venue-panel)/0.38)]">
@@ -114,13 +113,11 @@ function BayStall({ bay, rear = false, onSelect }: BayStallProps) {
 function VenueModel({ bays, onSelect }: { bays: LiveBay[]; onSelect: (bayNumber: number) => void }) {
   const ordered = [...bays].sort((a, b) => a.bay_number - b.bay_number);
   const front = ordered.slice(0, 3);
-  const rear = ordered.slice(3, 6);
+  const rear = ordered.slice(3, 6).reverse();
 
   return (
-    <div className="relative mx-auto aspect-[1.45/1] w-full max-w-5xl overflow-hidden [perspective:1100px] sm:aspect-[1.75/1]">
-      <div
-        className="absolute inset-[7%] grid grid-rows-[1fr_14%_1fr] bg-venue-floor shadow-2xl [transform-style:preserve-3d] [transform:rotateX(52deg)_rotateZ(-2deg)]"
-      >
+    <div className="relative mx-auto aspect-[1.25/1] w-full max-w-5xl overflow-visible sm:aspect-[1.7/1]">
+      <div className="absolute inset-[4%] grid grid-rows-[1fr_14%_1fr] bg-venue-floor shadow-2xl sm:inset-[7%]">
         <div className="grid grid-cols-3">
           {rear.map((bay) => <BayStall key={bay.bay_number} bay={bay} rear onSelect={onSelect} />)}
         </div>
