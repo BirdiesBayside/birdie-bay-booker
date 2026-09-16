@@ -127,8 +127,7 @@ function VenueModel({ bays, onSelect }: { bays: LiveBay[]; onSelect: (bayNumber:
           {rear.map((bay) => <BayStall key={bay.bay_number} bay={bay} rear onSelect={onSelect} />)}
         </div>
 
-        <div className="relative z-30 border-y border-primary-foreground/10 bg-venue-panel shadow-2xl">
-          <div className="absolute inset-x-[8%] top-1/2 h-px bg-primary-foreground/15" />
+        <div className="relative z-30 bg-venue-panel">
           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap font-display text-[clamp(0.7rem,2vw,1.4rem)] uppercase tracking-wide text-primary-foreground/35">
             Birdies Bayside
           </div>
