@@ -1134,10 +1134,23 @@ export default function AdminSettings() {
                                       }
                                       placeholder="Paste this bay's Cloudflare Stream live-input key"
                                     />
-                                    <p className="text-xs text-muted-foreground">
-                                      Only needed for live events (e.g. Sim Cup). Leave blank for normal recording-only operation.
-                                    </p>
-                                  </div>
+                                     <p className="text-xs text-muted-foreground">
+                                       Only needed for live events (e.g. Sim Cup). Leave blank for normal recording-only operation.
+                                     </p>
+                                   </div>
+                                   <div className="sm:col-span-2 flex items-center justify-between p-3 border rounded-md">
+                                     <div>
+                                       <Label>Stream this bay</Label>
+                                       <p className="text-xs text-muted-foreground">
+                                         Shows on the public Sim Cup Live page while Sim Cup Live is switched on.
+                                       </p>
+                                     </div>
+                                     <Switch
+                                       checked={Boolean(device?.stream_enabled)}
+                                       disabled={!device?.cf_stream_key}
+                                       onCheckedChange={(checked) => toggleBayStreaming(bay.id, checked)}
+                                     />
+                                   </div>
                                   <div className="sm:col-span-2 flex justify-end">
                                     <Button
                                       onClick={() => saveBayDeviceSettings(bay.id)}
