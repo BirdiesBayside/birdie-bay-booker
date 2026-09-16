@@ -3647,16 +3647,6 @@ export type Database = {
           },
         ]
       }
-      public_bay_streams: {
-        Row: {
-          bay_name: string | null
-          bay_number: number | null
-          cf_playback_id: string | null
-          is_online: boolean | null
-          stream_enabled: boolean | null
-        }
-        Relationships: []
-      }
     }
     Functions: {
       accept_terms: { Args: { _version: string }; Returns: boolean }
