@@ -1795,6 +1795,44 @@ export type Database = {
         }
         Relationships: []
       }
+      marketing_email_opens: {
+        Row: {
+          campaign_id: string
+          email: string
+          first_opened_at: string
+          id: string
+          last_opened_at: string
+          open_count: number
+          user_agent: string | null
+        }
+        Insert: {
+          campaign_id: string
+          email: string
+          first_opened_at?: string
+          id?: string
+          last_opened_at?: string
+          open_count?: number
+          user_agent?: string | null
+        }
+        Update: {
+          campaign_id?: string
+          email?: string
+          first_opened_at?: string
+          id?: string
+          last_opened_at?: string
+          open_count?: number
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketing_email_opens_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       marketing_segments: {
         Row: {
           created_at: string

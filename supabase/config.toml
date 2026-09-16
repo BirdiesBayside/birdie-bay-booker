@@ -155,3 +155,6 @@ verify_jwt = false
 
 [functions.sim-cup-confirm]
 verify_jwt = false
+
+[functions.track-email-open]
+verify_jwt = false
