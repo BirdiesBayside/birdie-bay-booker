@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.sync_sim_cup_segment() FROM PUBLIC, anon, authenticated;
