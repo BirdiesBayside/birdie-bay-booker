@@ -224,10 +224,12 @@ async function sendEmailsInBackground(
         const unsubscribeUrl = buildUnsubscribeUrl(recipient.email, unsubscribeToken);
         
         // Wrap the marketing content in branded template
+        const trackingPixel = is_test ? "" : buildTrackingPixel(campaign_id, recipient.email);
         const bodyContent = `
             <div style="font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25;">
               ${personalizedContent}
             </div>
+            ${trackingPixel}
         `;
         
         const footerWithUnsubscribe = injectUnsubscribeIntoFooter(layout.footer_html, unsubscribeUrl);
