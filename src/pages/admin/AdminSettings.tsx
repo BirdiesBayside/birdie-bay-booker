@@ -218,6 +218,19 @@ export default function AdminSettings() {
   const [savingBayDevice, setSavingBayDevice] = useState<string | null>(null);
   const [expandedBayDevice, setExpandedBayDevice] = useState<string | null>(null);
 
+  // Sim Cup live streaming
+  const [simCupLiveEnabled, setSimCupLiveEnabled] = useState(false);
+  const [provisioningStreams, setProvisioningStreams] = useState(false);
+
+  useEffect(() => {
+    supabase
+      .from("system_settings")
+      .select("sim_cup_live_enabled")
+      .eq("id", "global")
+      .maybeSingle()
+      .then(({ data }) => setSimCupLiveEnabled(Boolean(data?.sim_cup_live_enabled)));
+  }, []);
+
   // Initialize bay device form values when devices load
   useEffect(() => {
     const initial: Record<string, { obs_ws_url: string; obs_ws_password: string; cf_stream_key: string }> = {};
