@@ -55,6 +55,22 @@ function injectUnsubscribeIntoFooter(footerHtml: string, unsubscribeUrl: string)
   return footerHtml.slice(0, idx) + linkRow + footerHtml.slice(idx);
 }
 
+// Invisible 1x1 open-tracking pixel, unique per recipient + campaign
+function buildTrackingPixel(campaignId: string, email: string): string {
+  try {
+    const base = (Deno.env.get("SUPABASE_URL") || "").replace(/\/$/, "");
+    if (!base || !campaignId) return "";
+    const encodedEmail = btoa(email.toLowerCase())
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/, "");
+    const src = `${base}/functions/v1/track-email-open?c=${encodeURIComponent(campaignId)}&e=${encodedEmail}`;
+    return `<img src="${src}" width="1" height="1" alt="" style="display:block;width:1px;height:1px;border:0;outline:none;" />`;
+  } catch {
+    return "";
+  }
+}
+
 interface MarketingEmailRequest {
   campaign_id: string;
   subject: string;
