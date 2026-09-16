@@ -974,6 +974,33 @@ export default function AdminSettings() {
                     )}
                   </div>
 
+                  {/* Sim Cup Live */}
+                  <div className="mb-6 p-4 border rounded-lg bg-muted/30 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label className="text-base">Sim Cup Live</Label>
+                        <p className="text-sm text-muted-foreground">
+                          Broadcast enabled bays publicly at birdiesbayside.com.au/sim-cup-live while a session is running.
+                        </p>
+                      </div>
+                      <Switch checked={simCupLiveEnabled} onCheckedChange={saveSimCupLive} />
+                    </div>
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <Button size="sm" variant="outline" onClick={provisionLiveInputs} disabled={provisioningStreams}>
+                        {provisioningStreams ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                        Set up / refresh stream keys
+                      </Button>
+                      <span className="text-xs text-muted-foreground">
+                        Creates each bay's Cloudflare live input and fills in its stream key automatically.
+                      </span>
+                    </div>
+                    {simCupLiveEnabled && (
+                      <p className="text-xs text-amber-600 dark:text-amber-400">
+                        Live now — any bay with streaming switched on will broadcast publicly during bookings.
+                      </p>
+                    )}
+                  </div>
+
                   {isLoadingBays ? (
                     <div className="space-y-3">
                       {[1, 2, 3].map((i) => (
