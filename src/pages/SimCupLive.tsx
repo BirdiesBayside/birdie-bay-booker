@@ -95,7 +95,7 @@ function BayStall({ bay, rear = false, onSelect }: BayStallProps) {
           rear ? "top-[9%]" : "bottom-[9%]",
         )}
       >
-        <span className="font-display text-3xl font-bold uppercase leading-none text-accent drop-shadow-[0_2px_6px_hsl(var(--venue-panel)/0.9)] sm:text-4xl">
+        <span className="font-display text-base font-bold uppercase leading-none text-accent drop-shadow-[0_2px_5px_hsl(var(--venue-panel)/0.9)] sm:text-lg">
           {bay.bay_number}
         </span>
         <span
@@ -133,12 +133,10 @@ function VenueModel({ bays, onSelect }: { bays: LiveBay[]; onSelect: (bayNumber:
           {rear.map((bay) => <BayStall key={bay.bay_number} bay={bay} rear onSelect={onSelect} />)}
         </div>
 
-        <div className="relative z-30 bg-venue-panel">
-          <img
-            src={birdiesBLogo}
-            alt="Birdies Bayside"
-            className="absolute left-1/2 top-1/2 h-[80%] w-auto max-w-[60%] -translate-x-1/2 -translate-y-1/2 object-contain opacity-90"
-          />
+        <div className="relative z-30 flex items-center justify-center bg-venue-panel">
+          <span className="font-display text-sm font-bold uppercase tracking-[0.2em] text-primary-foreground sm:text-base">
+            Pick a bay
+          </span>
         </div>
 
         <div className="grid grid-cols-3">
