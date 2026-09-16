@@ -129,6 +129,11 @@ const SimCupRegister = () => {
           </div>
         </div>
 
+        <p className="mt-4 text-center text-xs text-primary-foreground/60">
+          Heads up: Sim Cup bays are streamed live to a public page so mates and family can
+          watch along. By entering you're happy to appear on that stream.
+        </p>
+
         {submitted ? (
           <section className="mt-8 rounded-lg bg-background p-8 text-center">
             <CheckCircle2 className="mx-auto mb-4 h-14 w-14 text-primary" />

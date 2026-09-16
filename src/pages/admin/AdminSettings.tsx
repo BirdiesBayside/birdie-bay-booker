@@ -181,6 +181,9 @@ interface BayDevice {
   obs_ws_url: string | null;
   obs_ws_password: string | null;
   cf_stream_key: string | null;
+  cf_live_input_uid: string | null;
+  cf_rtmps_url: string | null;
+  stream_enabled: boolean | null;
   is_online: boolean;
   last_seen: string | null;
   app_version: string | null;
@@ -214,6 +217,19 @@ export default function AdminSettings() {
   const [bayDeviceForm, setBayDeviceForm] = useState<Record<string, { obs_ws_url: string; obs_ws_password: string; cf_stream_key: string }>>({});
   const [savingBayDevice, setSavingBayDevice] = useState<string | null>(null);
   const [expandedBayDevice, setExpandedBayDevice] = useState<string | null>(null);
+
+  // Sim Cup live streaming
+  const [simCupLiveEnabled, setSimCupLiveEnabled] = useState(false);
+  const [provisioningStreams, setProvisioningStreams] = useState(false);
+
+  useEffect(() => {
+    supabase
+      .from("system_settings")
+      .select("sim_cup_live_enabled")
+      .eq("id", "global")
+      .maybeSingle()
+      .then(({ data }) => setSimCupLiveEnabled(Boolean(data?.sim_cup_live_enabled)));
+  }, []);
 
   // Initialize bay device form values when devices load
   useEffect(() => {
@@ -420,7 +436,7 @@ export default function AdminSettings() {
       // Fetch bay devices for all bays in one query
       const { data: devices } = await supabase
         .from("bay_devices")
-        .select("id, bay_id, obs_ws_url, obs_ws_password, cf_stream_key, is_online, last_seen, app_version");
+        .select("id, bay_id, obs_ws_url, obs_ws_password, cf_stream_key, cf_live_input_uid, cf_rtmps_url, stream_enabled, is_online, last_seen, app_version");
       
       const devicesMap: Record<string, BayDevice> = {};
       for (const device of (devices || [])) {
@@ -576,6 +592,55 @@ export default function AdminSettings() {
       fetchBays();
     }
     setSavingBayDevice(null);
+  };
+
+  // Turn live streaming on/off for a single bay
+  const toggleBayStreaming = async (bayId: string, enabled: boolean) => {
+    const device = bayDevices[bayId];
+    const { error } = device?.id
+      ? await supabase.from("bay_devices").update({ stream_enabled: enabled }).eq("id", device.id)
+      : await supabase.from("bay_devices").insert({ bay_id: bayId, stream_enabled: enabled });
+    if (error) {
+      toast({ title: "Couldn't update streaming", description: error.message, variant: "destructive" });
+      return;
+    }
+    fetchBays();
+  };
+
+  // Create (or refresh) the Cloudflare live inputs and pull the stream keys back in
+  const provisionLiveInputs = async () => {
+    setProvisioningStreams(true);
+    const { data, error } = await supabase.functions.invoke("cf-live-inputs", {
+      body: { action: "provision" },
+    });
+    setProvisioningStreams(false);
+    if (error || data?.error) {
+      toast({
+        title: "Couldn't set up streaming",
+        description: data?.error ?? error?.message ?? "Unknown error",
+        variant: "destructive",
+        duration: 6000,
+      });
+      return;
+    }
+    toast({
+      title: "Streaming set up",
+      description: `${data?.results?.length ?? 0} bays ready to broadcast.`,
+      duration: 4000,
+    });
+    fetchBays();
+  };
+
+  const saveSimCupLive = async (enabled: boolean) => {
+    setSimCupLiveEnabled(enabled);
+    const { error } = await supabase
+      .from("system_settings")
+      .update({ sim_cup_live_enabled: enabled })
+      .eq("id", "global");
+    if (error) {
+      setSimCupLiveEnabled(!enabled);
+      toast({ title: "Couldn't update Sim Cup Live", description: error.message, variant: "destructive" });
+    }
   };
 
   useEffect(() => {
@@ -909,6 +974,33 @@ export default function AdminSettings() {
                     )}
                   </div>
 
+                  {/* Sim Cup Live */}
+                  <div className="mb-6 p-4 border rounded-lg bg-muted/30 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label className="text-base">Sim Cup Live</Label>
+                        <p className="text-sm text-muted-foreground">
+                          Broadcast enabled bays publicly at birdiesbayside.com.au/sim-cup-live while a session is running.
+                        </p>
+                      </div>
+                      <Switch checked={simCupLiveEnabled} onCheckedChange={saveSimCupLive} />
+                    </div>
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <Button size="sm" variant="outline" onClick={provisionLiveInputs} disabled={provisioningStreams}>
+                        {provisioningStreams ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                        Set up / refresh stream keys
+                      </Button>
+                      <span className="text-xs text-muted-foreground">
+                        Creates each bay's Cloudflare live input and fills in its stream key automatically.
+                      </span>
+                    </div>
+                    {simCupLiveEnabled && (
+                      <p className="text-xs text-amber-600 dark:text-amber-400">
+                        Live now — any bay with streaming switched on will broadcast publicly during bookings.
+                      </p>
+                    )}
+                  </div>
+
                   {isLoadingBays ? (
                     <div className="space-y-3">
                       {[1, 2, 3].map((i) => (
@@ -1042,10 +1134,23 @@ export default function AdminSettings() {
                                       }
                                       placeholder="Paste this bay's Cloudflare Stream live-input key"
                                     />
-                                    <p className="text-xs text-muted-foreground">
-                                      Only needed for live events (e.g. Sim Cup). Leave blank for normal recording-only operation.
-                                    </p>
-                                  </div>
+                                     <p className="text-xs text-muted-foreground">
+                                       Only needed for live events (e.g. Sim Cup). Leave blank for normal recording-only operation.
+                                     </p>
+                                   </div>
+                                   <div className="sm:col-span-2 flex items-center justify-between p-3 border rounded-md">
+                                     <div>
+                                       <Label>Stream this bay</Label>
+                                       <p className="text-xs text-muted-foreground">
+                                         Shows on the public Sim Cup Live page while Sim Cup Live is switched on.
+                                       </p>
+                                     </div>
+                                     <Switch
+                                       checked={Boolean(device?.stream_enabled)}
+                                       disabled={!device?.cf_stream_key}
+                                       onCheckedChange={(checked) => toggleBayStreaming(bay.id, checked)}
+                                     />
+                                   </div>
                                   <div className="sm:col-span-2 flex justify-end">
                                     <Button
                                       onClick={() => saveBayDeviceSettings(bay.id)}

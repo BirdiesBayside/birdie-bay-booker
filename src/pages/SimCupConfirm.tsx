@@ -117,6 +117,9 @@ const SimCupConfirm = () => {
             <p className="mt-4 text-sm text-primary/60">
               Need to change something? Email info@birdiesbayside.com.au
             </p>
+            <p className="mt-3 text-xs text-primary/50">
+              Sim Cup bays are streamed live to a public page on the day.
+            </p>
           </section>
         ) : (
           <form

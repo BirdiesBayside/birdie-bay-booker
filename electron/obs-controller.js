@@ -77,6 +77,20 @@ class OBSController {
     return this.request('CreateRecordChapter', { chapterName: String(name || '') });
   }
 
+  // ---- Live streaming (Cloudflare Stream live input) ----
+  // Sets the RTMPS destination without touching scenes, resolution or bitrate:
+  // OBS keeps its existing output settings and simply mirrors them to the stream.
+  async setStreamSettings(server, key) {
+    return this.request('SetStreamServiceSettings', {
+      streamServiceType: 'rtmp_custom',
+      streamServiceSettings: { server: String(server || ''), key: String(key || ''), use_auth: false },
+    });
+  }
+
+  async getStreamStatus() { return this.request('GetStreamStatus'); }
+  async startStream() { return this.request('StartStream'); }
+  async stopStream() { return this.request('StopStream'); }
+
   disconnect() { try { this.ws?.close(); } catch { /* noop */ } this.ws = null; this.identified = false; }
 }
 

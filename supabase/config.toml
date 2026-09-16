@@ -158,3 +158,9 @@ verify_jwt = false
 
 [functions.track-email-open]
 verify_jwt = false
+
+[functions.cf-live-inputs]
+verify_jwt = false
+
+[functions.sim-cup-live]
+verify_jwt = false

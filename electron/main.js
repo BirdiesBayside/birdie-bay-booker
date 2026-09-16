@@ -3995,6 +3995,49 @@ ipcMain.handle('obs-get-status', async () => {
   } catch (e) { return { success: false, error: e.message }; }
 });
 
+// ---- Live streaming (Sim Cup) ----
+// Points OBS at the bay's Cloudflare live input and starts streaming alongside
+// whatever recording is doing. Scenes/resolution/bitrate are left untouched.
+ipcMain.handle('obs-start-stream', async (_e, { url, password, server, key } = {}) => {
+  try {
+    if (!key) return { success: false, error: 'no stream key configured' };
+    const ctl = ensureObs({ url: url || 'ws://127.0.0.1:4455', password: password || '' });
+    if (!ctl.identified) await ctl.connect();
+    const status = await ctl.getStreamStatus().catch(() => null);
+    if (status?.outputActive) return { success: true, alreadyStreaming: true };
+    await ctl.setStreamSettings(server || 'rtmps://live.cloudflare.com:443/live/', key);
+    await ctl.startStream();
+    console.log('[OBS] Live stream started');
+    return { success: true };
+  } catch (e) {
+    console.error('[OBS] startStream failed:', e.message);
+    return { success: false, error: e.message };
+  }
+});
+
+ipcMain.handle('obs-stop-stream', async (_e, { url, password } = {}) => {
+  try {
+    const ctl = ensureObs({ url: url || 'ws://127.0.0.1:4455', password: password || '' });
+    if (!ctl.identified) await ctl.connect();
+    const status = await ctl.getStreamStatus().catch(() => null);
+    if (!status?.outputActive) return { success: true, alreadyStopped: true };
+    await ctl.stopStream();
+    console.log('[OBS] Live stream stopped');
+    return { success: true };
+  } catch (e) {
+    console.error('[OBS] stopStream failed:', e.message);
+    return { success: false, error: e.message };
+  }
+});
+
+ipcMain.handle('obs-stream-status', async () => {
+  try {
+    if (!obsController || !obsController.identified) return { success: true, streaming: false };
+    const s = await obsController.getStreamStatus();
+    return { success: true, streaming: !!s?.outputActive };
+  } catch (e) { return { success: false, error: e.message }; }
+});
+
 // Inject an OBS chapter marker mid-recording (e.g. "Hole 7").
 // Silently no-ops if OBS is not connected or the running recording isn't active.
 ipcMain.handle('obs-add-chapter', async (_e, { name } = {}) => {

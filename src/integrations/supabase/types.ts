@@ -359,6 +359,9 @@ export type Database = {
         Row: {
           app_version: string | null
           bay_id: string
+          cf_live_input_uid: string | null
+          cf_playback_id: string | null
+          cf_rtmps_url: string | null
           cf_stream_key: string | null
           control_mode: string
           created_at: string
@@ -368,11 +371,15 @@ export type Database = {
           obs_ws_password: string | null
           obs_ws_url: string | null
           plug_status: string | null
+          stream_enabled: boolean
           updated_at: string
         }
         Insert: {
           app_version?: string | null
           bay_id: string
+          cf_live_input_uid?: string | null
+          cf_playback_id?: string | null
+          cf_rtmps_url?: string | null
           cf_stream_key?: string | null
           control_mode?: string
           created_at?: string
@@ -382,11 +389,15 @@ export type Database = {
           obs_ws_password?: string | null
           obs_ws_url?: string | null
           plug_status?: string | null
+          stream_enabled?: boolean
           updated_at?: string
         }
         Update: {
           app_version?: string | null
           bay_id?: string
+          cf_live_input_uid?: string | null
+          cf_playback_id?: string | null
+          cf_rtmps_url?: string | null
           cf_stream_key?: string | null
           control_mode?: string
           created_at?: string
@@ -396,6 +407,7 @@ export type Database = {
           obs_ws_password?: string | null
           obs_ws_url?: string | null
           plug_status?: string | null
+          stream_enabled?: boolean
           updated_at?: string
         }
         Relationships: [
@@ -3487,6 +3499,7 @@ export type Database = {
           highlight_retention_days: number
           id: string
           peak_rate_effective_from: string | null
+          sim_cup_live_enabled: boolean
           timezone: string
           updated_at: string
         }
@@ -3498,6 +3511,7 @@ export type Database = {
           highlight_retention_days?: number
           id?: string
           peak_rate_effective_from?: string | null
+          sim_cup_live_enabled?: boolean
           timezone?: string
           updated_at?: string
         }
@@ -3509,6 +3523,7 @@ export type Database = {
           highlight_retention_days?: number
           id?: string
           peak_rate_effective_from?: string | null
+          sim_cup_live_enabled?: boolean
           timezone?: string
           updated_at?: string
         }

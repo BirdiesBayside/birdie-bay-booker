@@ -257,6 +257,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('obs-tus-upload', { filePath, uploadUrl, declaredSize }),
   obsDeleteFile: (filePath) => ipcRenderer.invoke('obs-delete-file', { filePath }),
   obsAddChapter: (name) => ipcRenderer.invoke('obs-add-chapter', { name }),
+  obsStartStream: (url, password, server, key) =>
+    ipcRenderer.invoke('obs-start-stream', { url, password, server, key }),
+  obsStopStream: (url, password) => ipcRenderer.invoke('obs-stop-stream', { url, password }),
+  obsStreamStatus: () => ipcRenderer.invoke('obs-stream-status'),
 
   // =====================================================
   // SCORECARD SCREENSHOT
