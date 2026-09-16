@@ -180,6 +180,7 @@ interface BayDevice {
   bay_id: string;
   obs_ws_url: string | null;
   obs_ws_password: string | null;
+  cf_stream_key: string | null;
   is_online: boolean;
   last_seen: string | null;
   app_version: string | null;
@@ -210,18 +211,19 @@ export default function AdminSettings() {
 
   // Bay device settings (OBS WebSocket per bay)
   const [bayDevices, setBayDevices] = useState<Record<string, BayDevice>>({});
-  const [bayDeviceForm, setBayDeviceForm] = useState<Record<string, { obs_ws_url: string; obs_ws_password: string }>>({});
+  const [bayDeviceForm, setBayDeviceForm] = useState<Record<string, { obs_ws_url: string; obs_ws_password: string; cf_stream_key: string }>>({});
   const [savingBayDevice, setSavingBayDevice] = useState<string | null>(null);
   const [expandedBayDevice, setExpandedBayDevice] = useState<string | null>(null);
 
   // Initialize bay device form values when devices load
   useEffect(() => {
-    const initial: Record<string, { obs_ws_url: string; obs_ws_password: string }> = {};
+    const initial: Record<string, { obs_ws_url: string; obs_ws_password: string; cf_stream_key: string }> = {};
     for (const bayId of Object.keys(bayDevices)) {
       const device = bayDevices[bayId];
       initial[bayId] = {
         obs_ws_url: device?.obs_ws_url || "ws://127.0.0.1:4455",
         obs_ws_password: device?.obs_ws_password || "",
+        cf_stream_key: device?.cf_stream_key || "",
       };
     }
     setBayDeviceForm(initial);
@@ -418,7 +420,7 @@ export default function AdminSettings() {
       // Fetch bay devices for all bays in one query
       const { data: devices } = await supabase
         .from("bay_devices")
-        .select("id, bay_id, obs_ws_url, obs_ws_password, is_online, last_seen, app_version");
+        .select("id, bay_id, obs_ws_url, obs_ws_password, cf_stream_key, is_online, last_seen, app_version");
       
       const devicesMap: Record<string, BayDevice> = {};
       for (const device of (devices || [])) {
@@ -551,6 +553,7 @@ export default function AdminSettings() {
       bay_id: bayId,
       obs_ws_url: form.obs_ws_url || null,
       obs_ws_password: form.obs_ws_password || null,
+      cf_stream_key: form.cf_stream_key || null,
     };
 
     const { error } = device?.id
