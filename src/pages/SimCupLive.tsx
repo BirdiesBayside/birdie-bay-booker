@@ -91,15 +91,20 @@ function BayStall({ bay, rear = false, onSelect }: BayStallProps) {
 
       <span
         className={cn(
-          "absolute left-1/2 z-30 -translate-x-1/2 whitespace-nowrap rounded-sm px-2 py-1 text-[9px] font-black uppercase tracking-wider shadow-lg sm:text-[10px]",
-          rear ? "top-[12%]" : "bottom-[12%]",
-          bay.is_live
-            ? "bg-accent text-accent-foreground"
-            : "bg-venue-panel-light text-primary-foreground/70",
+          "absolute left-1/2 z-30 flex -translate-x-1/2 items-center gap-2",
+          rear ? "top-[9%]" : "bottom-[9%]",
         )}
       >
-        {bay.is_live && <span className="mr-1.5 inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-current" />}
-        Bay {bay.bay_number} · {bay.is_live ? "Live" : "Off air"}
+        <span className="font-display text-3xl font-bold uppercase leading-none text-accent drop-shadow-[0_2px_6px_hsl(var(--venue-panel)/0.9)] sm:text-4xl">
+          {bay.bay_number}
+        </span>
+        <span
+          aria-hidden
+          className={cn(
+            "h-2 w-2 rounded-full sm:h-2.5 sm:w-2.5",
+            bay.is_live ? "animate-pulse bg-green-500" : "bg-red-500",
+          )}
+        />
       </span>
 
       {bay.player_name && (
