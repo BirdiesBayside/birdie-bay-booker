@@ -1690,13 +1690,22 @@ interface SimCupRegistration {
   id: string;
   name: string;
   email: string;
-  phone: string;
-  shirt_size: string;
+  phone: string | null;
+  shirt_size: string | null;
   notes: string | null;
   created_at: string;
+  preferred_timeslot: string | null;
+  assigned_timeslot: string | null;
+  payment_status: string;
+  payment_method: string | null;
+  amount_paid: number | null;
+  paid_at: string | null;
 }
 
 const SHIRT_ORDER = ["S", "M", "L", "XL", "2XL", "3XL"];
+const TIMESLOTS = ["8-11am", "11am-2pm", "2-5pm"];
+const SLOT_CAPACITY = 6;
+const ENTRY_PRICE = 99;
 
 function SimCupTab({ activeTab }: { activeTab: string }) {
   const { toast } = useToast();
@@ -1713,10 +1722,40 @@ function SimCupTab({ activeTab }: { activeTab: string }) {
     const { data, error } = await supabase
       .from("sim_cup_registrations")
       .select("*")
-      .order("created_at", { ascending: false });
-    if (!error && data) setRegs(data as SimCupRegistration[]);
+      .order("created_at", { ascending: true });
+    if (!error && data) setRegs(data as unknown as SimCupRegistration[]);
     setIsLoading(false);
   };
+
+  const patchReg = async (id: string, patch: Partial<SimCupRegistration>) => {
+    const previous = regs;
+    setRegs((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+    const { error } = await supabase
+      .from("sim_cup_registrations")
+      .update(patch as never)
+      .eq("id", id);
+    if (error) {
+      setRegs(previous);
+      toast({ title: "Update failed", description: error.message, variant: "destructive" });
+    }
+  };
+
+  const moveToSlot = (id: string, slot: string) =>
+    patchReg(id, { assigned_timeslot: slot === "unassigned" ? null : slot });
+
+  const togglePaid = (r: SimCupRegistration) =>
+    r.payment_status === "paid"
+      ? patchReg(r.id, {
+          payment_status: "unpaid",
+          amount_paid: null,
+          paid_at: null,
+        })
+      : patchReg(r.id, {
+          payment_status: "paid",
+          payment_method: r.payment_method === "card" ? "card" : "venue",
+          amount_paid: ENTRY_PRICE,
+          paid_at: new Date().toISOString(),
+        });
 
   const handleDelete = async (id: string) => {
     const { error } = await supabase.from("sim_cup_registrations").delete().eq("id", id);
@@ -1730,12 +1769,16 @@ function SimCupTab({ activeTab }: { activeTab: string }) {
 
   const exportCsv = () => {
     const rows = [
-      ["Name", "Email", "Phone", "Shirt Size", "Registered"],
+      ["Name", "Email", "Phone", "Shirt Size", "Preferred", "Assigned", "Paid", "Method", "Registered"],
       ...regs.map((r) => [
         r.name,
         r.email,
-        r.phone,
-        r.shirt_size,
+        r.phone ?? "",
+        r.shirt_size ?? "",
+        r.preferred_timeslot ?? "",
+        r.assigned_timeslot ?? "",
+        r.payment_status === "paid" ? "Yes" : "No",
+        r.payment_method ?? "",
         format(new Date(r.created_at), "yyyy-MM-dd HH:mm"),
       ]),
     ];
@@ -1756,10 +1799,72 @@ function SimCupTab({ activeTab }: { activeTab: string }) {
   if (activeTab !== "sim-cup") return null;
 
   const SPOTS = 18;
+  const paidCount = regs.filter((r) => r.payment_status === "paid").length;
+  const unassigned = regs.filter((r) => !r.assigned_timeslot);
+
+  const PlayerRow = ({ r }: { r: SimCupRegistration }) => (
+    <div className="rounded-lg border border-border bg-card p-3 text-sm space-y-2">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="font-medium text-foreground truncate">{r.name}</p>
+          <p className="text-xs text-muted-foreground truncate">{r.email}</p>
+        </div>
+        <Badge variant={r.payment_status === "paid" ? "default" : "outline"}>
+          {r.payment_status === "paid" ? "Paid" : "Unpaid"}
+        </Badge>
+      </div>
+
+      <div className="flex flex-wrap gap-1.5 text-xs text-muted-foreground">
+        {r.shirt_size && <Badge variant="secondary">{r.shirt_size}</Badge>}
+        {r.preferred_timeslot && (
+          <Badge
+            variant="outline"
+            className={
+              r.assigned_timeslot && r.assigned_timeslot !== r.preferred_timeslot
+                ? "border-destructive text-destructive"
+                : ""
+            }
+          >
+            Prefers {r.preferred_timeslot}
+          </Badge>
+        )}
+        {r.payment_method && (
+          <Badge variant="outline">
+            {r.payment_method === "card" ? "Card" : "At venue"}
+          </Badge>
+        )}
+      </div>
+
+      <div className="flex items-center gap-2">
+        <Select
+          value={r.assigned_timeslot ?? "unassigned"}
+          onValueChange={(v) => moveToSlot(r.id, v)}
+        >
+          <SelectTrigger className="h-8 text-xs flex-1">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="unassigned">Unassigned</SelectItem>
+            {TIMESLOTS.map((slot) => (
+              <SelectItem key={slot} value={slot}>
+                {slot}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button variant="outline" size="sm" className="h-8" onClick={() => togglePaid(r)}>
+          {r.payment_status === "paid" ? "Unpay" : "Mark paid"}
+        </Button>
+        <Button variant="ghost" size="sm" className="h-8" onClick={() => handleDelete(r.id)}>
+          Remove
+        </Button>
+      </div>
+    </div>
+  );
 
   return (
     <TabsContent value="sim-cup" className="mt-4 space-y-4" forceMount>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Registrations</CardTitle>
@@ -1771,7 +1876,23 @@ function SimCupTab({ activeTab }: { activeTab: string }) {
             </div>
             <Progress value={Math.min((regs.length / SPOTS) * 100, 100)} className="h-2 mt-3" />
             <p className="text-xs text-muted-foreground mt-2">
-              Public form: <span className="font-mono">/sim-cup</span>
+              Forms: <span className="font-mono">/sim-cup</span> ·{" "}
+              <span className="font-mono">/sim-cup-confirm</span>
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Entry Fees</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-foreground">
+              {paidCount}
+              <span className="text-base text-muted-foreground font-normal"> / {regs.length} paid</span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              ${paidCount * ENTRY_PRICE} collected · ${(regs.length - paidCount) * ENTRY_PRICE} outstanding
             </p>
           </CardContent>
         </Card>
@@ -1793,9 +1914,10 @@ function SimCupTab({ activeTab }: { activeTab: string }) {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-2">
           <div>
-            <CardTitle className="text-lg">Sim Cup Registrations</CardTitle>
+            <CardTitle className="text-lg">Timeslot Board</CardTitle>
             <CardDescription>
-              {regs.length} registration{regs.length !== 1 ? "s" : ""} received
+              Move players between slots to build your groups. {SLOT_CAPACITY} spots per slot.
+              Lunch break 12–1pm.
             </CardDescription>
           </div>
           <div className="flex gap-2">
@@ -1819,30 +1941,53 @@ function SimCupTab({ activeTab }: { activeTab: string }) {
               <p className="text-muted-foreground">No registrations yet.</p>
             </div>
           ) : (
-            <div className="space-y-2">
-              {regs.map((r) => (
-                <div
-                  key={r.id}
-                  className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card text-sm"
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium text-foreground">{r.name}</span>
-                      <Badge variant="secondary">{r.shirt_size}</Badge>
-                      <span className="text-xs text-muted-foreground">
-                        {format(new Date(r.created_at), "MMM d, h:mm a")}
-                      </span>
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                {TIMESLOTS.map((slot) => {
+                  const players = regs.filter((r) => r.assigned_timeslot === slot);
+                  const full = players.length >= SLOT_CAPACITY;
+                  return (
+                    <div key={slot} className="rounded-lg border border-border p-3 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <p className="font-semibold text-foreground">{slot}</p>
+                        <Badge variant={full ? "default" : "outline"}>
+                          {players.length}/{SLOT_CAPACITY}
+                          {full ? " · Full" : ""}
+                        </Badge>
+                      </div>
+                      <Progress
+                        value={Math.min((players.length / SLOT_CAPACITY) * 100, 100)}
+                        className="h-1.5"
+                      />
+                      {players.length === 0 ? (
+                        <p className="text-xs text-muted-foreground py-4 text-center">
+                          No players in this slot yet.
+                        </p>
+                      ) : (
+                        players.map((r) => <PlayerRow key={r.id} r={r} />)
+                      )}
                     </div>
-                    <div className="flex gap-3 mt-1 text-muted-foreground text-xs flex-wrap">
-                      <span>{r.email}</span>
-                      <span>{r.phone}</span>
-                    </div>
-                  </div>
-                  <Button variant="ghost" size="sm" onClick={() => handleDelete(r.id)}>
-                    Remove
-                  </Button>
+                  );
+                })}
+              </div>
+
+              <div className="rounded-lg border border-dashed border-border p-3 space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="font-semibold text-foreground">Unassigned</p>
+                  <Badge variant="outline">{unassigned.length}</Badge>
                 </div>
-              ))}
+                {unassigned.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    Everyone has a timeslot.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                    {unassigned.map((r) => (
+                      <PlayerRow key={r.id} r={r} />
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </CardContent>

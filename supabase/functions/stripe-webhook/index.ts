@@ -667,6 +667,27 @@ serve(async (req) => {
         }
       }
 
+      // ── SIM CUP ENTRY ──
+      const simCupRegistrationId = session.metadata?.sim_cup_registration_id;
+      if (purpose === "sim_cup" && simCupRegistrationId) {
+        const { error: simCupError } = await supabaseAdmin
+          .from("sim_cup_registrations")
+          .update({
+            payment_status: "paid",
+            payment_method: "card",
+            amount_paid: (session.amount_total ?? 9900) / 100,
+            paid_at: new Date().toISOString(),
+            stripe_session_id: session.id,
+          })
+          .eq("id", simCupRegistrationId);
+
+        if (simCupError) {
+          logStep("Error marking Sim Cup entry paid", { error: simCupError.message });
+        } else {
+          logStep("Sim Cup entry marked paid", { simCupRegistrationId });
+        }
+      }
+
       // ── BOOKING PAYMENTS ──
       if (bookingId) {
         const { error: updateError } = await supabaseAdmin
