@@ -1,0 +1,1 @@
+ALTER TABLE public.bay_devices ADD COLUMN IF NOT EXISTS cf_stream_key text;

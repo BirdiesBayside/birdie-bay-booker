@@ -359,6 +359,7 @@ export type Database = {
         Row: {
           app_version: string | null
           bay_id: string
+          cf_stream_key: string | null
           control_mode: string
           created_at: string
           id: string
@@ -372,6 +373,7 @@ export type Database = {
         Insert: {
           app_version?: string | null
           bay_id: string
+          cf_stream_key?: string | null
           control_mode?: string
           created_at?: string
           id?: string
@@ -385,6 +387,7 @@ export type Database = {
         Update: {
           app_version?: string | null
           bay_id?: string
+          cf_stream_key?: string | null
           control_mode?: string
           created_at?: string
           id?: string
