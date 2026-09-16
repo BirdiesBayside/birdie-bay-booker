@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 interface LiveBay {
   bay_number: number;
   bay_name: string | null;
-  playback_id: string;
+  playback_id: string | null;
   is_online: boolean | null;
   is_live: boolean;
   live_uid: string | null;
@@ -164,11 +164,28 @@ const SimCupLive = () => {
     return () => clearInterval(id);
   }, [load]);
 
+  const displayedBays = useMemo(() => {
+    const byNumber = new Map(bays.map((bay) => [bay.bay_number, bay]));
+    return Array.from({ length: 6 }, (_, index): LiveBay => {
+      const bayNumber = index + 1;
+      return byNumber.get(bayNumber) ?? {
+        bay_number: bayNumber,
+        bay_name: `Bay ${bayNumber}`,
+        playback_id: null,
+        is_online: false,
+        is_live: false,
+        live_uid: null,
+        thumbnail: null,
+        player_name: null,
+      };
+    });
+  }, [bays]);
+
   const active = useMemo(
-    () => bays.find((b) => b.bay_number === selectedBay) ?? null,
-    [bays, selectedBay],
+    () => displayedBays.find((b) => b.bay_number === selectedBay) ?? null,
+    [displayedBays, selectedBay],
   );
-  const anyLive = bays.some((b) => b.is_live);
+  const anyLive = displayedBays.some((b) => b.is_live);
   const previewSample = replays[0]?.preview ?? null;
 
   return (
@@ -237,7 +254,7 @@ const SimCupLive = () => {
 
             {/* bay hopper */}
             <div className="mt-4 flex flex-wrap justify-center gap-2">
-              {bays.map((b) => (
+              {displayedBays.map((b) => (
                 <button
                   key={b.bay_number}
                   type="button"
@@ -266,12 +283,8 @@ const SimCupLive = () => {
             <div className="flex justify-center py-16">
               <Loader2 className="h-6 w-6 animate-spin text-primary-foreground/60" />
             </div>
-          ) : bays.length === 0 ? (
-            <p className="py-12 text-center text-primary-foreground/70">
-              Streams go live on the day of the Sim Cup. Check back then.
-            </p>
           ) : (
-            <VenueModel bays={bays} onSelect={setSelectedBay} />
+            <VenueModel bays={displayedBays} onSelect={setSelectedBay} />
           )}
         </section>
 
