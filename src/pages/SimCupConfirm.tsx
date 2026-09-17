@@ -18,7 +18,7 @@ import Seo from "@/components/Seo";
 import simCupLogoAsset from "@/assets/sim-cup-logo.png.asset.json";
 
 const TIMESLOTS = ["8-11am", "11am-2pm", "2-5pm"];
-const FULLY_BOOKED_SLOTS = new Set(["8-11am"]);
+const FULLY_BOOKED_SLOTS = new Set(["8-11am", "11am-2pm"]);
 
 const schema = z.object({
   name: z.string().trim().min(2, "Please enter your full name").max(100),
