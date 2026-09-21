@@ -107,28 +107,16 @@ const queryClient = new QueryClient({
 const isElectron = typeof window !== 'undefined' && (window as any).electronAPI?.isElectron;
 const Router = isElectron ? HashRouter : BrowserRouter;
 
-const ROUTE_RELOAD_KEY = "bb:route-load-recovery";
-const ROUTE_LOAD_TIMEOUT_MS = 8000;
+const ROUTE_LOAD_TIMEOUT_MS = 12000;
 
-// A stale browser/CDN page file can otherwise leave the brand loader spinning forever.
-// Reload once to pick up the current deployment, then offer a manual retry if needed.
+// Never auto-reload here: when a page chunk is merely downloading slowly on a mobile
+// connection, reloading throws the partial download away and restarts it, turning one
+// slow load into a loop. Offer a manual retry instead.
 const PageLoader = () => {
   const [takingLonger, setTakingLonger] = useState(false);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      const route = `${window.location.pathname}${window.location.search}`;
-      const previous = sessionStorage.getItem(ROUTE_RELOAD_KEY);
-
-      if (previous !== route) {
-        sessionStorage.setItem(ROUTE_RELOAD_KEY, route);
-        window.location.reload();
-        return;
-      }
-
-      setTakingLonger(true);
-    }, ROUTE_LOAD_TIMEOUT_MS);
-
+    const timer = window.setTimeout(() => setTakingLonger(true), ROUTE_LOAD_TIMEOUT_MS);
     return () => window.clearTimeout(timer);
   }, []);
 
@@ -138,14 +126,7 @@ const PageLoader = () => {
       {takingLonger && (
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground">This page is taking longer than expected.</p>
-          <Button
-            type="button"
-            variant="link"
-            onClick={() => {
-              sessionStorage.removeItem(ROUTE_RELOAD_KEY);
-              window.location.reload();
-            }}
-          >
+          <Button type="button" variant="link" onClick={() => window.location.reload()}>
             Try again
           </Button>
         </div>
@@ -153,6 +134,7 @@ const PageLoader = () => {
     </div>
   );
 };
+
 
 
 // Deep link handler component - handles birdiesbayside:// URLs

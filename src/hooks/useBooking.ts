@@ -178,22 +178,28 @@ export function useBooking() {
     staleTime: STALE_TIMES.STATIC,
   });
 
-  // User data - balance-critical, always revalidated on mount so admin-added
-  // credit shows up immediately in an already-open session.
+  // User data - balance-critical, but cached briefly so revisiting the booking page inside
+  // a session doesn't re-run two chained round trips (auth.getUser + profile select).
+  // Credit/membership changes invalidate this key directly, so admin-added credit still
+  // shows up immediately.
   const { data: userProfile, refetch: refetchUserProfile } = useQuery({
     queryKey: QUERY_KEYS.USER_PROFILE(),
     queryFn: fetchUserProfile,
-    staleTime: 0,
-    refetchOnMount: "always",
+    staleTime: 60 * 1000,
   });
 
 
-  // Saved card - cached for 5 minutes
+
+  // Saved card - cached for 5 minutes. This is a display-only lookup (the card is
+  // re-validated server-side at charge time), so it must never gate the booking UI and
+  // must not retry: a slow Stripe round trip used to hold up the whole page.
   const { data: savedCard, isLoading: isLoadingSavedCard, refetch: refetchSavedCard } = useQuery({
     queryKey: QUERY_KEYS.SAVED_CARD,
     queryFn: fetchSavedCard,
     staleTime: STALE_TIMES.SEMI_STATIC,
+    retry: false,
   });
+
 
   // Derived values from user profile
   const userMembershipTier = userProfile?.membershipTier || "visitor";

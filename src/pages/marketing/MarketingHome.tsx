@@ -1,4 +1,6 @@
+import { useEffect, useState } from "react";
 import Seo from "@/components/Seo";
+
 import { Link } from "react-router-dom";
 import MarketingLayout from "@/components/marketing/MarketingLayout";
 import { Check, Clock, DollarSign, Trophy, Target, ArrowRight, BarChart3, Crosshair, TrendingUp, Activity, Gauge } from "lucide-react";
