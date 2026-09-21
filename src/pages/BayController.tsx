@@ -549,8 +549,7 @@ export default function BayController() {
         const shouldStream = Boolean(
           settings?.sim_cup_live_enabled &&
           dev?.stream_enabled &&
-          dev?.cf_stream_key &&
-          activeBookingRef.current,
+          dev?.cf_stream_key,
         );
 
         if (shouldStream && !streamingRef.current) {
