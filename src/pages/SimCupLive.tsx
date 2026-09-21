@@ -244,7 +244,7 @@ const SimCupLive = () => {
               {active.is_live && active.live_uid ? (
                 <iframe
                   key={active.live_uid}
-                  src={iframeUrlFrom(previewSample, active.live_uid)}
+                  src={iframeUrlFrom(active.thumbnail ?? previewSample, active.live_uid)}
                   title={`Bay ${active.bay_number} live stream`}
                   className="aspect-[9/16] w-full"
                   allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
