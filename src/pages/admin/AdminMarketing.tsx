@@ -1758,7 +1758,104 @@ function SimCupTab({ activeTab }: { activeTab: string }) {
   };
 
   const moveToSlot = (id: string, slot: string) =>
-    patchReg(id, { assigned_timeslot: slot === "unassigned" ? null : slot });
+    patchReg(id, {
+      assigned_timeslot: slot === "unassigned" ? null : slot,
+      // Teams belong to a slot — moving slots clears the team.
+      team_number: null,
+      team_name: null,
+    });
+
+  const setTeam = (r: SimCupRegistration, value: string) => {
+    if (value === "none") {
+      patchReg(r.id, { team_number: null, team_name: null });
+      return;
+    }
+    const teamNumber = Number(value);
+    // Inherit the existing name of that team, if any.
+    const existingName =
+      regs.find((x) => x.team_number === teamNumber && x.team_name)?.team_name ?? null;
+    patchReg(r.id, { team_number: teamNumber, team_name: existingName });
+  };
+
+  const renameTeam = async (teamNumber: number, name: string) => {
+    const value = name.trim() || null;
+    setRegs((prev) =>
+      prev.map((r) => (r.team_number === teamNumber ? { ...r, team_name: value } : r))
+    );
+    const { error } = await supabase
+      .from("sim_cup_registrations")
+      .update({ team_name: value } as never)
+      .eq("team_number", teamNumber);
+    if (error) {
+      toast({ title: "Team name not saved", description: error.message, variant: "destructive" });
+      fetchRegs();
+    }
+  };
+
+  const setHandicap = (r: SimCupRegistration, raw: string) => {
+    const trimmed = raw.trim();
+    if (trimmed === "") {
+      patchReg(r.id, { handicap: null, handicap_source: null });
+      return;
+    }
+    const value = Number(trimmed);
+    if (Number.isNaN(value)) return;
+    patchReg(r.id, { handicap: value, handicap_source: "manual" });
+  };
+
+  const pullHandicaps = async () => {
+    setIsPulling(true);
+    try {
+      const [{ data: members, error: mErr }, { data: tourMembers, error: tErr }] = await Promise.all([
+        supabase.from("sgt_members").select("user_id, user_email"),
+        supabase
+          .from("sgt_tour_members")
+          .select("user_id, tour_id, hcp_index, custom_hcp")
+          .order("tour_id", { ascending: false }),
+      ]);
+      if (mErr || tErr) throw new Error(mErr?.message || tErr?.message);
+
+      // Most recent tour row per player wins.
+      const hcpByUser = new Map<number, number>();
+      for (const tm of tourMembers ?? []) {
+        if (hcpByUser.has(tm.user_id)) continue;
+        const hcp = tm.custom_hcp ?? tm.hcp_index;
+        if (hcp !== null && hcp !== undefined) hcpByUser.set(tm.user_id, Number(hcp));
+      }
+      const hcpByEmail = new Map<string, number>();
+      for (const m of members ?? []) {
+        const hcp = hcpByUser.get(m.user_id);
+        if (m.user_email && hcp !== undefined) {
+          hcpByEmail.set(m.user_email.trim().toLowerCase(), hcp);
+        }
+      }
+
+      let matched = 0;
+      for (const r of regs) {
+        if (r.handicap_source === "manual") continue; // never overwrite hand-entered values
+        const hcp = hcpByEmail.get(r.email.trim().toLowerCase());
+        if (hcp === undefined || hcp === r.handicap) continue;
+        await patchReg(r.id, { handicap: hcp, handicap_source: "league" });
+        matched++;
+      }
+
+      toast({
+        title: matched > 0 ? `${matched} handicap${matched === 1 ? "" : "s"} updated` : "No new matches",
+        description:
+          matched > 0
+            ? "Pulled from the league. Players without a match can be entered manually."
+            : "Nobody new matched a league member by email.",
+      });
+    } catch (err) {
+      toast({
+        title: "Could not pull handicaps",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "destructive",
+      });
+    } finally {
+      setIsPulling(false);
+    }
+  };
 
   const togglePaid = (r: SimCupRegistration) =>
     r.payment_status === "paid"
@@ -1785,15 +1882,39 @@ function SimCupTab({ activeTab }: { activeTab: string }) {
   };
 
   const exportCsv = () => {
+    const sorted = [...regs].sort((a, b) => {
+      const slotA = a.assigned_timeslot ? TIMESLOTS.indexOf(a.assigned_timeslot) : 99;
+      const slotB = b.assigned_timeslot ? TIMESLOTS.indexOf(b.assigned_timeslot) : 99;
+      if (slotA !== slotB) return slotA - slotB;
+      return (a.team_number ?? 99) - (b.team_number ?? 99);
+    });
     const rows = [
-      ["Name", "Email", "Phone", "Shirt Size", "Preferred", "Assigned", "Paid", "Method", "Registered"],
-      ...regs.map((r) => [
+      [
+        "Name",
+        "Email",
+        "Phone",
+        "Shirt Size",
+        "Preferred",
+        "Assigned",
+        "Team Number",
+        "Team Name",
+        "Handicap",
+        "Handicap Source",
+        "Paid",
+        "Method",
+        "Registered",
+      ],
+      ...sorted.map((r) => [
         r.name,
         r.email,
         r.phone ?? "",
         r.shirt_size ?? "",
         r.preferred_timeslot ?? "",
         r.assigned_timeslot ?? "",
+        r.team_number ?? "",
+        r.team_name ?? "",
+        r.handicap ?? "",
+        r.handicap_source === "league" ? "League" : r.handicap_source === "manual" ? "Manual" : "",
         r.payment_status === "paid" ? "Yes" : "No",
         r.payment_method ?? "",
         format(new Date(r.created_at), "yyyy-MM-dd HH:mm"),
