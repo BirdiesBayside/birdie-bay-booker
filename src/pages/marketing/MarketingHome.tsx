@@ -35,21 +35,36 @@ const proteePoints = [
 ];
 
 const MarketingHome = () => {
+  // The hero video is ~5MB. The poster image shows instantly and the video only starts
+  // downloading once the page is interactive, so it never competes with the app bundle.
+  const [heroVideoSrc, setHeroVideoSrc] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    const start = () => setHeroVideoSrc(heroVideo.url);
+    if (typeof window.requestIdleCallback === "function") {
+      const id = window.requestIdleCallback(start, { timeout: 2000 });
+      return () => window.cancelIdleCallback?.(id);
+    }
+    const timer = window.setTimeout(start, 600);
+    return () => window.clearTimeout(timer);
+  }, []);
+
   return (
     <MarketingLayout>
     <Seo title={"Birdies Bayside | Indoor Golf in Redland Bay"} description={"Premium indoor golf in Redland Bay. Book one of six automated simulator bays, play 2,300+ world courses, join the league or visit the Birdies Bar."} path="/" />
       {/* HERO */}
       <section className="relative h-[88vh] min-h-[560px] flex items-center overflow-hidden">
         <video
-          src={heroVideo.url}
+          src={heroVideoSrc}
           poster={heroPoster.url}
           autoPlay
           muted
           loop
           playsInline
-          preload="auto"
+          preload="none"
           className="absolute inset-0 w-full h-full object-cover"
         />
+
         <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/40 to-transparent" />
         <div className="relative container mx-auto px-4 max-w-5xl">
           <p className="text-accent font-display tracking-[0.25em] uppercase text-sm mb-4">
