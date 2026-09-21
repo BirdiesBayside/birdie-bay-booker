@@ -10,6 +10,7 @@ import { usePushNotifications } from "@/hooks/usePushNotifications";
 import ScrollToTop from "@/components/ScrollToTop";
 import { TermsGate } from "@/components/legal/TermsGate";
 import BrandLoader from "@/components/BrandLoader";
+import { Button } from "@/components/ui/button";
 
 
 // Lazy load all pages for code splitting
@@ -137,16 +138,16 @@ const PageLoader = () => {
       {takingLonger && (
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground">This page is taking longer than expected.</p>
-          <button
+          <Button
             type="button"
-            className="text-sm font-semibold text-primary underline underline-offset-4"
+            variant="link"
             onClick={() => {
               sessionStorage.removeItem(ROUTE_RELOAD_KEY);
               window.location.reload();
             }}
           >
             Try again
-          </button>
+          </Button>
         </div>
       )}
     </div>
