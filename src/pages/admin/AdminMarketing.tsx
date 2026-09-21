@@ -2036,7 +2036,6 @@ function SimCupTab({ activeTab }: { activeTab: string }) {
       <div className="rounded-lg border border-border/70 bg-muted/30 p-2 space-y-2">
         <div className="flex items-center gap-2">
           <Badge variant="secondary" className="whitespace-nowrap">Team {teamNumber}</Badge>
-          <TeamNameInput teamNumber={teamNumber} name={players[0]?.team_name ?? ""} onCommit={renameTeam} />
           <Badge variant={players.length === 2 ? "outline" : "destructive"} className="whitespace-nowrap">
             {players.length}/2
           </Badge>
@@ -2238,27 +2237,3 @@ function HandicapInput({
   );
 }
 
-function TeamNameInput({
-  teamNumber,
-  name,
-  onCommit,
-}: {
-  teamNumber: number;
-  name: string;
-  onCommit: (teamNumber: number, value: string) => void;
-}) {
-  const [value, setValue] = useState(name);
-  return (
-    <Input
-      value={value}
-      onChange={(e) => setValue(e.target.value)}
-      onBlur={() => {
-        if (value.trim() === name.trim()) return;
-        onCommit(teamNumber, value);
-      }}
-      placeholder="Team name"
-      maxLength={60}
-      className="h-8 text-xs flex-1"
-    />
-  );
-}
