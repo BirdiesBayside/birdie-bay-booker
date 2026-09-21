@@ -1728,6 +1728,7 @@ function SimCupTab({ activeTab }: { activeTab: string }) {
   const { toast } = useToast();
   const [regs, setRegs] = useState<SimCupRegistration[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isPulling, setIsPulling] = useState(false);
 
   useEffect(() => {
     if (activeTab === "sim-cup") fetchRegs();
