@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -10,6 +10,7 @@ import { usePushNotifications } from "@/hooks/usePushNotifications";
 import ScrollToTop from "@/components/ScrollToTop";
 import { TermsGate } from "@/components/legal/TermsGate";
 import BrandLoader from "@/components/BrandLoader";
+import { Button } from "@/components/ui/button";
 
 
 // Lazy load all pages for code splitting
@@ -106,8 +107,52 @@ const queryClient = new QueryClient({
 const isElectron = typeof window !== 'undefined' && (window as any).electronAPI?.isElectron;
 const Router = isElectron ? HashRouter : BrowserRouter;
 
-// Loading fallback component
-const PageLoader = () => <BrandLoader fullScreen size={72} />;
+const ROUTE_RELOAD_KEY = "bb:route-load-recovery";
+const ROUTE_LOAD_TIMEOUT_MS = 8000;
+
+// A stale browser/CDN page file can otherwise leave the brand loader spinning forever.
+// Reload once to pick up the current deployment, then offer a manual retry if needed.
+const PageLoader = () => {
+  const [takingLonger, setTakingLonger] = useState(false);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const route = `${window.location.pathname}${window.location.search}`;
+      const previous = sessionStorage.getItem(ROUTE_RELOAD_KEY);
+
+      if (previous !== route) {
+        sessionStorage.setItem(ROUTE_RELOAD_KEY, route);
+        window.location.reload();
+        return;
+      }
+
+      setTakingLonger(true);
+    }, ROUTE_LOAD_TIMEOUT_MS);
+
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center gap-6 bg-background px-6 text-center">
+      <BrandLoader size={72} />
+      {takingLonger && (
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground">This page is taking longer than expected.</p>
+          <Button
+            type="button"
+            variant="link"
+            onClick={() => {
+              sessionStorage.removeItem(ROUTE_RELOAD_KEY);
+              window.location.reload();
+            }}
+          >
+            Try again
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+};
 
 
 // Deep link handler component - handles birdiesbayside:// URLs

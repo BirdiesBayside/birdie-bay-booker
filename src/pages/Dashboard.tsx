@@ -49,6 +49,10 @@ const Dashboard = () => {
   useEffect(() => {
     let cancelled = false;
 
+    const loadingTimeout = window.setTimeout(() => {
+      if (!cancelled) setAccountAccessLoading(false);
+    }, 8000);
+
     const fetchAccountAccess = async () => {
       if (!user) {
         setMembershipTier("visitor");
@@ -101,6 +105,7 @@ const Dashboard = () => {
 
     return () => {
       cancelled = true;
+      window.clearTimeout(loadingTimeout);
     };
   }, [user]);
 
