@@ -2108,13 +2108,22 @@ function SimCupTab({ activeTab }: { activeTab: string }) {
           <div>
             <CardTitle className="text-lg">Timeslot Board</CardTitle>
             <CardDescription>
-              Move players between slots to build your groups. {SLOT_CAPACITY} spots per slot.
-              Lunch break 12–1pm.
+              Move players between slots and pair them into teams of two. {SLOT_CAPACITY} spots
+              ({TEAMS_PER_SLOT} teams) per slot. Lunch break 12–1pm.
             </CardDescription>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={fetchRegs} disabled={isLoading}>
               Refresh
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={pullHandicaps}
+              disabled={isPulling || regs.length === 0}
+            >
+              {isPulling && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+              Pull handicaps from league
             </Button>
             <Button variant="outline" size="sm" onClick={exportCsv} disabled={regs.length === 0}>
               <Download className="h-4 w-4 mr-1" />
