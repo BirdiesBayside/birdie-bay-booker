@@ -37,8 +37,12 @@ export const usePushNotifications = () => {
     }
   };
 
-  // Subscribe to auth state changes
+  // Subscribe to auth state changes.
+  // Only needed on native, where a push token has to be tied to a user. On web this was a
+  // second, duplicate auth listener + getSession() call racing useAuth at every app launch.
   useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         console.log('[PUSH] Auth state changed:', event, session?.user?.id);
@@ -54,6 +58,7 @@ export const usePushNotifications = () => {
 
     return () => subscription.unsubscribe();
   }, []);
+
 
   // Initialize push notifications on native platform
   useEffect(() => {

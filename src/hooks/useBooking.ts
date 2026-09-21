@@ -133,20 +133,32 @@ const fetchUserProfile = async () => {
   };
 };
 
+const SAVED_CARD_TIMEOUT_MS = 6000;
+
 const fetchSavedCard = async (): Promise<SavedCard | null> => {
-  const { data, error } = await supabase.functions.invoke("get-payment-methods");
-  if (error || !data?.paymentMethods?.length) return null;
-  
-  const card = data.paymentMethods.find((pm: any) => pm.type === "card");
-  if (!card) return null;
-  
-  return {
-    brand: card.brand,
-    last4: card.last4,
-    expMonth: card.expMonth,
-    expYear: card.expYear,
-  };
+  // Display-only lookup: never let a slow Stripe round trip hold the booking page.
+  const timeout = new Promise<null>((resolve) =>
+    setTimeout(() => resolve(null), SAVED_CARD_TIMEOUT_MS)
+  );
+
+  const lookup = (async (): Promise<SavedCard | null> => {
+    const { data, error } = await supabase.functions.invoke("get-payment-methods");
+    if (error || !data?.paymentMethods?.length) return null;
+
+    const card = data.paymentMethods.find((pm: any) => pm.type === "card");
+    if (!card) return null;
+
+    return {
+      brand: card.brand,
+      last4: card.last4,
+      expMonth: card.expMonth,
+      expYear: card.expYear,
+    };
+  })();
+
+  return Promise.race([lookup, timeout]);
 };
+
 
 export function useBooking() {
   const queryClient = useQueryClient();
