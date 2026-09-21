@@ -1706,7 +1706,6 @@ interface SimCupRegistration {
   amount_paid: number | null;
   paid_at: string | null;
   team_number: number | null;
-  team_name: string | null;
   handicap: number | null;
   handicap_source: string | null;
 }
@@ -1763,34 +1762,14 @@ function SimCupTab({ activeTab }: { activeTab: string }) {
       assigned_timeslot: slot === "unassigned" ? null : slot,
       // Teams belong to a slot — moving slots clears the team.
       team_number: null,
-      team_name: null,
     });
 
   const setTeam = (r: SimCupRegistration, value: string) => {
     if (value === "none") {
-      patchReg(r.id, { team_number: null, team_name: null });
+      patchReg(r.id, { team_number: null });
       return;
     }
-    const teamNumber = Number(value);
-    // Inherit the existing name of that team, if any.
-    const existingName =
-      regs.find((x) => x.team_number === teamNumber && x.team_name)?.team_name ?? null;
-    patchReg(r.id, { team_number: teamNumber, team_name: existingName });
-  };
-
-  const renameTeam = async (teamNumber: number, name: string) => {
-    const value = name.trim() || null;
-    setRegs((prev) =>
-      prev.map((r) => (r.team_number === teamNumber ? { ...r, team_name: value } : r))
-    );
-    const { error } = await supabase
-      .from("sim_cup_registrations")
-      .update({ team_name: value } as never)
-      .eq("team_number", teamNumber);
-    if (error) {
-      toast({ title: "Team name not saved", description: error.message, variant: "destructive" });
-      fetchRegs();
-    }
+    patchReg(r.id, { team_number: Number(value) });
   };
 
   const setHandicap = (r: SimCupRegistration, raw: string) => {
@@ -1898,7 +1877,6 @@ function SimCupTab({ activeTab }: { activeTab: string }) {
         "Preferred",
         "Assigned",
         "Team Number",
-        "Team Name",
         "Handicap",
         "Handicap Source",
         "Paid",
@@ -1913,7 +1891,6 @@ function SimCupTab({ activeTab }: { activeTab: string }) {
         r.preferred_timeslot ?? "",
         r.assigned_timeslot ?? "",
         r.team_number ?? "",
-        r.team_name ?? "",
         r.handicap ?? "",
         r.handicap_source === "league" ? "League" : r.handicap_source === "manual" ? "Manual" : "",
         r.payment_status === "paid" ? "Yes" : "No",
@@ -2036,7 +2013,6 @@ function SimCupTab({ activeTab }: { activeTab: string }) {
       <div className="rounded-lg border border-border/70 bg-muted/30 p-2 space-y-2">
         <div className="flex items-center gap-2">
           <Badge variant="secondary" className="whitespace-nowrap">Team {teamNumber}</Badge>
-          <TeamNameInput teamNumber={teamNumber} name={players[0]?.team_name ?? ""} onCommit={renameTeam} />
           <Badge variant={players.length === 2 ? "outline" : "destructive"} className="whitespace-nowrap">
             {players.length}/2
           </Badge>
@@ -2238,27 +2214,3 @@ function HandicapInput({
   );
 }
 
-function TeamNameInput({
-  teamNumber,
-  name,
-  onCommit,
-}: {
-  teamNumber: number;
-  name: string;
-  onCommit: (teamNumber: number, value: string) => void;
-}) {
-  const [value, setValue] = useState(name);
-  return (
-    <Input
-      value={value}
-      onChange={(e) => setValue(e.target.value)}
-      onBlur={() => {
-        if (value.trim() === name.trim()) return;
-        onCommit(teamNumber, value);
-      }}
-      placeholder="Team name"
-      maxLength={60}
-      className="h-8 text-xs flex-1"
-    />
-  );
-}
