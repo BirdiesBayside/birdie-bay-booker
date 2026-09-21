@@ -39,7 +39,7 @@ function iframeUrlFrom(previewOrUid: string | null | undefined, uid: string) {
       /* fall through */
     }
   }
-  return `https://customer-9v2ogtnrxaf2pk8p.cloudflarestream.com/${uid}/iframe?autoplay=true&muted=true`;
+  return `https://customer-1mu5cmew76e8fiog.cloudflarestream.com/${uid}/iframe?autoplay=true&muted=true`;
 }
 
 interface BayStallProps {
