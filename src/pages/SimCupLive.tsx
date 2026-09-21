@@ -39,7 +39,7 @@ function iframeUrlFrom(previewOrUid: string | null | undefined, uid: string) {
       /* fall through */
     }
   }
-  return `https://customer-9v2ogtnrxaf2pk8p.cloudflarestream.com/${uid}/iframe?autoplay=true&muted=true`;
+  return `https://customer-1mu5cmew76e8fiog.cloudflarestream.com/${uid}/iframe?autoplay=true&muted=true`;
 }
 
 interface BayStallProps {
@@ -244,7 +244,7 @@ const SimCupLive = () => {
               {active.is_live && active.live_uid ? (
                 <iframe
                   key={active.live_uid}
-                  src={iframeUrlFrom(previewSample, active.live_uid)}
+                  src={iframeUrlFrom(active.thumbnail ?? previewSample, active.live_uid)}
                   title={`Bay ${active.bay_number} live stream`}
                   className="aspect-[9/16] w-full"
                   allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
