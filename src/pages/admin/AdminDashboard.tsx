@@ -253,33 +253,21 @@ export default function AdminDashboard() {
     const bookedHours = occupancyData?.reduce((sum, b) => sum + b.duration_hours, 0) || 0;
     const occupancy = totalHoursAvailable > 0 ? Math.round((bookedHours / totalHoursAvailable) * 100) : 0;
 
-    // Fetch member count based on tier filter
-    let membersQuery = supabase
-      .from('profiles')
-      .select('membership_tier')
-      .neq('membership_tier', 'visitor');
-    
-    if (memberTierFilter !== "all") {
-      membersQuery = supabase
-        .from('profiles')
-        .select('membership_tier')
-        .eq('membership_tier', memberTierFilter);
-    }
-    
-    const { data: members } = await membersQuery;
-    const memberCount = members?.length || 0;
-
-    // Calculate member revenue based on filter
+    // Fetch members once (all non-visitor tiers) and derive count + revenue
     const weeklyFees: Record<string, number> = {
       weekday: 15,
       birdie: 27,
       eagle: 35,
     };
-    
+
     const { data: allMembers } = await supabase
       .from('profiles')
       .select('membership_tier')
       .neq('membership_tier', 'visitor');
+
+    const memberCount = memberTierFilter === "all"
+      ? (allMembers?.length || 0)
+      : (allMembers || []).filter(m => m.membership_tier === memberTierFilter).length;
 
     const weeklyTotal = allMembers?.reduce((sum, m) => {
       const fee = weeklyFees[m.membership_tier as string] || 0;
@@ -343,14 +331,16 @@ export default function AdminDashboard() {
     }
   }, [isAdmin, bookingsFilter, revenueFilter, occupancyFilter, memberTierFilter, memberRevenueFilter]);
 
-  // Auto-refresh every 30 seconds (silent refresh - no loading indicator)
+  // Auto-refresh every 2 minutes (silent refresh), paused while the tab is hidden
   useEffect(() => {
     if (!isAdmin) return;
-    
+
     const interval = setInterval(() => {
-      fetchStats(false);
-    }, 30000);
-    
+      if (document.visibilityState === 'visible') {
+        fetchStats(false);
+      }
+    }, 120000);
+
     return () => clearInterval(interval);
   }, [isAdmin, bookingsFilter, revenueFilter, occupancyFilter, memberTierFilter, memberRevenueFilter]);
 
