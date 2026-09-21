@@ -2156,7 +2156,25 @@ function SimCupTab({ activeTab }: { activeTab: string }) {
                           No players in this slot yet.
                         </p>
                       ) : (
-                        players.map((r) => <PlayerRow key={r.id} r={r} />)
+                        <div className="space-y-3">
+                          {teamsForSlot(slot).map((n) => (
+                            <TeamBlock
+                              key={n}
+                              teamNumber={n}
+                              players={players.filter((p) => p.team_number === n)}
+                            />
+                          ))}
+                          {players.filter((p) => !p.team_number).length > 0 && (
+                            <div className="rounded-lg border border-dashed border-border p-2 space-y-2">
+                              <p className="text-xs font-medium text-muted-foreground">No team yet</p>
+                              {players
+                                .filter((p) => !p.team_number)
+                                .map((r) => (
+                                  <PlayerRow key={r.id} r={r} />
+                                ))}
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
                   );
@@ -2185,5 +2203,53 @@ function SimCupTab({ activeTab }: { activeTab: string }) {
         </CardContent>
       </Card>
     </TabsContent>
+  );
+}
+
+function HandicapInput({
+  reg,
+  onCommit,
+}: {
+  reg: SimCupRegistration;
+  onCommit: (r: SimCupRegistration, value: string) => void;
+}) {
+  const [value, setValue] = useState(reg.handicap === null ? "" : String(reg.handicap));
+  return (
+    <Input
+      value={value}
+      onChange={(e) => setValue(e.target.value)}
+      onBlur={() => {
+        if (value === (reg.handicap === null ? "" : String(reg.handicap))) return;
+        onCommit(reg, value);
+      }}
+      inputMode="decimal"
+      placeholder="HCP"
+      className="h-8 w-16 text-xs"
+    />
+  );
+}
+
+function TeamNameInput({
+  teamNumber,
+  name,
+  onCommit,
+}: {
+  teamNumber: number;
+  name: string;
+  onCommit: (teamNumber: number, value: string) => void;
+}) {
+  const [value, setValue] = useState(name);
+  return (
+    <Input
+      value={value}
+      onChange={(e) => setValue(e.target.value)}
+      onBlur={() => {
+        if (value.trim() === name.trim()) return;
+        onCommit(teamNumber, value);
+      }}
+      placeholder="Team name"
+      maxLength={60}
+      className="h-8 text-xs flex-1"
+    />
   );
 }
