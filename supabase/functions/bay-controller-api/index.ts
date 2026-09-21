@@ -855,14 +855,8 @@ serve(async (req) => {
           .select("control_mode")
           .single();
 
-        // Get timezone from system settings
-        const { data: settings } = await supabase
-          .from("system_settings")
-          .select("timezone")
-          .eq("id", "global")
-          .single();
-        
-        const timezone = settings?.timezone || 'Australia/Sydney';
+        // Get timezone (cached per warm isolate)
+        const timezone = await getCachedTimezone(supabase);
 
         // Get current date and time in configured timezone
         const now = new Date();
