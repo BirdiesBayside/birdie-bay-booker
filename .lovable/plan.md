@@ -1,32 +1,28 @@
-# Bay 6 plug-off blind spot — hardening
+# Sim Cup: Teams of Two + Handicaps
 
-## What happened (confirmed from logs)
-- IP fix worked: plug ON at 8:57pm succeeded 2/2 (both 192.168.4.76 and .107).
-- At 10:00:00pm Brisbane the controller decided plug_off after the final booking ended; process check passed.
-- No plug-off result (success or failure) was ever logged, and bay 6 has logged nothing since (~9h silence).
+Build two-player teams into the Sim Cup admin board, pull handicaps from the league where possible, allow manual entry, and include it all in the CSV export.
 
-## Goal
-Make plug-off outcomes and controller silence visible, so a misfire can never go unnoticed again.
+## How it will work
 
-## Changes
+**Teams**
+- Each timeslot holds 6 players = 3 teams of two.
+- Teams are numbered across the whole day: Team 1–3 in the 8-11am slot, Team 4–6 in 11am-2pm, Team 7–9 in 2-5pm. Each team also gets an optional team name.
+- On each player card in the Timeslot Board there's a "Team" dropdown listing only the teams belonging to that player's slot, plus "No team".
+- Changing a player's slot clears their team, so nobody ends up in a team from another slot.
+- Each slot shows its three teams grouped together with the team name editable inline, a warning badge when a team has fewer or more than 2 players, and the team's combined handicap.
 
-### 1. Guaranteed plug-off result logging (Bay Controller app)
-- Wrap the plug-off path so a `plug_control_result` (or error) log is always emitted, even if a plug times out or the command throws.
-- Flush logs immediately after plug-off completes (don't rely on the batch queue at end of session).
+**Handicaps**
+- A "Pull handicaps from league" button matches each registrant by email against league members and fills in their handicap (an admin-set custom handicap wins over the synced one, matching how the league already works elsewhere).
+- Anyone without a league match stays blank and can be typed in manually on their card; manual values are flagged so a later pull doesn't overwrite them.
+- Each player card shows the handicap and whether it came from the league or was entered by hand.
 
-### 2. Plug-off retry
-- If a plug fails to respond on plug-off, retry up to 2 times with a short delay; log each attempt and the final outcome.
-- If still failing, log an `error` level entry naming the plug and IP so it shows clearly in Admin → Bay Controller Logs.
-
-### 3. Controller silence indicator (Admin → Bay Control)
-- Show a "last heard from" timestamp per bay based on the latest bay_controller_logs entry (and/or heartbeat if present).
-- Flag any bay idle beyond a threshold (e.g. no logs during open hours while a booking was expected) with a warning badge — no notifications, just visibility in the admin UI.
+**CSV export**
+- Adds columns: Team Number, Team Name, Handicap, Handicap Source — alongside the existing name, email, phone, shirt, slot and payment columns. Rows export sorted by slot then team.
 
 ## Technical notes
-- App side: `src/pages/admin/AdminBayControl.tsx` / BayController plug control path where `logPlugControlResult` is called; ensure the plug-off branch awaits and always logs.
-- Admin side: `AdminBayControl.tsx` / `BayControllerLogs.tsx` — small query for max(created_at) per bay.
-- No database schema changes expected. No changes to plugs, network, or Tapo config — the IP reservation fix stays as the user's manual step.
 
-## Out of scope
-- Reworking the scheduler, state machine, or booking logic.
-- Automatic IP re-discovery of plugs (can be a follow-up if the .76 address moves again).
+- Migration on `sim_cup_registrations`: `team_number` (int, nullable), `team_name` (text, nullable), `handicap` (numeric, nullable), `handicap_source` (text, nullable: `league` | `manual`).
+- Handicap lookup: client query joining `sgt_members` (email, case-insensitive) to `sgt_tour_members`, taking `custom_hcp` when set, otherwise `hcp_index`. Scoped to the current active tour using the existing active-tour selection logic.
+- All edits go through the existing optimistic `patchReg` helper in `SimCupTab` (src/pages/admin/AdminMarketing.tsx); team name edits write to every member of that team.
+- Team constants: `TEAMS_PER_SLOT = 3`, team numbers derived from slot index so numbering stays stable.
+- `exportCsv` extended with the four new columns and the slot/team sort.
