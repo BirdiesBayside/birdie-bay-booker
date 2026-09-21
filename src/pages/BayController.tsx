@@ -513,9 +513,10 @@ export default function BayController() {
   // =====================================================
   // SIM CUP LIVE STREAMING
   // =====================================================
-  // Independent of recording: while the venue-wide "Sim Cup Live" switch is on,
-  // this bay has streaming enabled and a booking is running, OBS streams to the
-  // bay's Cloudflare live input. Scenes/resolution/bitrate are never touched.
+  // Independent of recording and bookings: while the venue-wide "Sim Cup Live"
+  // switch is on and this bay has streaming enabled, OBS streams to the bay's
+  // Cloudflare live input — whether or not a booking is running (Sim Cup bays
+  // are run manually). Scenes/resolution/bitrate are never touched.
   const streamingRef = useRef(false);
   useEffect(() => {
     if (!selectedBay) return;
@@ -549,8 +550,7 @@ export default function BayController() {
         const shouldStream = Boolean(
           settings?.sim_cup_live_enabled &&
           dev?.stream_enabled &&
-          dev?.cf_stream_key &&
-          activeBookingRef.current,
+          dev?.cf_stream_key,
         );
 
         if (shouldStream && !streamingRef.current) {
