@@ -1998,8 +1998,61 @@ function SimCupTab({ activeTab }: { activeTab: string }) {
           Remove
         </Button>
       </div>
+
+      <div className="flex items-center gap-2">
+        <Select
+          value={r.team_number ? String(r.team_number) : "none"}
+          onValueChange={(v) => setTeam(r, v)}
+          disabled={!r.assigned_timeslot}
+        >
+          <SelectTrigger className="h-8 text-xs flex-1">
+            <SelectValue placeholder="No team" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">No team</SelectItem>
+            {teamsForSlot(r.assigned_timeslot ?? "").map((n) => (
+              <SelectItem key={n} value={String(n)}>
+                Team {n}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <HandicapInput reg={r} onCommit={setHandicap} />
+        <Badge variant="outline" className="text-[10px] whitespace-nowrap">
+          {r.handicap_source === "league"
+            ? "League"
+            : r.handicap_source === "manual"
+              ? "Manual"
+              : "No HCP"}
+        </Badge>
+      </div>
     </div>
   );
+
+  const TeamBlock = ({ teamNumber, players }: { teamNumber: number; players: SimCupRegistration[] }) => {
+    const combined = players.reduce((sum, p) => sum + (p.handicap ?? 0), 0);
+    const allHaveHcp = players.length > 0 && players.every((p) => p.handicap !== null);
+    return (
+      <div className="rounded-lg border border-border/70 bg-muted/30 p-2 space-y-2">
+        <div className="flex items-center gap-2">
+          <Badge variant="secondary" className="whitespace-nowrap">Team {teamNumber}</Badge>
+          <TeamNameInput teamNumber={teamNumber} name={players[0]?.team_name ?? ""} onCommit={renameTeam} />
+          <Badge variant={players.length === 2 ? "outline" : "destructive"} className="whitespace-nowrap">
+            {players.length}/2
+          </Badge>
+        </div>
+        {allHaveHcp && (
+          <p className="text-[11px] text-muted-foreground">Combined handicap: {combined}</p>
+        )}
+        {players.length === 0 ? (
+          <p className="text-xs text-muted-foreground py-2 text-center">Empty team.</p>
+        ) : (
+          players.map((p) => <PlayerRow key={p.id} r={p} />)
+        )}
+      </div>
+    );
+  };
+
 
   return (
     <TabsContent value="sim-cup" className="mt-4 space-y-4" forceMount>
