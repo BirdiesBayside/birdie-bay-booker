@@ -271,7 +271,7 @@ const SimCupLive = () => {
                   }`}
                 >
                   Bay {b.bay_number}
-                  {b.is_live && <span className="ml-2 inline-block h-2 w-2 rounded-full bg-accent" />}
+                  {b.is_live && <span className="ml-2 inline-block h-2 w-2 rounded-full bg-green-500" />}
                 </button>
               ))}
             </div>
