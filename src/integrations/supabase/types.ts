@@ -3364,6 +3364,8 @@ export type Database = {
           assigned_timeslot: string | null
           created_at: string
           email: string
+          handicap: number | null
+          handicap_source: string | null
           id: string
           name: string
           notes: string | null
@@ -3374,12 +3376,16 @@ export type Database = {
           preferred_timeslot: string | null
           shirt_size: string | null
           stripe_session_id: string | null
+          team_name: string | null
+          team_number: number | null
         }
         Insert: {
           amount_paid?: number | null
           assigned_timeslot?: string | null
           created_at?: string
           email: string
+          handicap?: number | null
+          handicap_source?: string | null
           id?: string
           name: string
           notes?: string | null
@@ -3390,12 +3396,16 @@ export type Database = {
           preferred_timeslot?: string | null
           shirt_size?: string | null
           stripe_session_id?: string | null
+          team_name?: string | null
+          team_number?: number | null
         }
         Update: {
           amount_paid?: number | null
           assigned_timeslot?: string | null
           created_at?: string
           email?: string
+          handicap?: number | null
+          handicap_source?: string | null
           id?: string
           name?: string
           notes?: string | null
@@ -3406,6 +3416,8 @@ export type Database = {
           preferred_timeslot?: string | null
           shirt_size?: string | null
           stripe_session_id?: string | null
+          team_name?: string | null
+          team_number?: number | null
         }
         Relationships: []
       }
