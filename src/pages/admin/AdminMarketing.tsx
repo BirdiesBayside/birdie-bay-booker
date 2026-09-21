@@ -2007,8 +2007,6 @@ function SimCupTab({ activeTab }: { activeTab: string }) {
   );
 
   const TeamBlock = ({ teamNumber, players }: { teamNumber: number; players: SimCupRegistration[] }) => {
-    const combined = players.reduce((sum, p) => sum + (p.handicap ?? 0), 0);
-    const allHaveHcp = players.length > 0 && players.every((p) => p.handicap !== null);
     return (
       <div className="rounded-lg border border-border/70 bg-muted/30 p-2 space-y-2">
         <div className="flex items-center gap-2">
@@ -2017,9 +2015,6 @@ function SimCupTab({ activeTab }: { activeTab: string }) {
             {players.length}/2
           </Badge>
         </div>
-        {allHaveHcp && (
-          <p className="text-[11px] text-muted-foreground">Combined handicap: {combined}</p>
-        )}
         {players.length === 0 ? (
           <p className="text-xs text-muted-foreground py-2 text-center">Empty team.</p>
         ) : (
