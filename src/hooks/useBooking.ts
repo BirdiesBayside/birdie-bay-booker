@@ -133,20 +133,32 @@ const fetchUserProfile = async () => {
   };
 };
 
+const SAVED_CARD_TIMEOUT_MS = 6000;
+
 const fetchSavedCard = async (): Promise<SavedCard | null> => {
-  const { data, error } = await supabase.functions.invoke("get-payment-methods");
-  if (error || !data?.paymentMethods?.length) return null;
-  
-  const card = data.paymentMethods.find((pm: any) => pm.type === "card");
-  if (!card) return null;
-  
-  return {
-    brand: card.brand,
-    last4: card.last4,
-    expMonth: card.expMonth,
-    expYear: card.expYear,
-  };
+  // Display-only lookup: never let a slow Stripe round trip hold the booking page.
+  const timeout = new Promise<null>((resolve) =>
+    setTimeout(() => resolve(null), SAVED_CARD_TIMEOUT_MS)
+  );
+
+  const lookup = (async (): Promise<SavedCard | null> => {
+    const { data, error } = await supabase.functions.invoke("get-payment-methods");
+    if (error || !data?.paymentMethods?.length) return null;
+
+    const card = data.paymentMethods.find((pm: any) => pm.type === "card");
+    if (!card) return null;
+
+    return {
+      brand: card.brand,
+      last4: card.last4,
+      expMonth: card.expMonth,
+      expYear: card.expYear,
+    };
+  })();
+
+  return Promise.race([lookup, timeout]);
 };
+
 
 export function useBooking() {
   const queryClient = useQueryClient();
@@ -178,22 +190,28 @@ export function useBooking() {
     staleTime: STALE_TIMES.STATIC,
   });
 
-  // User data - balance-critical, always revalidated on mount so admin-added
-  // credit shows up immediately in an already-open session.
+  // User data - balance-critical, but cached briefly so revisiting the booking page inside
+  // a session doesn't re-run two chained round trips (auth.getUser + profile select).
+  // Credit/membership changes invalidate this key directly, so admin-added credit still
+  // shows up immediately.
   const { data: userProfile, refetch: refetchUserProfile } = useQuery({
     queryKey: QUERY_KEYS.USER_PROFILE(),
     queryFn: fetchUserProfile,
-    staleTime: 0,
-    refetchOnMount: "always",
+    staleTime: 60 * 1000,
   });
 
 
-  // Saved card - cached for 5 minutes
+
+  // Saved card - cached for 5 minutes. This is a display-only lookup (the card is
+  // re-validated server-side at charge time), so it must never gate the booking UI and
+  // must not retry: a slow Stripe round trip used to hold up the whole page.
   const { data: savedCard, isLoading: isLoadingSavedCard, refetch: refetchSavedCard } = useQuery({
     queryKey: QUERY_KEYS.SAVED_CARD,
     queryFn: fetchSavedCard,
     staleTime: STALE_TIMES.SEMI_STATIC,
+    retry: false,
   });
+
 
   // Derived values from user profile
   const userMembershipTier = userProfile?.membershipTier || "visitor";
