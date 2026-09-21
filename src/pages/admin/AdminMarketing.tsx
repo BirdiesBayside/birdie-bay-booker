@@ -1705,12 +1705,24 @@ interface SimCupRegistration {
   payment_method: string | null;
   amount_paid: number | null;
   paid_at: string | null;
+  team_number: number | null;
+  team_name: string | null;
+  handicap: number | null;
+  handicap_source: string | null;
 }
 
 const SHIRT_ORDER = ["S", "M", "L", "XL", "2XL", "3XL"];
 const TIMESLOTS = ["8-11am", "11am-2pm", "2-5pm"];
 const SLOT_CAPACITY = 6;
+const TEAMS_PER_SLOT = 3;
 const ENTRY_PRICE = 99;
+
+/** Team numbers for a slot: 8-11am → 1,2,3 · 11am-2pm → 4,5,6 · 2-5pm → 7,8,9 */
+function teamsForSlot(slot: string): number[] {
+  const slotIndex = TIMESLOTS.indexOf(slot);
+  if (slotIndex < 0) return [];
+  return Array.from({ length: TEAMS_PER_SLOT }, (_, i) => slotIndex * TEAMS_PER_SLOT + i + 1);
+}
 
 function SimCupTab({ activeTab }: { activeTab: string }) {
   const { toast } = useToast();
