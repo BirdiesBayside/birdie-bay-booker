@@ -183,16 +183,24 @@ serve(async (req) => {
       return jsonResponse({ error: "Invalid bay number. Must be 1-6." }, 400);
     }
 
-    // Get the bay ID from bay number
-    const { data: bay, error: bayError } = await supabase
-      .from("bays")
-      .select("id, name")
-      .eq("bay_number", bayNumber)
-      .single();
+    // Get the bay ID from bay number (cached per warm isolate — bays never change)
+    const cached = bayCache.get(bayNumber);
+    let bay: { id: string; name: string } | null =
+      cached && Date.now() - cached.cachedAt < BAY_CACHE_TTL_MS ? cached : null;
 
-    if (bayError || !bay) {
-      console.error(`[${VERSION}] Bay lookup error:`, bayError);
-      return jsonResponse({ error: "Bay not found" }, 404);
+    if (!bay) {
+      const { data: bayRow, error: bayError } = await supabase
+        .from("bays")
+        .select("id, name")
+        .eq("bay_number", bayNumber)
+        .single();
+
+      if (bayError || !bayRow) {
+        console.error(`[${VERSION}] Bay lookup error:`, bayError);
+        return jsonResponse({ error: "Bay not found" }, 404);
+      }
+      bay = bayRow;
+      bayCache.set(bayNumber, { ...bayRow, cachedAt: Date.now() });
     }
 
     const hasBookingAccess = async (userId: string, bookingId: string | null) => {
