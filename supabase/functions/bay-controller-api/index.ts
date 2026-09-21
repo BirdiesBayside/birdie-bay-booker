@@ -9,6 +9,30 @@ const SETTINGS_FILES = new Set(["dpsV2x3.gss", "Settings.vgs"]);
 const SETTINGS_BUCKET = "gspro-user-settings";
 const CSV_BUCKET = "range-session-csv";
 
+// Warm-isolate caches: bays and timezone are effectively static, so reuse them
+// across invocations instead of hitting the database on every request.
+const BAY_CACHE_TTL_MS = 10 * 60 * 1000;
+const bayCache = new Map<number, { id: string; name: string; cachedAt: number }>();
+
+const TZ_CACHE_TTL_MS = 5 * 60 * 1000;
+let timezoneCache: { timezone: string; cachedAt: number } | null = null;
+
+async function getCachedTimezone(
+  supabase: ReturnType<typeof createClient>,
+): Promise<string> {
+  if (timezoneCache && Date.now() - timezoneCache.cachedAt < TZ_CACHE_TTL_MS) {
+    return timezoneCache.timezone;
+  }
+  const { data } = await supabase
+    .from("system_settings")
+    .select("timezone")
+    .eq("id", "global")
+    .single();
+  const timezone = data?.timezone || "Australia/Brisbane";
+  timezoneCache = { timezone, cachedAt: Date.now() };
+  return timezone;
+}
+
 // Full CORS headers compatible with supabase-js client
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
