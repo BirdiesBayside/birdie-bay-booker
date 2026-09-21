@@ -2,12 +2,36 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.2";
 
 // Version tracking for deployment debugging
-const VERSION = "2.2.0";
+const VERSION = "2.2.1";
 const HIGHLIGHTS_BUCKET = "league-highlights";
 const DEPLOYED_AT = new Date().toISOString();
 const SETTINGS_FILES = new Set(["dpsV2x3.gss", "Settings.vgs"]);
 const SETTINGS_BUCKET = "gspro-user-settings";
 const CSV_BUCKET = "range-session-csv";
+
+// Warm-isolate caches: bays and timezone are effectively static, so reuse them
+// across invocations instead of hitting the database on every request.
+const BAY_CACHE_TTL_MS = 10 * 60 * 1000;
+const bayCache = new Map<number, { id: string; name: string; cachedAt: number }>();
+
+const TZ_CACHE_TTL_MS = 5 * 60 * 1000;
+let timezoneCache: { timezone: string; cachedAt: number } | null = null;
+
+async function getCachedTimezone(
+  supabase: ReturnType<typeof createClient>,
+): Promise<string> {
+  if (timezoneCache && Date.now() - timezoneCache.cachedAt < TZ_CACHE_TTL_MS) {
+    return timezoneCache.timezone;
+  }
+  const { data } = await supabase
+    .from("system_settings")
+    .select("timezone")
+    .eq("id", "global")
+    .single();
+  const timezone = data?.timezone || "Australia/Brisbane";
+  timezoneCache = { timezone, cachedAt: Date.now() };
+  return timezone;
+}
 
 // Full CORS headers compatible with supabase-js client
 const corsHeaders = {
@@ -159,16 +183,24 @@ serve(async (req) => {
       return jsonResponse({ error: "Invalid bay number. Must be 1-6." }, 400);
     }
 
-    // Get the bay ID from bay number
-    const { data: bay, error: bayError } = await supabase
-      .from("bays")
-      .select("id, name")
-      .eq("bay_number", bayNumber)
-      .single();
+    // Get the bay ID from bay number (cached per warm isolate — bays never change)
+    const cached = bayCache.get(bayNumber);
+    let bay: { id: string; name: string } | null =
+      cached && Date.now() - cached.cachedAt < BAY_CACHE_TTL_MS ? cached : null;
 
-    if (bayError || !bay) {
-      console.error(`[${VERSION}] Bay lookup error:`, bayError);
-      return jsonResponse({ error: "Bay not found" }, 404);
+    if (!bay) {
+      const { data: bayRow, error: bayError } = await supabase
+        .from("bays")
+        .select("id, name")
+        .eq("bay_number", bayNumber)
+        .single();
+
+      if (bayError || !bayRow) {
+        console.error(`[${VERSION}] Bay lookup error:`, bayError);
+        return jsonResponse({ error: "Bay not found" }, 404);
+      }
+      bay = bayRow;
+      bayCache.set(bayNumber, { ...bayRow, cachedAt: Date.now() });
     }
 
     const hasBookingAccess = async (userId: string, bookingId: string | null) => {
@@ -823,14 +855,8 @@ serve(async (req) => {
           .select("control_mode")
           .single();
 
-        // Get timezone from system settings
-        const { data: settings } = await supabase
-          .from("system_settings")
-          .select("timezone")
-          .eq("id", "global")
-          .single();
-        
-        const timezone = settings?.timezone || 'Australia/Sydney';
+        // Get timezone (cached per warm isolate)
+        const timezone = await getCachedTimezone(supabase);
 
         // Get current date and time in configured timezone
         const now = new Date();
