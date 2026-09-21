@@ -1706,7 +1706,6 @@ interface SimCupRegistration {
   amount_paid: number | null;
   paid_at: string | null;
   team_number: number | null;
-  team_name: string | null;
   handicap: number | null;
   handicap_source: string | null;
 }
@@ -1878,7 +1877,6 @@ function SimCupTab({ activeTab }: { activeTab: string }) {
         "Preferred",
         "Assigned",
         "Team Number",
-        "Team Name",
         "Handicap",
         "Handicap Source",
         "Paid",
