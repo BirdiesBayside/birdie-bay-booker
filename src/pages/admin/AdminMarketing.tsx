@@ -1891,7 +1891,6 @@ function SimCupTab({ activeTab }: { activeTab: string }) {
         r.preferred_timeslot ?? "",
         r.assigned_timeslot ?? "",
         r.team_number ?? "",
-        r.team_name ?? "",
         r.handicap ?? "",
         r.handicap_source === "league" ? "League" : r.handicap_source === "manual" ? "Manual" : "",
         r.payment_status === "paid" ? "Yes" : "No",
