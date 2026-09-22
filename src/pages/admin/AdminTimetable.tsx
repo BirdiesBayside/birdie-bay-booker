@@ -135,6 +135,14 @@ export default function AdminTimetable() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [selectedBlock, setSelectedBlock] = useState<BayBlock | null>(null);
+  const [isEditingBlock, setIsEditingBlock] = useState(false);
+  const [blockEditDate, setBlockEditDate] = useState<Date | undefined>();
+  const [blockEditBayId, setBlockEditBayId] = useState("");
+  const [blockEditStart, setBlockEditStart] = useState("");
+  const [blockEditEnd, setBlockEditEnd] = useState("");
+  const [blockEditReason, setBlockEditReason] = useState("");
+  const [blockCalendarOpen, setBlockCalendarOpen] = useState(false);
+  const [isSavingBlock, setIsSavingBlock] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
   
   // Edit mode state
