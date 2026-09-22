@@ -1421,15 +1421,18 @@ export default function AdminTimetable() {
 
         {/* Block Details Dialog */}
         <Dialog open={!!selectedBlock} onOpenChange={(open) => {
-          if (!open) setSelectedBlock(null);
+          if (!open) {
+            setSelectedBlock(null);
+            setIsEditingBlock(false);
+          }
         }}>
           <DialogContent className="max-w-sm">
             <DialogHeader>
               <DialogTitle className="font-display text-xl uppercase tracking-wide">
-                Bay Block
+                {isEditingBlock ? "Edit Block" : "Bay Block"}
               </DialogTitle>
             </DialogHeader>
-            {selectedBlock && (
+            {selectedBlock && !isEditingBlock && (
               <div className="space-y-4">
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 text-sm">
@@ -1454,36 +1457,185 @@ export default function AdminTimetable() {
 
                 <hr className="border-border" />
 
-                <Button
-                  variant="destructive"
-                  className="w-full"
-                  onClick={async () => {
-                    const { error } = await supabase
-                      .from("bay_blocks")
-                      .delete()
-                      .eq("id", selectedBlock.id);
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => {
+                      setBlockEditDate(new Date(`${selectedBlock.block_date}T00:00:00`));
+                      setBlockEditBayId(selectedBlock.bay_id);
+                      setBlockEditStart(selectedBlock.start_time.slice(0, 5));
+                      setBlockEditEnd(selectedBlock.end_time.slice(0, 5));
+                      setBlockEditReason(selectedBlock.reason || "");
+                      setIsEditingBlock(true);
+                    }}
+                  >
+                    <Pencil className="h-4 w-4 mr-2" />
+                    Edit Block
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    className="flex-1"
+                    onClick={async () => {
+                      const { error } = await supabase
+                        .from("bay_blocks")
+                        .delete()
+                        .eq("id", selectedBlock.id);
 
-                    if (error) {
-                      toast({
-                        title: "Error",
-                        description: "Failed to remove block.",
-                        variant: "destructive",
-                        duration: 4000,
-                      });
-                    } else {
-                      toast({
-                        title: "Block removed",
-                        description: "The bay block has been removed.",
-                        duration: 4000,
-                      });
-                      setSelectedBlock(null);
-                      fetchBookings();
-                    }
-                  }}
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Remove Block
-                </Button>
+                      if (error) {
+                        toast({
+                          title: "Error",
+                          description: "Failed to remove block.",
+                          variant: "destructive",
+                          duration: 4000,
+                        });
+                      } else {
+                        toast({
+                          title: "Block removed",
+                          description: "The bay block has been removed.",
+                          duration: 4000,
+                        });
+                        setSelectedBlock(null);
+                        fetchBookings();
+                      }
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Remove
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {selectedBlock && isEditingBlock && (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Date</Label>
+                  <Popover open={blockCalendarOpen} onOpenChange={setBlockCalendarOpen}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="w-full justify-start font-normal">
+                        <CalendarIcon className="h-4 w-4 mr-2" />
+                        {blockEditDate ? format(blockEditDate, "EEE, MMM d yyyy") : "Select a date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={blockEditDate}
+                        onSelect={(d) => {
+                          if (d) setBlockEditDate(d);
+                          setBlockCalendarOpen(false);
+                        }}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Bay</Label>
+                  <Select value={blockEditBayId} onValueChange={setBlockEditBayId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a bay" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {bays.map((bay) => (
+                        <SelectItem key={bay.id} value={bay.id}>
+                          {bay.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>Start</Label>
+                    <Select value={blockEditStart} onValueChange={setBlockEditStart}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Start" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {blockTimeOptions.map((t) => (
+                          <SelectItem key={t} value={t}>{formatTime(t)}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>End</Label>
+                    <Select value={blockEditEnd} onValueChange={setBlockEditEnd}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="End" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {blockTimeOptions.filter((t) => t > blockEditStart).map((t) => (
+                          <SelectItem key={t} value={t}>{formatTime(t)}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Reason</Label>
+                  <Textarea
+                    value={blockEditReason}
+                    onChange={(e) => setBlockEditReason(e.target.value)}
+                    placeholder="Optional reason"
+                    rows={2}
+                  />
+                </div>
+
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => setIsEditingBlock(false)}
+                    disabled={isSavingBlock}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    className="flex-1"
+                    disabled={isSavingBlock || !blockEditDate || !blockEditBayId || !blockEditStart || !blockEditEnd || blockEditEnd <= blockEditStart}
+                    onClick={async () => {
+                      if (!blockEditDate) return;
+                      setIsSavingBlock(true);
+                      const { error } = await supabase
+                        .from("bay_blocks")
+                        .update({
+                          bay_id: blockEditBayId,
+                          block_date: format(blockEditDate, "yyyy-MM-dd"),
+                          start_time: `${blockEditStart}:00`,
+                          end_time: `${blockEditEnd}:00`,
+                          reason: blockEditReason.trim() || null,
+                        })
+                        .eq("id", selectedBlock.id);
+                      setIsSavingBlock(false);
+
+                      if (error) {
+                        toast({
+                          title: "Error",
+                          description: "Failed to update block.",
+                          variant: "destructive",
+                          duration: 4000,
+                        });
+                      } else {
+                        toast({
+                          title: "Block updated",
+                          description: "The bay block has been updated.",
+                          duration: 4000,
+                        });
+                        setIsEditingBlock(false);
+                        setSelectedBlock(null);
+                        fetchBookings();
+                      }
+                    }}
+                  >
+                    {isSavingBlock ? "Saving..." : "Save Changes"}
+                  </Button>
+                </div>
               </div>
             )}
           </DialogContent>
