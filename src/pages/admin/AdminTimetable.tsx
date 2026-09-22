@@ -125,6 +125,14 @@ export default function AdminTimetable() {
     OPERATING_SLOTS.push({ hour, minute: 0 });
     OPERATING_SLOTS.push({ hour, minute: 30 });
   }
+
+  // Half-hour options from open through close (inclusive of closing time)
+  const blockTimeOptions: string[] = [
+    ...OPERATING_SLOTS.map(
+      (s) => `${String(s.hour).padStart(2, "0")}:${String(s.minute).padStart(2, "0")}`,
+    ),
+    `${String(OPERATING_END_HOUR).padStart(2, "0")}:00`,
+  ];
   
   
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
