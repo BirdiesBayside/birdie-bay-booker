@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
 
     for (const v of videos) {
       const state = v.status?.state ?? "unknown";
-      if (state === "ready") {
+      if (state === "ready" || deleteAll) {
         entry.ready.push(v.uid);
         if (dryRun) continue;
         const delRes = await fetch(`${CF_API}/accounts/${accountId}/stream/${v.uid}`, {
