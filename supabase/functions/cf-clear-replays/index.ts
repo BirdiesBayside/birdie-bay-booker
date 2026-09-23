@@ -21,6 +21,7 @@ Deno.serve(async (req) => {
   if (!accountId || !token) return json({ error: "Cloudflare credentials missing" }, 500);
 
   const dryRun = new URL(req.url).searchParams.get("dryRun") === "true";
+  const deleteAll = new URL(req.url).searchParams.get("all") === "true";
   const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
   const { data: devices } = await admin
@@ -48,7 +49,7 @@ Deno.serve(async (req) => {
 
     for (const v of videos) {
       const state = v.status?.state ?? "unknown";
-      if (state === "ready") {
+      if (state === "ready" || deleteAll) {
         entry.ready.push(v.uid);
         if (dryRun) continue;
         const delRes = await fetch(`${CF_API}/accounts/${accountId}/stream/${v.uid}`, {
