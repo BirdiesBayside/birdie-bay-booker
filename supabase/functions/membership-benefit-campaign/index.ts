@@ -61,16 +61,17 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
-    // --- Template ---
+    // --- Template (editable in Admin → Notifications; body content only —
+    // the shared header/footer is applied at send time) ---
     const { data: tpl } = await supabase
-      .from('marketing_templates')
+      .from('email_templates')
       .select('subject, html_content')
-      .eq('name', 'Membership Benefit')
-      .eq('category', 'automated')
+      .eq('template_key', 'membership_benefit')
       .eq('is_active', true)
       .maybeSingle()
     const subjectTpl = tpl?.subject || DEFAULT_SUBJECT
     const htmlTpl = tpl?.html_content || DEFAULT_HTML
+    const layout = await fetchEmailLayout(supabase)
 
     // --- Recent sends (60-day guard) ---
     const guardSince = new Date(Date.now() - RESEND_GUARD_DAYS * 864e5).toISOString()
