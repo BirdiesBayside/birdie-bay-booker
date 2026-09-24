@@ -1088,11 +1088,49 @@ export default function AdminMarketing() {
                   edited in Admin → Settings → Notifications (email_templates,
                   key 'membership_benefit'), so only stats live here. */}
               <Card className="hover:border-primary/50 transition-colors relative">
+                {/* Total people emailed, top corner */}
+                <div
+                  className="absolute -top-2 -right-2 z-10 min-w-[24px] h-6 px-2 rounded-full bg-primary text-primary-foreground text-xs font-semibold flex items-center justify-center shadow"
+                  title={`${membershipStats.sent} people have received this campaign`}
+                >
+                  {membershipStats.sent}
+                </div>
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-2">
                       <CardTitle className="text-base">Membership Benefit</CardTitle>
                       <Zap className="h-4 w-4 text-primary" />
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button type="button" aria-label="How this campaign works" className="text-muted-foreground hover:text-primary">
+                              <Info className="h-4 w-4" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom" className="max-w-xs text-xs leading-relaxed">
+                            <p className="font-semibold mb-1">Who gets this email</p>
+                            <ul className="list-disc pl-4 space-y-0.5">
+                              <li>Visitors only (never current or past members)</li>
+                              <li>2–5 confirmed bookings in the last 8 weeks</li>
+                              <li>Heavy users (6+ bookings) excluded — they're more profitable on visitor rates</li>
+                              <li>Not emailed by this campaign in the last 60 days</li>
+                              <li>Opted in to marketing (not unsubscribed)</li>
+                            </ul>
+                            <p className="font-semibold mt-2 mb-1">Why it makes us money</p>
+                            <p>
+                              A casual on 3 visits per 8 weeks pays about $120. As a Birdie member they pay $216 in
+                              weekly subscription plus $10/hr bay fees — roughly double, and guaranteed even in weeks
+                              they don't play. Peak bays are only ~36% occupied, so member hours fill empty bays rather
+                              than displacing $40 visitors.
+                            </p>
+                            <p className="font-semibold mt-2 mb-1">The pitch</p>
+                            <p>
+                              Forward-looking: $10/hr member rate, extended booking window, league entry, no lock-in.
+                              It does not compare against what they've already spent.
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     </div>
                     <Badge className={getCategoryColor("automated")}>automated</Badge>
                   </div>
