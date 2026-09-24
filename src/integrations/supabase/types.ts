@@ -1932,6 +1932,42 @@ export type Database = {
         }
         Relationships: []
       }
+      membership_campaign_sends: {
+        Row: {
+          booking_count: number
+          email: string
+          hours: number
+          id: string
+          member_cost: number
+          savings: number
+          sent_at: string
+          user_id: string
+          visitor_spend: number
+        }
+        Insert: {
+          booking_count: number
+          email: string
+          hours?: number
+          id?: string
+          member_cost?: number
+          savings?: number
+          sent_at?: string
+          user_id: string
+          visitor_spend?: number
+        }
+        Update: {
+          booking_count?: number
+          email?: string
+          hours?: number
+          id?: string
+          member_cost?: number
+          savings?: number
+          sent_at?: string
+          user_id?: string
+          visitor_spend?: number
+        }
+        Relationships: []
+      }
       membership_changes: {
         Row: {
           changed_at: string

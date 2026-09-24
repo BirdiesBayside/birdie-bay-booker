@@ -202,12 +202,16 @@ export default function AdminMarketing() {
   const [promoStats, setPromoStats] = useState<{ sent: number; converted: number } | null>(null);
   const [isSavingTemplate, setIsSavingTemplate] = useState(false);
 
+  // Membership benefit campaign tracking
+  const [membershipStats, setMembershipStats] = useState<{ eligible: number | null; sent: number; converted: number }>({ eligible: null, sent: 0, converted: 0 });
+
   useEffect(() => {
     if (isAdmin) {
       fetchCampaigns();
       fetchTemplates();
       fetchPromoEligibleCount();
       fetchPromoSuccessRate();
+      fetchMembershipStats();
       fetchSavedSegments();
       fetchEmailLayout();
     }
@@ -363,6 +367,69 @@ export default function AdminMarketing() {
       setPromoEligibleCount(eligibleCount);
     } catch (error) {
       console.error("Error counting promo eligible users:", error);
+    }
+  };
+
+  const fetchMembershipStats = async () => {
+    try {
+      // All sends
+      const { data: sends } = await supabase
+        .from("membership_campaign_sends")
+        .select("user_id, sent_at");
+      const allSends = sends || [];
+      const sent = allSends.length;
+      const sentUserIds = Array.from(new Set(allSends.map((s) => s.user_id)));
+
+      // Converted: recipients no longer visitors
+      let converted = 0;
+      const BATCH = 100;
+      for (let i = 0; i < sentUserIds.length; i += BATCH) {
+        const { data: profs } = await supabase
+          .from("profiles")
+          .select("user_id, membership_tier")
+          .in("user_id", sentUserIds.slice(i, i + BATCH))
+          .neq("membership_tier", "visitor");
+        converted += profs?.length || 0;
+      }
+
+      // Eligible right now: visitors with 2-5 confirmed bookings in the last 56 days,
+      // not emailed by this campaign in the last 60 days
+      const sixtyDaysAgo = new Date(Date.now() - 60 * 864e5);
+      const recentSenders = new Set(
+        allSends.filter((s) => new Date(s.sent_at) >= sixtyDaysAgo).map((s) => s.user_id)
+      );
+
+      const { data: visitorProfiles } = await supabase
+        .from("profiles")
+        .select("user_id")
+        .eq("membership_tier", "visitor")
+        .eq("marketing_opt_out", false);
+      const visitorIds = new Set((visitorProfiles || []).map((p) => p.user_id));
+
+      const since = new Date(Date.now() - 56 * 864e5).toISOString().slice(0, 10);
+      const counts = new Map<string, number>();
+      let from = 0;
+      for (;;) {
+        const { data: bookings } = await supabase
+          .from("bookings")
+          .select("user_id")
+          .eq("status", "confirmed")
+          .gte("booking_date", since)
+          .range(from, from + 999);
+        if (!bookings || bookings.length === 0) break;
+        bookings.forEach((b) => counts.set(b.user_id, (counts.get(b.user_id) || 0) + 1));
+        if (bookings.length < 1000) break;
+        from += 1000;
+      }
+
+      let eligible = 0;
+      for (const [userId, count] of counts) {
+        if (count >= 2 && count <= 5 && visitorIds.has(userId) && !recentSenders.has(userId)) eligible++;
+      }
+
+      setMembershipStats({ eligible, sent, converted });
+    } catch (error) {
+      console.error("Error fetching membership campaign stats:", error);
     }
   };
 
@@ -910,6 +977,7 @@ export default function AdminMarketing() {
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {templates.map((template) => {
                 const isFirstSessionPromo = template.name === "First Session Free" && template.category === "automated";
+                const isMembershipBenefit = template.name === "Membership Benefit" && template.category === "automated";
                 
                 return (
                   <Card key={template.id} className="hover:border-primary/50 transition-colors relative">
@@ -978,7 +1046,34 @@ export default function AdminMarketing() {
                           )}
                         </div>
                       )}
-                      
+
+                      {/* Membership Benefit campaign stats */}
+                      {isMembershipBenefit && (
+                        <div className="mb-3 space-y-3">
+                          <div className="space-y-1 text-xs text-muted-foreground">
+                            <p>Runs daily. Emails visitors with 2–5 bookings in the last 8 weeks — heavy users (6+) stay on visitor rates. Re-emails after 60 days.</p>
+                            {membershipStats.eligible !== null && (
+                              <p>
+                                <span className="text-primary font-medium">{membershipStats.eligible}</span> eligible right now
+                              </p>
+                            )}
+                          </div>
+                          {membershipStats.sent > 0 && (
+                            <div className="p-2 bg-accent/20 rounded-lg border border-accent/30">
+                              <div className="flex items-center justify-between text-sm">
+                                <span className="text-muted-foreground">Conversion rate</span>
+                                <span className="font-semibold text-accent-foreground">
+                                  {Math.round((membershipStats.converted / membershipStats.sent) * 100)}%
+                                </span>
+                              </div>
+                              <div className="text-xs text-muted-foreground mt-1">
+                                {membershipStats.converted} of {membershipStats.sent} recipients became members
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       <p className="text-sm text-muted-foreground mb-3">
                         Subject: {template.subject}
                       </p>
