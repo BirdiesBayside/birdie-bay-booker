@@ -5,3 +5,4 @@
 - [x] Show notification email previews with the saved shared header and footer
 - [x] Add on/off controls for First Session Free and Membership Benefit automated campaigns
 - [ ] Send the currently eligible Membership Benefit recipients and verify the total
+- [ ] Reconcile the Marketing tile eligibility count with the live campaign before sending
