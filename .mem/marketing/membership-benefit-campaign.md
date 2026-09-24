@@ -10,7 +10,7 @@ Rules:
 - Targets visitors with 2–5 confirmed bookings in the trailing 56 days; heavy users (6+) are excluded — most profitable as visitors.
 - Past members (any membership_changes row), marketing_opt_out, and suppressed emails excluded. 60-day re-email guard via `membership_campaign_sends`.
 - Personalised tags: {first_name} {booking_count} {hours} {visitor_spend} {member_cost} {savings} {savings_line}. Birdie maths: $27/wk + $10/hr.
-- Honesty rule: only claims a dollar saving when savings > 0 ("You'd have saved $X"); otherwise "The more you play, the more you save."
+- HARD RULE: only sends when real savings > 0 (member_cost < visitor_spend) — never email showing membership more expensive than what they paid. savings_line always "You'd have saved $X".
 
 Template: lives in `email_templates` (template_key `membership_benefit`) — editable in Admin → Settings → Notifications as BODY ONLY; shared header/footer from `email_layout` applied at send via `_shared/email-wrapper.ts` (buildEmailTemplate/fetchEmailLayout), unsubscribe link injected inside the green footer like send-marketing-email. The old `marketing_templates` copy was deleted.
 
