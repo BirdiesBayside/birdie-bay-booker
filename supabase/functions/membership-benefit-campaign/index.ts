@@ -162,6 +162,10 @@ Deno.serve(async (req) => {
       if (recentSenders.has(userId)) continue
       if (suppressed.has(p.email.toLowerCase())) continue
       const memberCost = BIRDIE_WEEKLY * WEEKS + BIRDIE_HOURLY * s.hours
+      // Hard rule: never send an email showing membership costs MORE than what
+      // they already paid as a visitor. No savings, no email.
+      const savings = s.spend - memberCost
+      if (savings <= 0) continue
       eligible.push({
         user_id: userId,
         email: p.email,
@@ -170,7 +174,7 @@ Deno.serve(async (req) => {
         hours: Math.round(s.hours * 10) / 10,
         visitor_spend: Math.round(s.spend * 100) / 100,
         member_cost: Math.round(memberCost * 100) / 100,
-        savings: Math.round((s.spend - memberCost) * 100) / 100,
+        savings: Math.round(savings * 100) / 100,
       })
     }
 
@@ -190,7 +194,7 @@ Deno.serve(async (req) => {
     const targets = testEmail
       ? eligible.filter(e => e.email.toLowerCase() === testEmail.toLowerCase()).length
         ? eligible.filter(e => e.email.toLowerCase() === testEmail.toLowerCase())
-        : [{ user_id: 'test', email: testEmail, first_name: 'there', booking_count: 4, hours: 6.5, visitor_spend: 227.5, member_cost: 281, savings: -53.5 }]
+        : [{ user_id: 'test', email: testEmail, first_name: 'there', booking_count: 5, hours: 12, visitor_spend: 480, member_cost: 336, savings: 144 }]
       : eligible
 
     let sent = 0
