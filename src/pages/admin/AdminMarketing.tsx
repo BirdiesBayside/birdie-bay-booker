@@ -370,6 +370,69 @@ export default function AdminMarketing() {
     }
   };
 
+  const fetchMembershipStats = async () => {
+    try {
+      // All sends
+      const { data: sends } = await supabase
+        .from("membership_campaign_sends")
+        .select("user_id, sent_at");
+      const allSends = sends || [];
+      const sent = allSends.length;
+      const sentUserIds = Array.from(new Set(allSends.map((s) => s.user_id)));
+
+      // Converted: recipients no longer visitors
+      let converted = 0;
+      const BATCH = 100;
+      for (let i = 0; i < sentUserIds.length; i += BATCH) {
+        const { data: profs } = await supabase
+          .from("profiles")
+          .select("user_id, membership_tier")
+          .in("user_id", sentUserIds.slice(i, i + BATCH))
+          .neq("membership_tier", "visitor");
+        converted += profs?.length || 0;
+      }
+
+      // Eligible right now: visitors with 2-5 confirmed bookings in the last 56 days,
+      // not emailed by this campaign in the last 60 days
+      const sixtyDaysAgo = new Date(Date.now() - 60 * 864e5);
+      const recentSenders = new Set(
+        allSends.filter((s) => new Date(s.sent_at) >= sixtyDaysAgo).map((s) => s.user_id)
+      );
+
+      const { data: visitorProfiles } = await supabase
+        .from("profiles")
+        .select("user_id")
+        .eq("membership_tier", "visitor")
+        .eq("marketing_opt_out", false);
+      const visitorIds = new Set((visitorProfiles || []).map((p) => p.user_id));
+
+      const since = new Date(Date.now() - 56 * 864e5).toISOString().slice(0, 10);
+      const counts = new Map<string, number>();
+      let from = 0;
+      for (;;) {
+        const { data: bookings } = await supabase
+          .from("bookings")
+          .select("user_id")
+          .eq("status", "confirmed")
+          .gte("booking_date", since)
+          .range(from, from + 999);
+        if (!bookings || bookings.length === 0) break;
+        bookings.forEach((b) => counts.set(b.user_id, (counts.get(b.user_id) || 0) + 1));
+        if (bookings.length < 1000) break;
+        from += 1000;
+      }
+
+      let eligible = 0;
+      for (const [userId, count] of counts) {
+        if (count >= 2 && count <= 5 && visitorIds.has(userId) && !recentSenders.has(userId)) eligible++;
+      }
+
+      setMembershipStats({ eligible, sent, converted });
+    } catch (error) {
+      console.error("Error fetching membership campaign stats:", error);
+    }
+  };
+
 
   useEffect(() => {
     if (composerOpen) {
