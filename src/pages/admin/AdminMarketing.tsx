@@ -430,12 +430,33 @@ export default function AdminMarketing() {
         allSends.filter((s) => new Date(s.sent_at) >= sixtyDaysAgo).map((s) => s.user_id)
       );
 
-      const { data: visitorProfiles } = await supabase
-        .from("profiles")
-        .select("user_id")
-        .eq("membership_tier", "visitor")
-        .eq("marketing_opt_out", false);
-      const visitorIds = new Set((visitorProfiles || []).map((p) => p.user_id));
+      const visitorIds = new Set<string>();
+      let profileFrom = 0;
+      for (;;) {
+        const { data: visitorProfiles } = await supabase
+          .from("profiles")
+          .select("user_id")
+          .eq("membership_tier", "visitor")
+          .eq("marketing_opt_out", false)
+          .range(profileFrom, profileFrom + 999);
+        if (!visitorProfiles || visitorProfiles.length === 0) break;
+        visitorProfiles.forEach((profile) => visitorIds.add(profile.user_id));
+        if (visitorProfiles.length < 1000) break;
+        profileFrom += 1000;
+      }
+
+      const excludedPastMembers = new Set<string>();
+      let memberFrom = 0;
+      for (;;) {
+        const { data: membershipChanges } = await supabase
+          .from("membership_changes")
+          .select("user_id")
+          .range(memberFrom, memberFrom + 999);
+        if (!membershipChanges || membershipChanges.length === 0) break;
+        membershipChanges.forEach((change) => excludedPastMembers.add(change.user_id));
+        if (membershipChanges.length < 1000) break;
+        memberFrom += 1000;
+      }
 
       const since = new Date(Date.now() - 56 * 864e5).toISOString().slice(0, 10);
       const counts = new Map<string, number>();
@@ -455,7 +476,13 @@ export default function AdminMarketing() {
 
       let eligible = 0;
       for (const [userId, count] of counts) {
-        if (count >= 2 && count <= 5 && visitorIds.has(userId) && !recentSenders.has(userId)) eligible++;
+        if (
+          count >= 2 &&
+          count <= 5 &&
+          visitorIds.has(userId) &&
+          !recentSenders.has(userId) &&
+          !excludedPastMembers.has(userId)
+        ) eligible++;
       }
 
       setMembershipStats({ eligible, sent, converted });
