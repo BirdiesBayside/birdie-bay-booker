@@ -177,7 +177,11 @@ Deno.serve(async (req) => {
     }
 
     if (dryRun) {
-      return new Response(JSON.stringify({ eligibleCount: eligible.length, eligible }), {
+      return new Response(JSON.stringify({
+        eligibleCount: eligible.length,
+        debug: { visitors: visitors.size, bookers: stats.size, recentSenders: recentSenders.size, suppressed: suppressed.size },
+        eligible,
+      }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
