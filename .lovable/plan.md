@@ -55,7 +55,9 @@ Automated email/SMS to visitors where the maths favours you:
 - **Exclude:** anyone with 6+ bookings in the last 8 weeks (your break-even point — leave them as visitors; they're your most profitable per-hour customers).
 - **Also exclude:** current/past members (avoid re-pitching lapsed members with the same generic message) and anyone emailed by this campaign in the last 60 days.
 - **Message:** personalised with their real numbers — "You've played X times in the last 8 weeks. As a Birdie member you'd have saved $Y."
-- **Delivery:** new edge function `membership-benefit-campaign` on a daily cron, reusing the existing marketing email wrapper, unsubscribe footer, and `marketing_segments`/`customer_alert_sends`-style logging so you can see sends in Admin.
+- **Delivery:** new edge function `membership-benefit-campaign` on a daily cron, reusing the existing marketing email wrapper and unsubscribe footer.
+- **Admin UI:** a campaign card in the **Marketing → Campaigns area, next to the existing "First Session Free" (new customer credit) card** — showing how it works, who qualifies right now (dry-run count), total emails sent, and a "Send test / run now" control, matching how the existing campaign is presented.
+- **Template:** editable in Marketing like the First Session Free template (stored in `marketing_templates`), with personalised tags: `{first_name}`, `{booking_count}`, `{hours}`, `{visitor_spend}`, `{member_cost}`, `{savings}`.
 
 ## Technical details
 
