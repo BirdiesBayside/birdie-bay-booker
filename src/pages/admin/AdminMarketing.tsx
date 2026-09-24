@@ -977,6 +977,7 @@ export default function AdminMarketing() {
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {templates.map((template) => {
                 const isFirstSessionPromo = template.name === "First Session Free" && template.category === "automated";
+                const isMembershipBenefit = template.name === "Membership Benefit" && template.category === "automated";
                 
                 return (
                   <Card key={template.id} className="hover:border-primary/50 transition-colors relative">
