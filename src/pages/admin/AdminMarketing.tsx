@@ -1046,7 +1046,34 @@ export default function AdminMarketing() {
                           )}
                         </div>
                       )}
-                      
+
+                      {/* Membership Benefit campaign stats */}
+                      {isMembershipBenefit && (
+                        <div className="mb-3 space-y-3">
+                          <div className="space-y-1 text-xs text-muted-foreground">
+                            <p>Runs daily. Emails visitors with 2–5 bookings in the last 8 weeks — heavy users (6+) stay on visitor rates. Re-emails after 60 days.</p>
+                            {membershipStats.eligible !== null && (
+                              <p>
+                                <span className="text-primary font-medium">{membershipStats.eligible}</span> eligible right now
+                              </p>
+                            )}
+                          </div>
+                          {membershipStats.sent > 0 && (
+                            <div className="p-2 bg-accent/20 rounded-lg border border-accent/30">
+                              <div className="flex items-center justify-between text-sm">
+                                <span className="text-muted-foreground">Conversion rate</span>
+                                <span className="font-semibold text-accent-foreground">
+                                  {Math.round((membershipStats.converted / membershipStats.sent) * 100)}%
+                                </span>
+                              </div>
+                              <div className="text-xs text-muted-foreground mt-1">
+                                {membershipStats.converted} of {membershipStats.sent} recipients became members
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       <p className="text-sm text-muted-foreground mb-3">
                         Subject: {template.subject}
                       </p>
