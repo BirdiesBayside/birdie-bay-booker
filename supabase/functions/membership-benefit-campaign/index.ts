@@ -39,15 +39,12 @@ function money(n: number): string {
   return '$' + n.toFixed(2).replace(/\.00$/, '')
 }
 
-const DEFAULT_SUBJECT = 'Your Birdies maths, {first_name} — member sessions are just $10/hr'
+const DEFAULT_SUBJECT = "{first_name}, you're in enough to be a member — sessions drop to $10/hr"
 // Body-only fallback — the shared header/footer from Admin → Notifications is
 // applied around it at send time.
-const DEFAULT_HTML = `<h1 style="margin:0 0 14px; font-family:Anton, Impact, Arial Black, sans-serif; font-size:34px; line-height:1.1; color:#1F4C25; text-align:center;">You're Basically A Regular Now</h1>
+const DEFAULT_HTML = `<h1 style="margin:0 0 14px; font-family:Anton, Impact, Arial Black, sans-serif; font-size:34px; line-height:1.1; color:#1F4C25; text-align:center;">YOU'RE BASICALLY A REGULAR</h1>
 <p style="margin:0 0 18px; font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">
-  Hi {first_name}, you've played {booking_count} times in the last 8 weeks — here's what that looks like as a Birdie member.
-</p>
-<p style="margin:18px 0 0; font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">
-  Birdie membership is <strong>$27/week</strong> and every session drops to just <strong>$10/hour</strong> — peak or off-peak. {savings_line}
+  Hi {first_name}, you've been in {booking_count} times over the last 8 weeks. Birdie membership is <strong>$27/week</strong> and drops every session to just <strong>$10/hour</strong> — peak or off-peak.
 </p>`
 
 Deno.serve(async (req) => {
@@ -161,11 +158,13 @@ Deno.serve(async (req) => {
       if (!p) continue
       if (recentSenders.has(userId)) continue
       if (suppressed.has(p.email.toLowerCase())) continue
+      // Forward-looking pitch: membership is sold on the $10/hr rate and perks
+      // going forward, not on an audit of what they already paid. Regular
+      // visitors (2-5 bookings / 8 weeks) are revenue-positive as members
+      // because of the guaranteed weekly subscription, and the venue has spare
+      // peak capacity, so member hours don't displace visitor hours.
       const memberCost = BIRDIE_WEEKLY * WEEKS + BIRDIE_HOURLY * s.hours
-      // Hard rule: never send an email showing membership costs MORE than what
-      // they already paid as a visitor. No savings, no email.
       const savings = s.spend - memberCost
-      if (savings <= 0) continue
       eligible.push({
         user_id: userId,
         email: p.email,
@@ -200,9 +199,8 @@ Deno.serve(async (req) => {
     let sent = 0
     const errors: string[] = []
     for (const e of targets) {
-      const savingsLine = e.savings > 0
-        ? `You'd have saved ${money(e.savings)} over the last 8 weeks.`
-        : 'The more you play, the more you save.'
+      // Legacy tag kept so older template copy still renders sensibly.
+      const savingsLine = 'The more you play, the more you save.'
       const render = (s: string) => s
         .replaceAll('{first_name}', e.first_name)
         .replaceAll('{booking_count}', String(e.booking_count))
@@ -242,20 +240,6 @@ Deno.serve(async (req) => {
         errors.push(`${e.email}: ${(err as Error).message}`)
       }
       await new Promise(r => setTimeout(r, 600))
-    }
-
-    // --- Admin report ---
-    if (!testEmail && sent > 0) {
-      await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          from: FROM_EMAIL,
-          to: [ADMIN_EMAIL],
-          subject: `Membership Benefit campaign: ${sent} email(s) sent`,
-          html: `<p>The membership benefit campaign emailed <strong>${sent}</strong> visitor(s) with ${MIN_BOOKINGS}-${MAX_BOOKINGS} bookings in the last ${WINDOW_DAYS} days.</p>${errors.length ? `<p>Errors:</p><pre>${errors.join('\n')}</pre>` : ''}`,
-        }),
-      }).catch(() => {})
     }
 
     return new Response(JSON.stringify({ sent, eligibleCount: eligible.length, errors }), {
