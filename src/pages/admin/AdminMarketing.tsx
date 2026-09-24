@@ -202,12 +202,16 @@ export default function AdminMarketing() {
   const [promoStats, setPromoStats] = useState<{ sent: number; converted: number } | null>(null);
   const [isSavingTemplate, setIsSavingTemplate] = useState(false);
 
+  // Membership benefit campaign tracking
+  const [membershipStats, setMembershipStats] = useState<{ eligible: number | null; sent: number; converted: number }>({ eligible: null, sent: 0, converted: 0 });
+
   useEffect(() => {
     if (isAdmin) {
       fetchCampaigns();
       fetchTemplates();
       fetchPromoEligibleCount();
       fetchPromoSuccessRate();
+      fetchMembershipStats();
       fetchSavedSegments();
       fetchEmailLayout();
     }
