@@ -41,6 +41,11 @@ import { CustomerAlertsSection } from "@/components/admin/CustomerAlertsSection"
 import { DoorAccessSection } from "@/components/admin/DoorAccessSection";
 
 import { EmailLayoutEditor } from "@/components/admin/EmailLayoutEditor";
+import {
+  buildFullEmailPreview,
+  DEFAULT_EMAIL_FOOTER_HTML,
+  DEFAULT_EMAIL_HEADER_HTML,
+} from "@/lib/email-preview";
 import { format } from "date-fns";
 
 // Template types and their available placeholder tags
@@ -332,6 +337,10 @@ export default function AdminSettings() {
   const [isSavingTemplate, setIsSavingTemplate] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewHtml, setPreviewHtml] = useState("");
+  const [emailLayout, setEmailLayout] = useState({
+    header: DEFAULT_EMAIL_HEADER_HTML,
+    footer: DEFAULT_EMAIL_FOOTER_HTML,
+  });
 
   const copyTag = (tag: string) => {
     navigator.clipboard.writeText(tag);
@@ -350,6 +359,19 @@ export default function AdminSettings() {
       setEmailTemplates(data);
     }
     setIsLoadingTemplates(false);
+  };
+
+  const fetchEmailLayout = async () => {
+    const { data } = await supabase
+      .from("email_layout")
+      .select("header_html, footer_html")
+      .eq("id", "global")
+      .maybeSingle();
+
+    setEmailLayout({
+      header: data?.header_html || DEFAULT_EMAIL_HEADER_HTML,
+      footer: data?.footer_html || DEFAULT_EMAIL_FOOTER_HTML,
+    });
   };
 
   const openTemplateEditor = (template: EmailTemplateDB) => {
@@ -649,6 +671,7 @@ export default function AdminSettings() {
       fetchProducts();
       fetchCustomers();
       fetchEmailTemplates();
+      fetchEmailLayout();
     }
   }, [isAdmin]);
 
@@ -1434,7 +1457,9 @@ export default function AdminSettings() {
                               variant="ghost"
                               size="icon"
                               onClick={() => {
-                                setPreviewHtml(template.html_content || "<p>No custom template set. Using default template.</p>");
+                                const body = template.html_content || "<p>No custom template set. Using default template.</p>";
+                                const isMarketingTemplate = template.template_key === "membership_benefit" || template.template_key === "first_session_promo";
+                                setPreviewHtml(buildFullEmailPreview(body, emailLayout.header, emailLayout.footer, isMarketingTemplate));
                                 setPreviewOpen(true);
                               }}
                               disabled={!template.html_content}

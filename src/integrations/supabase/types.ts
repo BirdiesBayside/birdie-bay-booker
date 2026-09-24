@@ -3542,10 +3542,12 @@ export type Database = {
         Row: {
           created_at: string
           door_code: string
+          first_session_promo_enabled: boolean
           highlight_recording_enabled: boolean
           highlight_recording_pilot_bay: number | null
           highlight_retention_days: number
           id: string
+          membership_benefit_campaign_enabled: boolean
           peak_rate_effective_from: string | null
           sim_cup_live_enabled: boolean
           timezone: string
@@ -3554,10 +3556,12 @@ export type Database = {
         Insert: {
           created_at?: string
           door_code?: string
+          first_session_promo_enabled?: boolean
           highlight_recording_enabled?: boolean
           highlight_recording_pilot_bay?: number | null
           highlight_retention_days?: number
           id?: string
+          membership_benefit_campaign_enabled?: boolean
           peak_rate_effective_from?: string | null
           sim_cup_live_enabled?: boolean
           timezone?: string
@@ -3566,10 +3570,12 @@ export type Database = {
         Update: {
           created_at?: string
           door_code?: string
+          first_session_promo_enabled?: boolean
           highlight_recording_enabled?: boolean
           highlight_recording_pilot_bay?: number | null
           highlight_retention_days?: number
           id?: string
+          membership_benefit_campaign_enabled?: boolean
           peak_rate_effective_from?: string | null
           sim_cup_live_enabled?: boolean
           timezone?: string

@@ -50,6 +50,18 @@ serve(async (req: Request): Promise<Response> => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    const { data: settings } = await supabase
+      .from("system_settings")
+      .select("first_session_promo_enabled")
+      .eq("id", "global")
+      .maybeSingle();
+    if (settings?.first_session_promo_enabled === false) {
+      return new Response(JSON.stringify({ success: true, disabled: true, processed: 0 }), {
+        status: 200,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
+    }
+
     // Parse request body for options
     let options: RequestBody = {};
     try {
