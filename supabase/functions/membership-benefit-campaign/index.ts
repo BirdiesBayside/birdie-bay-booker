@@ -1,5 +1,6 @@
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { buildEmailTemplate, fetchEmailLayout } from '../_shared/email-wrapper.ts'
 
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
@@ -25,16 +26,29 @@ async function buildUnsubscribeUrl(email: string): Promise<string> {
   return `${SITE_URL}/unsubscribe?email=${encodeURIComponent(email)}&token=${token}`
 }
 
+// Places the unsubscribe link INSIDE the green footer block (same approach as
+// send-marketing-email) rather than appending a separate strip underneath.
+function injectUnsubscribeIntoFooter(footerHtml: string, unsubscribeUrl: string): string {
+  const linkRow = `<tr><td align="center" style="padding-top:14px; font-family:Inter, Arial, sans-serif; font-size:11px; color:#FFFFFF; opacity:0.75;"><a href="${unsubscribeUrl}" style="color:#FFFFFF; text-decoration:underline;">Unsubscribe from marketing emails</a></td></tr>`
+  const idx = footerHtml.lastIndexOf("</table>")
+  if (idx === -1) return footerHtml
+  return footerHtml.slice(0, idx) + linkRow + footerHtml.slice(idx)
+}
+
 function money(n: number): string {
   return '$' + n.toFixed(2).replace(/\.00$/, '')
 }
 
 const DEFAULT_SUBJECT = 'Your Birdies maths, {first_name} — member sessions are just $10/hr'
-const DEFAULT_HTML = `<!doctype html>
-<html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /></head>
-<body style="margin:0; padding:0; background-color:#FFF5E4;">
-  <p>Hi {first_name}, you've played {booking_count} times in the last 8 weeks. As a Birdie member ($27/week) every session is just $10/hour. {savings_line}</p>
-</body></html>`
+// Body-only fallback — the shared header/footer from Admin → Notifications is
+// applied around it at send time.
+const DEFAULT_HTML = `<h1 style="margin:0 0 14px; font-family:Anton, Impact, Arial Black, sans-serif; font-size:34px; line-height:1.1; color:#1F4C25; text-align:center;">You're Basically A Regular Now</h1>
+<p style="margin:0 0 18px; font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">
+  Hi {first_name}, you've played {booking_count} times in the last 8 weeks — here's what that looks like as a Birdie member.
+</p>
+<p style="margin:18px 0 0; font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">
+  Birdie membership is <strong>$27/week</strong> and every session drops to just <strong>$10/hour</strong> — peak or off-peak. {savings_line}
+</p>`
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
