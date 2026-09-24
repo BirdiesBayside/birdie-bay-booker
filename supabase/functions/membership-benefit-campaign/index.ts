@@ -208,10 +208,11 @@ Deno.serve(async (req) => {
         .replaceAll('{savings}', money(Math.abs(e.savings)))
         .replaceAll('{savings_line}', savingsLine)
 
-      let html = render(htmlTpl)
       const unsub = await buildUnsubscribeUrl(e.email)
-      const unsubBlock = `<div style="text-align:center; padding:16px; font-family:Arial, sans-serif; font-size:11px; color:#1F4C25; background-color:#FFF5E4;"><a href="${unsub}" style="color:#1F4C25; text-decoration:underline; opacity:0.7;">Unsubscribe from marketing emails</a></div>`
-      html = html.includes('</body>') ? html.replace('</body>', unsubBlock + '</body>') : html + unsubBlock
+      const html = buildEmailTemplate('', render(htmlTpl), undefined, {
+        header_html: layout.header_html,
+        footer_html: injectUnsubscribeIntoFooter(layout.footer_html, unsub),
+      })
 
       try {
         const res = await fetch('https://api.resend.com/emails', {
