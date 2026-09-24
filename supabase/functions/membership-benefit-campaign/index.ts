@@ -194,7 +194,7 @@ Deno.serve(async (req) => {
     const targets = testEmail
       ? eligible.filter(e => e.email.toLowerCase() === testEmail.toLowerCase()).length
         ? eligible.filter(e => e.email.toLowerCase() === testEmail.toLowerCase())
-        : [{ user_id: 'test', email: testEmail, first_name: 'there', booking_count: 4, hours: 6.5, visitor_spend: 227.5, member_cost: 281, savings: -53.5 }]
+        : [{ user_id: 'test', email: testEmail, first_name: 'there', booking_count: 5, hours: 12, visitor_spend: 480, member_cost: 336, savings: 144 }]
       : eligible
 
     let sent = 0
