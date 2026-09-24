@@ -57,6 +57,17 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
+    const { data: settings } = await supabase
+      .from('system_settings')
+      .select('membership_benefit_campaign_enabled')
+      .eq('id', 'global')
+      .maybeSingle()
+    if (settings?.membership_benefit_campaign_enabled === false) {
+      return new Response(JSON.stringify({ sent: 0, eligibleCount: 0, disabled: true, errors: [] }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
     // --- Template (editable in Admin → Notifications; body content only —
     // the shared header/footer is applied at send time) ---
     const { data: tpl } = await supabase

@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
 import {
   Dialog,
@@ -206,6 +207,8 @@ export default function AdminMarketing() {
 
   // Membership benefit campaign tracking
   const [membershipStats, setMembershipStats] = useState<{ eligible: number | null; sent: number; converted: number }>({ eligible: null, sent: 0, converted: 0 });
+  const [automatedCampaigns, setAutomatedCampaigns] = useState({ firstSession: true, membershipBenefit: true });
+  const [togglingCampaign, setTogglingCampaign] = useState<"firstSession" | "membershipBenefit" | null>(null);
 
   useEffect(() => {
     if (isAdmin) {
@@ -216,6 +219,7 @@ export default function AdminMarketing() {
       fetchMembershipStats();
       fetchSavedSegments();
       fetchEmailLayout();
+      fetchAutomatedCampaignSettings();
     }
   }, [isAdmin]);
 
@@ -230,6 +234,31 @@ export default function AdminMarketing() {
       header: data?.header_html || DEFAULT_EMAIL_HEADER_HTML,
       footer: data?.footer_html || DEFAULT_EMAIL_FOOTER_HTML,
     });
+  };
+
+  const fetchAutomatedCampaignSettings = async () => {
+    const { data } = await supabase
+      .from("system_settings")
+      .select("first_session_promo_enabled, membership_benefit_campaign_enabled")
+      .eq("id", "global")
+      .maybeSingle();
+    setAutomatedCampaigns({
+      firstSession: data?.first_session_promo_enabled !== false,
+      membershipBenefit: data?.membership_benefit_campaign_enabled !== false,
+    });
+  };
+
+  const toggleAutomatedCampaign = async (campaign: "firstSession" | "membershipBenefit", enabled: boolean) => {
+    setTogglingCampaign(campaign);
+    const column = campaign === "firstSession" ? "first_session_promo_enabled" : "membership_benefit_campaign_enabled";
+    const { error } = await supabase.from("system_settings").update({ [column]: enabled }).eq("id", "global");
+    if (error) {
+      toast({ title: "Couldn't update campaign", description: error.message, variant: "destructive" });
+    } else {
+      setAutomatedCampaigns((current) => ({ ...current, [campaign]: enabled }));
+      toast({ title: enabled ? "Campaign turned on" : "Campaign turned off" });
+    }
+    setTogglingCampaign(null);
   };
 
   const showPreview = (bodyHtml: string) => {
@@ -1003,9 +1032,19 @@ export default function AdminMarketing() {
                             <Zap className="h-4 w-4 text-primary" />
                           )}
                         </div>
-                        <Badge className={getCategoryColor(template.category)}>
-                          {template.category}
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                          {isFirstSessionPromo && (
+                            <Switch
+                              checked={automatedCampaigns.firstSession}
+                              disabled={togglingCampaign === "firstSession"}
+                              onCheckedChange={(enabled) => toggleAutomatedCampaign("firstSession", enabled)}
+                              aria-label="Turn First Session Free campaign on or off"
+                            />
+                          )}
+                          <Badge className={getCategoryColor(template.category)}>
+                            {template.category}
+                          </Badge>
+                        </div>
                       </div>
                       {template.description && (
                         <CardDescription>{template.description}</CardDescription>
@@ -1134,7 +1173,15 @@ export default function AdminMarketing() {
                         </Tooltip>
                       </TooltipProvider>
                     </div>
-                    <Badge className={getCategoryColor("automated")}>automated</Badge>
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        checked={automatedCampaigns.membershipBenefit}
+                        disabled={togglingCampaign === "membershipBenefit"}
+                        onCheckedChange={(enabled) => toggleAutomatedCampaign("membershipBenefit", enabled)}
+                        aria-label="Turn Membership Benefit campaign on or off"
+                      />
+                      <Badge className={getCategoryColor("automated")}>automated</Badge>
+                    </div>
                   </div>
                   <CardDescription>
                     Runs daily. Emails visitors with 2–5 bookings in the last 8 weeks — heavy users (6+) stay on visitor rates. Re-emails after 60 days.

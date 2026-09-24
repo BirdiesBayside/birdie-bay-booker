@@ -55,3 +55,36 @@ export const injectPreviewUnsubscribe = (footerHtml: string, url: string) => {
     footerHtml.slice(cellIndex)
   );
 };
+
+export const buildFullEmailPreview = (
+  bodyHtml: string,
+  headerHtml: string,
+  footerHtml: string,
+  includeUnsubscribe = false,
+) => `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="x-apple-disable-message-reformatting" />
+  <title>Birdies Email Preview</title>
+  <style>@import url("https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;600&display=swap");</style>
+</head>
+<body style="margin:0; padding:0; background-color:#FFF5E4;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#FFF5E4;">
+    <tr><td align="center" style="padding:24px 12px;">
+      <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="max-width:600px; width:100%;">
+        ${headerHtml}
+        <tr>
+          <td style="background-color:#FFF5E4; padding:26px 22px; border-left:1px solid rgba(31,76,37,0.12); border-right:1px solid rgba(31,76,37,0.12);">
+            <div style="font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25;">
+              ${bodyHtml}
+            </div>
+          </td>
+        </tr>
+        ${includeUnsubscribe ? injectPreviewUnsubscribe(footerHtml, "#") : footerHtml}
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
