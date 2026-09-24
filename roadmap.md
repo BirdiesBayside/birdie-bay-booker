@@ -4,5 +4,5 @@
 - [x] Approved plan: dashboard member count fix, RLS initplan rewrite, dashboard refresh 30s→2min, indexes, bay controller polling trim
 - [x] Show notification email previews with the saved shared header and footer
 - [x] Add on/off controls for First Session Free and Membership Benefit automated campaigns
-- [ ] Send the currently eligible Membership Benefit recipients and verify the total
-- [ ] Reconcile the Marketing tile eligibility count with the live campaign before sending
+- [x] Send the currently eligible Membership Benefit recipients and verify the total
+- [x] Reconcile the Marketing tile eligibility count with the live campaign before sending
