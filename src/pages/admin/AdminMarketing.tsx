@@ -977,7 +977,6 @@ export default function AdminMarketing() {
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {templates.map((template) => {
                 const isFirstSessionPromo = template.name === "First Session Free" && template.category === "automated";
-                const isMembershipBenefit = template.name === "Membership Benefit" && template.category === "automated";
                 
                 return (
                   <Card key={template.id} className="hover:border-primary/50 transition-colors relative">
@@ -1047,32 +1046,6 @@ export default function AdminMarketing() {
                         </div>
                       )}
 
-                      {/* Membership Benefit campaign stats */}
-                      {isMembershipBenefit && (
-                        <div className="mb-3 space-y-3">
-                          <div className="space-y-1 text-xs text-muted-foreground">
-                            <p>Runs daily. Emails visitors with 2–5 bookings in the last 8 weeks — heavy users (6+) stay on visitor rates. Re-emails after 60 days.</p>
-                            {membershipStats.eligible !== null && (
-                              <p>
-                                <span className="text-primary font-medium">{membershipStats.eligible}</span> eligible right now
-                              </p>
-                            )}
-                          </div>
-                          {membershipStats.sent > 0 && (
-                            <div className="p-2 bg-accent/20 rounded-lg border border-accent/30">
-                              <div className="flex items-center justify-between text-sm">
-                                <span className="text-muted-foreground">Conversion rate</span>
-                                <span className="font-semibold text-accent-foreground">
-                                  {Math.round((membershipStats.converted / membershipStats.sent) * 100)}%
-                                </span>
-                              </div>
-                              <div className="text-xs text-muted-foreground mt-1">
-                                {membershipStats.converted} of {membershipStats.sent} recipients became members
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
 
                       <p className="text-sm text-muted-foreground mb-3">
                         Subject: {template.subject}
@@ -1110,6 +1083,47 @@ export default function AdminMarketing() {
                   </Card>
                 );
               })}
+
+              {/* Membership Benefit — automated campaign. Its email template is
+                  edited in Admin → Settings → Notifications (email_templates,
+                  key 'membership_benefit'), so only stats live here. */}
+              <Card className="hover:border-primary/50 transition-colors relative">
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-2">
+                      <CardTitle className="text-base">Membership Benefit</CardTitle>
+                      <Zap className="h-4 w-4 text-primary" />
+                    </div>
+                    <Badge className={getCategoryColor("automated")}>automated</Badge>
+                  </div>
+                  <CardDescription>
+                    Runs daily. Emails visitors with 2–5 bookings in the last 8 weeks — heavy users (6+) stay on visitor rates. Re-emails after 60 days.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="pt-0 space-y-3">
+                  <div className="space-y-1 text-xs text-muted-foreground">
+                    {membershipStats.eligible !== null && (
+                      <p>
+                        <span className="text-primary font-medium">{membershipStats.eligible}</span> eligible right now
+                      </p>
+                    )}
+                    <p>Template editable in Settings → Notifications (“Membership Benefit”).</p>
+                  </div>
+                  {membershipStats.sent > 0 && (
+                    <div className="p-2 bg-accent/20 rounded-lg border border-accent/30">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">Conversion rate</span>
+                        <span className="font-semibold text-accent-foreground">
+                          {Math.round((membershipStats.converted / membershipStats.sent) * 100)}%
+                        </span>
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {membershipStats.converted} of {membershipStats.sent} recipients became members
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </div>
           </TabsContent>
           {/* Segments Tab */}
