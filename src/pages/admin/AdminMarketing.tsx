@@ -53,6 +53,7 @@ import {
   Trophy,
   ChevronDown,
   Download,
+  Trash2,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ReviewApprovals } from "@/components/admin/ReviewApprovals";
