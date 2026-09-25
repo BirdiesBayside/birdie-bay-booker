@@ -1241,7 +1241,7 @@ export default function AdminMarketing() {
                       </div>
                       <div className="p-2 bg-accent/20 rounded-lg border border-accent/30 text-center">
                         <div className="font-display text-2xl text-accent-foreground">
-                          {Math.round((membershipStats.converted / new Set([membershipStats.sent]).size / membershipStats.sent) * 100)}%
+                          {Math.round((membershipStats.converted / membershipStats.sent) * 100)}%
                         </div>
                         <div className="text-xs text-muted-foreground">of {membershipStats.sent} emailed</div>
                       </div>
