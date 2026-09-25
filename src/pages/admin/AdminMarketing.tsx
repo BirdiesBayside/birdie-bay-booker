@@ -1104,6 +1104,30 @@ export default function AdminMarketing() {
                           <Badge className={getCategoryColor(template.category)}>
                             {template.category}
                           </Badge>
+                          {template.category !== "automated" && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              aria-label="Delete template"
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                if (!confirm(`Delete template "${template.name}"? This can't be undone.`)) return;
+                                const { error } = await supabase
+                                  .from("marketing_templates")
+                                  .delete()
+                                  .eq("id", template.id);
+                                if (error) {
+                                  toast({ title: "Couldn't delete", description: error.message, variant: "destructive" });
+                                  return;
+                                }
+                                setTemplates((prev) => prev.filter((t) => t.id !== template.id));
+                                toast({ title: "Template deleted" });
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          )}
                         </div>
                       </div>
                       {template.description && (
