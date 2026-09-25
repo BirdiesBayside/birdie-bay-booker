@@ -1001,15 +1001,37 @@ export default function AdminMarketing() {
                           </div>
                           <p className="text-sm text-muted-foreground">{campaign.subject}</p>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            showPreview(campaign.html_content);
-                          }}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
+                        <div className="flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              showPreview(campaign.html_content);
+                            }}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            aria-label="Delete campaign"
+                            onClick={async () => {
+                              if (!confirm(`Delete campaign "${campaign.name}"? This can't be undone.`)) return;
+                              const { error } = await supabase
+                                .from("marketing_campaigns")
+                                .delete()
+                                .eq("id", campaign.id);
+                              if (error) {
+                                toast({ title: "Couldn't delete", description: error.message, variant: "destructive" });
+                                return;
+                              }
+                              setCampaigns((prev) => prev.filter((c) => c.id !== campaign.id));
+                              toast({ title: "Campaign deleted" });
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
                       </div>
                       
                       <div className="flex items-center gap-6 mt-4 text-sm text-muted-foreground">
