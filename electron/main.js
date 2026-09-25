@@ -4004,7 +4004,18 @@ ipcMain.handle('obs-start-stream', async (_e, { url, password, server, key } = {
     const ctl = ensureObs({ url: url || 'ws://127.0.0.1:4455', password: password || '' });
     if (!ctl.identified) await ctl.connect();
     const status = await ctl.getStreamStatus().catch(() => null);
-    if (status?.outputActive) return { success: true, alreadyStreaming: true };
+    if (status?.outputActive) {
+      // Already streaming — verify OBS is pointed at THIS bay's key. If the
+      // settings drifted (e.g. a key from another bay was left in OBS), stop
+      // and restart with the correct key instead of blindly trusting it.
+      const current = await ctl.getStreamSettings().catch(() => null);
+      const currentKey = current?.streamServiceSettings?.key;
+      if (currentKey && currentKey === key) {
+        return { success: true, alreadyStreaming: true };
+      }
+      console.warn(`[OBS] Stream running with wrong key (${String(currentKey || '').slice(0, 8)}…) — restarting with correct key`);
+      await ctl.stopStream().catch(() => null);
+    }
     await ctl.setStreamSettings(server || 'rtmps://live.cloudflare.com:443/live/', key);
     await ctl.startStream();
     console.log('[OBS] Live stream started');
