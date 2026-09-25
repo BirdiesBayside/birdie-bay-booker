@@ -88,6 +88,7 @@ class OBSController {
   }
 
   async getStreamStatus() { return this.request('GetStreamStatus'); }
+  async getStreamSettings() { return this.request('GetStreamServiceSettings'); }
   async startStream() { return this.request('StartStream'); }
   async stopStream() { return this.request('StopStream'); }
 
