@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import Seo from "@/components/Seo";
 import { supabase } from "@/integrations/supabase/client";
-import simCupLogoAsset from "@/assets/sim-cup-logo.png.asset.json";
 
 interface BayFourStream {
   bay_number: number;
@@ -59,20 +58,21 @@ export default function SimCupBay4TV() {
           src={playerUrl(bay.thumbnail, bay.live_uid)}
           title="Bay 4 live stream"
           className="aspect-[9/16] h-screen max-w-full border-0 bg-venue-panel"
-          allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
+          allow="autoplay; encrypted-media; fullscreen"
           allowFullScreen
         />
       ) : (
-        <div className="flex flex-col items-center text-center">
-          <img
-            src={simCupLogoAsset.url}
-            alt="The Sim Cup at Birdies Bayside"
-            className="w-[min(34vw,42rem)] object-contain opacity-90"
-          />
-          <div className="mt-12 flex items-center gap-5 text-primary-foreground/70">
+        <div className="flex flex-col items-center text-center text-primary-foreground">
+          <p className="text-2xl font-black uppercase tracking-[0.25em] text-accent 2xl:text-4xl">
+            The Sim Cup at Birdies Bayside
+          </p>
+          <p className="mt-7 font-display text-8xl uppercase tracking-normal 2xl:text-[10rem]">
+            Bay 4
+          </p>
+          <div className="mt-10 flex items-center gap-5 text-primary-foreground/70">
             {loading && <Loader2 className="h-7 w-7 animate-spin" />}
             <p className="font-display text-4xl uppercase tracking-normal 2xl:text-6xl">
-              {loading ? "Connecting to Bay 4" : "Bay 4 is off air"}
+              {loading ? "Connecting" : "Stream starting soon"}
             </p>
           </div>
         </div>

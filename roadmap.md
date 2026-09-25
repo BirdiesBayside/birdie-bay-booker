@@ -6,4 +6,4 @@
 - [x] Add on/off controls for First Session Free and Membership Benefit automated campaigns
 - [x] Send the currently eligible Membership Benefit recipients and verify the total
 - [x] Reconcile the Marketing tile eligibility count with the live campaign before sending
-- [ ] Add a 4096 × 2160 TV page showing only the vertical Bay 4 Sim Cup stream
+- [x] Add a 4096 × 2160 TV page showing only the vertical Bay 4 Sim Cup stream
