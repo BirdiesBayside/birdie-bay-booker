@@ -58,8 +58,7 @@ export default function SimCupBay4TV() {
           key={bay.live_uid}
           src={playerUrl(bay.thumbnail, bay.live_uid)}
           title="Bay 4 live stream"
-          className="h-screen max-w-full border-0 bg-venue-panel"
-          style={{ aspectRatio: "9 / 16" }}
+          className="aspect-[9/16] h-screen max-w-full border-0 bg-venue-panel"
           allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
           allowFullScreen
         />
