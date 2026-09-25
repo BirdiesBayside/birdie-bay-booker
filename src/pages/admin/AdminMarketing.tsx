@@ -411,17 +411,27 @@ export default function AdminMarketing() {
       const sent = allSends.length;
       const sentUserIds = Array.from(new Set(allSends.map((s) => s.user_id)));
 
-      // Converted: recipients no longer visitors
-      let converted = 0;
+      // Converted: recipients who upgraded to a paid tier AFTER their first email
+      const firstSent = new Map<string, number>();
+      allSends.forEach((s) => {
+        const t = new Date(s.sent_at).getTime();
+        const prev = firstSent.get(s.user_id);
+        if (prev === undefined || t < prev) firstSent.set(s.user_id, t);
+      });
+      const convertedUsers = new Set<string>();
       const BATCH = 100;
       for (let i = 0; i < sentUserIds.length; i += BATCH) {
-        const { data: profs } = await supabase
-          .from("profiles")
-          .select("user_id, membership_tier")
+        const { data: changes } = await supabase
+          .from("membership_changes")
+          .select("user_id, new_tier, changed_at")
           .in("user_id", sentUserIds.slice(i, i + BATCH))
-          .neq("membership_tier", "visitor");
-        converted += profs?.length || 0;
+          .neq("new_tier", "visitor");
+        changes?.forEach((c) => {
+          const first = firstSent.get(c.user_id);
+          if (first !== undefined && new Date(c.changed_at).getTime() >= first) convertedUsers.add(c.user_id);
+        });
       }
+      const converted = convertedUsers.size;
 
       // Eligible right now: visitors with 2-5 confirmed bookings in the last 56 days,
       // not emailed by this campaign in the last 60 days
@@ -1224,15 +1234,16 @@ export default function AdminMarketing() {
                     <p>Template editable in Settings → Notifications (“Membership Benefit”).</p>
                   </div>
                   {membershipStats.sent > 0 && (
-                    <div className="p-2 bg-accent/20 rounded-lg border border-accent/30">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Conversion rate</span>
-                        <span className="font-semibold text-accent-foreground">
-                          {Math.round((membershipStats.converted / membershipStats.sent) * 100)}%
-                        </span>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="p-2 bg-primary/10 rounded-lg border border-primary/30 text-center">
+                        <div className="font-display text-2xl text-primary">{membershipStats.converted}</div>
+                        <div className="text-xs text-muted-foreground">Converted to members</div>
                       </div>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        {membershipStats.converted} of {membershipStats.sent} recipients became members
+                      <div className="p-2 bg-accent/20 rounded-lg border border-accent/30 text-center">
+                        <div className="font-display text-2xl text-accent-foreground">
+                          {Math.round((membershipStats.converted / new Set([membershipStats.sent]).size / membershipStats.sent) * 100)}%
+                        </div>
+                        <div className="text-xs text-muted-foreground">of {membershipStats.sent} emailed</div>
                       </div>
                     </div>
                   )}
