@@ -22,7 +22,10 @@ Deno.serve(async (req) => {
     });
     const j = await res.json().catch(() => ({}));
     const r = j.result ?? {};
-    out.push({
+    const vr = await fetch(`${CF_API}/accounts/${accountId}/stream/live_inputs/${d.cf_live_input_uid}/videos`, { headers: { Authorization: `Bearer ${token}` } });
+    const vj = await vr.json().catch(() => ({}));
+    const videos = (vj.result ?? []).map((v: any) => ({ uid: v.uid, created: v.created, dur: v.duration, state: v.status?.state, err: v.status?.errorReasonText, size: v.size }));
+    out.push({ videos,
       bay: (d as any).bays?.bay_number,
       uid: d.cf_live_input_uid,
       http: res.status,
