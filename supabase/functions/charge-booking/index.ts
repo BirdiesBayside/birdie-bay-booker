@@ -10,7 +10,26 @@ const corsHeaders = {
 const logStep = (step: string, details?: any) => {
   const detailsStr = details ? ` - ${JSON.stringify(details)}` : "";
   console.log(`[CHARGE-BOOKING] ${step}${detailsStr}`);
+
+// Fire the confirmation email/SMS from the server so it still goes out if the
+// customer closes the app before their browser makes the follow-up call.
+// send-booking-notification claims each booking once, so duplicates are safe.
+const triggerConfirmation = (bookingId: string) => {
+  const p = fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-booking-notification`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+    },
+    body: JSON.stringify({ booking_id: bookingId, notification_type: "confirmation" }),
+  })
+    .then((r) => r.text())
+    .catch((e) => logStep("Confirmation trigger failed", { error: e?.message }));
+  // deno-lint-ignore no-explicit-any
+  const rt = (globalThis as any).EdgeRuntime;
+  if (rt?.waitUntil) rt.waitUntil(p);
 };
+
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -174,6 +193,7 @@ serve(async (req) => {
           status: "confirmed",
         })
         .eq("id", bookingId);
+      triggerConfirmation(bookingId);
 
       return new Response(JSON.stringify({ 
         success: true, 
@@ -350,6 +370,8 @@ serve(async (req) => {
 
     if (updateError) {
       logStep("Warning: Failed to update booking", { error: updateError.message });
+    } else {
+      triggerConfirmation(bookingId);
     }
 
     return new Response(JSON.stringify({ 
