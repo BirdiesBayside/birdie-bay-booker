@@ -10,6 +10,8 @@ const corsHeaders = {
 const logStep = (step: string, details?: any) => {
   const detailsStr = details ? ` - ${JSON.stringify(details)}` : "";
   console.log(`[CHARGE-BOOKING] ${step}${detailsStr}`);
+};
+
 
 // Fire the confirmation email/SMS from the server so it still goes out if the
 // customer closes the app before their browser makes the follow-up call.
