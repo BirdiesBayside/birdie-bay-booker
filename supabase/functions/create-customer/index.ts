@@ -74,13 +74,14 @@ serve(async (req) => {
       );
     }
 
-    // Check for existing user by email
-    const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
-    const existingByEmail = existingUsers?.users?.find(
-      u => u.email?.toLowerCase() === email.toLowerCase()
-    );
+    // Check for existing customer by email (profiles table — listUsers only returns the first page)
+    const { data: existingByEmail } = await supabaseAdmin
+      .from("profiles")
+      .select("id")
+      .ilike("email", email.trim())
+      .limit(1);
     
-    if (existingByEmail) {
+    if (existingByEmail && existingByEmail.length > 0) {
       return new Response(
         JSON.stringify({ error: "A customer with this email already exists in the system." }),
         { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -124,9 +125,10 @@ serve(async (req) => {
 
     if (createError) {
       console.error("Error creating user:", createError);
+      const exists = /already been registered|email_exists/i.test(createError.message);
       return new Response(
-        JSON.stringify({ error: createError.message }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: exists ? "A customer with this email already exists in the system." : createError.message }),
+        { status: exists ? 409 : 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
