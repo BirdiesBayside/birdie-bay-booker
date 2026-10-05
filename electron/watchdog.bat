@@ -1,57 +1,28 @@
 @echo off
 REM ============================================================
-REM Birdies Bay Controller Watchdog
+REM Birdies Bay Controller Watchdog (single check per run)
+REM Called hidden by watchdog.vbs every minute from Task Scheduler
+REM ("Birdies Bay Controller Watchdog Silent"). The task is created
+REM by the installer and re-verified by the app on every launch.
+REM Do NOT add a loop - Task Scheduler handles the repeat.
 REM ============================================================
-REM This script monitors the Bay Controller process and restarts
-REM it automatically if it crashes or closes unexpectedly.
-REM
-REM SETUP (Windows Task Scheduler):
-REM   1. Open Task Scheduler (taskschd.msc)
-REM   2. Create Basic Task > Name: "Bay Controller Watchdog"
-REM   3. Trigger: "When the computer starts" (or "At log on")
-REM   4. Action: Start a program
-REM      - Program: C:\path\to\watchdog.bat
-REM   5. Check "Run with highest privileges"
-REM   6. In Properties > Settings:
-REM      - Uncheck "Stop the task if it runs longer than"
-REM      - Check "If the task fails, restart every: 1 minute"
-REM
-REM The script checks every 30 seconds if the Bay Controller
-REM process is running. If not, it restarts it.
-REM ============================================================
-
-REM --- Configuration ---
-REM Update this path to match your installation
-set "APP_PATH=%LOCALAPPDATA%\Programs\birdies-bay-controller\Birdies Bay Controller.exe"
+setlocal enabledelayedexpansion
 set "PROCESS_NAME=Birdies Bay Controller.exe"
-set "CHECK_INTERVAL=30"
+set "APP_PATH="
 
-REM Log file for watchdog activity
-set "LOG_FILE=%LOCALAPPDATA%\birdies-bay-controller\watchdog.log"
-
-echo [%date% %time%] Watchdog started. Monitoring: %PROCESS_NAME% >> "%LOG_FILE%"
-
-:loop
-REM Check if process is running
-tasklist /FI "IMAGENAME eq %PROCESS_NAME%" 2>NUL | find /I "%PROCESS_NAME%" >NUL
-
-if %ERRORLEVEL% NEQ 0 (
-    echo [%date% %time%] Process not found. Restarting... >> "%LOG_FILE%"
-    
-    REM Start the application
-    start "" "%APP_PATH%"
-    
-    if %ERRORLEVEL% EQU 0 (
-        echo [%date% %time%] Successfully restarted Bay Controller. >> "%LOG_FILE%"
-    ) else (
-        echo [%date% %time%] ERROR: Failed to start Bay Controller. >> "%LOG_FILE%"
-    )
-    
-    REM Wait a bit longer after restart to let it initialize
-    timeout /t 10 /nobreak >NUL
+REM Resolve the exe at runtime - never hardcode a Windows username.
+if exist "%LOCALAPPDATA%\Programs\birdies-bay-controller\%PROCESS_NAME%" set "APP_PATH=%LOCALAPPDATA%\Programs\birdies-bay-controller\%PROCESS_NAME%"
+if not defined APP_PATH if exist "%LOCALAPPDATA%\Programs\Birdies Bay Controller\%PROCESS_NAME%" set "APP_PATH=%LOCALAPPDATA%\Programs\Birdies Bay Controller\%PROCESS_NAME%"
+if not defined APP_PATH if exist "%ProgramFiles%\Birdies Bay Controller\%PROCESS_NAME%" set "APP_PATH=%ProgramFiles%\Birdies Bay Controller\%PROCESS_NAME%"
+if not defined APP_PATH if exist "%ProgramFiles(x86)%\Birdies Bay Controller\%PROCESS_NAME%" set "APP_PATH=%ProgramFiles(x86)%\Birdies Bay Controller\%PROCESS_NAME%"
+if not defined APP_PATH if exist "%~dp0..\%PROCESS_NAME%" set "APP_PATH=%~dp0..\%PROCESS_NAME%"
+if not defined APP_PATH (
+  for /d %%U in ("%SystemDrive%\Users\*") do (
+    if not defined APP_PATH if exist "%%~fU\AppData\Local\Programs\birdies-bay-controller\%PROCESS_NAME%" set "APP_PATH=%%~fU\AppData\Local\Programs\birdies-bay-controller\%PROCESS_NAME%"
+  )
 )
 
-REM Wait before next check
-timeout /t %CHECK_INTERVAL% /nobreak >NUL
+tasklist /FI "IMAGENAME eq %PROCESS_NAME%" 2>NUL | find /I "%PROCESS_NAME%" >NUL
+if %ERRORLEVEL% EQU 0 goto :eof
 
-goto loop
+if defined APP_PATH start "" "%APP_PATH%" --hidden
