@@ -31,7 +31,9 @@
       {
         "from": "tapo_control.exe",
         "to": "tapo_control.exe"
-      }
+      },
+      { "from": "watchdog.bat", "to": "watchdog.bat" },
+      { "from": "watchdog.vbs", "to": "watchdog.vbs" }
     ],
     "publish": {
       "provider": "github",
@@ -48,6 +50,7 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "runAfterFinish": true,
+      "include": "installer.nsh",
       "artifactName": "BirdiesBayController-Setup-${version}.${ext}"
     }
   },

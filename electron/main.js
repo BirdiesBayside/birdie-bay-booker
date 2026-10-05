@@ -17,15 +17,49 @@ if (!gotTheLock) {
   app.quit();
 } else {
   // This is the primary instance - handle second-instance event
-  app.on('second-instance', (event, commandLine, workingDirectory) => {
-    // Someone tried to run a second instance - focus our window instead
-    console.log('Second instance attempted - focusing existing window');
-    if (mainWindow) {
-      if (mainWindow.isMinimized()) mainWindow.restore();
-      mainWindow.show();
-      mainWindow.focus();
-    }
+  app.on('second-instance', () => {
+    // The watchdog or startup shortcut fired while we are already running.
+    // CRITICAL: do nothing. Focusing/restoring the window would steal focus
+    // from the golf simulator mid-session. Stay silent in the tray.
+    console.log('Second instance attempted - ignoring (stay in tray)');
   });
+}
+
+// Launched by the watchdog / Windows login → boot silently to the tray.
+const launchHidden = process.argv.includes('--hidden');
+
+// =====================================================
+// WATCHDOG SELF-HEAL - make sure the silent scheduled task exists
+// =====================================================
+async function ensureWatchdogTask() {
+  if (process.platform !== 'win32' || !app.isPackaged) return;
+  const OLD_TASK = 'Bay Controller Watchdog'; // legacy visible-console task
+  const OLD_TASK_2 = 'Birdies Bay Controller Watchdog';
+  const TASK = 'Birdies Bay Controller Watchdog Silent';
+  const vbsPath = path.join(process.resourcesPath, 'watchdog.vbs');
+  if (!fs.existsSync(vbsPath)) return;
+
+  for (const t of [OLD_TASK, OLD_TASK_2]) {
+    try { await execAsync(`schtasks /Delete /F /TN "${t}"`, { windowsHide: true }); } catch {}
+  }
+  try {
+    const { stdout } = await execAsync(`schtasks /Query /TN "${TASK}"`, { windowsHide: true });
+    if (stdout && stdout.includes(TASK)) return; // already present
+  } catch { /* missing - create below */ }
+
+  const user = process.env.USERNAME || '';
+  const base = `schtasks /Create /F /SC MINUTE /MO 1 /TN "${TASK}" /TR "wscript.exe //B //Nologo \\"${vbsPath}\\""`;
+  try {
+    await execAsync(user ? `${base} /RU "${user}" /IT` : base, { windowsHide: true });
+    console.log('[Watchdog] Silent scheduled task created');
+  } catch (e) {
+    try {
+      await execAsync(base, { windowsHide: true });
+      console.log('[Watchdog] Silent scheduled task created (fallback)');
+    } catch (e2) {
+      console.error('[Watchdog] Failed to create scheduled task:', e2?.message || e2);
+    }
+  }
 }
 
 // State for auto-paste functionality
@@ -321,6 +355,11 @@ function createWindow() {
   });
 
   mainWindow.once('ready-to-show', () => {
+    // Silent tray boot when relaunched by the watchdog / login: never cover the simulator.
+    if (launchHidden) {
+      console.log('[Boot] Hidden launch - staying in tray');
+      return;
+    }
     mainWindow.show();
   });
 
@@ -382,12 +421,14 @@ function createTray() {
 // Run on startup (Windows)
 app.setLoginItemSettings({
   openAtLogin: true,
-  path: app.getPath('exe')
+  path: app.getPath('exe'),
+  args: ['--hidden']
 });
 
 app.whenReady().then(() => {
   createWindow();
   createTray();
+  ensureWatchdogTask().catch((e) => console.error('[Watchdog] ensure failed:', e));
 
 
   // Re-apply kiosk taskbar hide when returning from lock/RDP/suspend.
