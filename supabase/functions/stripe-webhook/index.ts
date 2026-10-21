@@ -559,6 +559,7 @@ serve(async (req) => {
                     <ul style="margin:0; padding-left:20px;">
                       <li style="margin-bottom:8px;">Your card on file was declined when we tried to take your membership payment</li>
                       <li style="margin-bottom:8px;">Your membership has been cancelled and your account has been moved to <strong>Visitor</strong> status</li>
+                      <li style="margin-bottom:8px;"><strong>All your future bookings have been cancelled.</strong> Once you become a member again, you will need to rebook any sessions you still want. Cancelled bookings are not automatically restored, and your previous times may no longer be available.</li>
                       <li style="margin-bottom:8px;">You can still book sessions at our standard visitor rates</li>
                     </ul>
                   </td>
