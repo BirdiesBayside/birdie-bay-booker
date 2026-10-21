@@ -1,12 +1,8 @@
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { Resend } from "npm:resend@2.0.0";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
 
 interface PaymentRetryRequest {
   email: string;
@@ -27,8 +23,8 @@ const buildTemplate = (firstName: string, amount?: number, cancelledBookings = 0
     : `<p style="margin:0 0 18px; font-family:Inter, Arial, sans-serif; font-size:16px; line-height:1.6; color:#1F4C25; text-align:center;">We tried to charge your card for your weekly Birdies membership and the payment didn't go through.</p>`;
 
   const bookingsLine = cancelledBookings > 0
-    ? `<p style="margin:0;">As a result, <strong>${cancelledBookings} upcoming booking${cancelledBookings === 1 ? " has" : "s have"} been cancelled and refunded</strong>, and no new bookings can be made until your card on file is updated.</p>`
-    : `<p style="margin:0;">No new bookings can be made until your card on file is updated.</p>`;
+    ? `<p style="margin:0;"><strong>All your future bookings have been cancelled and refunded (${cancelledBookings} booking${cancelledBookings === 1 ? "" : "s"}).</strong> Once your membership is active again, you will need to rebook any sessions you still want. Cancelled bookings are not automatically restored, and your previous times may no longer be available.</p>`
+    : `<p style="margin:0;">There are no upcoming bookings to cancel. Any previously cancelled bookings will not be automatically restored when your membership is active again — you will need to rebook them.</p>`;
 
 
   return `<!doctype html>
@@ -67,7 +63,7 @@ const buildTemplate = (firstName: string, amount?: number, cancelledBookings = 0
                 </tr>
               </table>
 
-              <p style="margin:18px 0 8px; font-family:Inter, Arial, sans-serif; font-size:15px; line-height:1.6; color:#1F4C25; text-align:center;">Update your card on file and you'll be straight back in:</p>
+              <p style="margin:18px 0 8px; font-family:Inter, Arial, sans-serif; font-size:15px; line-height:1.6; color:#1F4C25; text-align:center;">Resolve your membership payment through My Account to restore your member rates, then rebook your sessions. You can still make new bookings at visitor rates in the meantime.</p>
               <p style="margin:0 0 4px; text-align:center;">
                 <a href="https://hub.birdiesbayside.com.au/my-account" style="display:inline-block; background-color:#EC622D; color:#FFFFFF; font-family:Anton, Impact, Arial Black, sans-serif; font-size:18px; padding:12px 28px; border-radius:8px; text-decoration:none; letter-spacing:0.5px;">Update Card</a>
               </p>
@@ -102,7 +98,7 @@ const buildTemplate = (firstName: string, amount?: number, cancelledBookings = 0
 </html>`;
 };
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -118,7 +114,7 @@ serve(async (req) => {
     const emailResponse = await resend.emails.send({
       from: "Birdies Bayside <info@birdiesbayside.com.au>",
       to: [email],
-      subject: "Your Birdies payment didn't clear — bookings on hold",
+      subject: "Your Birdies payment didn't clear — future bookings cancelled",
       html,
     });
 
