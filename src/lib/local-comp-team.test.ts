@@ -1,4 +1,5 @@
-import { describe, expect, test } from "bun:test";
+import { describe, test } from "node:test";
+import assert from "node:assert/strict";
 import { teamFromCurrentPlayers } from "./local-comp-team";
 
 describe("teams from current players", () => {
@@ -8,7 +9,7 @@ describe("teams from current players", () => {
   ];
 
   test("uses the selected current players and their existing handicaps", () => {
-    expect(teamFromCurrentPlayers("New Team", "first", "second", players)).toEqual({
+    assert.deepEqual(teamFromCurrentPlayers("New Team", "first", "second", players), {
       team_name: "New Team",
       player1_name: "Current Player One",
       player2_name: "Current Player Two",
@@ -18,10 +19,10 @@ describe("teams from current players", () => {
   });
 
   test("rejects a player missing from the current roster", () => {
-    expect(() => teamFromCurrentPlayers("New Team", "first", "missing", players)).toThrow("Select two current players");
+    assert.throws(() => teamFromCurrentPlayers("New Team", "first", "missing", players), /Select two current players/);
   });
 
   test("requires two different players", () => {
-    expect(() => teamFromCurrentPlayers("New Team", "first", "first", players)).toThrow("Select two different players");
+    assert.throws(() => teamFromCurrentPlayers("New Team", "first", "first", players), /Select two different players/);
   });
 });
