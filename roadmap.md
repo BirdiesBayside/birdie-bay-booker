@@ -1,5 +1,7 @@
 # Roadmap
 
+- [ ] Add Create Team within Local Comp Players using current player handicaps
+
 - [x] URGENT: Site-wide loading outage — diagnosed: backend healthy, both sites load in 0.3s; likely stale browser cache, user advised hard refresh
 - [x] Approved plan: dashboard member count fix, RLS initplan rewrite, dashboard refresh 30s→2min, indexes, bay controller polling trim
 - [x] Show notification email previews with the saved shared header and footer
