@@ -6,11 +6,13 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, Users, User, ChevronDown } from "lucide-react";
 import { HandicapMismatches } from "./HandicapMismatches";
 import { formatLocalHcp, combinedAmbroseHcp, AMBROSE_GAP_THRESHOLD } from "@/lib/utils";
+import { teamFromCurrentPlayers } from "@/lib/local-comp-team";
 
 interface Player {
   id: string;
@@ -41,6 +43,15 @@ export function SavedTeams() {
   const [newTeamName, setNewTeamName] = useState("");
   const [newPlayer1, setNewPlayer1] = useState("");
   const [newPlayer2, setNewPlayer2] = useState("");
+  const [useCurrentPlayers, setUseCurrentPlayers] = useState(false);
+
+  function openTeamDialog(currentPlayers: boolean) {
+    setUseCurrentPlayers(currentPlayers);
+    setNewTeamName("");
+    setNewPlayer1("");
+    setNewPlayer2("");
+    setTeamDialogOpen(true);
+  }
 
   // ---------------- Players ----------------
   const [playerDialogOpen, setPlayerDialogOpen] = useState(false);
@@ -156,16 +167,32 @@ export function SavedTeams() {
 
   const addTeamMutation = useMutation({
     mutationFn: async () => {
-      const p1 = newPlayer1.trim();
-      const p2 = newPlayer2.trim();
-      const name = newTeamName.trim();
+      let teamPayload = {
+        team_name: newTeamName.trim(),
+        player1_name: newPlayer1.trim(),
+        player2_name: newPlayer2.trim(),
+        player1_handicap: 0,
+        player2_handicap: 0,
+      };
+      if (useCurrentPlayers) {
+        const { data: currentPlayers, error } = await supabase
+          .from("local_comp_players")
+          .select("id, name, handicap")
+          .in("id", [newPlayer1, newPlayer2]);
+        if (error) throw error;
+        teamPayload = teamFromCurrentPlayers(newTeamName, newPlayer1, newPlayer2, currentPlayers || []);
+      }
+      const p1 = teamPayload.player1_name;
+      const p2 = teamPayload.player2_name;
+      const name = teamPayload.team_name;
       if (!p1 || !p2 || !name) throw new Error("All fields are required");
 
       const p1Lower = p1.toLowerCase();
       const p2Lower = p2.toLowerCase();
-      const { data: existing } = await supabase
+      const { data: existing, error: duplicateError } = await supabase
         .from("local_comp_saved_teams")
         .select("team_name, player1_name, player2_name");
+      if (duplicateError) throw duplicateError;
       const duplicate = (existing || []).find((t) => {
         const a = (t.player1_name || "").trim().toLowerCase();
         const b = (t.player2_name || "").trim().toLowerCase();
@@ -175,15 +202,10 @@ export function SavedTeams() {
         throw new Error(`This pairing is already registered as "${duplicate.team_name}".`);
       }
 
-      const { error: teamError } = await supabase.from("local_comp_saved_teams").insert({
-        team_name: name,
-        player1_name: p1,
-        player2_name: p2,
-        player1_handicap: 0,
-        player2_handicap: 0,
-      });
+      const { error: teamError } = await supabase.from("local_comp_saved_teams").insert(teamPayload);
       if (teamError) throw teamError;
 
+      if (useCurrentPlayers) return;
       for (const playerName of [p1, p2]) {
         const { error: playerErr } = await supabase.from("local_comp_players").insert({
           name: playerName,
@@ -254,7 +276,7 @@ export function SavedTeams() {
                 className="gap-2"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setTeamDialogOpen(true);
+                  openTeamDialog(false);
                 }}
               >
                 <Plus className="h-4 w-4" /> Add Team
@@ -342,14 +364,27 @@ export function SavedTeams() {
       <Card>
         <Collapsible open={playersOpen} onOpenChange={setPlayersOpen}>
           <CollapsibleTrigger asChild>
-            <CardHeader className="flex flex-row items-center justify-between cursor-pointer hover:bg-muted/40 transition-colors">
+            <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 cursor-pointer hover:bg-muted/40 transition-colors">
               <CardTitle className="flex items-center gap-2 text-lg">
                 <User className="h-5 w-5" /> Players ({players.length})
                 <ChevronDown
                   className={`h-4 w-4 transition-transform ${playersOpen ? "rotate-180" : ""}`}
                 />
               </CardTitle>
-              <Button
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-2"
+                  disabled={playersLoading || players.length < 2}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openTeamDialog(true);
+                  }}
+                >
+                  <Users className="h-4 w-4" /> Create Team
+                </Button>
+                <Button
                 onClick={(e) => {
                   e.stopPropagation();
                   openCreatePlayer();
@@ -358,7 +393,8 @@ export function SavedTeams() {
                 className="gap-2"
               >
                 <Plus className="h-4 w-4" /> Add Player
-              </Button>
+                </Button>
+              </div>
             </CardHeader>
           </CollapsibleTrigger>
           <CollapsibleContent>
@@ -471,7 +507,7 @@ export function SavedTeams() {
       <Dialog open={teamDialogOpen} onOpenChange={setTeamDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add Team</DialogTitle>
+            <DialogTitle>{useCurrentPlayers ? "Create Team" : "Add Team"}</DialogTitle>
           </DialogHeader>
           <form
             onSubmit={(e) => {
@@ -481,28 +517,53 @@ export function SavedTeams() {
             className="space-y-4"
           >
             <div>
-              <Label>Player 1 Full Name</Label>
-              <Input
+              <Label htmlFor="team-player-1">{useCurrentPlayers ? "Player 1" : "Player 1 Full Name"}</Label>
+              {useCurrentPlayers ? (
+                <Select value={newPlayer1} onValueChange={setNewPlayer1}>
+                  <SelectTrigger id="team-player-1"><SelectValue placeholder="Select current player" /></SelectTrigger>
+                  <SelectContent>
+                    {players.map((player) => (
+                      <SelectItem key={player.id} value={player.id} disabled={player.id === newPlayer2}>
+                        {player.name} — HCP {formatLocalHcp(player.handicap)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : <Input
+                id="team-player-1"
                 value={newPlayer1}
                 onChange={(e) => setNewPlayer1(e.target.value)}
                 placeholder="e.g. John Smith"
                 maxLength={100}
                 required
-              />
+              />}
             </div>
             <div>
-              <Label>Player 2 Full Name</Label>
-              <Input
+              <Label htmlFor="team-player-2">{useCurrentPlayers ? "Player 2" : "Player 2 Full Name"}</Label>
+              {useCurrentPlayers ? (
+                <Select value={newPlayer2} onValueChange={setNewPlayer2}>
+                  <SelectTrigger id="team-player-2"><SelectValue placeholder="Select current player" /></SelectTrigger>
+                  <SelectContent>
+                    {players.map((player) => (
+                      <SelectItem key={player.id} value={player.id} disabled={player.id === newPlayer1}>
+                        {player.name} — HCP {formatLocalHcp(player.handicap)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : <Input
+                id="team-player-2"
                 value={newPlayer2}
                 onChange={(e) => setNewPlayer2(e.target.value)}
                 placeholder="e.g. Jane Doe"
                 maxLength={100}
                 required
-              />
+              />}
             </div>
             <div>
-              <Label>Team Name</Label>
+              <Label htmlFor="new-team-name">Team Name</Label>
               <Input
+                id="new-team-name"
                 value={newTeamName}
                 onChange={(e) => setNewTeamName(e.target.value)}
                 placeholder="e.g. The Eagles"
@@ -510,15 +571,22 @@ export function SavedTeams() {
                 required
               />
             </div>
-            <p className="text-xs text-muted-foreground">
+            {useCurrentPlayers ? (
+              newPlayer1 && newPlayer2 && <p className="text-sm font-medium text-foreground">
+                Combined HCP: {combinedAmbroseHcp(
+                  Number(players.find((p) => p.id === newPlayer1)?.handicap) || 0,
+                  Number(players.find((p) => p.id === newPlayer2)?.handicap) || 0,
+                ).toFixed(2)}
+              </p>
+            ) : <p className="text-xs text-muted-foreground">
               Handicaps default to 0, set them in the Players section after adding.
-            </p>
+            </p>}
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setTeamDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={addTeamMutation.isPending}>
-                {addTeamMutation.isPending ? "Adding..." : "Add Team"}
+              <Button type="submit" disabled={addTeamMutation.isPending || (useCurrentPlayers && (!newPlayer1 || !newPlayer2 || !newTeamName.trim()))}>
+                {addTeamMutation.isPending ? "Adding..." : useCurrentPlayers ? "Create Team" : "Add Team"}
               </Button>
             </DialogFooter>
           </form>
