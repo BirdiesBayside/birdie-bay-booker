@@ -910,7 +910,10 @@ export default function Booking() {
                           <Checkbox 
                             id="partial-hours" 
                             checked={usePartialHours}
-                            onCheckedChange={(checked) => setUsePartialHours(checked === true)}
+                            onCheckedChange={(checked) => {
+                              setPaymentMethodTouched(true);
+                              setUsePartialHours(checked === true);
+                            }}
                           />
                           <Label htmlFor="partial-hours" className="cursor-pointer">
                             <div className="font-medium">Use 1 hour credit to reduce the price</div>
