@@ -623,7 +623,9 @@ export default function Booking() {
     } else {
       setSelectedPaymentMethod("card");
       setUsePartialBalance(false);
-      setUsePartialHours(false);
+      // Auto-tick partial hour credit so the price is reduced by default;
+      // the customer can untick it to save the credit for later.
+      setUsePartialHours(hourCreditBalance > 0);
     }
   }, [depositBalance, hourCreditBalance, hourlyRate, selectedDuration, paymentMethodTouched]);
 
