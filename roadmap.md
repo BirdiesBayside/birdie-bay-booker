@@ -1,6 +1,6 @@
 # Roadmap
 
-- [ ] Stop extension staff notes and size timetable bookings using their actual finish time
+- [x] Stop extension staff notes and size timetable bookings using their actual finish time
 
 - [x] Add conflict-safe complimentary Extend Session in the timetable, in 30-minute increments up to 4 extra hours
 
