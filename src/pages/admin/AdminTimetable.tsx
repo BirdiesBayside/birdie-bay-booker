@@ -45,6 +45,7 @@ import {
   MessageSquare
 } from "lucide-react";
 import { AddBookingDialog } from "@/components/admin/AddBookingDialog";
+import { ExtendSession } from "@/components/admin/ExtendSession";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   AlertDialog,
@@ -1043,7 +1044,7 @@ export default function AdminTimetable() {
                   </div>
                   <div>
                     <p className="text-muted-foreground">Duration</p>
-                    <p className="font-medium">{selectedBooking.duration_hours} hour{selectedBooking.duration_hours > 1 ? "s" : ""}</p>
+                    <p className="font-medium">{((Date.parse(`${selectedBooking.booking_date}T${selectedBooking.end_time}+10:00`) - Date.parse(`${selectedBooking.booking_date}T${selectedBooking.start_time}+10:00`)) / 3600000)} hours</p>
                   </div>
                   <div>
                     <p className="text-muted-foreground">Players</p>
@@ -1144,6 +1145,10 @@ export default function AdminTimetable() {
 
                 {/* Actions */}
                 <div className="flex flex-col gap-2">
+                  <ExtendSession key={`${selectedBooking.id}-${selectedBooking.end_time}`} booking={selectedBooking} onExtended={() => {
+                    setSelectedBooking(null);
+                    fetchBookings(true);
+                  }} />
                   <div className="flex gap-2">
                     <Button 
                       variant="outline" 
