@@ -46,6 +46,7 @@ import {
 } from "lucide-react";
 import { AddBookingDialog } from "@/components/admin/AddBookingDialog";
 import { ExtendSession } from "@/components/admin/ExtendSession";
+import { bookingSlotSpan } from "@/lib/session-extension";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   AlertDialog,
@@ -443,8 +444,7 @@ export default function AdminTimetable() {
   };
 
   const getBookingSlotSpan = (booking: Booking) => {
-    // duration_hours * 2 gives us the number of 30-min slots
-    return booking.duration_hours * 2;
+    return bookingSlotSpan(booking.start_time, booking.end_time);
   };
 
   const isBookingPaid = (booking: Booking) => {
