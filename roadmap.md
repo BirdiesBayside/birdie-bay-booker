@@ -1,6 +1,6 @@
 # Roadmap
 
-- [ ] Add conflict-safe complimentary Extend Session in the timetable, in 30-minute increments up to 4 extra hours
+- [x] Add conflict-safe complimentary Extend Session in the timetable, in 30-minute increments up to 4 extra hours
 
 - [x] Add Create Team within Local Comp Players using current player handicaps
 

@@ -51,10 +51,10 @@ export function ExtendSession({ booking, onExtended }: Props) {
       setError(failure.message);
       setOptions(null);
     } else {
-      const { error: accessError } = await supabase.functions.invoke("door-code-manager", {
+      const { data: accessResult, error: accessError } = await supabase.functions.invoke("door-code-manager", {
         body: { action: "refresh", booking_id: booking.id },
       });
-      toast({ title: "Session extended", description: accessError
+      toast({ title: "Session extended", description: accessError || accessResult?.success === false
         ? "Booking updated. Door access could not be refreshed; check access before the original finish time."
         : `${minutes} minutes added. Booking price unchanged.` });
       onExtended();
