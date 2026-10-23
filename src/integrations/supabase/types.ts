@@ -3704,6 +3704,14 @@ export type Database = {
     }
     Functions: {
       accept_terms: { Args: { _version: string }; Returns: boolean }
+      admin_extend_session: {
+        Args: {
+          p_additional_minutes?: number
+          p_booking_id: string
+          p_expected_end_time: string
+        }
+        Returns: Json
+      }
       claim_booking_notification: {
         Args: { _booking_id: string; _notification_type: string }
         Returns: Json
