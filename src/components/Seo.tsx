@@ -1,6 +1,6 @@
 import { Helmet } from "react-helmet-async";
 
-const SITE_URL = "https://birdiesbayside.com.au";
+const SITE_URL = "https://birdie-bay-bookings.lovable.app";
 
 interface SeoProps {
   title: string;
@@ -25,7 +25,7 @@ const Seo = ({ title, description, path, noindex }: SeoProps) => {
       <meta property="og:url" content={url} />
       <meta name="twitter:title" content={title} />
       <meta name="twitter:description" content={description} />
-      {noindex && <meta name="robots" content="noindex, nofollow" />}
+      <meta name="robots" content={noindex ? "noindex, nofollow" : "index, follow"} />
     </Helmet>
   );
 };
