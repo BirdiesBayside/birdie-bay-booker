@@ -1,5 +1,8 @@
 # Roadmap
 
+- [ ] Check SEO foundations and fix sitemap, page metadata and public content structure
+- [ ] Verify Google Search Console access and setup
+
 - [x] Stop extension staff notes and size timetable bookings using their actual finish time
 
 - [x] Add conflict-safe complimentary Extend Session in the timetable, in 30-minute increments up to 4 extra hours

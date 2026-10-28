@@ -66,7 +66,7 @@ const MarketingMembership = () => (
               </span>
             )}
             <p className="text-xs uppercase tracking-wider mb-2 text-foreground/60">{t.tag}</p>
-            <h3 className="font-display text-4xl uppercase tracking-wide mb-1">{t.name}</h3>
+            <h2 className="font-display text-4xl uppercase tracking-wide mb-1">{t.name}</h2>
             <div className="mb-5">
               <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold bg-accent/10 text-accent border border-accent/20">
                 <Clock className="h-3.5 w-3.5" />

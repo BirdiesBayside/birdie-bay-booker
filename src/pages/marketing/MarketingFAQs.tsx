@@ -58,7 +58,7 @@ const MarketingFAQs = () => (
       <div className="container mx-auto px-4 max-w-3xl">
         {groups.map((group) => (
           <div key={group.section} className="mb-10">
-            <h3 className="font-display text-sm uppercase tracking-[0.2em] text-accent mb-4">{group.section}</h3>
+            <h2 className="font-display text-sm uppercase tracking-[0.2em] text-accent mb-4">{group.section}</h2>
             <Accordion type="single" collapsible className="space-y-2">
               {group.items.map((item, i) => (
                 <AccordionItem
@@ -79,7 +79,7 @@ const MarketingFAQs = () => (
         ))}
 
         <div className="bg-card border border-border rounded-2xl p-8 text-center mt-12">
-          <h3 className="font-display text-2xl text-primary mb-3">Still have a question?</h3>
+          <h2 className="font-display text-2xl text-primary mb-3">Still have a question?</h2>
           <p className="text-foreground/70 mb-5">Drop us a line, we usually reply within the hour.</p>
           <a
             href="mailto:info@birdiesbayside.com.au"
