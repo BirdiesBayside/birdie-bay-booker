@@ -74,6 +74,7 @@ import { GiftCardsSection } from "@/components/admin/GiftCardsSection";
 import { CreditTransactionHistory } from "@/components/admin/CreditTransactionHistory";
 import { MembersSection } from "@/components/admin/MembersSection";
 import { format } from "date-fns";
+import { formatBrisbane } from "@/lib/brisbane-time";
 
 interface Customer {
   id: string;
@@ -161,6 +162,24 @@ export default function AdminCustomers() {
   const [showCancelMembershipConfirm, setShowCancelMembershipConfirm] = useState(false);
   const [sendCancellationEmail, setSendCancellationEmail] = useState(true);
   const [isCancellingMembership, setIsCancellingMembership] = useState(false);
+  const [cancellationPreview, setCancellationPreview] = useState<{ scheduled: boolean; ends_at: string } | null>(null);
+  const [cancellationPreviewError, setCancellationPreviewError] = useState("");
+  const [loadingCancellationPreview, setLoadingCancellationPreview] = useState(false);
+
+  useEffect(() => {
+    if (!showCancelMembershipConfirm || !selectedCustomer) return;
+    let cancelled = false;
+    setCancellationPreview(null);
+    setCancellationPreviewError("");
+    setLoadingCancellationPreview(true);
+    supabase.functions.invoke("cancel-membership", { body: { user_id: selectedCustomer.user_id, preview: true } })
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error || data?.error) setCancellationPreviewError(data?.error || "Could not verify paid membership time. Please try again.");
+        else setCancellationPreview(data);
+      }).finally(() => { if (!cancelled) setLoadingCancellationPreview(false); });
+    return () => { cancelled = true; };
+  }, [showCancelMembershipConfirm, selectedCustomer?.user_id]);
 
   // Make admin state
   const [isTogglingAdmin, setIsTogglingAdmin] = useState(false);
@@ -1008,24 +1027,18 @@ export default function AdminCustomers() {
       if (data?.error) throw new Error(data.error);
 
       toast({
-        title: "Membership cancelled",
-        description: `${selectedCustomer.first_name}'s membership has been cancelled.`,
+        title: data.scheduled ? "Cancellation scheduled" : "Membership cancelled",
+        description: data.scheduled
+          ? `${selectedCustomer.first_name} remains a member until ${formatBrisbane(data.ends_at)} Brisbane time. No further renewal.`
+          : `${selectedCustomer.first_name}'s paid membership time has ended.`,
         duration: 4000,
       });
 
-      // Update local state
-      setCustomers(prev =>
-        prev.map(c =>
-          c.id === selectedCustomer.id
-            ? { ...c, membership_tier: "visitor" }
-            : c
-        )
-      );
-      
-      setSelectedCustomer({
-        ...selectedCustomer,
-        membership_tier: "visitor",
-      });
+      // Scheduled cancellation keeps the existing membership tier until Stripe ends it.
+      if (!data.scheduled) {
+        setCustomers(prev => prev.map(c => c.id === selectedCustomer.id ? { ...c, membership_tier: "visitor" } : c));
+        setSelectedCustomer({ ...selectedCustomer, membership_tier: "visitor" });
+      }
       
       setShowCancelMembershipConfirm(false);
     } catch (error: any) {
@@ -1561,7 +1574,7 @@ export default function AdminCustomers() {
                         <div>
                           <div className="text-sm font-medium text-destructive">Cancel Membership</div>
                           <div className="text-xs text-muted-foreground">
-                            Cancel subscription and revert to visitor
+                            Stop renewal at the end of the paid week
                           </div>
                         </div>
                         <Button
@@ -1880,7 +1893,9 @@ export default function AdminCustomers() {
             <AlertDialogHeader>
               <AlertDialogTitle>Cancel membership?</AlertDialogTitle>
               <AlertDialogDescription>
-                This will cancel {selectedCustomer?.first_name}'s Stripe subscription and revert their account to visitor status.
+                {loadingCancellationPreview ? "Checking the last successful payment…" : cancellationPreviewError || (cancellationPreview?.scheduled
+                  ? `${selectedCustomer?.first_name} remains a member until ${formatBrisbane(cancellationPreview.ends_at)} Brisbane time, seven days after the last successful payment. Renewal will stop.`
+                  : "There is no remaining paid membership time. Cancellation takes effect immediately. Existing missed-payment restrictions remain unchanged.")}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <div className="py-4">
@@ -1889,17 +1904,17 @@ export default function AdminCustomers() {
                   checked={sendCancellationEmail}
                   onCheckedChange={(checked) => setSendCancellationEmail(!!checked)}
                 />
-                Send cancellation notification email
+                Send cancellation notification email when membership ends
               </label>
             </div>
             <AlertDialogFooter>
               <AlertDialogCancel disabled={isCancellingMembership}>Keep Membership</AlertDialogCancel>
               <AlertDialogAction
                 onClick={cancelMembership}
-                disabled={isCancellingMembership}
+                disabled={isCancellingMembership || loadingCancellationPreview || !cancellationPreview}
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
-                {isCancellingMembership ? "Cancelling..." : "Cancel Membership"}
+                {isCancellingMembership ? "Cancelling..." : cancellationPreview?.scheduled ? "Schedule Cancellation" : "Cancel Membership"}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

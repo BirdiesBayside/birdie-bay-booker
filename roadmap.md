@@ -1,5 +1,7 @@
 # Roadmap
 
+- [x] Schedule voluntary membership cancellation seven days after the last successful payment; preserve benefits until expiry and retain missed-payment handling — deployed, four tests passed, Alex’s authenticated preview verified without cancelling him
+
 - [x] Check SEO foundations and fix sitemap, page metadata and public content structure; verified 12 public pages
 - [ ] Finish Google Search Console verification and sitemap submission — connection linked and tag prepared; waiting for publication of the tag and sitemap
 

@@ -505,7 +505,7 @@ serve(async (req) => {
         await removeFromSGT(supabaseAdmin, email);
 
         // Send ONE cancellation email — different content for payment failure vs voluntary
-        if (resend) {
+        if (resend && (isPaymentFailure || subscription.metadata?.send_cancellation_email !== "false")) {
           const templateKey = isPaymentFailure ? "membership_payment_failed" : "membership_cancelled";
           const { data: emailTemplate } = await supabaseAdmin
             .from("email_templates")
