@@ -2,7 +2,7 @@ import Stripe from "npm:stripe@18.5.0";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { z } from "npm:zod@3";
-import { cancellationPlan } from "./cancellation.ts";
+import { cancellationPlan, scheduledCancellationSettings } from "./cancellation.ts";
 
 const BodySchema = z.object({
   user_id: z.string().uuid(),
@@ -83,11 +83,7 @@ Deno.serve(async (req) => {
     if (!preview) {
       for (const plan of plans) {
         if (plan.scheduled) {
-          await stripe.subscriptions.update(plan.sub.id, {
-            cancel_at: plan.endsAt,
-            proration_behavior: "none",
-            metadata: { cancellation_reason: "voluntary", send_cancellation_email: String(send_notification) },
-          });
+          await stripe.subscriptions.update(plan.sub.id, scheduledCancellationSettings(plan.endsAt, send_notification));
           logStep("Scheduled cancellation", { subscriptionId: plan.sub.id, endsAt: plan.endsAt });
         } else {
           // Do not clear payment_failed_at or interfere with invoice/booking handling.
