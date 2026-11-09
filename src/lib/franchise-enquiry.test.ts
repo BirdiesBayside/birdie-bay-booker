@@ -14,3 +14,9 @@ test("requires all six enquiry fields", () => {
 test("notifications go to the requested franchise inbox", () => {
   assert.equal(franchiseRecipient, "franchising@birdiesbayside.com.au");
 });
+test("comments are optional and preserve entered comments", () => {
+  assert.equal(franchiseEnquirySchema.parse(enquiry).comments, "");
+  assert.equal(franchiseEnquirySchema.parse({ ...enquiry, comments: "" }).comments, "");
+  assert.equal(franchiseEnquirySchema.parse({ ...enquiry, comments: "Interested in a venue.\nPlease call me." }).comments, "Interested in a venue.\nPlease call me.");
+  assert.equal(franchiseEnquirySchema.safeParse({ ...enquiry, comments: "a".repeat(2001) }).success, false);
+});
