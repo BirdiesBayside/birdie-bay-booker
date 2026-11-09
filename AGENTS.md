@@ -1,5 +1,7 @@
 # Architecture rules
 
+- Franchise enquiries are validated and stored server-side before notifying the fixed franchise inbox through the existing Resend service; retain failed deliveries for owner review rather than losing leads.
+
 - Voluntary membership cancellation is planned from verified paid Stripe invoices by `cancel-membership`; preserve the profile tier until Stripe's subscription-deleted webhook, which owns final downgrade and notification. Preview and execution share the same server-side plan; never clear payment-failure flags during cancellation.
 
 - Public marketing metadata uses the shared Seo component with route-owned canonical URLs; keep static social fallbacks and business JSON-LD in index.html, without a second static canonical, to avoid duplicate page identities.

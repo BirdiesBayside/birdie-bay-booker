@@ -140,6 +140,10 @@
 }
 
 @layer utilities {
+  .franchise-photo-shade {
+    background: linear-gradient(90deg, hsl(var(--venue-panel) / 0.88), hsl(var(--venue-panel) / 0.15)), linear-gradient(0deg, hsl(var(--venue-panel) / 0.72), transparent 75%);
+  }
+
   .text-balance {
     text-wrap: balance;
   }

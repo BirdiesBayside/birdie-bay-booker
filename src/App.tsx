@@ -67,6 +67,8 @@ const MarketingMembership = lazy(() => import("./pages/marketing/MarketingMember
 const MarketingLeague = lazy(() => import("./pages/marketing/MarketingLeague"));
 const MarketingCompete = lazy(() => import("./pages/marketing/MarketingCompete"));
 const MarketingContact = lazy(() => import("./pages/marketing/MarketingContact"));
+const MarketingFranchising = lazy(() => import("./pages/marketing/MarketingFranchising"));
+const FranchiseEnquiry = lazy(() => import("./pages/marketing/FranchiseEnquiry"));
 const MarketingFAQs = lazy(() => import("./pages/marketing/MarketingFAQs"));
 const MarketingStaffedHours = lazy(() => import("./pages/marketing/MarketingStaffedHours"));
 const MarketingGateAccess = lazy(() => import("./pages/marketing/MarketingGateAccess"));
@@ -299,6 +301,8 @@ const App = () => (
             <Route path="/league-info" element={<MarketingLeague />} />
             <Route path="/compete-info" element={<MarketingCompete />} />
             <Route path="/contact" element={<MarketingContact />} />
+            <Route path="/franchising" element={<MarketingFranchising />} />
+            <Route path="/franchising/enquire" element={<FranchiseEnquiry />} />
             <Route path="/faqs" element={<MarketingFAQs />} />
             <Route path="/staffed-hours" element={<MarketingStaffedHours />} />
             <Route path="/gate-access" element={<MarketingGateAccess />} />

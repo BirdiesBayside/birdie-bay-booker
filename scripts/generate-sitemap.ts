@@ -7,7 +7,7 @@ const BASE_URL = "https://birdie-bay-bookings.lovable.app";
 // Do not invent lastmod dates from build time; add only verified page-specific dates.
 const entries = [
   "/", "/about", "/membership-info", "/league-info", "/compete-info",
-  "/contact", "/faqs", "/staffed-hours", "/gate-access", "/whats-on",
+  "/contact", "/franchising", "/faqs", "/staffed-hours", "/gate-access", "/whats-on",
   "/gift", "/privacy",
 ];
 
