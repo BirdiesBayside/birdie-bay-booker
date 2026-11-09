@@ -33,8 +33,8 @@ export default function MarketingFranchising() {
     </section>
 
     <section className="bg-birdies-green text-birdies-cream border-t border-birdies-cream/15">
-      <div className="max-w-7xl mx-auto px-6 sm:px-10 py-6 grid grid-cols-2 lg:grid-cols-4 gap-5 text-sm font-display uppercase">
-        {["Purpose-built technology", "Automation-led operations", "Training & ongoing support", "Community at the core"].map(text => <div key={text} className="flex gap-3 items-center"><Check className="h-4 w-4 text-accent shrink-0" />{text}</div>)}
+      <div className="max-w-7xl mx-auto px-6 sm:px-10 py-8 sm:py-10 grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-6 sm:gap-y-8 text-xl sm:text-2xl lg:text-3xl leading-tight font-display uppercase">
+        {["Purpose-built technology", "Automation-led operations", "Training & ongoing support", "Community at the core"].map(text => <div key={text} className="flex gap-4 items-center"><Check className="h-6 w-6 sm:h-7 sm:w-7 text-accent shrink-0" />{text}</div>)}
       </div>
     </section>
 
