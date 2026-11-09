@@ -1,6 +1,7 @@
 import { Phone, Mail, MapPin, Facebook, Instagram } from "lucide-react";
 import birdiesLogo from "@/assets/birdies-logo.png";
 import googlePlayBadge from "@/assets/google-play-badge.svg";
+import { Link } from "react-router-dom";
 
 const APP_STORE_BADGE_URL =
   "https://tools.applemediaservices.com/api/badges/download-on-the-app-store/white/en-au?size=250x83";
@@ -80,6 +81,7 @@ const SiteFooter = () => {
           >
             Open The Hub
           </a>
+          <Link to="/franchising" className="block mt-5 text-sm text-primary-foreground/85 hover:text-accent underline">Indoor golf franchise opportunities</Link>
         </div>
       </div>
 

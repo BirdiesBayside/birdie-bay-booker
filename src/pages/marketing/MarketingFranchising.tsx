@@ -20,14 +20,14 @@ const advantages = [
 
 export default function MarketingFranchising() {
   return <MarketingLayout>
-    <Seo title="Birdies Franchising | Own an Indoor Golf Business" description="Build your indoor golf business with Birdies. Explore our premium venue model, purpose-built technology, training and franchise support." path="/franchising" />
+    <Seo title="Indoor Golf Simulator Franchise Australia | Birdies" description="Open an indoor golf simulator centre with Birdies. Explore our Australian franchise opportunity, venue design, automated booking technology and ongoing support." path="/franchising" />
     <section className="relative isolate overflow-hidden min-h-[500px] h-[72svh] max-h-[800px] flex items-end bg-venue-panel text-birdies-cream">
       <img src={venue.url} alt="Birdies indoor golf venue with three simulator bays and lounge seating" className="absolute inset-0 -z-20 h-full w-full object-cover object-center" fetchPriority="high" />
       <div className="absolute inset-0 -z-10 franchise-photo-shade" />
       <div className="max-w-7xl w-full mx-auto px-6 sm:px-10 pb-12 sm:pb-16 motion-safe:animate-fade-in">
         <p className="text-accent font-semibold text-xs uppercase mb-5">Indoor golf. Redefined.</p>
         <h1 className="text-5xl sm:text-7xl lg:text-8xl leading-[1.05] max-w-3xl">Birdies<br />Franchising<span className="text-accent">.</span></h1>
-        <p className="max-w-lg text-base sm:text-lg leading-relaxed mt-6 mb-7 text-birdies-cream/90">Your own indoor golf business.<br />The Birdies system behind you.</p>
+        <p className="max-w-lg text-base sm:text-lg leading-relaxed mt-6 mb-7 text-birdies-cream/90">Your own indoor golf simulator centre.<br />An Australian franchise. The Birdies system behind you.</p>
         <Enquire text="Become a franchise partner" />
       </div>
     </section>
@@ -41,7 +41,7 @@ export default function MarketingFranchising() {
     <section className="bg-background py-16 sm:py-24">
       <div className="max-w-7xl mx-auto px-6 sm:px-10 grid lg:grid-cols-[1.15fr_1fr] gap-10 lg:gap-20">
         <div><p className="text-accent text-xs font-semibold uppercase mb-4">The business behind the bays</p><h2 className="text-4xl sm:text-5xl leading-tight">The simulator is<br />only the beginning.</h2></div>
-        <div className="space-y-5 text-foreground/80 leading-relaxed"><p>Opening an indoor golf studio is one thing. Building a venue that attracts players, turns them into regulars and keeps them coming back is another.</p><p>Birdies brings the whole picture together: venue design, technology, automation, memberships, marketing and community. Developed in a real commercial venue in Redland Bay, it’s a business system built around the experience on both sides of the bay.</p><p className="font-semibold text-foreground">Build your local business without building every system from scratch.</p></div>
+        <div className="space-y-5 text-foreground/80 leading-relaxed"><p>Thinking about opening an indoor golf simulator centre in Australia? Building a venue that attracts players, turns them into regulars and keeps them coming back takes more than buying simulators.</p><p>Birdies brings the whole picture together: venue design, technology, automation, memberships, marketing and community. Developed in a real commercial venue in Redland Bay, Queensland, it’s a business system built around the experience on both sides of the bay.</p><p className="font-semibold text-foreground">Build your local business without building every system from scratch.</p></div>
       </div>
     </section>
 
@@ -65,6 +65,21 @@ export default function MarketingFranchising() {
       <img src={community.url} alt="Birdies branded table and refreshments overlooking a golf simulator" className="absolute inset-0 -z-20 w-full h-full object-cover" loading="lazy" />
       <div className="absolute inset-0 -z-10 franchise-photo-shade" />
       <div className="max-w-7xl mx-auto px-6 sm:px-10 py-20 sm:py-28"><div className="max-w-xl"><p className="text-accent text-xs font-semibold uppercase mb-4">The right partnership</p><h2 className="text-4xl sm:text-5xl leading-tight">Local leadership.<br />Birdies backing.</h2><p className="mt-6 mb-5 leading-relaxed text-birdies-cream/90">You bring the drive, commercial discipline and a genuine interest in golf and community. We bring the design, systems, training and support.</p><p className="mb-8 leading-relaxed text-birdies-cream/90">Whether you’re a hands-on owner-operator or a commercially engaged investor, your role is to build the local culture, grow the player base and uphold the Birdies standard.</p><Enquire text="Start the conversation" /></div></div>
+    </section>
+
+    <section className="bg-background py-16 sm:py-24">
+      <div className="max-w-7xl mx-auto px-6 sm:px-10 grid lg:grid-cols-[0.8fr_1.2fr] gap-10 lg:gap-20">
+        <div><p className="text-accent text-xs font-semibold uppercase mb-4">Explore the opportunity</p><h2 className="text-4xl sm:text-5xl leading-tight">Opening an indoor<br />golf centre?</h2><p className="mt-6 text-foreground/80 leading-relaxed">A few things to consider when choosing how to build your golf simulator business.</p></div>
+        <div className="space-y-7">
+          {[
+            ["Why choose an indoor golf franchise instead of going it alone?", "An independent centre means creating your own brand, choosing suppliers and connecting your booking, membership and operating systems. A Birdies franchise brings these elements together with a venue blueprint, training and ongoing support, while you lead your local business."],
+            ["What support does Birdies provide to open a golf simulator centre?", "Support covers site selection and lease guidance, venue design, supplier relationships, technology, operator training and marketing assets. The Birdies Hub connects bookings, memberships and bay automation, with ongoing technology and operational support."],
+            ["Do I need to have a location secured?", "You can start by sharing the suburb or region you have in mind. Site selection support is part of the Birdies model, and your proposed location can be discussed with the team during the enquiry process."],
+            ["What does it cost to start an indoor golf franchise?", "Investment depends on the site, venue size, fitout and equipment requirements. Share your investment range in the enquiry form so the team can discuss your plans. Detailed cost ranges, fees and disclosure information are provided during the franchise process."],
+          ].map(([question, answer]) => <article key={question} className="border-t border-border pt-6"><h3 className="text-xl sm:text-2xl mb-3">{question}</h3><p className="text-foreground/80 leading-relaxed text-sm sm:text-base">{answer}</p></article>)}
+          <p className="text-sm text-muted-foreground">Looking for somewhere to play instead? <Link to="/about" className="text-accent underline">Explore our Redland Bay indoor golf centre</Link>.</p>
+        </div>
+      </div>
     </section>
 
     <section className="bg-birdies-green text-birdies-cream py-16 sm:py-24">
