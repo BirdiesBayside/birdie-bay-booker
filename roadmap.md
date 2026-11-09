@@ -1,7 +1,7 @@
 # Roadmap
 
-- [ ] Build Franchising page, Contact submenu, four-photo presentation and validated enquiry form
-- [ ] Verify franchise enquiry storage and delivery to franchising@birdiesbayside.com.au
+- [x] Build Franchising page, Contact submenu, four-photo presentation and validated enquiry form
+- [x] Verify franchise enquiry storage and delivery to franchising@birdiesbayside.com.au
 
 - [x] Schedule voluntary membership cancellation seven days after the last successful payment; preserve benefits until expiry and retain missed-payment handling — deployed, four tests passed, Alex’s authenticated preview verified without cancelling him
 
