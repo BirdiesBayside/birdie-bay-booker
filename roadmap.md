@@ -1,5 +1,7 @@
 # Roadmap
 
+- [ ] Improve franchise search relevance for Australian indoor golf simulator business searches and verify page metadata
+
 - [x] Build Franchising page, Contact submenu, four-photo presentation and validated enquiry form
 - [x] Verify franchise enquiry storage and delivery to franchising@birdiesbayside.com.au
 
