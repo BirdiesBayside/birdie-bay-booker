@@ -67,6 +67,8 @@ const MarketingMembership = lazy(() => import("./pages/marketing/MarketingMember
 const MarketingLeague = lazy(() => import("./pages/marketing/MarketingLeague"));
 const MarketingCompete = lazy(() => import("./pages/marketing/MarketingCompete"));
 const MarketingContact = lazy(() => import("./pages/marketing/MarketingContact"));
+const MarketingFranchising = lazy(() => import("./pages/marketing/MarketingFranchising"));
+const FranchiseEnquiry = lazy(() => import("./pages/marketing/FranchiseEnquiry"));
 const MarketingFAQs = lazy(() => import("./pages/marketing/MarketingFAQs"));
 const MarketingStaffedHours = lazy(() => import("./pages/marketing/MarketingStaffedHours"));
 const MarketingGateAccess = lazy(() => import("./pages/marketing/MarketingGateAccess"));
@@ -82,6 +84,7 @@ const AdminSettings = lazy(() => import("./pages/admin/AdminSettings"));
 const AdminBulkEmail = lazy(() => import("./pages/admin/AdminBulkEmail"));
 const AdminBayControl = lazy(() => import("./pages/admin/AdminBayControl"));
 const AdminMarketing = lazy(() => import("./pages/admin/AdminMarketing"));
+const AdminFranchiseEnquiries = lazy(() => import("./pages/admin/AdminFranchiseEnquiries"));
 const AdminCustomerImport = lazy(() => import("./pages/admin/AdminCustomerImport"));
 const AdminAnnouncements = lazy(() => import("./pages/admin/AdminAnnouncements"));
 const AdminSGTManager = lazy(() => import("./pages/admin/AdminSGTManager"));
@@ -299,6 +302,8 @@ const App = () => (
             <Route path="/league-info" element={<MarketingLeague />} />
             <Route path="/compete-info" element={<MarketingCompete />} />
             <Route path="/contact" element={<MarketingContact />} />
+            <Route path="/franchising" element={<MarketingFranchising />} />
+            <Route path="/franchising/enquire" element={<FranchiseEnquiry />} />
             <Route path="/faqs" element={<MarketingFAQs />} />
             <Route path="/staffed-hours" element={<MarketingStaffedHours />} />
             <Route path="/gate-access" element={<MarketingGateAccess />} />
@@ -311,6 +316,7 @@ const App = () => (
             <Route path="/admin/pos" element={<AdminPOS />} />
             <Route path="/admin/bay-control" element={<AdminBayControl />} />
             <Route path="/admin/marketing" element={<AdminMarketing />} />
+            <Route path="/admin/franchise-enquiries" element={<AdminFranchiseEnquiries />} />
             <Route path="/admin/announcements" element={<AdminAnnouncements />} />
             <Route path="/admin/settings" element={<AdminSettings />} />
             <Route path="/admin/bulk-email" element={<AdminBulkEmail />} />
