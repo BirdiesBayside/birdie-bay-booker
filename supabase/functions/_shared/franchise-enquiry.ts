@@ -8,6 +8,7 @@ export const franchiseEnquirySchema = z.object({
   region: z.string().trim().min(1, "Enter your state or region").max(100),
   location: z.string().trim().min(1, "Enter your desired location").max(200),
   budget: z.enum(investmentBudgets),
+  comments: z.string().trim().max(2000, "Comments must be 2,000 characters or fewer").optional().default(""),
 });
 
 export const franchiseRecipient = "franchising@birdiesbayside.com.au";
