@@ -15,6 +15,13 @@
       "when": 1792716306196,
       "tag": "0001_extend_session_preserve_staff_notes",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794267144828,
+      "tag": "0002_create_franchise_enquiries",
+      "breakpoints": true
     }
   ]
 }

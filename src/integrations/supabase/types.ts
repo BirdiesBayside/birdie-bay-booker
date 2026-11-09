@@ -1154,6 +1154,48 @@ export type Database = {
         }
         Relationships: []
       }
+      franchise_enquiries: {
+        Row: {
+          budget: string
+          created_at: string
+          email: string
+          email_error: string | null
+          email_message_id: string | null
+          email_status: string
+          id: string
+          location: string
+          name: string
+          phone: string
+          region: string
+        }
+        Insert: {
+          budget: string
+          created_at?: string
+          email: string
+          email_error?: string | null
+          email_message_id?: string | null
+          email_status?: string
+          id?: string
+          location: string
+          name: string
+          phone: string
+          region: string
+        }
+        Update: {
+          budget?: string
+          created_at?: string
+          email?: string
+          email_error?: string | null
+          email_message_id?: string | null
+          email_status?: string
+          id?: string
+          location?: string
+          name?: string
+          phone?: string
+          region?: string
+        }
+        Relationships: []
+      }
       gift_cards: {
         Row: {
           amount: number
