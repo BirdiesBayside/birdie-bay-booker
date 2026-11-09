@@ -1157,6 +1157,7 @@ export type Database = {
       franchise_enquiries: {
         Row: {
           budget: string
+          comments: string
           created_at: string
           email: string
           email_error: string | null
@@ -1170,6 +1171,7 @@ export type Database = {
         }
         Insert: {
           budget: string
+          comments?: string
           created_at?: string
           email: string
           email_error?: string | null
@@ -1183,6 +1185,7 @@ export type Database = {
         }
         Update: {
           budget?: string
+          comments?: string
           created_at?: string
           email?: string
           email_error?: string | null

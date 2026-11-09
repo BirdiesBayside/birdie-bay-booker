@@ -10,6 +10,7 @@ const schema = z.object({
   region: z.string().trim().min(1).max(100),
   location: z.string().trim().min(1).max(200),
   budget: z.enum(["$250k – $300k", "$300k - $500k", "$500k - $1M", "Over $1M"]),
+  comments: z.string().trim().max(2000).optional().default(""),
 });
 const escapeHtml = (value: string) => value.replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char] ?? char));
 const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -27,8 +28,8 @@ Deno.serve(async req => {
     try {
       const key = Deno.env.get("RESEND_API_KEY");
       if (!key) throw new Error("Email sending is unavailable");
-      const labels: Record<string, string> = { name: "Name", email: "Email", phone: "Phone", region: "State / Region", location: "Desired Franchise Location", budget: "Investment budget" };
-      const body = Object.entries(parsed.data).map(([field, value]) => `<p><strong>${labels[field]}:</strong> ${escapeHtml(value)}</p>`).join("");
+      const labels: Record<string, string> = { name: "Name", email: "Email", phone: "Phone", region: "State / Region", location: "Desired Franchise Location", budget: "Investment budget", comments: "Comments" };
+      const body = Object.entries(parsed.data).map(([field, value]) => `<p style="white-space:pre-wrap"><strong>${labels[field]}:</strong> ${escapeHtml(value)}</p>`).join("");
       const response = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", "Idempotency-Key": `franchise-enquiry-${row.id}` },

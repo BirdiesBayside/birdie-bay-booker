@@ -1,0 +1,1 @@
+ALTER TABLE public.franchise_enquiries ADD COLUMN comments text NOT NULL DEFAULT '' CHECK (char_length(comments) <= 2000);
