@@ -39,6 +39,7 @@ const navItems = [
   { path: "/admin/local-comps", label: "Local Comps", icon: Target },
   { path: "/admin/analytics", label: "Analytics", icon: BarChart3 },
   { path: "/admin/marketing", label: "Marketing", icon: Mail },
+  { path: "/admin/franchise-enquiries", label: "Franchise Enquiries", icon: Mail },
   { path: "/admin/announcements", label: "Announcements", icon: Bell },
   { path: "/admin/settings", label: "Settings", icon: Settings },
 ];

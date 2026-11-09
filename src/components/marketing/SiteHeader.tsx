@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Menu, X, ChevronDown } from "lucide-react";
 import birdiesLogo from "@/assets/birdies-logo.png";
+import { Button } from "@/components/ui/button";
 
 const playLinks = [
   { to: "/about", label: "About" },
@@ -14,8 +15,9 @@ const topNav = [
   { to: "/membership-info", label: "JOIN" },
   { to: "/gift", label: "Gift cards" },
   { to: "/whats-on", label: "What's On" },
-  { to: "/contact", label: "Contact" },
 ];
+
+const contactLinks = [{ to: "/contact", label: "Contact Us" }, { to: "/franchising", label: "Franchising" }];
 
 const isPlayActive = (pathname: string) =>
   playLinks.some((l) => l.to === pathname);
@@ -118,6 +120,10 @@ const SiteHeader = () => {
               </Link>
             );
           })}
+          <details className="relative group">
+            <summary className={`list-none cursor-pointer flex items-center gap-1 font-display text-sm uppercase ${pathname.startsWith("/franchising") || pathname === "/contact" ? "text-accent" : "text-primary-foreground"}`}>CONTACT<ChevronDown className="h-3.5 w-3.5" /></summary>
+            <div className="absolute top-full right-0 pt-3 w-48 z-50"><div className="bg-primary border border-primary-foreground/20 rounded-md py-1">{contactLinks.map(link => <Link key={link.to} to={link.to} onClick={event => event.currentTarget.closest("details")?.removeAttribute("open")} className="block px-4 py-3 font-display text-sm uppercase hover:text-accent">{link.label}</Link>)}</div></div>
+          </details>
           <a
             href="https://hub.birdiesbayside.com.au/"
             className="ml-2 bg-accent hover:bg-accent/90 text-accent-foreground font-display tracking-wide text-sm uppercase px-5 py-2.5 rounded-md transition-colors whitespace-nowrap"
@@ -201,6 +207,10 @@ const SiteHeader = () => {
                 {n.label}
               </Link>
             ))}
+            <details>
+              <summary className="list-none cursor-pointer flex items-center justify-between font-display uppercase py-3 border-b border-primary-foreground/10">CONTACT<ChevronDown className="h-4 w-4" /></summary>
+              <div className="pl-4 flex flex-col">{contactLinks.map(link => <Button key={link.to} asChild variant="link" className="justify-start text-primary-foreground font-display uppercase"><Link to={link.to}>{link.label}</Link></Button>)}</div>
+            </details>
             <a
               href="https://hub.birdiesbayside.com.au/"
               className="mt-4 bg-accent text-accent-foreground font-display tracking-wide uppercase text-center px-5 py-3 rounded-md"
